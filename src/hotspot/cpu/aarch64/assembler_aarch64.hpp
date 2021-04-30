@@ -427,7 +427,7 @@ class Address {
 
   Register base() const {
     guarantee((_mode == base_plus_offset || _mode == base_plus_offset_reg
-               || _mode == post || _mode == post_reg),
+               || _mode == post || _mode == post_reg || _mode == pre),
               "wrong mode");
     return _base;
   }
@@ -2477,6 +2477,20 @@ public:
   INSN(cmgt,   0, 0b100000100010, 3); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S, T2D
   INSN(cmle,   1, 0b100000100110, 3); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S, T2D
   INSN(cmlt,   0, 0b100000101010, 3); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S, T2D
+
+#undef INSN
+
+#define INSN(NAME, opc) \
+  void NAME(FloatRegister Vd, SIMD_Arrangement T, FloatRegister Vn, FloatRegister Vm) { \
+    guarantee(T != T1Q && T != T1D, "incorrect arrangement");                           \
+    guarantee(T != T2D, "incorrect arrangement");                                       \
+    starti;                                                                             \
+    f(0, 31), f((int)T & 1, 30), f(1, 29), f(0b01110, 28, 24);                          \
+    f((int)T >> 1, 23, 22), f(1, 21), rf(Vm, 16);                                       \
+    f(opc, 15, 10), rf(Vn, 5), rf(Vd, 0);                                               \
+  }
+
+  INSN(umaxp, 0b101001); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S
 
 #undef INSN
 

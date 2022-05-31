@@ -2871,15 +2871,9 @@ void G1CollectedHeap::do_collection_pause_at_safepoint_helper(double target_paus
   // been reset for the next pause.
   bool should_start_concurrent_mark_operation = collector_state()->in_concurrent_start_gc();
 
-  log_debug(gc)("block start stats refine %zu %zu %1.3f", G1BlockOffsetTablePart::_block_start_aligned, G1BlockOffsetTablePart::_block_start, percent_of(G1BlockOffsetTablePart::_block_start_aligned, G1BlockOffsetTablePart::_block_start));
-  G1BlockOffsetTablePart::_block_start_aligned = G1BlockOffsetTablePart::_block_start = 0;
-
   // Perform the collection.
   G1YoungCollector collector(gc_cause(), target_pause_time_ms);
   collector.collect();
-
-  log_debug(gc)("block start stats gc %zu %zu %1.3f", G1BlockOffsetTablePart::_block_start_aligned, G1BlockOffsetTablePart::_block_start, percent_of(G1BlockOffsetTablePart::_block_start_aligned, G1BlockOffsetTablePart::_block_start));
-  G1BlockOffsetTablePart::_block_start_aligned = G1BlockOffsetTablePart::_block_start = 0;
 
   // It should now be safe to tell the concurrent mark thread to start
   // without its logging output interfering with the logging output

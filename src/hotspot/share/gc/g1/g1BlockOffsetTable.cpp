@@ -73,9 +73,6 @@ void G1BlockOffsetTable::check_index(size_t index, const char* msg) const {
 // G1BlockOffsetTablePart
 //////////////////////////////////////////////////////////////////////
 
-size_t G1BlockOffsetTablePart::_block_start = 0;
-size_t G1BlockOffsetTablePart::_block_start_aligned = 0;
-
 G1BlockOffsetTablePart::G1BlockOffsetTablePart(G1BlockOffsetTable* array, HeapRegion* hr) :
   _bot(array),
   _hr(hr)

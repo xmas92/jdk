@@ -137,14 +137,14 @@ private:
 
   void check_all_cards(size_t left_card, size_t right_card) const;
 
-public:
-  static size_t _block_start;
-  static size_t _block_start_aligned;
-
   static HeapWord* align_up_by_card_size(HeapWord* const addr) {
     return align_up(addr, BOTConstants::card_size());
   }
 
+  // Verify that the block starting with q contains addr.
+  void assert_addr_in_block(const void* addr, const HeapWord* q) const NOT_DEBUG_RETURN;
+
+public:
   static bool is_crossing_card_boundary(HeapWord* const obj_start,
                                         HeapWord* const obj_end) {
     HeapWord* cur_card_boundary = align_up_by_card_size(obj_start);

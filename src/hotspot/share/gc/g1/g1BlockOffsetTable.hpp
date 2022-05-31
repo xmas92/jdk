@@ -138,6 +138,9 @@ private:
   void check_all_cards(size_t left_card, size_t right_card) const;
 
 public:
+  static size_t _block_start;
+  static size_t _block_start_aligned;
+
   static HeapWord* align_up_by_card_size(HeapWord* const addr) {
     return align_up(addr, BOTConstants::card_size());
   }
@@ -156,12 +159,11 @@ public:
 
   void verify() const;
 
-  // Returns the address of the start of the block containing "addr", or
-  // else "null" if it is covered by no block.  (May have side effects,
-  // namely updating of shared array entries that "point" too far
-  // backwards.  This can occur, for example, when lab allocation is used
-  // in a space covered by the table.)
-  inline HeapWord* block_start(const void* addr);
+  // Returns the address of the start of the block containing "addr".
+  inline HeapWord* block_start(const void* addr) const;
+  // Returns the address of the start of the block containing "addr", assuming that
+  // the given address is card-aligned.
+  inline HeapWord* block_start_aligned(const void* addr) const;
 
   void update_for_block(HeapWord* blk_start, HeapWord* blk_end) {
     if (is_crossing_card_boundary(blk_start, blk_end)) {

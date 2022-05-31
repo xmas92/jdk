@@ -79,7 +79,11 @@ inline HeapWord* HeapRegion::par_allocate_impl(size_t min_word_size,
   } while (true);
 }
 
-inline HeapWord* HeapRegion::block_start(const void* p) {
+inline HeapWord* HeapRegion::block_start_aligned(const void* p) const {
+  return _bot_part.block_start_aligned(p);
+}
+
+inline HeapWord* HeapRegion::block_start(const void* p) const {
   return _bot_part.block_start(p);
 }
 
@@ -329,8 +333,9 @@ HeapWord* HeapRegion::oops_on_memregion_seq_iterate_careful(MemRegion mr,
   HeapWord* const start = mr.start();
   HeapWord* const end = mr.end();
 
-  // Find the obj that extends onto mr.start().
-  HeapWord* cur = block_start(start);
+  // Find the obj that extends onto mr.start(); in the concurrent phase the start
+  // address is always aligned.
+  HeapWord* cur = is_gc_active ? block_start(start) : block_start_aligned(start);
 
   const G1CMBitMap* const bitmap = g1h->concurrent_mark()->prev_mark_bitmap();
   while (true) {

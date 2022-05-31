@@ -144,8 +144,10 @@ private:
   // This version synchronizes with other calls to par_allocate_impl().
   inline HeapWord* par_allocate_impl(size_t min_word_size, size_t desired_word_size, size_t* actual_word_size);
 
+  HeapWord* block_start_aligned(const void* p) const;
+
 public:
-  HeapWord* block_start(const void* p);
+  HeapWord* block_start(const void* p) const;
 
   void object_iterate(ObjectClosure* blk);
 

@@ -32,11 +32,36 @@
 #include "runtime/atomic.hpp"
 #include "oops/oop.inline.hpp"
 
-inline HeapWord* G1BlockOffsetTablePart::block_start(const void* addr) {
+inline HeapWord* G1BlockOffsetTablePart::block_start(const void* addr) const {
   assert(addr >= _hr->bottom() && addr < _hr->top(), "invalid address");
+//  Atomic::inc(&_block_start, memory_order_relaxed);
   HeapWord* q = block_at_or_preceding(addr);
+  if (is_aligned(addr, BOTConstants::card_size())) {
+//    Atomic::inc(&_block_start_aligned, memory_order_relaxed);
+#ifdef ASSERT
+    assert(q <= addr, "must be");
+    HeapWord* n = q + block_size(q);
+    assert(n > addr, "must be");
+#endif
+    return q;
+  }
   HeapWord* n = q + block_size(q);
   return forward_to_block_containing_addr(q, n, addr);
+}
+
+inline HeapWord* G1BlockOffsetTablePart::block_start_aligned(const void* addr) const {
+  assert(addr >= _hr->bottom() && addr < _hr->top(), "invalid address");
+  assert(is_aligned(addr, BOTConstants::card_size()), "must be");
+//  Atomic::inc(&_block_start, memory_order_relaxed);
+//  Atomic::inc(&_block_start_aligned, memory_order_relaxed);
+
+  HeapWord* q = block_at_or_preceding(addr);
+#ifdef ASSERT
+  assert(q <= addr, "must be");
+  HeapWord* n = q + block_size(q);
+  assert(n > addr, "must be");
+#endif
+  return q;
 }
 
 u_char G1BlockOffsetTable::offset_array(size_t index) const {

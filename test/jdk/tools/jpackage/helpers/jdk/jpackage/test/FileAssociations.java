@@ -50,6 +50,9 @@ final public class FileAssociations {
                 entries.put("icon", icon.toString());
             }
         }
+        if (passAllArguments) {
+            entries.put("pass-all-args", "true");
+        }
         TKit.createPropertiesFile(file, entries);
     }
 
@@ -65,6 +68,11 @@ final public class FileAssociations {
 
     public FileAssociations setIcon(Path v) {
         icon = v;
+        return this;
+    }
+
+    public FileAssociations setPassAllArguments() {
+        passAllArguments = true;
         return this;
     }
 
@@ -101,4 +109,5 @@ final public class FileAssociations {
     final private String suffixName;
     private String description;
     private Path icon;
+    boolean passAllArguments;
 }

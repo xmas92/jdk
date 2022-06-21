@@ -24,10 +24,8 @@
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.List;
-import jdk.jpackage.test.TKit;
-import jdk.jpackage.test.PackageTest;
-import jdk.jpackage.test.PackageType;
-import jdk.jpackage.test.FileAssociations;
+
+import jdk.jpackage.test.*;
 import jdk.jpackage.test.Annotations.Test;
 import jdk.jpackage.test.Annotations.Parameter;
 
@@ -86,6 +84,7 @@ public class FileAssociationsTest {
     @Parameter("false")
     public static void test(boolean includeDescription) {
         PackageTest packageTest = new PackageTest();
+        packageTest.forTypes(PackageType.WIN_EXE);
 
         // Not supported
         packageTest.excludeTypes(PackageType.MAC_DMG);
@@ -93,6 +92,8 @@ public class FileAssociationsTest {
         FileAssociations fa = new FileAssociations("jptest1");
         if (!includeDescription) {
             fa.setDescription(null);
+        } else {
+            fa.setPassAllArguments();
         }
         fa.applyTo(packageTest);
 
@@ -106,7 +107,8 @@ public class FileAssociationsTest {
                 .setIcon(icon)
                 .applyTo(packageTest);
 
-        packageTest.run();
+        packageTest.run(RunnablePackageTest.Action.CREATE, RunnablePackageTest.Action.INSTALL,
+                RunnablePackageTest.Action.VERIFY_INSTALL, RunnablePackageTest.Action.UNINSTALL);
     }
 
     @Test

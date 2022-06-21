@@ -417,6 +417,14 @@ class StandardBundlerParam<T> extends BundlerParamInfo<T> {
                     (s, p) -> Path.of(s)
             );
 
+    static final StandardBundlerParam<Boolean> FA_PASS_ALL_ARGUMENTS =
+            new StandardBundlerParam<>(
+                    "fileAssociation.passAllArguments",
+                    Boolean.class,
+                    params -> false,
+                    (s, p) -> Boolean.valueOf(s)
+            );
+
     @SuppressWarnings("unchecked")
     static final BundlerParamInfo<List<String>> DMG_CONTENT =
             new StandardBundlerParam<>(

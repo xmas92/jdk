@@ -268,14 +268,21 @@ public final class PackageTest extends RunnablePackageTest {
                         .resolve(HelloApp.OUTPUT_FILENAME);
                 Files.deleteIfExists(appOutput);
 
-                TKit.trace(String.format("Use desktop to open [%s] file",
-                        testFile));
-                Desktop.getDesktop().open(testFile.toFile());
-                TKit.waitForFileCreated(appOutput, 7);
-
                 List<String> expectedArgs = new ArrayList<>(List.of(
                         faLauncherDefaultArgs));
                 expectedArgs.add(testFile.toString());
+
+                if (fa.passAllArguments) {
+                    TKit.trace(String.format("Use cmd.exe to open [%s] file with arguments",
+                            testFile));
+                    Executor.of("cmd", "/c", testFile.toString(), "foo", "bar", "baz").execute();
+                    expectedArgs.addAll(List.of("foo", "bar", "baz"));
+                } else {
+                    TKit.trace(String.format("Use desktop to open [%s] file",
+                            testFile));
+                    Desktop.getDesktop().open(testFile.toFile());
+                }
+                TKit.waitForFileCreated(appOutput, 7);
 
                 // Wait a little bit after file has been created to
                 // make sure there are no pending writes into it.

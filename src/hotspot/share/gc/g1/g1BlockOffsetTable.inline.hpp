@@ -38,7 +38,7 @@ inline void G1BlockOffsetTablePart::assert_addr_in_block(const void* addr, const
   const HeapWord* n = q + block_size(q);
   assert(n > addr, "must be");
 }
-#endif 
+#endif
 
 inline HeapWord* G1BlockOffsetTablePart::block_start(const void* addr) const {
   assert(addr >= _hr->bottom() && addr < _hr->top(), "invalid address");

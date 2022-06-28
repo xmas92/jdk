@@ -264,8 +264,8 @@ public final class PackageTest extends RunnablePackageTest {
             withTestFileAssociationsFile(fa, testFile -> {
                 testFile = testFile.toAbsolutePath().normalize();
 
-                final Path appOutput = testFile.getParent()
-                        .resolve(HelloApp.OUTPUT_FILENAME);
+                final Path testDir = testFile.getParent();
+                final Path appOutput = testDir.resolve(HelloApp.OUTPUT_FILENAME);
                 Files.deleteIfExists(appOutput);
 
                 List<String> expectedArgs = new ArrayList<>(List.of(
@@ -273,10 +273,25 @@ public final class PackageTest extends RunnablePackageTest {
                 expectedArgs.add(testFile.toString());
 
                 if (fa.passAllArguments) {
-                    TKit.trace(String.format("Use cmd.exe to open [%s] file with arguments",
-                            testFile));
-                    Executor.of("cmd", "/c", testFile.toString(), "foo", "bar", "baz").execute();
-                    expectedArgs.addAll(List.of("foo", "bar", "baz"));
+                    // write a shortcut and open it with desktop
+                    final Path createShortcutVbs = testDir.resolve("createShortcut.vbs");
+                    final Path shortcutLnk = testDir.resolve("shortcut.lnk");
+                    TKit.createTextFile(createShortcutVbs, List.of(
+                            "Dim sc, shell",
+                            "Set shell = WScript.CreateObject (\"WScript.Shell\")",
+                            "Set sc = shell.CreateShortcut (\"" + shortcutLnk + "\")",
+                            "sc.TargetPath = \"\"\"" + testFile + "\"\"\"",
+                            "sc.Arguments = \"foo \"\"bar baz\"\" boo\"",
+                            "sc.WorkingDirectory = \"\"\"" + testDir + "\"\"\"",
+                            "sc.Save()"
+                    ));
+                    Executor.of("cscript", "/nologo", createShortcutVbs.toString())
+                            .execute();
+                    TKit.assertFileExists(shortcutLnk);
+                    TKit.trace(String.format("Use desktop to open [%s] file",
+                            shortcutLnk));
+                    expectedArgs.addAll(List.of("foo", "bar baz", "boo"));
+                    Desktop.getDesktop().open(shortcutLnk.toFile());
                 } else {
                     TKit.trace(String.format("Use desktop to open [%s] file",
                             testFile));

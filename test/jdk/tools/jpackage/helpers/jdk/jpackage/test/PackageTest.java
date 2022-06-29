@@ -271,32 +271,28 @@ public final class PackageTest extends RunnablePackageTest {
                 List<String> expectedArgs = new ArrayList<>(List.of(
                         faLauncherDefaultArgs));
                 expectedArgs.add(testFile.toString());
+                expectedArgs.add("foo");
+                expectedArgs.add("bar baz");
+                expectedArgs.add("boo");
 
-                if (fa.passAllArguments) {
-                    // write a shortcut and open it with desktop
-                    final Path createShortcutVbs = testDir.resolve("createShortcut.vbs");
-                    final Path shortcutLnk = testDir.resolve("shortcut.lnk");
-                    TKit.createTextFile(createShortcutVbs, List.of(
-                            "Dim sc, shell",
-                            "Set shell = WScript.CreateObject (\"WScript.Shell\")",
-                            "Set sc = shell.CreateShortcut (\"" + shortcutLnk + "\")",
-                            "sc.TargetPath = \"\"\"" + testFile + "\"\"\"",
-                            "sc.Arguments = \"foo \"\"bar baz\"\" boo\"",
-                            "sc.WorkingDirectory = \"\"\"" + testDir + "\"\"\"",
-                            "sc.Save()"
-                    ));
-                    Executor.of("cscript", "/nologo", createShortcutVbs.toString())
-                            .execute();
-                    TKit.assertFileExists(shortcutLnk);
-                    TKit.trace(String.format("Use desktop to open [%s] file",
-                            shortcutLnk));
-                    expectedArgs.addAll(List.of("foo", "bar baz", "boo"));
-                    Desktop.getDesktop().open(shortcutLnk.toFile());
-                } else {
-                    TKit.trace(String.format("Use desktop to open [%s] file",
-                            testFile));
-                    Desktop.getDesktop().open(testFile.toFile());
-                }
+                // write a shortcut and open it with desktop
+                final Path createShortcutVbs = testDir.resolve("createShortcut.vbs");
+                final Path shortcutLnk = testDir.resolve("shortcut.lnk");
+                TKit.createTextFile(createShortcutVbs, List.of(
+                        "Dim sc, shell",
+                        "Set shell = WScript.CreateObject (\"WScript.Shell\")",
+                        "Set sc = shell.CreateShortcut (\"" + shortcutLnk + "\")",
+                        "sc.TargetPath = \"\"\"" + testFile + "\"\"\"",
+                        "sc.Arguments = \"foo \"\"bar baz\"\" boo\"",
+                        "sc.WorkingDirectory = \"\"\"" + testDir + "\"\"\"",
+                        "sc.Save()"
+                ));
+                Executor.of("cscript", "/nologo", createShortcutVbs.toString())
+                        .execute();
+                TKit.assertFileExists(shortcutLnk);
+                TKit.trace(String.format("Use desktop to open [%s] file",
+                        shortcutLnk));
+                Desktop.getDesktop().open(shortcutLnk.toFile());
                 TKit.waitForFileCreated(appOutput, 7);
 
                 // Wait a little bit after file has been created to

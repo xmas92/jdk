@@ -39,7 +39,6 @@ import static jdk.jpackage.internal.StandardBundlerParam.FA_EXTENSIONS;
 import static jdk.jpackage.internal.StandardBundlerParam.FA_CONTENT_TYPE;
 import static jdk.jpackage.internal.StandardBundlerParam.FA_ICON;
 import static jdk.jpackage.internal.StandardBundlerParam.FA_DESCRIPTION;
-import static jdk.jpackage.internal.StandardBundlerParam.FA_PASS_ALL_ARGUMENTS;
 
 final class FileAssociation {
     void verify() {
@@ -95,10 +94,6 @@ final class FileAssociation {
                         assoc.iconPath = icon;
                     }
 
-                    assoc.passAllArguments = Optional.ofNullable(
-                    FA_PASS_ALL_ARGUMENTS.fetchFrom(fa))
-                    .orElse(false);
-
                     return assoc;
                 }).toList();
     }
@@ -108,5 +103,4 @@ final class FileAssociation {
     List<String> mimeTypes;
     List<String> extensions;
     String description;
-    boolean passAllArguments;
 }

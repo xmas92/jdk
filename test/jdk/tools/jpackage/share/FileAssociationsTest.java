@@ -92,8 +92,6 @@ public class FileAssociationsTest {
         FileAssociations fa = new FileAssociations("jptest1");
         if (!includeDescription) {
             fa.setDescription(null);
-        } else {
-            fa.setPassAllArguments();
         }
         fa.applyTo(packageTest);
 

@@ -64,7 +64,6 @@ public class Arguments {
     private static final String FA_CONTENT_TYPE = "mime-type";
     private static final String FA_DESCRIPTION = "description";
     private static final String FA_ICON = "icon";
-    private static final String FA_PASS_ALL_ARGUMENTS = "pass-all-args";
 
     // Mac specific file association keys
     // String
@@ -235,9 +234,6 @@ public class Arguments {
 
             putUnlessNull(args, StandardBundlerParam.FA_ICON.getID(),
                     initialMap.get(FA_ICON));
-
-            putUnlessNull(args, StandardBundlerParam.FA_PASS_ALL_ARGUMENTS.getID(),
-                    initialMap.get(FA_PASS_ALL_ARGUMENTS));
 
             // Mac extended file association arguments
             putUnlessNull(args, MAC_CFBUNDLETYPEROLE,

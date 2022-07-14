@@ -1240,9 +1240,12 @@ int CodeCache::mark_for_deoptimization(Method* dependee) {
 
 void CodeCache::make_marked_nmethods_deoptimized() {
   SweeperBlockingCompiledMethodIterator iter(SweeperBlockingCompiledMethodIterator::only_alive_and_not_unloading);
-  while(iter.next()) {
-    CompiledMethod* nm = iter.method();
-    if (nm->is_marked_for_deoptimization() && !nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
+  CompiledMethod* link = CompiledMethod::take_mark_root();
+  while(link != nullptr) {
+    CompiledMethod* nm = link;
+    link = link->get_next_marked();
+    assert(nm->is_marked_for_deoptimization(), "sanity");
+    if (!nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
       nm->make_not_entrant();
       make_nmethod_deoptimized(nm);
     }

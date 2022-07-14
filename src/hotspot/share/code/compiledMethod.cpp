@@ -50,11 +50,14 @@
 #include "runtime/mutexLocker.hpp"
 #include "runtime/sharedRuntime.hpp"
 
+CompiledMethod* CompiledMethod::_root_mark_link = nullptr;
+
 CompiledMethod::CompiledMethod(Method* method, const char* name, CompilerType type, const CodeBlobLayout& layout,
                                int frame_complete_offset, int frame_size, ImmutableOopMapSet* oop_maps,
                                bool caller_must_gc_arguments, bool compiled)
   : CodeBlob(name, type, layout, frame_complete_offset, frame_size, oop_maps, caller_must_gc_arguments, compiled),
     _mark_for_deoptimization_status(not_marked),
+    _next_mark_link(nullptr),
     _method(method),
     _gc_data(NULL)
 {
@@ -67,6 +70,7 @@ CompiledMethod::CompiledMethod(Method* method, const char* name, CompilerType ty
   : CodeBlob(name, type, CodeBlobLayout((address) this, size, header_size, cb), cb,
              frame_complete_offset, frame_size, oop_maps, caller_must_gc_arguments, compiled),
     _mark_for_deoptimization_status(not_marked),
+    _next_mark_link(nullptr),
     _method(method),
     _gc_data(NULL)
 {
@@ -117,16 +121,29 @@ const char* CompiledMethod::state() const {
 }
 
 //-----------------------------------------------------------------------------
-void CompiledMethod::mark_for_deoptimization(bool inc_recompile_counts) {
+void CompiledMethod::mark_for_deoptimization(bool inc_recompile_counts, bool link_compiled_method) {
   // assert(can_be_deoptimized(), ""); // in some places we check before marking, in others not.
   MutexLocker ml(CompiledMethod_lock->owned_by_self() ? NULL : CompiledMethod_lock,
                  Mutex::_no_safepoint_check_flag);
   if (_mark_for_deoptimization_status != deoptimize_done) { // can't go backwards
-     _mark_for_deoptimization_status = (inc_recompile_counts ? deoptimize : deoptimize_noupdate);
+    if (_mark_for_deoptimization_status == not_marked && link_compiled_method) {
+      assert(_next_mark_link == nullptr, "sanity");
+      _next_mark_link = _root_mark_link;
+      _root_mark_link = this;
+    }
+    _mark_for_deoptimization_status = (inc_recompile_counts ? deoptimize : deoptimize_noupdate);
   }
 }
 
 //-----------------------------------------------------------------------------
+
+CompiledMethod* CompiledMethod::take_mark_root() {
+    MutexLocker ml(CompiledMethod_lock->owned_by_self() ? NULL : CompiledMethod_lock,
+                   Mutex::_no_safepoint_check_flag);
+    CompiledMethod* ret = _root_mark_link;
+    _root_mark_link = nullptr;
+    return ret;
+}
 
 ExceptionCache* CompiledMethod::exception_cache_acquire() const {
   return Atomic::load_acquire(&_exception_cache);

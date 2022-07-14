@@ -152,6 +152,8 @@ protected:
   };
 
   MarkForDeoptimizationStatus _mark_for_deoptimization_status; // Used for stack deoptimization
+  CompiledMethod* _next_mark_link;
+  static CompiledMethod* _root_mark_link;
 
   // set during construction
   unsigned int _has_unsafe_access:1;         // May fault due to unsafe access.
@@ -243,10 +245,15 @@ public:
   bool is_at_poll_or_poll_return(address pc);
 
   bool  is_marked_for_deoptimization() const { return _mark_for_deoptimization_status != not_marked; }
-  void  mark_for_deoptimization(bool inc_recompile_counts = true);
+  void  mark_for_deoptimization(bool inc_recompile_counts = true, bool link_compiled_method = true);
 
   bool  has_been_deoptimized() const { return _mark_for_deoptimization_status == deoptimize_done; }
   void  mark_deoptimized() { _mark_for_deoptimization_status = deoptimize_done; }
+
+  static CompiledMethod* take_mark_root();
+  CompiledMethod* get_next_marked() {
+    return _next_mark_link;
+  }
 
   virtual void  make_deoptimized() { assert(false, "not supported"); };
 

@@ -926,7 +926,8 @@ void Deoptimization::deoptimize_all_marked(nmethod* nmethod_only) {
 
   // Make the dependent methods not entrant
   if (nmethod_only != NULL) {
-    nmethod_only->mark_for_deoptimization();
+    nmethod_only->mark_for_deoptimization(true  /* inc_recompile_counts */,
+                                          false /* link_compiled_method */);
     nmethod_only->make_not_entrant();
     CodeCache::make_nmethod_deoptimized(nmethod_only);
   } else {

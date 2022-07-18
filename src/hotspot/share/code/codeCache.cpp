@@ -1244,7 +1244,10 @@ void CodeCache::make_marked_nmethods_deoptimized() {
   while(link != nullptr) {
     CompiledMethod* nm = link;
     link = link->get_next_marked();
-    assert(nm->is_marked_for_deoptimization(), "sanity");
+    if (!nm->is_marked_for_deoptimization()) {
+      nm->print();
+      assert(nm->is_marked_for_deoptimization(), "sanity");
+    }
     if (!nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
       nm->make_not_entrant();
       make_nmethod_deoptimized(nm);
@@ -1265,19 +1268,30 @@ void CodeCache::flush_dependents_on(InstanceKlass* dependee) {
   if (number_of_nmethods_with_dependencies() == 0) return;
 
   int marked = 0;
-  if (dependee->is_linked()) {
-    // Class initialization state change.
-    KlassInitDepChange changes(dependee);
-    marked = mark_for_deoptimization(changes);
-  } else {
-    // New class is loaded.
-    NewKlassDepChange changes(dependee);
-    marked = mark_for_deoptimization(changes);
-  }
+  {
+    ResourceMark rm;
+    DeoptimizationMarker dm;
+    {
+      NoSafepointVerifier nsv;
+      if (dependee->is_linked()) {
+        // Class initialization state change.
+        KlassInitDepChange changes(dependee);
+        marked = mark_for_deoptimization(changes);
+      } else {
+        // New class is loaded.
+        NewKlassDepChange changes(dependee);
+        marked = mark_for_deoptimization(changes);
+      }
 
-  if (marked > 0) {
-    // At least one nmethod has been marked for deoptimization
-    Deoptimization::deoptimize_all_marked();
+      if (marked > 0) {
+        // At least one nmethod has been marked for deoptimization
+        Deoptimization::deoptimize_all_marked();
+      }
+    }
+    if (marked > 0) {
+      // At least one nmethod has been marked for deoptimization
+      Deoptimization::deoptimize_all_marked_do();
+    }
   }
 }
 
@@ -1286,9 +1300,21 @@ void CodeCache::flush_dependents_on_method(const methodHandle& m_h) {
   // --- Compile_lock is not held. However we are at a safepoint.
   assert_locked_or_safepoint(Compile_lock);
 
-  // Compute the dependent nmethods
-  if (mark_for_deoptimization(m_h()) > 0) {
-    Deoptimization::deoptimize_all_marked();
+  {
+    ResourceMark rm;
+    DeoptimizationMarker dm;
+    int res = 0;
+    {
+      NoSafepointVerifier nsv;
+      // Compute the dependent nmethods
+      res = mark_for_deoptimization(m_h());
+      if (res > 0) {
+        Deoptimization::deoptimize_all_marked();
+      }
+    }
+    if (res > 0) {
+      Deoptimization::deoptimize_all_marked_do();
+    }
   }
 }
 

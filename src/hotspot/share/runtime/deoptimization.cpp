@@ -921,8 +921,6 @@ class DeoptimizeMarkedClosure : public HandshakeClosure {
 };
 
 void Deoptimization::deoptimize_all_marked(nmethod* nmethod_only) {
-  ResourceMark rm;
-  DeoptimizationMarker dm;
 
   // Make the dependent methods not entrant
   if (nmethod_only != NULL) {
@@ -933,6 +931,8 @@ void Deoptimization::deoptimize_all_marked(nmethod* nmethod_only) {
   } else {
     CodeCache::make_marked_nmethods_deoptimized();
   }
+}
+void Deoptimization::deoptimize_all_marked_do(nmethod* nmethod_only) {
 
   DeoptimizeMarkedClosure deopt;
   if (SafepointSynchronize::is_at_safepoint()) {

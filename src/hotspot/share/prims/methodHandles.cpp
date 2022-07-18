@@ -1075,16 +1075,27 @@ void MethodHandles::flush_dependent_nmethods(Handle call_site, Handle target) {
   int marked = 0;
   CallSiteDepChange changes(call_site, target);
   {
-    NoSafepointVerifier nsv;
-    MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+    ResourceMark rm;
+    DeoptimizationMarker dm;
+    {
+      NoSafepointVerifier nsv;
+      {
+        MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
 
-    oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
-    DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
-    marked = deps.mark_dependent_nmethods(changes);
-  }
-  if (marked > 0) {
-    // At least one nmethod has been marked for deoptimization.
-    Deoptimization::deoptimize_all_marked();
+        oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
+        DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
+        marked = deps.mark_dependent_nmethods(changes);
+      }
+      if (marked > 0) {
+        // At least one nmethod has been marked for deoptimization.
+        Deoptimization::deoptimize_all_marked();
+      }
+    }
+    if (marked > 0) {
+      // At least one nmethod has been marked for deoptimization.
+      Deoptimization::deoptimize_all_marked_do();
+    }
+
   }
 }
 
@@ -1492,14 +1503,24 @@ JVM_ENTRY(void, MHN_clearCallSiteContext(JNIEnv* env, jobject igcls, jobject con
 
     int marked = 0;
     {
-      NoSafepointVerifier nsv;
-      MutexLocker mu2(THREAD, CodeCache_lock, Mutex::_no_safepoint_check_flag);
-      DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context());
-      marked = deps.remove_all_dependents();
-    }
-    if (marked > 0) {
-      // At least one nmethod has been marked for deoptimization
-      Deoptimization::deoptimize_all_marked();
+      ResourceMark rm;
+      DeoptimizationMarker dm;
+      {
+        NoSafepointVerifier nsv;
+        {
+          MutexLocker mu2(THREAD, CodeCache_lock, Mutex::_no_safepoint_check_flag);
+          DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context());
+          marked = deps.remove_all_dependents();
+        }
+        if (marked > 0) {
+          // At least one nmethod has been marked for deoptimization
+          Deoptimization::deoptimize_all_marked();
+        }
+      }
+      if (marked > 0) {
+        // At least one nmethod has been marked for deoptimization
+        Deoptimization::deoptimize_all_marked_do();
+      }
     }
   }
 }

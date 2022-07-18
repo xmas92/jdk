@@ -153,6 +153,7 @@ class Deoptimization : AllStatic {
   // marked_for_deoptimization and made not_entrant.  Otherwise a scan of the code cache is done to
   // find all marked nmethods and they are made not_entrant.
   static void deoptimize_all_marked(nmethod* nmethod_only = NULL);
+  static void deoptimize_all_marked_do(nmethod* nmethod_only = NULL);
 
  public:
   // Deoptimizes a frame lazily. Deopt happens on return to the frame.

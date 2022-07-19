@@ -154,7 +154,7 @@ class Deoptimization : AllStatic {
   // marked_for_deoptimization and made not_entrant.  Otherwise a scan of the code cache is done to
   // find all marked nmethods and they are made not_entrant.
 private:
-  static void deoptimize_all_marked();
+  static bool deoptimize_all_marked();
   static void make_nmethod_deoptimized(CompiledMethod* nm);
   static void run_deoptimize_closure();
 
@@ -162,8 +162,6 @@ public:
   typedef void(*MarkFn)(CompiledMethod*,bool);
   template<typename... MarkerFn>
   static int  mark_and_deoptimize(MarkerFn... marker_fns);
-  template<typename... MarkerFn>
-  static int  mark_and_forget(MarkerFn... marker_fns);
   static void deoptimize_nmethod(nmethod* nmethod);
   static void mark_and_deoptimize_all();
   static void mark_and_deoptimize_dependents(Method* dependee);

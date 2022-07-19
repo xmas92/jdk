@@ -920,18 +920,23 @@ class DeoptimizeMarkedClosure : public HandshakeClosure {
   }
 };
 
-void Deoptimization::deoptimize_all_marked() {
+bool Deoptimization::deoptimize_all_marked() {
   assert_locked_or_safepoint(Compile_lock);
-  SweeperBlocker sw;
   CompiledMethod* nm = CompiledMethod::take_root();
-  while(nm != nullptr) {
-    assert(nm->is_marked_for_deoptimization(), "All methods in list must be marked");
-    if (!nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
-      nm->make_not_entrant();
-      make_nmethod_deoptimized(nm);
-    }
-    nm = nm->next_marked();
+  bool anything_deoptimized = false;
+  if (nm != nullptr) {
+    SweeperBlocker sw;
+    anything_deoptimized = true;
+    do {
+      assert(nm->is_marked_for_deoptimization(), "All methods in list must be marked");
+      if (!nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
+        nm->make_not_entrant();
+        make_nmethod_deoptimized(nm);
+      }
+      nm = nm->next_marked();
+    } while(nm != nullptr);
   }
+  return anything_deoptimized;
 }
 
 void Deoptimization::make_nmethod_deoptimized(CompiledMethod* nm) {

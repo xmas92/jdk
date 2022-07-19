@@ -42,33 +42,20 @@ int mark_and_deoptimize_sum(Ints... ints) {
 template<typename... MarkerFn>
 int Deoptimization::mark_and_deoptimize(MarkerFn... marker_fns) {
   auto mark_lambda = [](CompiledMethod* cm, bool inc_recompile_counts = true) {
-    assert(cm != nullptr, "complied method must not be null");
     cm->mark_for_deoptimization(inc_recompile_counts);
   };
   ResourceMark rm;
   DeoptimizationMarker dm;
   int number_marked = 0;
+  bool anything_deoptimized = false;
   {
     NoSafepointVerifier nsv;
     assert_locked_or_safepoint(Compile_lock);
     number_marked = mark_and_deoptimize_sum(marker_fns(mark_lambda)...);
-    deoptimize_all_marked();
+    anything_deoptimized = deoptimize_all_marked();
   }
-  run_deoptimize_closure();
-  return number_marked;
-}
-
-template<typename... MarkerFn>
-int Deoptimization::mark_and_forget(MarkerFn... marker_fns) {
-  auto mark_lambda = [](CompiledMethod* cm, bool inc_recompile_counts = true) {
-    assert(cm != nullptr, "complied method must not be null");
-    cm->mark_for_deoptimization(inc_recompile_counts, false);
-  };
-  int number_marked = 0;
-  {
-    NoSafepointVerifier nsv;
-    assert_locked_or_safepoint(Compile_lock);
-    number_marked = mark_and_deoptimize_sum(marker_fns(mark_lambda)...);
+  if (anything_deoptimized) {
+    run_deoptimize_closure();
   }
   return number_marked;
 }

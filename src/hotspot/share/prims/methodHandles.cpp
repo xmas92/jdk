@@ -47,7 +47,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
 #include "prims/methodHandles.hpp"
-#include "runtime/deoptimization.hpp"
+#include "runtime/deoptimization.inline.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
@@ -1071,21 +1071,17 @@ void MethodHandles::clean_dependency_context(oop call_site) {
 
 void MethodHandles::flush_dependent_nmethods(Handle call_site, Handle target) {
   assert_lock_strong(Compile_lock);
+  CallSiteDepChange changes(call_site, target); // TODO: can this be moved into mutex?
+  Deoptimization::mark_and_deoptimize([&](auto mark_fn) {
+    int marked = 0;
 
-  int marked = 0;
-  CallSiteDepChange changes(call_site, target);
-  {
     NoSafepointVerifier nsv;
     MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
 
     oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
     DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
-    marked = deps.mark_dependent_nmethods(changes);
-  }
-  if (marked > 0) {
-    // At least one nmethod has been marked for deoptimization.
-    Deoptimization::deoptimize_all_marked();
-  }
+    return deps.mark_dependent_nmethods(changes, mark_fn);
+  });
 }
 
 void MethodHandles::trace_method_handle_interpreter_entry(MacroAssembler* _masm, vmIntrinsics::ID iid) {
@@ -1490,17 +1486,12 @@ JVM_ENTRY(void, MHN_clearCallSiteContext(JNIEnv* env, jobject igcls, jobject con
     // Walk all nmethods depending on this call site.
     MutexLocker mu1(thread, Compile_lock);
 
-    int marked = 0;
-    {
+    Deoptimization::mark_and_deoptimize([&](auto mark_fn) {
       NoSafepointVerifier nsv;
       MutexLocker mu2(THREAD, CodeCache_lock, Mutex::_no_safepoint_check_flag);
       DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context());
-      marked = deps.remove_all_dependents();
-    }
-    if (marked > 0) {
-      // At least one nmethod has been marked for deoptimization
-      Deoptimization::deoptimize_all_marked();
-    }
+      return deps.remove_all_dependents_marker(mark_fn);
+    });
   }
 }
 JVM_END

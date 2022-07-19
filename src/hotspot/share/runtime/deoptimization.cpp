@@ -62,7 +62,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/continuation.hpp"
 #include "runtime/continuationEntry.inline.hpp"
-#include "runtime/deoptimization.hpp"
+#include "runtime/deoptimization.inline.hpp"
 #include "runtime/escapeBarrier.hpp"
 #include "runtime/fieldDescriptor.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
@@ -920,19 +920,77 @@ class DeoptimizeMarkedClosure : public HandshakeClosure {
   }
 };
 
-void Deoptimization::deoptimize_all_marked(nmethod* nmethod_only) {
+void Deoptimization::deoptimize_all_marked() {
+  assert_locked_or_safepoint(Compile_lock);
+  SweeperBlocker sw;
+  CompiledMethod* nm = CompiledMethod::take_root();
+  while(nm != nullptr) {
+    assert(nm->is_marked_for_deoptimization(), "All methods in list must be marked");
+    if (!nm->has_been_deoptimized() && nm->can_be_deoptimized()) {
+      nm->make_not_entrant();
+      make_nmethod_deoptimized(nm);
+    }
+    nm = nm->next_marked();
+  }
+}
+
+void Deoptimization::make_nmethod_deoptimized(CompiledMethod* nm) {
+  assert_locked_or_safepoint(Compile_lock);
+  if (nm->is_marked_for_deoptimization() && nm->can_be_deoptimized()) {
+    nm->make_deoptimized();
+  }
+}
+
+void Deoptimization::mark_and_deoptimize_all() {
+  assert_locked_or_safepoint(Compile_lock);
+  mark_and_deoptimize([](auto mark_fn) {
+    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+    int number_marked = 0;
+    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
+    while(iter.next()) {
+      CompiledMethod* nm = iter.method();
+      if (!nm->is_native_method()) {
+        mark_fn(nm);
+        ++number_marked;
+      }
+    }
+    return number_marked;
+  });
+}
+
+void Deoptimization::mark_and_deoptimize_dependents(Method* dependee) {
+  assert_locked_or_safepoint(Compile_lock);
+  mark_and_deoptimize([&](auto mark_fn) {
+    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+    int number_marked = 0;
+    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
+    while(iter.next()) {
+      CompiledMethod* nm = iter.method();
+      if (nm->is_dependent_on_method(dependee)) {
+        mark_fn(nm);
+        ++number_marked;
+      }
+    }
+    return number_marked;
+  });
+}
+
+void Deoptimization::deoptimize_nmethod(nmethod* nmethod) {
   ResourceMark rm;
   DeoptimizationMarker dm;
+  {
+    assert_locked_or_safepoint(Compile_lock);
+    assert(nmethod != nullptr, "nmethod connot be null");
 
-  // Make the dependent methods not entrant
-  if (nmethod_only != NULL) {
-    nmethod_only->mark_for_deoptimization();
-    nmethod_only->make_not_entrant();
-    CodeCache::make_nmethod_deoptimized(nmethod_only);
-  } else {
-    CodeCache::make_marked_nmethods_deoptimized();
+    nmethod->mark_for_deoptimization();
+    nmethod->make_not_entrant();
+    Deoptimization::make_nmethod_deoptimized(nmethod);
   }
 
+  run_deoptimize_closure();
+}
+
+void Deoptimization::run_deoptimize_closure() {
   DeoptimizeMarkedClosure deopt;
   if (SafepointSynchronize::is_at_safepoint()) {
     Threads::java_threads_do(&deopt);

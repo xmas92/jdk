@@ -69,7 +69,7 @@
 #include "prims/whitebox.inline.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/deoptimization.hpp"
+#include "runtime/deoptimization.inline.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 #include "runtime/flags/jvmFlagAccess.hpp"
@@ -778,8 +778,8 @@ WB_ENTRY(jboolean, WB_IsFrameDeoptimized(JNIEnv* env, jobject o, jint depth))
 WB_END
 
 WB_ENTRY(void, WB_DeoptimizeAll(JNIEnv* env, jobject o))
-  CodeCache::mark_all_nmethods_for_deoptimization();
-  Deoptimization::deoptimize_all_marked();
+  MutexLocker ml(Compile_lock);
+  Deoptimization::mark_and_deoptimize_all();
 WB_END
 
 WB_ENTRY(jint, WB_DeoptimizeMethod(JNIEnv* env, jobject o, jobject method, jboolean is_osr))
@@ -788,16 +788,32 @@ WB_ENTRY(jint, WB_DeoptimizeMethod(JNIEnv* env, jobject o, jobject method, jbool
   CHECK_JNI_EXCEPTION_(env, result);
   MutexLocker mu(Compile_lock);
   methodHandle mh(THREAD, Method::checked_resolve_jmethod_id(jmid));
-  if (is_osr) {
-    result += mh->mark_osr_nmethods();
-  } else if (mh->code() != NULL) {
-    mh->code()->mark_for_deoptimization();
-    ++result;
-  }
-  result += CodeCache::mark_for_deoptimization(mh());
-  if (result > 0) {
-    Deoptimization::deoptimize_all_marked();
-  }
+  auto osr_marker = [&](auto mark_fn) {
+    int result = 0;
+    if (is_osr) {
+      result = mh->mark_osr_nmethods(mark_fn);
+    } else if (mh->code() != NULL) {
+      mark_fn(mh->code());
+      ++result;
+    }
+    return result;
+  };
+  auto dependants_marker = [&](auto mark_fn) {
+    Method* dependee = mh();
+    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
+    int result = 0;
+    while(iter.next()) {
+      CompiledMethod* nm = iter.method();
+      if (nm->is_dependent_on_method(dependee)) {
+        ResourceMark rm;
+        mark_fn(nm);
+      ++result;
+      }
+    }
+    return result;
+  };
+  result = Deoptimization::mark_and_deoptimize(osr_marker, dependants_marker);
   return result;
 WB_END
 

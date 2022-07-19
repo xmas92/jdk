@@ -148,11 +148,25 @@ class Deoptimization : AllStatic {
   static const int _support_large_access_byte_array_virtualization = 1;
 #endif
 
+  // TODO: Fix Comment
   // Make all nmethods that are marked_for_deoptimization not_entrant and deoptimize any live
   // activations using those nmethods.  If an nmethod is passed as an argument then it is
   // marked_for_deoptimization and made not_entrant.  Otherwise a scan of the code cache is done to
   // find all marked nmethods and they are made not_entrant.
-  static void deoptimize_all_marked(nmethod* nmethod_only = NULL);
+private:
+  static void deoptimize_all_marked();
+  static void make_nmethod_deoptimized(CompiledMethod* nm);
+  static void run_deoptimize_closure();
+
+public:
+  typedef void(*MarkFn)(CompiledMethod*,bool);
+  template<typename... MarkerFn>
+  static int  mark_and_deoptimize(MarkerFn... marker_fns);
+  template<typename... MarkerFn>
+  static int  mark_and_forget(MarkerFn... marker_fns);
+  static void deoptimize_nmethod(nmethod* nmethod);
+  static void mark_and_deoptimize_all();
+  static void mark_and_deoptimize_dependents(Method* dependee);
 
  public:
   // Deoptimizes a frame lazily. Deopt happens on return to the frame.

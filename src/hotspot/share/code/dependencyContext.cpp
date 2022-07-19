@@ -28,6 +28,7 @@
 #include "code/dependencyContext.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/deoptimization.inline.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/orderAccess.hpp"
 #include "runtime/perfData.hpp"
@@ -64,7 +65,7 @@ void DependencyContext::init() {
 // are dependent on the changes that were passed in and mark them for
 // deoptimization.  Returns the number of nmethods found.
 //
-int DependencyContext::mark_dependent_nmethods(DepChange& changes) {
+int DependencyContext::mark_dependent_nmethods(DepChange& changes, Deoptimization::MarkFn mark_fn) {
   int found = 0;
   for (nmethodBucket* b = dependencies_not_unloading(); b != NULL; b = b->next_not_unloading()) {
     nmethod* nm = b->get_nmethod();
@@ -78,7 +79,7 @@ int DependencyContext::mark_dependent_nmethods(DepChange& changes) {
         nm->print();
         nm->print_dependencies();
       }
-      changes.mark_for_deoptimization(nm);
+      changes.mark_for_deoptimization(nm, mark_fn);
       found++;
     }
   }
@@ -208,6 +209,12 @@ void DependencyContext::clean_unloading_dependents() {
 //
 // Invalidate all dependencies in the context
 int DependencyContext::remove_all_dependents() {
+  // TODO: ugly
+  return remove_all_dependents_marker([](auto,bool){});
+}
+
+// TODO: Fix Comment
+int DependencyContext::remove_all_dependents_marker(Deoptimization::MarkFn mark_fn) {
   nmethodBucket* b = dependencies_not_unloading();
   set_dependencies(NULL);
   int marked = 0;
@@ -215,7 +222,7 @@ int DependencyContext::remove_all_dependents() {
   while (b != NULL) {
     nmethod* nm = b->get_nmethod();
     if (b->count() > 0 && nm->is_alive() && !nm->is_marked_for_deoptimization()) {
-      nm->mark_for_deoptimization();
+      mark_fn(nm, true /* inc_recompile_counts */);
       marked++;
     }
     nmethodBucket* next = b->next_not_unloading();

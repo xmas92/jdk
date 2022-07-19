@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -117,9 +117,10 @@ class DependencyContext : public StackObj {
 
   static void init();
 
-  int  mark_dependent_nmethods(DepChange& changes);
+  int  mark_dependent_nmethods(DepChange& changes, Deoptimization::MarkFn mark_fn);
   void add_dependent_nmethod(nmethod* nm);
   void remove_dependent_nmethod(nmethod* nm);
+  int remove_all_dependents_marker(Deoptimization::MarkFn mark_fn);
   int  remove_all_dependents();
   void clean_unloading_dependents();
   static void purge_dependency_contexts();

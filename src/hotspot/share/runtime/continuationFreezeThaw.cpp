@@ -2293,6 +2293,7 @@ static void do_deopt_after_thaw(JavaThread* thread) {
     if (fst.current()->cb()->is_compiled()) {
       CompiledMethod* cm = fst.current()->cb()->as_compiled_method();
       if (!cm->method()->is_continuation_enter_intrinsic()) {
+        // TODO: Check
         cm->make_deoptimized();
       }
     }

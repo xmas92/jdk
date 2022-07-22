@@ -27,6 +27,7 @@
 
 #include "memory/allocation.hpp"
 #include "oops/oop.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/handles.hpp"
 #include "runtime/perfData.hpp"
 #include "runtime/safepoint.hpp"
@@ -120,7 +121,7 @@ class DependencyContext : public StackObj {
   int  mark_dependent_nmethods(DepChange& changes, Deoptimization::MarkFn mark_fn);
   void add_dependent_nmethod(nmethod* nm);
   void remove_dependent_nmethod(nmethod* nm);
-  int remove_all_dependents_marker(Deoptimization::MarkFn mark_fn);
+  int  remove_all_dependents_marker(Deoptimization::MarkFn mark_fn);
   int  remove_all_dependents();
   void clean_unloading_dependents();
   static void purge_dependency_contexts();

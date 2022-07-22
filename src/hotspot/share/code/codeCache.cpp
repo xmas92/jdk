@@ -28,7 +28,6 @@
 #include "code/codeCache.hpp"
 #include "code/codeHeapState.hpp"
 #include "code/compiledIC.hpp"
-#include "code/dependencies.hpp"
 #include "code/dependencyContext.hpp"
 #include "code/icBuffer.hpp"
 #include "code/nmethod.hpp"
@@ -51,7 +50,7 @@
 #include "oops/verifyOopClosure.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/icache.hpp"
@@ -1070,85 +1069,11 @@ void CodeCache::cleanup_inline_caches() {
   }
 }
 
-// Keeps track of time spent for checking dependencies
-NOT_PRODUCT(static elapsedTimer dependentCheckTime;)
-
-int CodeCache::mark_and_deoptimize(KlassDepChange& changes) {
-  return Deoptimization::mark_and_deoptimize([&](auto mark_fn) {
-    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
-    int number_of_marked_CodeBlobs = 0;
-
-    // search the hierarchy looking for nmethods which are affected by the loading of this class
-
-    // then search the interfaces this class implements looking for nmethods
-    // which might be dependent of the fact that an interface only had one
-    // implementor.
-    // TODO: Fix Comment
-    // nmethod::check_all_dependencies works only correctly, if no safepoint
-    // can happen
-    NoSafepointVerifier nsv;
-    for (DepChange::ContextStream str(changes, nsv); str.next(); ) {
-      Klass* d = str.klass();
-      number_of_marked_CodeBlobs += InstanceKlass::cast(d)->mark_dependent_nmethods(changes, mark_fn);
-    }
-
-#ifndef PRODUCT
-    if (VerifyDependencies) {
-      // Object pointers are used as unique identifiers for dependency arguments. This
-      // is only possible if no safepoint, i.e., GC occurs during the verification code.
-      dependentCheckTime.start();
-      nmethod::check_all_dependencies(changes);
-      dependentCheckTime.stop();
-    }
-#endif
-
-    return number_of_marked_CodeBlobs;
-  });
-}
 
 CompiledMethod* CodeCache::find_compiled(void* start) {
   CodeBlob *cb = find_blob(start);
   assert(cb == NULL || cb->is_compiled(), "did not find an compiled_method");
   return (CompiledMethod*)cb;
-}
-
-#if INCLUDE_JVMTI
-// Remove this method when zombied or unloaded.
-void CodeCache::unregister_old_nmethod(CompiledMethod* c) {
-  VM_RedefineClasses::unregister_old_nmethod(c);
-}
-
-void CodeCache::old_nmethods_do(MetadataClosure* f) {
-  VM_RedefineClasses::old_nmethods_do(f);
-}
-
-#endif // INCLUDE_JVMTI
-
-
-// Flushes compiled methods dependent on dependee.
-void CodeCache::flush_dependents_on(InstanceKlass* dependee) {
-  assert_lock_strong(Compile_lock);
-
-  if (number_of_nmethods_with_dependencies() == 0) return;
-
-  if (dependee->is_linked()) {
-    // Class initialization state change.
-    KlassInitDepChange changes(dependee);
-    mark_and_deoptimize(changes);
-  } else {
-    // New class is loaded.
-    NewKlassDepChange changes(dependee);
-    mark_and_deoptimize(changes);
-  }
-}
-
-// Flushes compiled methods dependent on dependee
-void CodeCache::flush_dependents_on_method(const methodHandle& m_h) {
-  // --- Compile_lock is not held. However we are at a safepoint.
-  assert_locked_or_safepoint(Compile_lock);
-
-  // Compute the dependent nmethods
-  Deoptimization::mark_and_deoptimize_dependents(m_h());
 }
 
 void CodeCache::verify() {
@@ -1410,7 +1335,7 @@ void CodeCache::print() {
     }
   }
 
-  tty->print_cr("nmethod dependency checking time %fs", dependentCheckTime.seconds());
+  Deoptimization::print_dependency_checking_time(tty);
 
   tty->print_cr("nmethod blobs per compilation level:");
   for (int i = 0; i <= CompLevel_full_optimization; i++) {

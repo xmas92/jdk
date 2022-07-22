@@ -56,7 +56,7 @@
 #include "prims/resolvedMethodTable.hpp"
 #include "prims/methodComparator.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/jniHandles.inline.hpp"
 #include "runtime/relocator.hpp"
@@ -4138,49 +4138,47 @@ void VM_RedefineClasses::old_nmethods_do(MetadataClosure* f) {
 
 void VM_RedefineClasses::flush_dependent_code() {
   assert(SafepointSynchronize::is_at_safepoint(), "sanity check");
-  // This is the first redefinition, mark all the nmethods for deoptimization
-  if (!JvmtiExport::all_dependencies_are_recorded()) {
-    Deoptimization::mark_and_deoptimize([](auto mark_fn) {
+  struct FlushDependentCodeClosure : DeoptimizationMarkerClosure {
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      const bool first_call = !JvmtiExport::all_dependencies_are_recorded();
       assert(SafepointSynchronize::is_at_safepoint(), "Can only do this at a safepoint!");
       CompiledMethodIterator iter(CompiledMethodIterator::only_alive);
-      while(iter.next()) {
-        CompiledMethod* nm = iter.method();
-        if (!nm->method()->is_method_handle_intrinsic()) {
-          if (nm->can_be_deoptimized()) {
-            mark_fn(nm);
-          }
-          if (nm->has_evol_metadata()) {
-            add_to_old_table(nm);
+      if (first_call) {
+        while(iter.next()) {
+          CompiledMethod* nm = iter.method();
+          if (!nm->method()->is_method_handle_intrinsic()) {
+            if (nm->can_be_deoptimized()) {
+              mark_fn(nm);
+            }
+            if (nm->has_evol_metadata()) {
+              add_to_old_table(nm);
+            }
           }
         }
+        log_debug(redefine, class, nmethod)("Marked all nmethods for deopt");
+      } else {
+        // Each redefinition creates a new set of nmethods that have references to "old" Methods
+        // So delete old method table and create a new one.
+        reset_old_method_table();
+        int number_marked = 0;
+        while(iter.next()) {
+          CompiledMethod* nm = iter.method();
+          // Walk all alive nmethods to check for old Methods.
+          // This includes methods whose inline caches point to old methods, so
+          // inline cache clearing is unnecessary.
+          if (nm->has_evol_metadata()) {
+            mark_fn(nm);
+            add_to_old_table(nm);
+            number_marked++;
+          }
+        }
+        log_debug(redefine, class, nmethod)("Marked %d dependent nmethods for deopt", number_marked);
       }
       return 0;
-    });
-    log_debug(redefine, class, nmethod)("Marked all nmethods for deopt");
-  } else {
-    int deopt = Deoptimization::mark_and_deoptimize([](auto mark_fn) {
-      assert(SafepointSynchronize::is_at_safepoint(), "Can only do this at a safepoint!");
-      // Each redefinition creates a new set of nmethods that have references to "old" Methods
-      // So delete old method table and create a new one.
-      reset_old_method_table();
-
-      int number_marked = 0;
-      CompiledMethodIterator iter(CompiledMethodIterator::only_alive);
-      while(iter.next()) {
-        CompiledMethod* nm = iter.method();
-        // Walk all alive nmethods to check for old Methods.
-        // This includes methods whose inline caches point to old methods, so
-        // inline cache clearing is unnecessary.
-        if (nm->has_evol_metadata()) {
-          mark_fn(nm);
-          add_to_old_table(nm);
-          number_marked++;
-        }
-      }
-      return number_marked;
-    });
-    log_debug(redefine, class, nmethod)("Marked %d dependent nmethods for deopt", deopt);
-  }
+    }
+  };
+  FlushDependentCodeClosure closure;
+  Deoptimization::mark_and_deoptimize(closure);
   // From now on we know that the dependency information is complete
   JvmtiExport::set_all_dependencies_are_recorded(true);
 }

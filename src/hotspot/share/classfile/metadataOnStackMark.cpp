@@ -35,6 +35,9 @@
 #if INCLUDE_JVMCI
 #include "jvmci/jvmci.hpp"
 #endif
+#if INCLUDE_JVMTI
+#include "prims/jvmtiRedefineClasses.hpp"
+#endif
 
 MetadataOnStackBuffer* MetadataOnStackMark::_used_buffers = NULL;
 MetadataOnStackBuffer* MetadataOnStackMark::_free_buffers = NULL;
@@ -67,7 +70,9 @@ MetadataOnStackMark::MetadataOnStackMark(bool walk_all_metadata, bool redefiniti
       // We have to walk the whole code cache during redefinition.
       CodeCache::metadata_do(&md_on_stack);
     } else {
-      CodeCache::old_nmethods_do(&md_on_stack);
+#if INCLUDE_JVMTI
+      VM_RedefineClasses::old_nmethods_do(&md_on_stack);
+#endif
     }
     CompileBroker::mark_on_stack();
     ThreadService::metadata_do(Metadata::mark_on_stack);

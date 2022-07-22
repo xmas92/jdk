@@ -30,6 +30,7 @@
 #include "classfile/vmClasses.hpp"
 #include "code/codeCache.hpp"
 #include "code/debugInfoRec.hpp"
+#include "code/dependencies.hpp"
 #include "code/nmethod.hpp"
 #include "code/pcDesc.hpp"
 #include "code/scopeDesc.hpp"
@@ -62,7 +63,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/continuation.hpp"
 #include "runtime/continuationEntry.inline.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/escapeBarrier.hpp"
 #include "runtime/fieldDescriptor.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
@@ -83,9 +84,9 @@
 #include "runtime/stubRoutines.hpp"
 #include "runtime/threadSMR.hpp"
 #include "runtime/threadWXSetters.inline.hpp"
+#include "runtime/vframe_hp.hpp"
 #include "runtime/vframe.hpp"
 #include "runtime/vframeArray.hpp"
-#include "runtime/vframe_hp.hpp"
 #include "runtime/vmOperations.hpp"
 #include "utilities/events.hpp"
 #include "utilities/growableArray.hpp"
@@ -948,39 +949,138 @@ void Deoptimization::make_nmethod_deoptimized(CompiledMethod* nm) {
 
 void Deoptimization::mark_and_deoptimize_all() {
   assert_locked_or_safepoint(Compile_lock);
-  mark_and_deoptimize([](auto mark_fn) {
-    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
-    int number_marked = 0;
-    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
-    while(iter.next()) {
-      CompiledMethod* nm = iter.method();
-      if (!nm->is_native_method()) {
-        mark_fn(nm);
-        ++number_marked;
+  struct MarkAndDeoptimizeAllClosure : DeoptimizationMarkerClosure {
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+      int number_marked = 0;
+      CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
+      while(iter.next()) {
+        CompiledMethod* nm = iter.method();
+        if (!nm->is_native_method()) {
+          mark_fn(nm);
+          ++number_marked;
+        }
       }
+      return number_marked;
     }
-    return number_marked;
-  });
+  };
+  MarkAndDeoptimizeAllClosure closure;
+  mark_and_deoptimize(closure);
+}
+
+// Keeps track of time spent for checking dependencies
+NOT_PRODUCT(static elapsedTimer dependentCheckTime;)
+#ifndef PRODUCT
+  void Deoptimization::print_dependency_checking_time(outputStream* stream) {
+    stream->print_cr("nmethod dependency checking time %fs", dependentCheckTime.seconds());
+  }
+#endif
+
+int Deoptimization::mark_and_deoptimize(KlassDepChange& changes) {
+  struct MarkAndDeoptimizeClosure: DeoptimizationMarkerClosure {
+    KlassDepChange& _changes;
+    MarkAndDeoptimizeClosure(KlassDepChange& changes) : _changes(changes) {}
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+      int number_marked = 0;
+      // nmethod::check_all_dependencies works only correctly, if no safepoint
+      // can happen
+      NoSafepointVerifier nsv;
+      for (DepChange::ContextStream str(_changes, nsv); str.next(); ) {
+        Klass* d = str.klass();
+        number_marked += InstanceKlass::cast(d)->mark_dependent_nmethods(_changes, mark_fn);
+      }
+
+#ifndef PRODUCT
+      if (VerifyDependencies) {
+        // Object pointers are used as unique identifiers for dependency arguments. This
+        // is only possible if no safepoint, i.e., GC occurs during the verification code.
+        dependentCheckTime.start();
+        nmethod::check_all_dependencies(_changes);
+        dependentCheckTime.stop();
+      }
+#endif
+
+      return number_marked;
+    }
+  };
+  MarkAndDeoptimizeClosure closure(changes);
+  return Deoptimization::mark_and_deoptimize(closure);
+}
+
+
+// Flushes compiled methods dependent on dependee.
+void Deoptimization::mark_and_deoptimize_dependents_on(InstanceKlass* dependee) {
+  assert_lock_strong(Compile_lock);
+
+  if (CodeCache::number_of_nmethods_with_dependencies() == 0) return;
+
+  if (dependee->is_linked()) {
+    // Class initialization state change.
+    KlassInitDepChange changes(dependee);
+    mark_and_deoptimize(changes);
+  } else {
+    // New class is loaded.
+    NewKlassDepChange changes(dependee);
+    mark_and_deoptimize(changes);
+  }
+}
+
+void Deoptimization::MarkFn::operator()(CompiledMethod* cm, bool inc_recompile_counts) {
+  if (!_noop) {
+    cm->mark_for_deoptimization(inc_recompile_counts);
+  }
+}
+
+int Deoptimization::mark_and_deoptimize(DeoptimizationMarkerClosure& marker_closure) {
+  DeoptimizationMarker dm;
+  int number_marked = 0;
+  bool anything_deoptimized = false;
+  {
+    NoSafepointVerifier nsv;
+    assert_locked_or_safepoint(Compile_lock);
+    number_marked = marker_closure.marker_do(MarkFn(false /* noop */));
+    anything_deoptimized = deoptimize_all_marked();
+  }
+  if (anything_deoptimized) {
+    run_deoptimize_closure();
+  }
+  return number_marked;
+}
+
+void Deoptimization::mark_and_deoptimize_dependents(const methodHandle& m_h) {
+  assert_locked_or_safepoint(Compile_lock);
+  Deoptimization::mark_and_deoptimize_dependents(m_h());
+}
+
+int Deoptimization::mark_dependents(Method* dependee, Deoptimization::MarkFn mark_fn) {
+  MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+  int number_marked = 0;
+  CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
+  while(iter.next()) {
+    CompiledMethod* nm = iter.method();
+    if (nm->is_dependent_on_method(dependee)) {
+      mark_fn(nm);
+      ++number_marked;
+    }
+  }
+  return number_marked;
 }
 
 void Deoptimization::mark_and_deoptimize_dependents(Method* dependee) {
   assert_locked_or_safepoint(Compile_lock);
-  mark_and_deoptimize([&](auto mark_fn) {
-    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
-    int number_marked = 0;
-    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
-    while(iter.next()) {
-      CompiledMethod* nm = iter.method();
-      if (nm->is_dependent_on_method(dependee)) {
-        mark_fn(nm);
-        ++number_marked;
-      }
+  struct MarkAandDeoptimizeDependentsClosure : DeoptimizationMarkerClosure {
+    Method* _dependee;
+    MarkAandDeoptimizeDependentsClosure(Method* dependee) : _dependee(dependee) {}
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      return mark_dependents(_dependee, mark_fn);
     }
-    return number_marked;
-  });
+  };
+  MarkAandDeoptimizeDependentsClosure closure(dependee);
+  mark_and_deoptimize(closure);
 }
 
-void Deoptimization::deoptimize_nmethod(nmethod* nmethod) {
+void Deoptimization::mark_and_deoptimize_nmethod(nmethod* nmethod) {
   ResourceMark rm;
   DeoptimizationMarker dm;
   {

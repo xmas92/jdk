@@ -199,22 +199,5 @@ inline instanceOop InstanceKlass::allocate_instance(oop java_class, TRAPS) {
   return ik->allocate_instance(THREAD);
 }
 
-template<typename MarkFn>
-int InstanceKlass::mark_osr_nmethods(const Method* m, MarkFn mark_fn) {
-  MutexLocker ml(CompiledMethod_lock->owned_by_self() ? NULL : CompiledMethod_lock,
-                 Mutex::_no_safepoint_check_flag);
-  nmethod* osr = osr_nmethods_head();
-  int found = 0;
-  while (osr != NULL) {
-    assert(osr->is_osr_method(), "wrong kind of nmethod found in chain");
-    if (osr->method() == m) {
-      // TODO: assert(osr->is_compiled(), "must be compiled"); valid?
-      mark_fn((CompiledMethod*)osr);
-      found++;
-    }
-    osr = osr->osr_link();
-  }
-  return found;
-}
 
 #endif // SHARE_OOPS_INSTANCEKLASS_INLINE_HPP

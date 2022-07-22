@@ -28,7 +28,7 @@
 #include "code/dependencyContext.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/orderAccess.hpp"
 #include "runtime/perfData.hpp"
@@ -209,8 +209,7 @@ void DependencyContext::clean_unloading_dependents() {
 //
 // Invalidate all dependencies in the context
 int DependencyContext::remove_all_dependents() {
-  // TODO: ugly
-  return remove_all_dependents_marker([](auto,bool){});
+  return remove_all_dependents_marker(Deoptimization::MarkFn::NoopMarkFn());
 }
 
 // TODO: Fix Comment

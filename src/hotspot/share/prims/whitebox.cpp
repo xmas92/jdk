@@ -69,7 +69,7 @@
 #include "prims/whitebox.inline.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
 #include "runtime/flags/jvmFlag.hpp"
 #include "runtime/flags/jvmFlagAccess.hpp"
@@ -784,37 +784,28 @@ WB_END
 
 WB_ENTRY(jint, WB_DeoptimizeMethod(JNIEnv* env, jobject o, jobject method, jboolean is_osr))
   jmethodID jmid = reflected_method_to_jmid(thread, env, method);
-  int result = 0;
-  CHECK_JNI_EXCEPTION_(env, result);
+  CHECK_JNI_EXCEPTION_(env, 0);
   MutexLocker mu(Compile_lock);
   methodHandle mh(THREAD, Method::checked_resolve_jmethod_id(jmid));
-  auto osr_marker = [&](auto mark_fn) {
-    int result = 0;
-    if (is_osr) {
-      result = mh->mark_osr_nmethods(mark_fn);
-    } else if (mh->code() != NULL) {
-      mark_fn(mh->code());
-      ++result;
-    }
-    return result;
-  };
-  auto dependants_marker = [&](auto mark_fn) {
-    Method* dependee = mh();
-    MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
-    CompiledMethodIterator iter(CompiledMethodIterator::only_alive_and_not_unloading);
-    int result = 0;
-    while(iter.next()) {
-      CompiledMethod* nm = iter.method();
-      if (nm->is_dependent_on_method(dependee)) {
-        ResourceMark rm;
-        mark_fn(nm);
-      ++result;
+  struct DeoptimizeMethodClosure : DeoptimizationMarkerClosure {
+    jboolean _is_osr;
+    methodHandle& _mh;
+    DeoptimizeMethodClosure(jboolean is_osr, methodHandle& mh)
+      : _is_osr(is_osr), _mh(mh) {}
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      int result = 0;
+      if (_is_osr) {
+        result = _mh->mark_osr_nmethods(mark_fn);
+      } else if (_mh->code() != NULL) {
+        mark_fn(_mh->code());
+        ++result;
       }
+      result += Deoptimization::mark_dependents(_mh(), mark_fn);
+      return result;
     }
-    return result;
   };
-  result = Deoptimization::mark_and_deoptimize(osr_marker, dependants_marker);
-  return result;
+  DeoptimizeMethodClosure closure(is_osr, mh);
+  return  Deoptimization::mark_and_deoptimize(closure);
 WB_END
 
 WB_ENTRY(jboolean, WB_IsMethodCompiled(JNIEnv* env, jobject o, jobject method, jboolean is_osr))

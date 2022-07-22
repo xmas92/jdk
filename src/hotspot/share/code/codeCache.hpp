@@ -73,7 +73,6 @@
 // Solaris and BSD.
 
 class ExceptionCache;
-class KlassDepChange;
 class OopClosure;
 class ShenandoahParallelCodeHeapIterator;
 class NativePostCallNop;
@@ -283,21 +282,7 @@ class CodeCache : AllStatic {
   static void verify_clean_inline_caches();
   static void verify_icholder_relocations();
 
-  // Deoptimization
- private:
-  static int  mark_and_deoptimize(KlassDepChange& changes);
-
  public:
-  // Flushing and deoptimization
-  static void flush_dependents_on(InstanceKlass* dependee);
-
-  // RedefineClasses support
-  static void old_nmethods_do(MetadataClosure* f) NOT_JVMTI_RETURN;
-  static void unregister_old_nmethod(CompiledMethod* c) NOT_JVMTI_RETURN;
-
-  // Support for fullspeed debugging
-  static void flush_dependents_on_method(const methodHandle& dependee);
-
   // tells how many nmethods have dependencies
   static int number_of_nmethods_with_dependencies();
 

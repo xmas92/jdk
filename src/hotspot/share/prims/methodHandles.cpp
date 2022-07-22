@@ -47,7 +47,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
 #include "prims/methodHandles.hpp"
-#include "runtime/deoptimization.inline.hpp"
+#include "runtime/deoptimization.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
@@ -1071,17 +1071,25 @@ void MethodHandles::clean_dependency_context(oop call_site) {
 
 void MethodHandles::flush_dependent_nmethods(Handle call_site, Handle target) {
   assert_lock_strong(Compile_lock);
-  CallSiteDepChange changes(call_site, target); // TODO: can this be moved into mutex?
-  Deoptimization::mark_and_deoptimize([&](auto mark_fn) {
-    int marked = 0;
+  CallSiteDepChange changes(call_site, target);
+  struct FlushDependentNmethodsClosure : DeoptimizationMarkerClosure {
+    Handle& _call_site;
+    CallSiteDepChange& _changes;
+    FlushDependentNmethodsClosure(Handle& call_site, CallSiteDepChange& changes)
+      : _call_site(call_site), _changes(changes) {}
+    int marker_do(Deoptimization::MarkFn mark_fn) override {
+      int marked = 0;
 
-    NoSafepointVerifier nsv;
-    MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
+      NoSafepointVerifier nsv;
+      MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
 
-    oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
-    DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
-    return deps.mark_dependent_nmethods(changes, mark_fn);
-  });
+      oop context = java_lang_invoke_CallSite::context_no_keepalive(_call_site());
+      DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
+      return deps.mark_dependent_nmethods(_changes, mark_fn);
+    }
+  };
+  FlushDependentNmethodsClosure closure(call_site, changes);
+  Deoptimization::mark_and_deoptimize(closure);
 }
 
 void MethodHandles::trace_method_handle_interpreter_entry(MacroAssembler* _masm, vmIntrinsics::ID iid) {
@@ -1485,13 +1493,20 @@ JVM_ENTRY(void, MHN_clearCallSiteContext(JNIEnv* env, jobject igcls, jobject con
   {
     // Walk all nmethods depending on this call site.
     MutexLocker mu1(thread, Compile_lock);
-
-    Deoptimization::mark_and_deoptimize([&](auto mark_fn) {
-      NoSafepointVerifier nsv;
-      MutexLocker mu2(THREAD, CodeCache_lock, Mutex::_no_safepoint_check_flag);
-      DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context());
-      return deps.remove_all_dependents_marker(mark_fn);
-    });
+    struct ClearCallSiteContextDependenciesClosure : DeoptimizationMarkerClosure {
+      Thread* _thread;
+      Handle& _context;
+      ClearCallSiteContextDependenciesClosure(Thread* thread, Handle& context)
+        : _thread(thread), _context(context) {}
+      int marker_do(Deoptimization::MarkFn mark_fn) override {
+        NoSafepointVerifier nsv;
+        MutexLocker mu2(_thread, CodeCache_lock, Mutex::_no_safepoint_check_flag);
+        DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(_context());
+        return deps.remove_all_dependents_marker(mark_fn);
+      }
+    };
+    ClearCallSiteContextDependenciesClosure closure(THREAD,context);
+    Deoptimization::mark_and_deoptimize(closure);
   }
 }
 JVM_END

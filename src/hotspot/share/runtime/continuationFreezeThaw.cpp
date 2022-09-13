@@ -1259,23 +1259,100 @@ stackChunkOop Freeze<ConfigT>::allocate_chunk(size_t stack_size) {
     return nullptr;
   }
 
+class StackChunkAllocator : public MemAllocator {
+  const size_t                                 _stack_size;
+  ContinuationWrapper&                         _continuation_wrapper;
+  JvmtiSampledObjectAllocEventCollector* const _jvmti_event_collector;
+  mutable bool                                 _took_slow_path;
+
+  // Does the minimal amount of initialization needed for a TLAB allocation.
+  // We don't need to do a full initialization, as such an allocation need not be immediately walkable.
+  virtual oop initialize(HeapWord* mem) const override {
+    assert(_stack_size > 0, "");
+    assert(_stack_size <= max_jint, "");
+    assert(_word_size > _stack_size, "");
+
+    // zero out fields (but not the stack)
+    const size_t hs = oopDesc::header_size();
+    Copy::fill_to_aligned_words(mem + hs, vmClasses::StackChunk_klass()->size_helper() - hs);
+
+    jdk_internal_vm_StackChunk::set_size(mem, (int)_stack_size);
+    jdk_internal_vm_StackChunk::set_sp(mem, (int)_stack_size);
+
+    return finish(mem);
+  }
+
+  stackChunkOop allocate_fast() const {
+    if (!UseTLAB) {
+      return nullptr;
+    }
+
+    HeapWord* const mem = MemAllocator::mem_allocate_inside_tlab_fast();
+    if (mem == nullptr) {
+      return nullptr;
+    }
+
+    oop obj = initialize(mem);
+    return stackChunkOopDesc::cast(obj);
+  }
+
+public:
+  StackChunkAllocator(Klass* klass,
+                      size_t word_size,
+                      Thread* thread,
+                      size_t stack_size,
+                      ContinuationWrapper& continuation_wrapper,
+                      JvmtiSampledObjectAllocEventCollector* jvmti_event_collector)
+    : MemAllocator(klass, word_size, thread),
+      _stack_size(stack_size),
+      _continuation_wrapper(continuation_wrapper),
+      _jvmti_event_collector(jvmti_event_collector),
+      _took_slow_path(false) {}
+
+  // Provides it's own, specialized allocation which skips instrumentation
+  // if the memory can be allocated without going to a slow-path.
+  stackChunkOop allocate() const {
+    // First try to allocate without any slow-paths or instrumentation.
+    stackChunkOop obj = allocate_fast();
+    if (obj != nullptr) {
+      return obj;
+    }
+
+    // Now try full-blown allocation with all expensive operations,
+    // including potentially safepoint operations.
+    _took_slow_path = true;
+
+    // Protect unhandled Loom oops
+    ContinuationWrapper::SafepointOp so(_thread, _continuation_wrapper);
+
+    // Can safepoint
+    _jvmti_event_collector->start();
+
+    // Can safepoint
+    return stackChunkOopDesc::cast(MemAllocator::allocate());
+  }
+
+  bool took_slow_path() const {
+    return _took_slow_path;
+  }
+};
+
   JavaThread* current = _preempt ? JavaThread::current() : _thread;
   assert(current == JavaThread::current(), "should be current");
 
-  StackChunkAllocator allocator(klass, size_in_words, stack_size, current);
-  oop fast_oop = allocator.try_allocate_in_existing_tlab();
-  oop chunk_oop = fast_oop;
-  if (chunk_oop == nullptr) {
-    ContinuationWrapper::SafepointOp so(current, _cont);
-    assert(_jvmti_event_collector != nullptr, "");
-    _jvmti_event_collector->start();  // can safepoint
-    chunk_oop = allocator.allocate(); // can safepoint
-    if (chunk_oop == nullptr) {
-      return nullptr; // OOME
-    }
+  // Allocate the chunk.
+  //
+  // This might safepoint while allocating, but all safepointing due to
+  // instrumentation have been deferred. This property is important for
+  // some GCs, as this ensures that the allocated object is in the young
+  // generation / newly allocated memory.
+  StackChunkAllocator allocator(klass, size_in_words, current, stack_size, _cont, _jvmti_event_collector);
+  stackChunkOop chunk = allocator.allocate();
+
+  if (chunk == nullptr) {
+    return nullptr; // OOME
   }
 
-  stackChunkOop chunk = stackChunkOopDesc::cast(chunk_oop);
   // assert that chunk is properly initialized
   assert(chunk->stack_size() == (int)stack_size, "");
   assert(chunk->size() >= stack_size, "chunk->size(): %zu size: %zu", chunk->size(), stack_size);
@@ -1293,20 +1370,31 @@ stackChunkOop Freeze<ConfigT>::allocate_chunk(size_t stack_size) {
 
   assert(chunk->parent() == nullptr || chunk->parent()->is_stackChunk(), "");
 
-  // Shenandoah: even continuation is good, it does not mean it is deeply good.
-  if (UseShenandoahGC && chunk->requires_barriers()) {
-    fast_oop = nullptr;
+#if INCLUDE_ZGC
+  if (UseZGC) {
+    assert(!chunk->requires_barriers(), "Allocated ZGC object do not(?) require barriers");
+    _barriers = false;
+  } else
+#endif
+#if INCLUDE_SHENANDOAHGC
+  if (UseShenandoahGC) {
+    _barriers = chunk->requires_barriers();
+  } else
+#endif
+  {
+    if (!allocator.took_slow_path()) {
+      // Guaranteed to be in young gen / newly allocated memory
+      assert(!chunk->requires_barriers(), "Unfamiliar GC requires barriers on TLAB allocation");
+      _barriers = false;
+    } else {
+      // Some GCs could put direct allocations in old gen for slow-path
+      // allocations; need to expliticly check if that was the case.
+    _barriers = chunk->requires_barriers();
+    }
   }
 
-  if (fast_oop != nullptr) {
-    assert(!chunk->requires_barriers(), "Unfamiliar GC requires barriers on TLAB allocation");
-  } else {
-    assert(!UseZGC || !chunk->requires_barriers(), "Allocated ZGC object requires barriers");
-    _barriers = !UseZGC && chunk->requires_barriers();
-
-    if (_barriers) {
-      log_develop_trace(continuations)("allocation requires barriers");
-    }
+  if (_barriers) {
+    log_develop_trace(continuations)("allocation requires barriers");
   }
   return chunk;
 }

@@ -28,6 +28,7 @@
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
+#include "oops/access.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/handles.inline.hpp"
@@ -766,7 +767,9 @@ bool OopStorage::reduce_deferred_updates() {
 
 static inline void check_release_entry(const oop* entry) {
   assert(entry != NULL, "Releasing NULL");
-  assert(*entry == NULL, "Releasing uncleared entry: " PTR_FORMAT, p2i(entry));
+  // entry may either be strong or weak here, but the load is strong. For all GC this is valid as long as the oop is null.
+  // If the oop is not null then the assert will trigger and OopStorage::release contract is broken.
+  assert(NativeAccess<AS_NO_KEEPALIVE>::oop_load(entry) == nullptr, "Releasing uncleared entry: " PTR_FORMAT, p2i(entry));
 }
 
 void OopStorage::release(const oop* ptr) {

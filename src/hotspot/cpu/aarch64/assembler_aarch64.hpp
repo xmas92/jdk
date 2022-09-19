@@ -409,8 +409,11 @@ class Address {
       _target(target)  { }
   Address(address target, relocInfo::relocType rtype = relocInfo::external_word_type);
   Address(Register base, RegisterOrConstant index, extend ext = lsl())
-    : _base (base),
-      _offset(0), _ext(ext), _target(0) {
+    : _base(base),
+      _index(noreg),
+      _offset(0),
+      _ext(ext),
+      _target(0) {
     if (index.is_register()) {
       _mode = base_plus_offset_reg;
       _index = index.as_register();

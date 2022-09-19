@@ -251,8 +251,7 @@ public:
 };
 
 TEST_VM(BitMap, iterate) {
-  const size_t word_size = sizeof(bm_word_t) * BitsPerByte;
-  const idx_t size = 4 * word_size;
+  const idx_t size = 256;
 
   // With no bits set
   {
@@ -365,8 +364,7 @@ public:
 };
 
 TEST_VM(BitMap, iterate_reverse) {
-  const size_t word_size = sizeof(bm_word_t) * BitsPerByte;
-  const idx_t size = 4 * word_size;
+  const idx_t size = 256;
 
   // With no bits set
   {

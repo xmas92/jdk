@@ -1291,7 +1291,7 @@ void MacroAssembler::resolve_jobject(Register value,
   b(tagged, ne);
 
   // Resolve local handle
-  access_load_at(T_OBJECT, IN_NATIVE | AS_RAW, value, Address(value, 0), tmp1, tmp2, noreg);
+  access_load_at(T_OBJECT, IN_NATIVE | AS_RAW, Address(value, 0), value, tmp1, tmp2, noreg);
   //verify_oop(value);
   b(done);
 
@@ -1300,14 +1300,14 @@ void MacroAssembler::resolve_jobject(Register value,
   b(weak_tagged, ne);
 
   // Resolve global handle
-  access_load_at(T_OBJECT, IN_NATIVE, value, Address(value, -JNIHandles::global_tag_value), tmp1, tmp2, noreg);
+  access_load_at(T_OBJECT, IN_NATIVE, Address(value, -JNIHandles::global_tag_value), value, tmp1, tmp2, noreg);
   verify_oop(value);
   b(done);
 
   bind(weak_tagged);
   // Resolve jweak.
   access_load_at(T_OBJECT, IN_NATIVE | ON_PHANTOM_OOP_REF,
-                 value, Address(value, -JNIHandles::weak_tag_value), tmp1, tmp2, noreg);
+                Address(value, -JNIHandles::weak_tag_value), value, tmp1, tmp2, noreg);
   verify_oop(value);
   // b(done);
 

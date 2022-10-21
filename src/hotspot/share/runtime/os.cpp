@@ -1077,7 +1077,10 @@ bool os::is_readable_range(const void* from, const void* to) {
 
 // moved from debug.cpp (used to be find()) but still called from there
 // The verbose parameter is only set by the debug code in one case
-void os::print_location(outputStream* st, intptr_t x, bool verbose) {
+void os::print_location(outputStream* st, intptr_t x, bool verbose, size_t depth) {
+  if (depth > 2) {
+    return;
+  }
   address addr = (address)x;
   // Handle NULL first, so later checks don't need to protect against it.
   if (addr == NULL) {
@@ -1175,8 +1178,8 @@ void os::print_location(outputStream* st, intptr_t x, bool verbose) {
       st->print(" %02x", *(u1*)p);
     }
     st->cr();
-    if (is_aligned(addr, sizeof(void*)) && *(void**)addr != NULL) {
-      Universe::heap()->print_location(st, *(void**)addr);
+    if (is_aligned(addr, sizeof(intptr_t)) && *(address*)addr != NULL) {
+      print_location(st, *(intptr_t*)addr, verbose, depth+1);
     }
     return;
   }

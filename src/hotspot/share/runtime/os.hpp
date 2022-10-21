@@ -772,7 +772,7 @@ class os: AllStatic {
   // helper for output of seconds in days , hours and months
   static void print_dhm(outputStream* st, const char* startStr, long sec);
 
-  static void print_location(outputStream* st, intptr_t x, bool verbose = false);
+  static void print_location(outputStream* st, intptr_t x, bool verbose = false, size_t depth = 0);
   static size_t lasterror(char *buf, size_t len);
   static int get_last_error();
 

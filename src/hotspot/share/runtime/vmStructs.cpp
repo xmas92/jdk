@@ -55,6 +55,7 @@
 #include "logging/logAsyncWriter.hpp"
 #include "memory/allocation.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/heap.hpp"
 #include "memory/padded.hpp"
 #include "memory/referenceType.hpp"
@@ -560,7 +561,7 @@
   nonstatic_field(CodeBlob,                 _frame_complete_offset,                  int)                                            \
   nonstatic_field(CodeBlob,                 _data_offset,                            int)                                            \
   nonstatic_field(CodeBlob,                 _frame_size,                             int)                                            \
-  nonstatic_field(CodeBlob,                 _oop_maps,                               ImmutableOopMapSet*)                            \
+  nonstatic_field(CodeBlob,                 _oop_maps,                               ManagedCHeapObject<ImmutableOopMapSet>)         \
   nonstatic_field(CodeBlob,                 _code_begin,                             address)                                        \
   nonstatic_field(CodeBlob,                 _code_end,                               address)                                        \
   nonstatic_field(CodeBlob,                 _content_begin,                          address)                                        \
@@ -965,6 +966,12 @@
      static_field(Arguments,                   _num_jvm_args,                                 int)                                   \
      static_field(Arguments,                   _java_command,                                 char*)                                 \
                                                                                                                                      \
+  /*************************/                                                                                                        \
+  /* ManagedCHeapObject<T> */                                                                                                        \
+  /*************************/                                                                                                        \
+                                                                                                                                     \
+  nonstatic_field(ManagedCHeapObject<ImmutableOopMapSet>, _data,                              ImmutableOopMapSet*)                   \
+                                                                                                                                     \
   /************/                                                                                                                     \
   /* Array<T> */                                                                                                                     \
   /************/                                                                                                                     \
@@ -1343,6 +1350,7 @@
   /* ImmutableOopMap      */                                              \
   /************************/                                              \
                                                                           \
+  declare_toplevel_type(ManagedCHeapObject<ImmutableOopMapSet>)           \
   declare_toplevel_type(ImmutableOopMapSet)                               \
   declare_toplevel_type(ImmutableOopMapPair)                              \
   declare_toplevel_type(ImmutableOopMap)                                  \

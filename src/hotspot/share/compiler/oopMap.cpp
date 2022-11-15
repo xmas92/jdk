@@ -27,11 +27,13 @@
 #include "code/codeCache.hpp"
 #include "code/nmethod.hpp"
 #include "code/scopeDesc.hpp"
+#include "compiler/oopMap.hpp"
 #include "compiler/oopMap.inline.hpp"
 #include "gc/shared/collectedHeap.hpp"
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/compressedOops.hpp"
@@ -857,15 +859,18 @@ ImmutableOopMapSet* ImmutableOopMapBuilder::generate_into(address buffer) {
   return _new_set;
 }
 
-ImmutableOopMapSet* ImmutableOopMapBuilder::build() {
+ManagedCHeapObject<ImmutableOopMapSet> ImmutableOopMapBuilder::build() {
   _required = heap_size();
 
   // We need to allocate a chunk big enough to hold the ImmutableOopMapSet and all of its ImmutableOopMaps
-  address buffer = NEW_C_HEAP_ARRAY(unsigned char, _required, mtCode);
-  return generate_into(buffer);
+  // candidate: c-d
+  return make_managed_c_heap_object_from_buffer<ImmutableOopMapSet>(mtCode, _required,
+      [&](address buffer) {
+        return generate_into(buffer);
+      });
 }
 
-ImmutableOopMapSet* ImmutableOopMapSet::build_from(const OopMapSet* oopmap_set) {
+ManagedCHeapObject<ImmutableOopMapSet> ImmutableOopMapSet::build_from(const OopMapSet* oopmap_set) {
   ResourceMark mark;
   ImmutableOopMapBuilder builder(oopmap_set);
   return builder.build();

@@ -28,6 +28,7 @@
 #include "asm/codeBuffer.hpp"
 #include "compiler/compilerDefinitions.hpp"
 #include "compiler/oopMap.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/javaFrameAnchor.hpp"
 #include "runtime/frame.hpp"
 #include "runtime/handles.hpp"
@@ -97,7 +98,7 @@ protected:
   address    _relocation_begin;
   address    _relocation_end;
 
-  ImmutableOopMapSet* _oop_maps;                 // OopMap for this CodeBlob
+  ManagedCHeapObject<ImmutableOopMapSet> _oop_maps;                 // OopMap for this CodeBlob
 
   const char*         _name;
   S390_ONLY(int       _ctable_offset;)
@@ -214,7 +215,7 @@ public:
   virtual bool is_not_entrant() const            { return false; }
 
   // OopMap for frame
-  ImmutableOopMapSet* oop_maps() const           { return _oop_maps; }
+  ImmutableOopMapSet* oop_maps() const           { return _oop_maps.get(); }
   void set_oop_maps(OopMapSet* p);
 
   const ImmutableOopMap* oop_map_for_slot(int slot, address return_address) const;

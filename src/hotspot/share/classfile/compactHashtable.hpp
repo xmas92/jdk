@@ -26,6 +26,7 @@
 #define SHARE_CLASSFILE_COMPACTHASHTABLE_HPP
 
 #include "cds/cds_globals.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/array.hpp"
 #include "oops/symbol.hpp"
 #include "runtime/globals.hpp"
@@ -107,11 +108,10 @@ public:
 
 private:
   int _num_entries_written;
-  int _num_buckets;
   int _num_empty_buckets;
   int _num_value_only_buckets;
   int _num_other_buckets;
-  GrowableArray<Entry>** _buckets;
+  ManagedCHeapArray<ManagedCHeapObject<GrowableArray<Entry>>> _buckets;
   CompactHashtableStats* _stats;
   Array<u4>* _compact_buckets;
   Array<u4>* _compact_entries;
@@ -119,7 +119,7 @@ private:
 public:
   // This is called at dump-time only
   CompactHashtableWriter(int num_entries, CompactHashtableStats* stats);
-  ~CompactHashtableWriter();
+  ~CompactHashtableWriter() = default;
 
   void add(unsigned int hash, u4 value);
 

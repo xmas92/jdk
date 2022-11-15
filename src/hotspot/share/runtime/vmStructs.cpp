@@ -3025,15 +3025,14 @@ static int recursiveFindType(VMTypeEntry* origtypes, const char* typeName, bool 
   // Search for the base type by peeling off const and *
   size_t len = strlen(typeName);
   if (typeName[len-1] == '*') {
-    char * s = NEW_C_HEAP_ARRAY(char, len, mtInternal);
-    strncpy(s, typeName, len - 1);
+    // candidate: temp
+    ManagedCHeapArray<char> s = make_managed_c_heap_array_default_init<char>(len, mtInternal);
+    strncpy(s.get(), typeName, len - 1);
     s[len-1] = '\0';
     // tty->print_cr("checking \"%s\" for \"%s\"", s, typeName);
-    if (recursiveFindType(origtypes, s, true) == 1) {
-      FREE_C_HEAP_ARRAY(char, s);
+    if (recursiveFindType(origtypes, s.get(), true) == 1) {
       return 1;
     }
-    FREE_C_HEAP_ARRAY(char, s);
   }
   const char* start = nullptr;
   if (strstr(typeName, "GrowableArray<") == typeName) {
@@ -3044,15 +3043,14 @@ static int recursiveFindType(VMTypeEntry* origtypes, const char* typeName, bool 
   if (start != nullptr) {
     const char * end = strrchr(typeName, '>');
     int len = end - start + 1;
-    char * s = NEW_C_HEAP_ARRAY(char, len, mtInternal);
-    strncpy(s, start, len - 1);
+    // candidate: temp
+    ManagedCHeapArray<char> s = make_managed_c_heap_array_default_init<char>(len, mtInternal);
+    strncpy(s.get(), start, len - 1);
     s[len-1] = '\0';
     // tty->print_cr("checking \"%s\" for \"%s\"", s, typeName);
-    if (recursiveFindType(origtypes, s, true) == 1) {
-      FREE_C_HEAP_ARRAY(char, s);
+    if (recursiveFindType(origtypes, s.get(), true) == 1) {
       return 1;
     }
-    FREE_C_HEAP_ARRAY(char, s);
   }
   if (strstr(typeName, "const ") == typeName) {
     const char * s = typeName + strlen("const ");

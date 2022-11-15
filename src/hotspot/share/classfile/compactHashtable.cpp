@@ -29,10 +29,12 @@
 #include "classfile/javaClasses.hpp"
 #include "jvm.h"
 #include "logging/logMessage.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/metadataFactory.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/vmThread.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/numberSeq.hpp"
 
 #include <sys/stat.h>
@@ -46,13 +48,16 @@ CompactHashtableWriter::CompactHashtableWriter(int num_entries,
                                                CompactHashtableStats* stats) {
   Arguments::assert_is_dumping_archive();
   assert(num_entries >= 0, "sanity");
-  _num_buckets = calculate_num_buckets(num_entries);
-  assert(_num_buckets > 0, "no buckets");
+  int num_buckets = calculate_num_buckets(num_entries);
+  assert(num_buckets > 0, "no buckets");
 
+  // canditade: c-d
   _num_entries_written = 0;
-  _buckets = NEW_C_HEAP_ARRAY(GrowableArray<Entry>*, _num_buckets, mtSymbol);
-  for (int i=0; i<_num_buckets; i++) {
-    _buckets[i] = new (mtSymbol) GrowableArray<Entry>(0, mtSymbol);
+  _buckets = make_managed_c_heap_array_default_init
+      <ManagedCHeapObject<GrowableArray<Entry>>>
+      (num_buckets, mtSymbol);
+  for (size_t i = 0; i < _buckets.size(); ++i) {
+    _buckets[i] = make_managed_c_heap_object_value_init<GrowableArray<Entry>>(mtSymbol, 0, mtSymbol);
   }
 
   _stats = stats;
@@ -61,15 +66,6 @@ CompactHashtableWriter::CompactHashtableWriter(int num_entries,
   _num_empty_buckets = 0;
   _num_value_only_buckets = 0;
   _num_other_buckets = 0;
-}
-
-CompactHashtableWriter::~CompactHashtableWriter() {
-  for (int index = 0; index < _num_buckets; index++) {
-    GrowableArray<Entry>* bucket = _buckets[index];
-    delete bucket;
-  }
-
-  FREE_C_HEAP_ARRAY(GrowableArray<Entry>*, _buckets);
 }
 
 size_t CompactHashtableWriter::estimate_size(int num_entries) {
@@ -87,15 +83,15 @@ size_t CompactHashtableWriter::estimate_size(int num_entries) {
 
 // Add a symbol entry to the temporary hash table
 void CompactHashtableWriter::add(unsigned int hash, u4 value) {
-  int index = hash % _num_buckets;
+  int index = hash % _buckets.size();
   _buckets[index]->append_if_missing(Entry(hash, value));
   _num_entries_written++;
 }
 
 void CompactHashtableWriter::allocate_table() {
   int entries_space = 0;
-  for (int index = 0; index < _num_buckets; index++) {
-    GrowableArray<Entry>* bucket = _buckets[index];
+  for (size_t index = 0; index < _buckets.size(); index++) {
+    GrowableArray<Entry>* bucket = _buckets[index].get();
     int bucket_size = bucket->length();
     if (bucket_size == 1) {
       entries_space++;
@@ -108,11 +104,11 @@ void CompactHashtableWriter::allocate_table() {
     vm_exit_during_initialization("CompactHashtableWriter::allocate_table: Overflow! "
                                   "Too many entries.");
   }
-
-  _compact_buckets = ArchiveBuilder::new_ro_array<u4>(_num_buckets + 1);
+  // Windows fix, bad conversion
+  _compact_buckets = ArchiveBuilder::new_ro_array<u4>(static_cast<int>(_buckets.size() + 1));
   _compact_entries = ArchiveBuilder::new_ro_array<u4>(entries_space);
 
-  _stats->bucket_count    = _num_buckets;
+  _stats->bucket_count    = static_cast<int>(_buckets.size());
   _stats->bucket_bytes    = align_up(_compact_buckets->size() * BytesPerWord,
                                      SharedSpaceObjectAlignment);
   _stats->hashentry_count = _num_entries_written;
@@ -123,8 +119,8 @@ void CompactHashtableWriter::allocate_table() {
 // Write the compact table's buckets
 void CompactHashtableWriter::dump_table(NumberSeq* summary) {
   u4 offset = 0;
-  for (int index = 0; index < _num_buckets; index++) {
-    GrowableArray<Entry>* bucket = _buckets[index];
+  for (int index = 0; index < static_cast<int>(_buckets.size()); index++) {
+    GrowableArray<Entry>* bucket = _buckets[index].get();
     int bucket_size = bucket->length();
     if (bucket_size == 1) {
       // bucket with one entry is compacted and only has the symbol offset
@@ -152,7 +148,7 @@ void CompactHashtableWriter::dump_table(NumberSeq* summary) {
   }
 
   // Mark the end of the buckets
-  _compact_buckets->at_put(_num_buckets, BUCKET_INFO(offset, TABLEEND_BUCKET_TYPE));
+  _compact_buckets->at_put(static_cast<int>(_buckets.size()), BUCKET_INFO(offset, TABLEEND_BUCKET_TYPE));
   assert(offset == (u4)_compact_entries->length(), "sanity");
 }
 
@@ -165,7 +161,7 @@ void CompactHashtableWriter::dump(SimpleCompactHashtable *cht, const char* table
 
   int table_bytes = _stats->bucket_bytes + _stats->hashentry_bytes;
   address base_address = address(SharedBaseAddress);
-  cht->init(base_address,  _num_entries_written, _num_buckets,
+  cht->init(base_address,  _num_entries_written, static_cast<u4>(_buckets.size()),
             _compact_buckets->data(), _compact_entries->data());
 
   LogMessage(cds, hashtables) msg;

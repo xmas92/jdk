@@ -36,6 +36,7 @@
 #include "interpreter/abstractInterpreter.hpp"
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/allStatic.hpp"
 #include "memory/memRegion.hpp"
 #include "memory/resourceArea.hpp"
@@ -1177,8 +1178,8 @@ void ArchiveBuilder::write_archive(FileMapInfo* mapinfo,
   write_region(mapinfo, MetaspaceShared::ro, &_ro_region, /*read_only=*/true, /*allow_exec=*/false);
 
   size_t bitmap_size_in_bytes;
-  char* bitmap = mapinfo->write_bitmap_region(ArchivePtrMarker::ptrmap(), closed_heap_bitmaps, open_heap_bitmaps,
-                                              bitmap_size_in_bytes);
+  ManagedCHeapArray<char> bitmap = mapinfo->write_bitmap_region(ArchivePtrMarker::ptrmap(), closed_heap_bitmaps, open_heap_bitmaps,
+                                                 bitmap_size_in_bytes);
 
   if (closed_heap_regions != NULL) {
     _total_closed_heap_region_size = mapinfo->write_heap_regions(
@@ -1208,10 +1209,9 @@ void ArchiveBuilder::write_archive(FileMapInfo* mapinfo,
 
   if (log_is_enabled(Info, cds, map)) {
     CDSMapLogger::log(this, mapinfo, closed_heap_regions, open_heap_regions,
-                      bitmap, bitmap_size_in_bytes);
+                      bitmap.get(), bitmap_size_in_bytes);
   }
   CDS_JAVA_HEAP_ONLY(HeapShared::destroy_archived_object_cache());
-  FREE_C_HEAP_ARRAY(char, bitmap);
 }
 
 void ArchiveBuilder::write_region(FileMapInfo* mapinfo, int region_idx, DumpRegion* dump_region, bool read_only,  bool allow_exec) {

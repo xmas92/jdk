@@ -43,8 +43,9 @@
 #include "classfile/vmSymbols.hpp"
 #include "jvm.h"
 #include "logging/log.hpp"
-#include "logging/logStream.hpp"
 #include "logging/logMessage.hpp"
+#include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.inline.hpp"
 #include "memory/metadataFactory.hpp"
 #include "memory/metaspaceClosure.hpp"
@@ -1675,7 +1676,7 @@ size_t FileMapInfo::write_bitmaps(GrowableArray<ArchiveHeapBitmapInfo>* bitmaps,
   return curr_offset;
 }
 
-char* FileMapInfo::write_bitmap_region(const CHeapBitMap* ptrmap,
+ManagedCHeapArray<char> FileMapInfo::write_bitmap_region(const CHeapBitMap* ptrmap,
                                        GrowableArray<ArchiveHeapBitmapInfo>* closed_bitmaps,
                                        GrowableArray<ArchiveHeapBitmapInfo>* open_bitmaps,
                                        size_t &size_in_bytes) {
@@ -1686,17 +1687,17 @@ char* FileMapInfo::write_bitmap_region(const CHeapBitMap* ptrmap,
     size_in_bytes = set_bitmaps_offset(closed_bitmaps, size_in_bytes);
     size_in_bytes = set_bitmaps_offset(open_bitmaps, size_in_bytes);
   }
-
-  char* buffer = NEW_C_HEAP_ARRAY(char, size_in_bytes, mtClassShared);
-  ptrmap->write_to((BitMap::bm_word_t*)buffer, ptrmap->size_in_bytes());
+  // candidat: temp
+  ManagedCHeapArray<char> buffer = make_managed_c_heap_array_default_init<char>(size_in_bytes, mtClassShared);
+  ptrmap->write_to((BitMap::bm_word_t*)buffer.get(), ptrmap->size_in_bytes());
   header()->set_ptrmap_size_in_bits(size_in_bits);
 
   if (closed_bitmaps != NULL && open_bitmaps != NULL) {
-    size_t curr_offset = write_bitmaps(closed_bitmaps, ptrmap->size_in_bytes(), buffer);
-    write_bitmaps(open_bitmaps, curr_offset, buffer);
+    size_t curr_offset = write_bitmaps(closed_bitmaps, ptrmap->size_in_bytes(), buffer.get());
+    write_bitmaps(open_bitmaps, curr_offset, buffer.get());
   }
 
-  write_region(MetaspaceShared::bm, (char*)buffer, size_in_bytes, /*read_only=*/true, /*allow_exec=*/false);
+  write_region(MetaspaceShared::bm, buffer.get(), size_in_bytes, /*read_only=*/true, /*allow_exec=*/false);
   return buffer;
 }
 

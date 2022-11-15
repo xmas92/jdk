@@ -28,6 +28,7 @@
 #include "cds/metaspaceShared.hpp"
 #include "include/cds.h"
 #include "logging/logLevel.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/array.hpp"
 #include "oops/compressedOops.hpp"
 #include "utilities/align.hpp"
@@ -450,10 +451,10 @@ public:
   void  write_header();
   void  write_region(int region, char* base, size_t size,
                      bool read_only, bool allow_exec);
-  char* write_bitmap_region(const CHeapBitMap* ptrmap,
-                            GrowableArray<ArchiveHeapBitmapInfo>* closed_bitmaps,
-                            GrowableArray<ArchiveHeapBitmapInfo>* open_bitmaps,
-                            size_t &size_in_bytes);
+  ManagedCHeapArray<char> write_bitmap_region(const CHeapBitMap* ptrmap,
+                                              GrowableArray<ArchiveHeapBitmapInfo>* closed_bitmaps,
+                                              GrowableArray<ArchiveHeapBitmapInfo>* open_bitmaps,
+                                              size_t &size_in_bytes);
   size_t write_heap_regions(GrowableArray<MemRegion>* regions,
                             GrowableArray<ArchiveHeapBitmapInfo>* bitmaps,
                             int first_region_id, int max_num_regions);

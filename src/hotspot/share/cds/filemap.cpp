@@ -45,6 +45,7 @@
 #include "logging/log.hpp"
 #include "logging/logMessage.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocation.hpp"
 #include "memory/allocationManaged.hpp"
 #include "memory/iterator.inline.hpp"
 #include "memory/metadataFactory.hpp"
@@ -1180,7 +1181,7 @@ class FileHeaderHelper {
   int _fd;
   bool _is_valid;
   bool _is_static;
-  GenericCDSFileMapHeader* _header;
+  ManagedCHeapObject<GenericCDSFileMapHeader> _header;
   const char* _archive_name;
   const char* _base_archive_name;
 
@@ -1195,9 +1196,6 @@ public:
   }
 
   ~FileHeaderHelper() {
-    if (_header != nullptr) {
-      FREE_C_HEAP_ARRAY(char, _header);
-    }
     if (_fd != -1) {
       ::close(_fd);
     }
@@ -1252,9 +1250,14 @@ public:
 
     // Read the actual header and perform more checks
     size = gen_header._header_size;
-    _header = (GenericCDSFileMapHeader*)NEW_C_HEAP_ARRAY(char, size, mtInternal);
-    os::lseek(fd, 0, SEEK_SET);
-    n = ::read(fd, (void*)_header, (unsigned int)size);
+    // Candidate: i-d
+    _header = make_managed_c_heap_object_from_buffer<GenericCDSFileMapHeader>(mtInternal, size,
+        [&](address buffer) {
+          GenericCDSFileMapHeader* header = ::new (buffer) GenericCDSFileMapHeader;
+          os::lseek(fd, 0, SEEK_SET);
+          n = ::read(fd, (void*)buffer, (unsigned int)size);
+          return header;
+        });
     if (n != size) {
       FileMapInfo::fail_continue("Unable to read actual CDS file map header from shared archive");
       return false;
@@ -1275,7 +1278,7 @@ public:
 
   GenericCDSFileMapHeader* get_generic_file_header() {
     assert(_header != nullptr && _is_valid, "must be a valid archive file");
-    return _header;
+    return _header.get();
   }
 
   const char* base_archive_name() {
@@ -1286,7 +1289,7 @@ public:
  private:
   bool check_crc() {
     if (VerifySharedSpaces) {
-      FileMapHeader* header = (FileMapHeader*)_header;
+      FileMapHeader* header = (FileMapHeader*)_header.get();
       int actual_crc = header->compute_crc();
       if (actual_crc != header->crc()) {
         log_info(cds)("_crc expected: %d", header->crc());
@@ -1333,7 +1336,7 @@ public:
                                      name_offset, name_size, header_size);
           return false;
         }
-        const char* name = ((const char*)_header) + _header->_base_archive_name_offset;
+        const char* name = ((const char*)_header.get()) + _header->_base_archive_name_offset;
         if (name[name_size - 1] != '\0' || strlen(name) != name_size - 1) {
           FileMapInfo::fail_continue("Base archive name is damaged");
           return false;

@@ -30,6 +30,7 @@
 #include "classfile/vmClasses.hpp"
 #include "classfile/vmSymbols.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/oopFactory.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
@@ -61,14 +62,16 @@ void JavaAssertions::addOption(const char* name, bool enable) {
   // Copy the name.  The storage needs to exist for the lifetime of the vm;
   // it is never freed, so will be leaked (along with other option strings -
   // e.g., bootclasspath) if a process creates/destroys multiple VMs.
-  int len = (int)strlen(name);
-  char *name_copy = NEW_C_HEAP_ARRAY(char, len + 1, mtClass);
-  strcpy(name_copy, name);
+  // candidate: leaked
+  size_t len = strlen(name);
+  ManagedCHeapArray<char> name_copy =
+      make_managed_c_heap_array_default_init<char>(len + 1, mtClass);
+  strncpy(name_copy.get(), name, len + 1);
 
   // Figure out which list the new item should go on.  Names that end in "..."
   // go on the package tree list.
   OptionList** head = &_classes;
-  if (len >= 3 && strcmp(name_copy + len - 3, "...") == 0) {
+  if (len >= 3 && strcmp(name_copy.get() + len - 3, "...") == 0) {
     // Delete the "...".
     len -= 3;
     name_copy[len] = '\0';
@@ -80,20 +83,20 @@ void JavaAssertions::addOption(const char* name, bool enable) {
   // should happen only once.  Alternative would require that
   // JVM_DesiredAssertionStatus pass the external_name() to
   // JavaAssertion::enabled(), but that is done once per loaded class.
-  for (int i = 0; i < len; ++i) {
+  for (size_t i = 0; i < len; ++i) {
     if (name_copy[i] == JVM_SIGNATURE_DOT) name_copy[i] = JVM_SIGNATURE_SLASH;
   }
 
   if (TraceJavaAssertions) {
     tty->print_cr("JavaAssertions: adding %s %s=%d",
       head == &_classes ? "class" : "package",
-      name_copy[0] != '\0' ? name_copy : "'default'",
+      name_copy[0] != '\0' ? name_copy.get() : "'default'",
       enable);
   }
 
   // Prepend a new item to the list.  Items added later take precedence, so
   // prepending allows us to stop searching the list after the first match.
-  *head = new OptionList(name_copy, enable, *head);
+  *head = new OptionList(name_copy.leak(), enable, *head);
 }
 
 oop JavaAssertions::createAssertionStatusDirectives(TRAPS) {

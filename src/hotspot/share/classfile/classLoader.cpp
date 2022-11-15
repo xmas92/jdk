@@ -49,6 +49,7 @@
 #include "logging/logStream.hpp"
 #include "logging/logTag.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/oopFactory.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
@@ -231,22 +232,20 @@ PackageEntry* ClassLoader::get_package_entry(Symbol* pkg_name, ClassLoaderData* 
   return pkgEntryTable->lookup_only(pkg_name);
 }
 
-const char* ClassPathEntry::copy_path(const char* path) {
-  char* copy = NEW_C_HEAP_ARRAY(char, strlen(path)+1, mtClass);
-  strcpy(copy, path);
+ManagedCHeapArray<const char> ClassPathEntry::copy_path(const char* path) {
+  // candidate: c-d, leaked
+  const size_t len = strlen(path) + 1;
+  ManagedCHeapArray<char> copy = make_managed_c_heap_array_default_init<char>(len, mtClass);
+  strcpy(copy.get(), path);
   return copy;
-}
-
-ClassPathDirEntry::~ClassPathDirEntry() {
-  FREE_C_HEAP_ARRAY(char, _dir);
 }
 
 ClassFileStream* ClassPathDirEntry::open_stream(JavaThread* current, const char* name) {
   // construct full path name
-  assert((_dir != NULL) && (name != NULL), "sanity");
-  size_t path_len = strlen(_dir) + strlen(name) + strlen(os::file_separator()) + 1;
+  assert((_dir != nullptr) && (name != NULL), "sanity");
+  size_t path_len = strlen(_dir.get()) + strlen(name) + strlen(os::file_separator()) + 1;
   char* path = NEW_RESOURCE_ARRAY_IN_THREAD(current, char, path_len);
-  int len = jio_snprintf(path, path_len, "%s%s%s", _dir, os::file_separator(), name);
+  int len = jio_snprintf(path, path_len, "%s%s%s", _dir.get(), os::file_separator(), name);
   assert(len == (int)(path_len - 1), "sanity");
   // check if file exists
   struct stat st;
@@ -272,7 +271,7 @@ ClassFileStream* ClassPathDirEntry::open_stream(JavaThread* current, const char*
         // Resource allocated
         return new ClassFileStream(buffer,
                                    st.st_size,
-                                   _dir,
+                                   _dir.get(),
                                    ClassFileStream::verify);
       }
     }
@@ -290,7 +289,6 @@ ClassPathZipEntry::ClassPathZipEntry(jzfile* zip, const char* zip_name,
 
 ClassPathZipEntry::~ClassPathZipEntry() {
   (*ZipClose)(_zip);
-  FREE_C_HEAP_ARRAY(char, _zip_name);
 }
 
 u1* ClassPathZipEntry::open_entry(JavaThread* current, const char* name, jint* filesize, bool nul_terminate) {
@@ -339,7 +337,7 @@ ClassFileStream* ClassPathZipEntry::open_stream(JavaThread* current, const char*
   // Resource allocated
   return new ClassFileStream(buffer,
                              filesize,
-                             _zip_name,
+                             _zip_name.get(),
                              ClassFileStream::verify);
 }
 
@@ -370,7 +368,7 @@ ClassPathImageEntry::ClassPathImageEntry(JImageFile* jimage, const char* name) :
   assert(_singleton == NULL, "VM supports only one jimage");
   DEBUG_ONLY(_singleton = this);
   size_t len = strlen(name) + 1;
-  _name = copy_path(name);
+  _name = copy_path(name).leak();
 }
 
 ClassFileStream* ClassPathImageEntry::open_stream(JavaThread* current, const char* name) {
@@ -1391,19 +1389,21 @@ void ClassLoader::initialize(TRAPS) {
   setup_bootstrap_search_path(THREAD);
 }
 
-char* lookup_vm_resource(JImageFile *jimage, const char *jimage_version, const char *path) {
+ManagedCHeapArray<char> lookup_vm_resource(JImageFile *jimage, const char *jimage_version, const char *path) {
   jlong size;
   JImageLocationRef location = (*JImageFindResource)(jimage, "java.base", jimage_version, path, &size);
   if (location == 0)
-    return NULL;
-  char *val = NEW_C_HEAP_ARRAY(char, size+1, mtClass);
-  (*JImageGetResource)(jimage, location, val, size);
+    return {};
+  // candidate: temp
+  ManagedCHeapArray<char> val =
+      make_managed_c_heap_array_default_init<char>(size+1, mtClass);
+  (*JImageGetResource)(jimage, location, val.get(), size);
   val[size] = '\0';
   return val;
 }
 
 // Lookup VM options embedded in the modules jimage file
-char* ClassLoader::lookup_vm_options() {
+ManagedCHeapArray<char> ClassLoader::lookup_vm_options() {
   jint error;
   char modules_path[JVM_MAXPATHLEN];
   const char* fileSep = os::file_separator();
@@ -1414,11 +1414,11 @@ char* ClassLoader::lookup_vm_options() {
   jio_snprintf(modules_path, JVM_MAXPATHLEN, "%s%slib%smodules", Arguments::get_java_home(), fileSep, fileSep);
   JImage_file =(*JImageOpen)(modules_path, &error);
   if (JImage_file == NULL) {
-    return NULL;
+    return {};
   }
 
   const char *jimage_version = get_jimage_version_string();
-  char *options = lookup_vm_resource(JImage_file, jimage_version, "jdk/internal/vm/options");
+  ManagedCHeapArray<char> options = lookup_vm_resource(JImage_file, jimage_version, "jdk/internal/vm/options");
   return options;
 }
 

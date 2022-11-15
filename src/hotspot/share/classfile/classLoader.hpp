@@ -26,6 +26,7 @@
 #define SHARE_CLASSFILE_CLASSLOADER_HPP
 
 #include "jimage.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/handles.hpp"
 #include "runtime/perfDataTypes.hpp"
 #include "utilities/exceptions.hpp"
@@ -48,7 +49,7 @@ class ClassPathEntry : public CHeapObj<mtClass> {
 private:
   ClassPathEntry* volatile _next;
 protected:
-  const char* copy_path(const char*path);
+  ManagedCHeapArray<const char>  copy_path(const char*path);
 public:
   ClassPathEntry* next() const;
   virtual ~ClassPathEntry() {}
@@ -74,14 +75,14 @@ public:
 
 class ClassPathDirEntry: public ClassPathEntry {
  private:
-  const char* _dir;           // Name of directory
+  ManagedCHeapArray<const char> _dir;           // Name of directory
  public:
-  const char* name() const { return _dir; }
+  const char* name() const override { return _dir.get(); }
   ClassPathDirEntry(const char* dir) {
     _dir = copy_path(dir);
   }
-  virtual ~ClassPathDirEntry();
-  ClassFileStream* open_stream(JavaThread* current, const char* name);
+  ~ClassPathDirEntry() override = default;
+  ClassFileStream* open_stream(JavaThread* current, const char* name) override;
 };
 
 // Type definitions for zip file and zip file entry
@@ -100,12 +101,12 @@ typedef struct {
 class ClassPathZipEntry: public ClassPathEntry {
  private:
   jzfile* _zip;              // The zip archive
-  const char*   _zip_name;   // Name of zip archive
+  ManagedCHeapArray<const char>   _zip_name;   // Name of zip archive
   bool _from_class_path_attr; // From the "Class-path" attribute of a jar file
  public:
   bool is_jar_file() const { return true;  }
   bool from_class_path_attr() const { return _from_class_path_attr; }
-  const char* name() const { return _zip_name; }
+  const char* name() const { return _zip_name.get(); }
   ClassPathZipEntry(jzfile* zip, const char* zip_name, bool is_boot_append, bool from_class_path_attr);
   virtual ~ClassPathZipEntry();
   u1* open_entry(JavaThread* current, const char* name, jint* filesize, bool nul_terminate);
@@ -372,7 +373,7 @@ class ClassLoader: AllStatic {
                              const ClassFileStream* stream, bool redefined);
 #endif
 
-  static char* lookup_vm_options();
+  static ManagedCHeapArray<char> lookup_vm_options();
 
   // Determines if the named module is present in the
   // modules jimage file or in the exploded modules directory.

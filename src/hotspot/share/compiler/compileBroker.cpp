@@ -43,6 +43,7 @@
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
 #include "oops/methodData.hpp"
@@ -912,16 +913,21 @@ void CompileBroker::init_compiler_threads() {
   assert(_c2_count > 0 || _c1_count > 0, "No compilers?");
 #endif // !ZERO
   // Initialize the compilation queue
+  // candidates: leaked
   if (_c2_count > 0) {
     const char* name = JVMCI_ONLY(UseJVMCICompiler ? "JVMCI compile queue" :) "C2 compile queue";
     _c2_compile_queue  = new CompileQueue(name);
-    _compiler2_objects = NEW_C_HEAP_ARRAY(jobject, _c2_count, mtCompiler);
-    _compiler2_logs = NEW_C_HEAP_ARRAY(CompileLog*, _c2_count, mtCompiler);
+    _compiler2_objects =
+        make_managed_c_heap_array_default_init<jobject>(_c2_count, mtCompiler).leak();
+    _compiler2_logs =
+        make_managed_c_heap_array_default_init<CompileLog*>(_c2_count, mtCompiler).leak();
   }
   if (_c1_count > 0) {
     _c1_compile_queue  = new CompileQueue("C1 compile queue");
-    _compiler1_objects = NEW_C_HEAP_ARRAY(jobject, _c1_count, mtCompiler);
-    _compiler1_logs = NEW_C_HEAP_ARRAY(CompileLog*, _c1_count, mtCompiler);
+    _compiler1_objects =
+        make_managed_c_heap_array_default_init<jobject>(_c1_count, mtCompiler).leak();
+    _compiler1_logs =
+        make_managed_c_heap_array_default_init<CompileLog*>(_c1_count, mtCompiler).leak();
   }
 
   char name_buffer[256];

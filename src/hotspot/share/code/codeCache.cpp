@@ -43,6 +43,7 @@
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
@@ -1618,8 +1619,9 @@ void CodeCache::print_internals() {
 
   int bucketSize = 512;
   int bucketLimit = max_nm_size / bucketSize + 1;
-  int *buckets = NEW_C_HEAP_ARRAY(int, bucketLimit, mtCode);
-  memset(buckets, 0, sizeof(int) * bucketLimit);
+  // candidate: temp
+  ManagedCHeapArray<int> buckets =
+      make_managed_c_heap_array_value_init<int>(bucketLimit, mtCode);
 
   NMethodIterator iter(NMethodIterator::all_blobs);
   while(iter.next()) {
@@ -1651,7 +1653,6 @@ void CodeCache::print_internals() {
     }
   }
 
-  FREE_C_HEAP_ARRAY(int, buckets);
   print_memory_overhead();
 }
 

@@ -25,6 +25,7 @@
 #ifndef SHARE_COMPILER_COMPILELOG_HPP
 #define SHARE_COMPILER_COMPILELOG_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "utilities/xmlstream.hpp"
 
 class ciBaseObject;
@@ -40,14 +41,14 @@ class ciSymbol;
 // if the +LogCompilation switch is enabled.
 class CompileLog : public xmlStream {
  private:
-  const char*   _file;           // name of file where XML goes
+  ManagedCHeapArray<const char>   _file;           // name of file where XML goes
   julong        _file_end;       // last good end of file
   intx          _thread_id;      // which compile thread
 
   stringStream  _context;        // optional, killable context marker
   char          _context_buffer[100];
 
-  char*         _identities;     // array of boolean
+  ManagedCHeapArray<char>         _identities;     // array of boolean
   int           _identities_limit;
   int           _identities_capacity;
 
@@ -62,7 +63,7 @@ class CompileLog : public xmlStream {
   ~CompileLog();
 
   intx          thread_id()                      { return _thread_id; }
-  const char*   file()                           { return _file; }
+  const char*   file()                           { return _file.get(); }
 
   // Optional context marker, to help place actions that occur during
   // parsing. If there is no log output until the next context string

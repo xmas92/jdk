@@ -28,6 +28,7 @@
 #include "compiler/compileLog.hpp"
 #include "jvm.h"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/method.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/os.hpp"
@@ -45,9 +46,13 @@ CompileLog::CompileLog(const char* file_name, FILE* fp, intx thread_id)
 
   _identities_limit = 0;
   _identities_capacity = 400;
-  _identities = NEW_C_HEAP_ARRAY(char, _identities_capacity, mtCompiler);
-  _file = NEW_C_HEAP_ARRAY(char, strlen(file_name)+1, mtCompiler);
-   strcpy((char*)_file, file_name);
+  // candidate: c-d
+  _identities = make_managed_c_heap_array_default_init<char>(_identities_capacity, mtCompiler);
+  const size_t file_name_len = strlen(file_name) + 1;
+  ManagedCHeapArray<char> file =
+      make_managed_c_heap_array_default_init<char>(file_name_len, mtCompiler);
+   strncpy(file.get(), file_name, file_name_len);
+  _file = std::move(file);
 
   // link into the global list
   { MutexLocker locker(CompileTaskAlloc_lock);
@@ -60,9 +65,7 @@ CompileLog::~CompileLog() {
   delete _out; // Close fd in fileStream::~fileStream()
   _out = NULL;
   // Remove partial file after merging in CompileLog::finish_log_on_error
-  unlink(_file);
-  FREE_C_HEAP_ARRAY(char, _identities);
-  FREE_C_HEAP_ARRAY(char, _file);
+  unlink(_file.get());
 }
 
 
@@ -93,7 +96,8 @@ int CompileLog::identify(ciBaseObject* obj) {
   if (id >= _identities_capacity) {
     int new_cap = _identities_capacity * 2;
     if (new_cap <= id)  new_cap = id + 100;
-    _identities = REALLOC_C_HEAP_ARRAY(char, _identities, new_cap, mtCompiler);
+    _identities = reallocate_managed_c_heap_array_default_init(
+        std::move(_identities), _identities_capacity, new_cap, mtCompiler);
     _identities_capacity = new_cap;
   }
   while (id >= _identities_limit) {

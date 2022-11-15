@@ -28,6 +28,7 @@
 #include "code/compressedStream.hpp"
 #include "code/vmreg.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "utilities/growableArray.hpp"
@@ -343,7 +344,7 @@ public:
 
   ImmutableOopMapPair* get_pairs() const { return (ImmutableOopMapPair*) ((address) this + sizeof(*this)); }
 
-  static ImmutableOopMapSet* build_from(const OopMapSet* oopmap_set);
+  static ManagedCHeapObject<ImmutableOopMapSet> build_from(const OopMapSet* oopmap_set);
 
   int find_slot_for_offset(int pc_offset) const;
   const ImmutableOopMap* find_map_at_offset(int pc_offset) const;
@@ -419,7 +420,7 @@ public:
   ImmutableOopMapBuilder(const OopMapSet* set);
 
   int heap_size();
-  ImmutableOopMapSet* build();
+  ManagedCHeapObject<ImmutableOopMapSet> build();
   ImmutableOopMapSet* generate_into(address buffer);
 private:
   bool is_empty(const OopMap* map) const {

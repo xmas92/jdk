@@ -174,8 +174,7 @@ void RuntimeBlob::free(RuntimeBlob* blob) {
 }
 
 void CodeBlob::flush() {
-  FREE_C_HEAP_ARRAY(unsigned char, _oop_maps);
-  _oop_maps = NULL;
+  _oop_maps.reset();
   NOT_PRODUCT(_asm_remarks.clear());
   NOT_PRODUCT(_dbg_strings.clear());
 }

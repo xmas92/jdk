@@ -29,6 +29,7 @@
 #include "include/cds.h"
 #include "logging/logLevel.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/array.hpp"
 #include "oops/compressedOops.hpp"
 #include "utilities/align.hpp"
@@ -437,8 +438,8 @@ public:
   void  write_header();
   void  write_region(int region, char* base, size_t size,
                      bool read_only, bool allow_exec);
-  char* write_bitmap_region(const CHeapBitMap* ptrmap, ArchiveHeapInfo* heap_info,
-                            size_t &size_in_bytes);
+  ManagedCHeapArray<char> write_bitmap_region(const CHeapBitMap* ptrmap, ArchiveHeapInfo* heap_info,
+                                              size_t &size_in_bytes);
   size_t write_heap_region(ArchiveHeapInfo* heap_info);
   void  write_bytes(const void* buffer, size_t count);
   void  write_bytes_aligned(const void* buffer, size_t count);

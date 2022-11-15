@@ -44,8 +44,9 @@
 #include "classfile/vmSymbols.hpp"
 #include "jvm.h"
 #include "logging/log.hpp"
-#include "logging/logStream.hpp"
 #include "logging/logMessage.hpp"
+#include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.inline.hpp"
 #include "memory/metadataFactory.hpp"
 #include "memory/metaspaceClosure.hpp"
@@ -1595,27 +1596,27 @@ char* FileMapInfo::write_bitmap_region(const CHeapBitMap* ptrmap, ArchiveHeapInf
     size_in_bytes += heap_info->oopmap()->size_in_bytes();
     size_in_bytes += heap_info->ptrmap()->size_in_bytes();
   }
-
+  // candidat: temp
   // The bitmap region contains up to 3 parts:
   // ptrmap:              metaspace pointers inside the ro/rw regions
   // heap_info->oopmap(): Java oop pointers in the heap region
   // heap_info->ptrmap(): metaspace pointers in the heap region
-  char* buffer = NEW_C_HEAP_ARRAY(char, size_in_bytes, mtClassShared);
+  ManagedCHeapArray<char> buffer = make_managed_c_heap_array_default_init<char>(size_in_bytes, mtClassShared);
   size_t written = 0;
-  written = write_bitmap(ptrmap, buffer, written);
+  written = write_bitmap(ptrmap, buffer.get(), written);
   header()->set_ptrmap_size_in_bits(ptrmap->size());
 
   if (heap_info->is_used()) {
     FileMapRegion* r = region_at(MetaspaceShared::hp);
 
     r->init_oopmap(written, heap_info->oopmap()->size());
-    written = write_bitmap(heap_info->oopmap(), buffer, written);
+    written = write_bitmap(heap_info->oopmap(), buffer.get(), written);
 
     r->init_ptrmap(written, heap_info->ptrmap()->size());
-    written = write_bitmap(heap_info->ptrmap(), buffer, written);
+    written = write_bitmap(heap_info->ptrmap(), buffer.get(), written);
   }
 
-  write_region(MetaspaceShared::bm, (char*)buffer, size_in_bytes, /*read_only=*/true, /*allow_exec=*/false);
+  write_region(MetaspaceShared::bm, buffer.get(), size_in_bytes, /*read_only=*/true, /*allow_exec=*/false);
   return buffer;
 }
 

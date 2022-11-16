@@ -31,6 +31,7 @@
 #include "compiler/compiler_globals.hpp"
 #include "compiler/methodMatcher.hpp"
 #include "compiler/compilerOracle.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/exceptions.hpp"
 #include "utilities/tribool.hpp"
 
@@ -127,7 +128,7 @@ public:
   bool matches_inline(const methodHandle& method, int inline_action);
   static DirectiveSet* clone(DirectiveSet const* src);
   bool is_intrinsic_disabled(const methodHandle& method);
-  static ccstrlist canonicalize_control_intrinsic(ccstrlist option_value);
+  static ManagedCHeapArray<char> canonicalize_control_intrinsic(ccstrlist option_value);
   void finalize(outputStream* st);
   bool is_c1(CompilerDirectives* directive) const;
   bool is_c2(CompilerDirectives* directive) const;
@@ -185,13 +186,13 @@ class ControlIntrinsicIter {
   bool _enabled;
   char* _token;
   char* _saved_ptr;
-  char* _list;
+  ManagedCHeapArray<char> _list;
   const bool _disableIntrinsic;
   void next_token();
 
  public:
   ControlIntrinsicIter(ccstrlist option, bool disable_all = false);
-  ~ControlIntrinsicIter();
+  ~ControlIntrinsicIter() = default;
 
   bool is_enabled() const { return _enabled; }
   const char* operator*() const { return _token; }

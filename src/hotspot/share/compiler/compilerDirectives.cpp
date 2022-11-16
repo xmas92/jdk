@@ -29,7 +29,9 @@
 #include "compiler/compilerDefinitions.inline.hpp"
 #include "compiler/compilerDirectives.hpp"
 #include "compiler/compilerOracle.hpp"
+#include "memory/allocation.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/resourceArea.hpp"
 #include "opto/phasetype.hpp"
 #include "runtime/globals_extension.hpp"
@@ -209,8 +211,11 @@ bool DirectiveSet::is_c2(CompilerDirectives* directive) const {
 //
 // To simplify the processing of the list, the canonicalize_control_intrinsic() method
 // returns a new copy of the list in which '\n' and ' ' is replaced with ','.
-ccstrlist DirectiveSet::canonicalize_control_intrinsic(ccstrlist option_value) {
-  char* canonicalized_list = NEW_C_HEAP_ARRAY(char, strlen(option_value) + 1, mtCompiler);
+ManagedCHeapArray<char> DirectiveSet::canonicalize_control_intrinsic(ccstrlist option_value) {
+  // candidate: c-d
+  const size_t len = strlen(option_value) + 1;
+  ManagedCHeapArray<char> canonicalized_list =
+      make_managed_c_heap_array_default_init<char>(len, mtCompiler);
   int i = 0;
   char current;
   while ((current = option_value[i]) != '\0') {
@@ -227,16 +232,12 @@ ccstrlist DirectiveSet::canonicalize_control_intrinsic(ccstrlist option_value) {
 
 ControlIntrinsicIter::ControlIntrinsicIter(ccstrlist option_value, bool disable_all)
   : _disableIntrinsic(disable_all) {
-  _list = (char*)DirectiveSet::canonicalize_control_intrinsic(option_value);
-  _saved_ptr = _list;
+  _list = DirectiveSet::canonicalize_control_intrinsic(option_value);
+  _saved_ptr = _list.get();
   _enabled = false;
 
   _token = strtok_r(_saved_ptr, ",", &_saved_ptr);
   next_token();
-}
-
-ControlIntrinsicIter::~ControlIntrinsicIter() {
-  FREE_C_HEAP_ARRAY(char, _list);
 }
 
 // pre-increment

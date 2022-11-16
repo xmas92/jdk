@@ -203,33 +203,31 @@ class ControlIntrinsicIter {
 class ControlIntrinsicValidator {
  private:
   bool _valid;
-  char* _bad;
+  ManagedCHeapArray<char> _bad;
 
  public:
   ControlIntrinsicValidator(ccstrlist option, bool disable_all) : _valid(true), _bad(nullptr) {
     for (ControlIntrinsicIter iter(option, disable_all); *iter != NULL && _valid; ++iter) {
       if (vmIntrinsics::_none == vmIntrinsics::find_id(*iter)) {
         const size_t len = MIN2<size_t>(strlen(*iter), 63) + 1;  // cap len to a value we know is enough for all intrinsic names
-        _bad = NEW_C_HEAP_ARRAY(char, len, mtCompiler);
+        // candidate: c-d
+        _bad = make_managed_c_heap_array_default_init<char>(len, mtCompiler);
         // strncpy always writes len characters. If the source string is shorter, the function fills the remaining bytes with NULLs.
-        strncpy(_bad, *iter, len);
+        strncpy(_bad.get(), *iter, len);
+        _bad[len-1] = '\0';
         _valid = false;
       }
     }
   }
 
-  ~ControlIntrinsicValidator() {
-    if (_bad != NULL) {
-      FREE_C_HEAP_ARRAY(char, _bad);
-    }
-  }
+  ~ControlIntrinsicValidator() = default;
 
   bool is_valid() const {
     return _valid;
   }
 
   const char* what() const {
-    return _bad;
+    return _bad.get();
   }
 };
 

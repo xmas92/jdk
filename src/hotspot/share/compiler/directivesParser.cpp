@@ -26,6 +26,7 @@
 #include "compiler/compileBroker.hpp"
 #include "compiler/directivesParser.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/resourceArea.hpp"
 #include "opto/phasetype.hpp"
 #include "runtime/os.hpp"
@@ -193,11 +194,12 @@ bool DirectivesParser::push_key(const char* str, size_t len) {
 
   if (k == NULL) {
     // os::strdup
-    char* s = NEW_C_HEAP_ARRAY(char, len + 1, mtCompiler);
-    strncpy(s, str, len);
+    // candidate: temp
+    ManagedCHeapArray<char> s =
+        make_managed_c_heap_array_default_init<char>(len + 1, mtCompiler);
+    strncpy(s.get(), str, len);
     s[len] = '\0';
-    error(KEY_ERROR, "No such key: '%s'.", s);
-    FREE_C_HEAP_ARRAY(char, s);
+    error(KEY_ERROR, "No such key: '%s'.", s.get());
     return false;
   }
 
@@ -316,20 +318,23 @@ bool DirectivesParser::set_option_flag(JSON_TYPE t, JSON_VAL* v, const key* opti
         error(VALUE_ERROR, "Cannot use string value for a %s flag", flag_type_names[option_key->flag_type]);
         return false;
       } else {
-        char* s = NEW_C_HEAP_ARRAY(char, v->str.length+1,  mtCompiler);
-        strncpy(s, v->str.start, v->str.length + 1);
-        s[v->str.length] = '\0';
+        // candidate: leaked
+        const size_t len = v->str.length+1;
+        ManagedCHeapArray<char> s =
+            make_managed_c_heap_array_default_init<char>(len, mtCompiler);
+        strncpy(s.get(), v->str.start, len);
+        s[len-1] = '\0';
         (set->*test)((void *)&s);
 
         if (strncmp(option_key->name, "ControlIntrinsic", 16) == 0) {
-          ControlIntrinsicValidator validator(s, false/*disabled_all*/);
+          ControlIntrinsicValidator validator(s.get(), false/*disabled_all*/);
 
           if (!validator.is_valid()) {
             error(VALUE_ERROR, "Unrecognized intrinsic detected in ControlIntrinsic: %s", validator.what());
             return false;
           }
         } else if (strncmp(option_key->name, "DisableIntrinsic", 16) == 0) {
-          ControlIntrinsicValidator validator(s, true/*disabled_all*/);
+          ControlIntrinsicValidator validator(s.get(), true/*disabled_all*/);
 
           if (!validator.is_valid()) {
             error(VALUE_ERROR, "Unrecognized intrinsic detected in DisableIntrinsic: %s", validator.what());
@@ -337,13 +342,14 @@ bool DirectivesParser::set_option_flag(JSON_TYPE t, JSON_VAL* v, const key* opti
           }
         } else if (strncmp(option_key->name, "PrintIdealPhase", 15) == 0) {
           uint64_t mask = 0;
-          PhaseNameValidator validator(s, mask);
+          PhaseNameValidator validator(s.get(), mask);
 
           if (!validator.is_valid()) {
             error(VALUE_ERROR, "Unrecognized phase name detected in PrintIdealPhase: %s", validator.what());
             return false;
           }
           set->set_ideal_phase_mask(mask);
+          s.leak(); // Probably a bug
         }
       }
       break;
@@ -402,16 +408,18 @@ bool DirectivesParser::set_option(JSON_TYPE t, JSON_VAL* v) {
       return false;
     }
     {
-      char* s = NEW_C_HEAP_ARRAY(char, v->str.length + 1, mtCompiler);
-      strncpy(s, v->str.start, v->str.length);
-      s[v->str.length] = '\0';
+      // candidate: temp
+      const size_t len = v->str.length + 1;
+      ManagedCHeapArray<char> s =
+          make_managed_c_heap_array_default_init<char>(len, mtCompiler);
+      strncpy(s.get(), v->str.start, len);
+      s[len-1] = '\0';
 
       const char* error_msg = NULL;
-      if (!current_directive->add_match(s, error_msg)) {
+      if (!current_directive->add_match(s.get(), error_msg)) {
         assert (error_msg != NULL, "Must have valid error message");
         error(VALUE_ERROR, "Method pattern error: %s", error_msg);
       }
-      FREE_C_HEAP_ARRAY(char, s);
     }
     break;
 
@@ -422,14 +430,17 @@ bool DirectivesParser::set_option(JSON_TYPE t, JSON_VAL* v) {
     }
     {
       //char* s = strndup(v->str.start, v->str.length);
-      char* s = NEW_C_HEAP_ARRAY(char, v->str.length + 1, mtCompiler);
-      strncpy(s, v->str.start, v->str.length);
-      s[v->str.length] = '\0';
+      // candidate: temp
+      const size_t len = v->str.length + 1;
+      ManagedCHeapArray<char> s =
+          make_managed_c_heap_array_default_init<char>(len, mtCompiler);
+      strncpy(s.get(), v->str.start, len);
+      s[len-1] = '\0';
 
       const char* error_msg = NULL;
       if (current_directiveset == NULL) {
-        if (current_directive->_c1_store->parse_and_add_inline(s, error_msg)) {
-          if (!current_directive->_c2_store->parse_and_add_inline(s, error_msg)) {
+        if (current_directive->_c1_store->parse_and_add_inline(s.get(), error_msg)) {
+          if (!current_directive->_c2_store->parse_and_add_inline(s.get(), error_msg)) {
             assert (error_msg != NULL, "Must have valid error message");
             error(VALUE_ERROR, "Method pattern error: %s", error_msg);
           }
@@ -438,12 +449,11 @@ bool DirectivesParser::set_option(JSON_TYPE t, JSON_VAL* v) {
           error(VALUE_ERROR, "Method pattern error: %s", error_msg);
         }
       } else {
-        if (!current_directiveset->parse_and_add_inline(s, error_msg)) {
+        if (!current_directiveset->parse_and_add_inline(s.get(), error_msg)) {
           assert (error_msg != NULL, "Must have valid error message");
           error(VALUE_ERROR, "Method pattern error: %s", error_msg);
         }
       }
-      FREE_C_HEAP_ARRAY(char, s);
     }
     break;
 

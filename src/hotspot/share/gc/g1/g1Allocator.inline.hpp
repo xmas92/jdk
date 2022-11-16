@@ -101,9 +101,9 @@ inline PLAB* G1PLABAllocator::alloc_buffer(region_type_t dest, uint node_index) 
   if (dest == G1HeapRegionAttr::Young) {
     assert(node_index < alloc_buffers_length(dest),
            "Allocation buffer index out of bounds: %u, %u", dest, node_index);
-    return _dest_data[dest]._alloc_buffer[node_index];
+    return _dest_data[dest]._alloc_buffer[node_index].get();
   } else {
-    return _dest_data[dest]._alloc_buffer[0];
+    return _dest_data[dest]._alloc_buffer[0].get();
   }
 }
 

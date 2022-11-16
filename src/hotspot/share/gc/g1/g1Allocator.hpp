@@ -29,6 +29,8 @@
 #include "gc/g1/g1HeapRegionAttr.hpp"
 #include "gc/shared/collectedHeap.hpp"
 #include "gc/shared/plab.hpp"
+#include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 
 class G1EvacInfo;
 class G1NUMA;
@@ -50,11 +52,11 @@ private:
   size_t _num_alloc_regions;
 
   // Alloc region used to satisfy mutator allocation requests.
-  MutatorAllocRegion* _mutator_alloc_regions;
+  ManagedCHeapArray<MutatorAllocRegion> _mutator_alloc_regions;
 
   // Alloc region used to satisfy allocation requests by the GC for
   // survivor objects.
-  SurvivorGCAllocRegion* _survivor_gc_alloc_regions;
+  ManagedCHeapArray<SurvivorGCAllocRegion> _survivor_gc_alloc_regions;
 
   // Alloc region used to satisfy allocation requests by the GC for
   // old objects.
@@ -93,7 +95,7 @@ private:
 
 public:
   G1Allocator(G1CollectedHeap* heap);
-  ~G1Allocator();
+  ~G1Allocator() = default;
 
   uint num_nodes() { return (uint)_num_alloc_regions; }
 
@@ -159,7 +161,7 @@ private:
   // Collects per-destination information (e.g. young, old gen) about current PLAB
   // and statistics about it.
   struct PLABData {
-    PLAB** _alloc_buffer;
+    ManagedCHeapArray<ManagedCHeapObj<PLAB>> _alloc_buffer;
 
     size_t _direct_allocated;             // Number of words allocated directly (not counting PLAB allocation).
     size_t _num_plab_fills;               // Number of PLAB refills experienced so far.
@@ -168,10 +170,8 @@ private:
     size_t _plab_fill_counter;            // How many PLAB refills left until boosting.
     size_t _cur_desired_plab_size;        // Current desired PLAB size incorporating eventual boosting.
 
-    uint _num_alloc_buffers;              // The number of PLABs for this destination.
-
     PLABData();
-    ~PLABData();
+    ~PLABData() = default;;
 
     void initialize(uint num_alloc_buffers, size_t desired_plab_size, size_t tolerated_refills);
 

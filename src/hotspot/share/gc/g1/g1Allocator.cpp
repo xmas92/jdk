@@ -24,6 +24,7 @@
 
 #include "precompiled.hpp"
 #include "gc/g1/g1Allocator.inline.hpp"
+#include "gc/g1/g1AllocRegion.hpp"
 #include "gc/g1/g1AllocRegion.inline.hpp"
 #include "gc/g1/g1EvacInfo.hpp"
 #include "gc/g1/g1EvacStats.inline.hpp"
@@ -34,6 +35,8 @@
 #include "gc/g1/heapRegionSet.inline.hpp"
 #include "gc/g1/heapRegionType.hpp"
 #include "gc/shared/tlab_globals.hpp"
+#include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "utilities/align.hpp"
 
@@ -43,28 +46,26 @@ G1Allocator::G1Allocator(G1CollectedHeap* heap) :
   _survivor_is_full(false),
   _old_is_full(false),
   _num_alloc_regions(_numa->num_active_nodes()),
-  _mutator_alloc_regions(NULL),
-  _survivor_gc_alloc_regions(NULL),
+  _mutator_alloc_regions(),
+  _survivor_gc_alloc_regions(),
   _old_gc_alloc_region(heap->alloc_buffer_stats(G1HeapRegionAttr::Old)),
   _retained_old_gc_alloc_region(NULL) {
-
-  _mutator_alloc_regions = NEW_C_HEAP_ARRAY(MutatorAllocRegion, _num_alloc_regions, mtGC);
-  _survivor_gc_alloc_regions = NEW_C_HEAP_ARRAY(SurvivorGCAllocRegion, _num_alloc_regions, mtGC);
+  // candidate: c-d
+  // These are CHeapObj allocated with placement new. They are managed as CHeap arrays which does not use the CHeapObj
+  // interface. However this is the same beheviour as the previous implementation.
+  _mutator_alloc_regions = make_managed_c_heap_array_with_initilizer<MutatorAllocRegion>(_num_alloc_regions, mtGC,
+      [&](MutatorAllocRegion* allocation) {
+        for (uint i = 0; i < _num_alloc_regions; i++) {
+          ::new(allocation + i) MutatorAllocRegion(i);
+        }
+      });
   G1EvacStats* stat = heap->alloc_buffer_stats(G1HeapRegionAttr::Young);
-
-  for (uint i = 0; i < _num_alloc_regions; i++) {
-    ::new(_mutator_alloc_regions + i) MutatorAllocRegion(i);
-    ::new(_survivor_gc_alloc_regions + i) SurvivorGCAllocRegion(stat, i);
-  }
-}
-
-G1Allocator::~G1Allocator() {
-  for (uint i = 0; i < _num_alloc_regions; i++) {
-    _mutator_alloc_regions[i].~MutatorAllocRegion();
-    _survivor_gc_alloc_regions[i].~SurvivorGCAllocRegion();
-  }
-  FREE_C_HEAP_ARRAY(MutatorAllocRegion, _mutator_alloc_regions);
-  FREE_C_HEAP_ARRAY(SurvivorGCAllocRegion, _survivor_gc_alloc_regions);
+  _survivor_gc_alloc_regions = make_managed_c_heap_array_with_initilizer<SurvivorGCAllocRegion>(_num_alloc_regions, mtGC,
+      [&](SurvivorGCAllocRegion* allocation) {
+        for (uint i = 0; i < _num_alloc_regions; i++) {
+          ::new(allocation + i) SurvivorGCAllocRegion(stat, i);
+        }
+      });
 }
 
 #ifdef ASSERT
@@ -299,25 +300,16 @@ G1PLABAllocator::PLABData::PLABData() :
   _num_plab_fills(0),
   _num_direct_allocations(0),
   _plab_fill_counter(0),
-  _cur_desired_plab_size(0),
-  _num_alloc_buffers(0) { }
-
-G1PLABAllocator::PLABData::~PLABData() {
-  if (_alloc_buffer == nullptr) {
-    return;
-  }
-  for (uint node_index = 0; node_index < _num_alloc_buffers; node_index++) {
-    delete _alloc_buffer[node_index];
-  }
-  FREE_C_HEAP_ARRAY(PLAB*, _alloc_buffer);
-}
+  _cur_desired_plab_size(0) { }
 
 void G1PLABAllocator::PLABData::initialize(uint num_alloc_buffers, size_t desired_plab_size, size_t tolerated_refills) {
-  _num_alloc_buffers = num_alloc_buffers;
-  _alloc_buffer = NEW_C_HEAP_ARRAY(PLAB*, _num_alloc_buffers, mtGC);
+  // candidate: i-d
+  _alloc_buffer = make_managed_c_heap_array_default_init<ManagedCHeapObj<PLAB>>(num_alloc_buffers, mtGC);
 
-  for (uint node_index = 0; node_index < _num_alloc_buffers; node_index++) {
+  for (uint node_index = 0; node_index < num_alloc_buffers; node_index++) {
     _alloc_buffer[node_index] = new PLAB(desired_plab_size);
+    // alternative
+    // _alloc_buffer[node_index] = make_managed_c_heap_obj_value_init<PLAB>(desired_plab_size);
   }
 
   _plab_fill_counter = tolerated_refills;

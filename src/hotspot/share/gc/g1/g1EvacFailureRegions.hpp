@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1EVACFAILUREREGIONS_HPP
 #define SHARE_GC_G1_G1EVACFAILUREREGIONS_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/bitMap.hpp"
 
@@ -40,7 +41,7 @@ class G1EvacFailureRegions {
   // Records for every region on the heap whether evacuation failed for it.
   CHeapBitMap _regions_failed_evacuation;
   // Regions (index) of evacuation failed in the current collection.
-  uint* _evac_failure_regions;
+  ManagedCHeapArray<uint> _evac_failure_regions;
   // Number of regions evacuation failed in the current collection.
   volatile uint _evac_failure_regions_cur_length;
 

@@ -29,6 +29,7 @@
 #include "gc/g1/g1EvacFailureRegions.inline.hpp"
 #include "gc/g1/heapRegion.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/bitMap.inline.hpp"
 
@@ -44,14 +45,14 @@ G1EvacFailureRegions::~G1EvacFailureRegions() {
 void G1EvacFailureRegions::pre_collection(uint max_regions) {
   Atomic::store(&_evac_failure_regions_cur_length, 0u);
   _regions_failed_evacuation.resize(max_regions);
-  _evac_failure_regions = NEW_C_HEAP_ARRAY(uint, max_regions, mtGC);
+  // candidate: manual
+  _evac_failure_regions = make_managed_c_heap_array_default_init<uint>(max_regions, mtGC);
 }
 
 void G1EvacFailureRegions::post_collection() {
   _regions_failed_evacuation.resize(0);
 
-  FREE_C_HEAP_ARRAY(uint, _evac_failure_regions);
-  _evac_failure_regions = nullptr;
+  _evac_failure_regions.reset();
 }
 
 bool G1EvacFailureRegions::contains(uint region_idx) const {
@@ -63,7 +64,7 @@ void G1EvacFailureRegions::par_iterate(HeapRegionClosure* closure,
                                        uint worker_id) const {
   G1CollectedHeap::heap()->par_iterate_regions_array(closure,
                                                      hrclaimer,
-                                                     _evac_failure_regions,
+                                                     _evac_failure_regions.get(),
                                                      Atomic::load(&_evac_failure_regions_cur_length),
                                                      worker_id);
 }

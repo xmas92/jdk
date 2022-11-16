@@ -25,6 +25,11 @@
 #ifndef SHARE_OPTO_PHASETYPE_HPP
 #define SHARE_OPTO_PHASETYPE_HPP
 
+#include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
+#include "utilities/debug.hpp"
+#include "utilities/globalDefinitions.hpp"
+
 #define COMPILER_PHASES(flags) \
   flags(BEFORE_STRINGOPTS,            "Before StringOpts") \
   flags(AFTER_STRINGOPTS,             "After StringOpts") \
@@ -77,6 +82,9 @@ enum CompilerPhaseType {
 };
 #undef table_entry
 
+// uint64_t bitmask, implementation requirement
+STATIC_ASSERT(CompilerPhaseType::PHASE_NUM_TYPES <= 64);
+
 static const char* phase_descriptions[] = {
 #define array_of_labels(name, description) description,
        COMPILER_PHASES(array_of_labels)
@@ -115,18 +123,16 @@ class PhaseNameIter {
  private:
   char* _token;
   char* _saved_ptr;
-  char* _list;
+  ManagedCHeapArray<char> _list;
 
  public:
   PhaseNameIter(ccstrlist option) {
-    _list = (char*) canonicalize(option);
-    _saved_ptr = _list;
+    _list = canonicalize(option);
+    _saved_ptr = _list.get();
     _token = strtok_r(_saved_ptr, ",", &_saved_ptr);
   }
 
-  ~PhaseNameIter() {
-    FREE_C_HEAP_ARRAY(char, _list);
-  }
+  ~PhaseNameIter() = default;
 
   const char* operator*() const { return _token; }
 
@@ -135,8 +141,10 @@ class PhaseNameIter {
     return *this;
   }
 
-  ccstrlist canonicalize(ccstrlist option_value) {
-    char* canonicalized_list = NEW_C_HEAP_ARRAY(char, strlen(option_value) + 1, mtCompiler);
+  ManagedCHeapArray<char> canonicalize(ccstrlist option_value) {
+    // candidate: c-d
+    const size_t len = strlen(option_value) + 1;
+     ManagedCHeapArray<char> canonicalized_list = make_managed_c_heap_array_default_init<char>(len, mtCompiler);
     int i = 0;
     char current;
     while ((current = option_value[i]) != '\0') {
@@ -155,7 +163,7 @@ class PhaseNameIter {
 class PhaseNameValidator {
  private:
   bool _valid;
-  char* _bad;
+  ManagedCHeapArray<char> _bad;
 
  public:
   PhaseNameValidator(ccstrlist option, uint64_t& mask) : _valid(true), _bad(nullptr) {
@@ -164,31 +172,29 @@ class PhaseNameValidator {
       CompilerPhaseType cpt = find_phase(*iter);
       if (PHASE_NONE == cpt) {
         const size_t len = MIN2<size_t>(strlen(*iter), 63) + 1;  // cap len to a value we know is enough for all phase descriptions
-        _bad = NEW_C_HEAP_ARRAY(char, len, mtCompiler);
+        // candidate: c-d
+        _bad = make_managed_c_heap_array_default_init<char>(len, mtCompiler);
         // strncpy always writes len characters. If the source string is shorter, the function fills the remaining bytes with NULLs.
-        strncpy(_bad, *iter, len);
+        strncpy(_bad.get(), *iter, len);
+        _bad[len-1] = '\0';
         _valid = false;
       } else if (PHASE_ALL == cpt) {
         mask = ~(UINT64_C(0));
       } else {
-        assert(cpt < 64, "out of bounds");
+        assert(cpt < PHASE_NUM_TYPES, "out of bounds");
         mask |= CompilerPhaseTypeHelper::to_bitmask(cpt);
       }
     }
   }
 
-  ~PhaseNameValidator() {
-    if (_bad != NULL) {
-      FREE_C_HEAP_ARRAY(char, _bad);
-    }
-  }
+  ~PhaseNameValidator() = default;
 
   bool is_valid() const {
     return _valid;
   }
 
   const char* what() const {
-    return _bad;
+    return _bad.get();
   }
 };
 

@@ -34,6 +34,7 @@
 #include "gc/shared/cardTableRS.hpp"
 #include "gc/shared/gcArguments.hpp"
 #include "gc/shared/workerPolicy.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
@@ -76,16 +77,17 @@ void G1Arguments::initialize_verification_types() {
   if (strlen(VerifyGCType) > 0) {
     const char delimiter[] = " ,\n";
     size_t length = strlen(VerifyGCType);
-    char* type_list = NEW_C_HEAP_ARRAY(char, length + 1, mtInternal);
-    strncpy(type_list, VerifyGCType, length + 1);
+    // candidate: temp
+    ManagedCHeapArray<char> type_list =
+        make_managed_c_heap_array_default_init<char>(length + 1, mtInternal);
+    strncpy(type_list.get(), VerifyGCType, length + 1);
     char* save_ptr;
 
-    char* token = strtok_r(type_list, delimiter, &save_ptr);
+    char* token = strtok_r(type_list.get(), delimiter, &save_ptr);
     while (token != NULL) {
       parse_verification_type(token);
       token = strtok_r(NULL, delimiter, &save_ptr);
     }
-    FREE_C_HEAP_ARRAY(char, type_list);
   }
 }
 

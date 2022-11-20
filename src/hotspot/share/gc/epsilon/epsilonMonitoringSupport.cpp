@@ -27,6 +27,7 @@
 #include "gc/epsilon/epsilonHeap.hpp"
 #include "gc/shared/generationCounters.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/metaspaceCounters.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/perfData.hpp"
@@ -38,7 +39,7 @@ class EpsilonSpaceCounters: public CHeapObj<mtGC> {
 private:
   PerfVariable* _capacity;
   PerfVariable* _used;
-  char*         _name_space;
+  ManagedCHeapArray<char> _name_space;
 
 public:
   EpsilonSpaceCounters(const char* name,
@@ -51,30 +52,31 @@ public:
       ResourceMark rm;
 
       const char* cns = PerfDataManager::name_space(gc->name_space(), "space", ordinal);
+      // candidate: c-d
+      const size_t len = strlen(cns) + 1;
+      _name_space = make_managed_c_heap_array_default_init<char>(len, mtGC);
+      strncpy(_name_space.get(), cns, len);
 
-      _name_space = NEW_C_HEAP_ARRAY(char, strlen(cns)+1, mtGC);
-      strcpy(_name_space, cns);
+      const char* name_space = _name_space.get();
 
-      const char* cname = PerfDataManager::counter_name(_name_space, "name");
+      const char* cname = PerfDataManager::counter_name(name_space, "name");
       PerfDataManager::create_string_constant(SUN_GC, cname, name, CHECK);
 
-      cname = PerfDataManager::counter_name(_name_space, "maxCapacity");
+      cname = PerfDataManager::counter_name(name_space, "maxCapacity");
       PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_Bytes, (jlong)max_size, CHECK);
 
-      cname = PerfDataManager::counter_name(_name_space, "capacity");
+      cname = PerfDataManager::counter_name(name_space, "capacity");
       _capacity = PerfDataManager::create_variable(SUN_GC, cname, PerfData::U_Bytes, initial_capacity, CHECK);
 
-      cname = PerfDataManager::counter_name(_name_space, "used");
+      cname = PerfDataManager::counter_name(name_space, "used");
       _used = PerfDataManager::create_variable(SUN_GC, cname, PerfData::U_Bytes, (jlong) 0, CHECK);
 
-      cname = PerfDataManager::counter_name(_name_space, "initCapacity");
+      cname = PerfDataManager::counter_name(name_space, "initCapacity");
       PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_Bytes, initial_capacity, CHECK);
     }
   }
 
-  ~EpsilonSpaceCounters() {
-    FREE_C_HEAP_ARRAY(char, _name_space);
-  }
+  ~EpsilonSpaceCounters() = default;
 
   inline void update_all(size_t capacity, size_t used) {
     _capacity->set_value(capacity);

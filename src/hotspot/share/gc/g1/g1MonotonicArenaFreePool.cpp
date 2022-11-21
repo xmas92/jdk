@@ -28,6 +28,7 @@
 #include "gc/g1/g1MonotonicArenaFreePool.hpp"
 #include "logging/log.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/os.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/ostream.hpp"
@@ -149,18 +150,8 @@ bool G1MonotonicArenaFreePool::G1ReturnMemoryProcessor::return_to_os(jlong deadl
 
 G1MonotonicArenaFreePool::G1MonotonicArenaFreePool(uint num_free_lists) :
   _num_free_lists(num_free_lists) {
-
-  _free_lists = NEW_C_HEAP_ARRAY(SegmentFreeList, _num_free_lists, mtGC);
-  for (uint i = 0; i < _num_free_lists; i++) {
-    new (&_free_lists[i]) SegmentFreeList();
-  }
-}
-
-G1MonotonicArenaFreePool::~G1MonotonicArenaFreePool() {
-  for (uint i = 0; i < _num_free_lists; i++) {
-    _free_lists[i].~SegmentFreeList();
-  }
-  FREE_C_HEAP_ARRAY(mtGC, _free_lists);
+  // candidate: c-d
+  _free_lists = make_managed_c_heap_array_value_init<SegmentFreeList>(_num_free_lists, mtGC);
 }
 
 G1MonotonicArenaMemoryStats G1MonotonicArenaFreePool::memory_sizes() const {

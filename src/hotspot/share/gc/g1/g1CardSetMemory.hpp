@@ -31,6 +31,7 @@
 #include "gc/g1/g1MonotonicArenaFreePool.hpp"
 #include "gc/shared/freeListAllocator.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/growableArray.hpp"
 
 class G1CardSetConfiguration;
@@ -72,14 +73,14 @@ using G1CardSetFreePool = G1MonotonicArenaFreePool;
 class G1CardSetMemoryManager : public CHeapObj<mtGCCardSet> {
   G1CardSetConfiguration* _config;
 
-  G1CardSetAllocator* _allocators;
+  ManagedCHeapArray<G1CardSetAllocator> _allocators;
 
   uint num_mem_object_types() const;
 public:
   G1CardSetMemoryManager(G1CardSetConfiguration* config,
                          G1CardSetFreePool* free_list_pool);
 
-  virtual ~G1CardSetMemoryManager();
+  virtual ~G1CardSetMemoryManager() = default;
 
   // Allocate and free a memory object of given type.
   inline uint8_t* allocate(uint type);

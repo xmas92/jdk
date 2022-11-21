@@ -27,6 +27,7 @@
 #include "gc/g1/g1CardSetContainers.inline.hpp"
 #include "gc/g1/g1CardSetMemory.inline.hpp"
 #include "gc/g1/g1MonotonicArena.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/ostream.hpp"
 
@@ -72,27 +73,19 @@ uint G1CardSetAllocator::num_segments() const {
 
 G1CardSetMemoryManager::G1CardSetMemoryManager(G1CardSetConfiguration* config,
                                                G1CardSetFreePool* free_list_pool) : _config(config) {
-
-  _allocators = NEW_C_HEAP_ARRAY(G1CardSetAllocator,
-                                 _config->num_mem_object_types(),
-                                 mtGC);
-  for (uint i = 0; i < num_mem_object_types(); i++) {
-    new (&_allocators[i]) G1CardSetAllocator(_config->mem_object_type_name_str(i),
+  // candidate: c-d
+  _allocators = make_managed_c_heap_array_with_initilizer<G1CardSetAllocator>(
+      _config->num_mem_object_types(), mtGC, [&](G1CardSetAllocator* alloc) {
+        for (uint i = 0; i < num_mem_object_types(); i++) {
+          new (alloc + i) G1CardSetAllocator(_config->mem_object_type_name_str(i),
                                              _config->mem_object_alloc_options(i),
                                              free_list_pool->free_list(i));
-  }
+        }
+      });
 }
 
 uint G1CardSetMemoryManager::num_mem_object_types() const {
   return _config->num_mem_object_types();
-}
-
-
-G1CardSetMemoryManager::~G1CardSetMemoryManager() {
-  for (uint i = 0; i < num_mem_object_types(); i++) {
-    _allocators[i].~G1CardSetAllocator();
-  }
-  FREE_C_HEAP_ARRAY(G1CardSetAllocator<G1CardSetContainer>, _allocators);
 }
 
 void G1CardSetMemoryManager::free(uint type, void* value) {

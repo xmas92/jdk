@@ -34,6 +34,7 @@
 #include "gc/shared/gc_globals.hpp"
 #include "logging/log.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "runtime/java.hpp"
 #include "runtime/mutexLocker.hpp"
@@ -65,22 +66,19 @@ G1ConcurrentRefineThreadControl::G1ConcurrentRefineThreadControl() :
 {}
 
 G1ConcurrentRefineThreadControl::~G1ConcurrentRefineThreadControl() {
-  if (_threads != nullptr) {
-    for (uint i = 0; i < _max_num_threads; i++) {
-      G1ConcurrentRefineThread* t = _threads[i];
-      if (t == nullptr) {
 #ifdef ASSERT
-        for (uint j = i + 1; j < _max_num_threads; ++j) {
-          assert(_threads[j] == nullptr, "invariant");
+  if (_threads != nullptr) {
+    uint i = 0;
+    for (;i < _max_num_threads; ++i) {
+        if (_threads[i] == nullptr) {
+          break;
         }
-#endif // ASSERT
-        break;
-      } else {
-        delete t;
-      }
     }
-    FREE_C_HEAP_ARRAY(G1ConcurrentRefineThread*, _threads);
+    for (; i < _max_num_threads; ++i) {
+      assert(_threads[i] == nullptr, "invariant");
+    }
   }
+#endif // ASSERT
 }
 
 jint G1ConcurrentRefineThreadControl::initialize(G1ConcurrentRefine* cr, uint max_num_threads) {
@@ -89,7 +87,9 @@ jint G1ConcurrentRefineThreadControl::initialize(G1ConcurrentRefine* cr, uint ma
   _max_num_threads = max_num_threads;
 
   if (max_num_threads > 0) {
-    _threads = NEW_C_HEAP_ARRAY(G1ConcurrentRefineThread*, max_num_threads, mtGC);
+    // candidate: i-d
+    _threads = make_managed_c_heap_array_value_init<ManagedCHeapObj<G1ConcurrentRefineThread>>(
+          max_num_threads, mtGC);
 
     _threads[0] = create_refinement_thread(0, true);
     if (_threads[0] == nullptr) {
@@ -97,11 +97,7 @@ jint G1ConcurrentRefineThreadControl::initialize(G1ConcurrentRefine* cr, uint ma
       return JNI_ENOMEM;
     }
 
-    if (UseDynamicNumberOfGCThreads) {
-      for (uint i = 1; i < max_num_threads; ++i) {
-        _threads[i] = nullptr;
-      }
-    } else {
+    if (!UseDynamicNumberOfGCThreads) {
       for (uint i = 1; i < max_num_threads; ++i) {
         _threads[i] = create_refinement_thread(i, true);
         if (_threads[i] == nullptr) {
@@ -118,28 +114,28 @@ jint G1ConcurrentRefineThreadControl::initialize(G1ConcurrentRefine* cr, uint ma
 #ifdef ASSERT
 void G1ConcurrentRefineThreadControl::assert_current_thread_is_primary_refinement_thread() const {
   assert(_threads != nullptr, "No threads");
-  assert(Thread::current() == _threads[0], "Not primary thread");
+  assert(Thread::current() == _threads[0].get(), "Not primary thread");
 }
 #endif // ASSERT
 
 bool G1ConcurrentRefineThreadControl::activate(uint worker_id) {
   assert(worker_id < _max_num_threads, "precondition");
-  G1ConcurrentRefineThread* thread_to_activate = _threads[worker_id];
-  if (thread_to_activate == nullptr) {
-    thread_to_activate = create_refinement_thread(worker_id, false);
+  if (_threads[worker_id] == nullptr) {
+    ManagedCHeapObj<G1ConcurrentRefineThread> thread_to_activate =
+        create_refinement_thread(worker_id, false);
     if (thread_to_activate == nullptr) {
       return false;
     }
-    _threads[worker_id] = thread_to_activate;
+    _threads[worker_id] = std::move(thread_to_activate);
   }
-  thread_to_activate->activate();
+  _threads[worker_id]->activate();
   return true;
 }
 
 void G1ConcurrentRefineThreadControl::worker_threads_do(ThreadClosure* tc) {
   for (uint i = 0; i < _max_num_threads; i++) {
     if (_threads[i] != NULL) {
-      tc->do_thread(_threads[i]);
+      tc->do_thread(_threads[i].get());
     }
   }
 }

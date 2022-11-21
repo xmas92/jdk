@@ -26,15 +26,16 @@
 #define SHARE_GC_G1_G1CONCURRENTREFINE_HPP
 
 #include "gc/g1/g1ConcurrentRefineStats.hpp"
+#include "gc/g1/g1ConcurrentRefineThread.hpp"
 #include "gc/g1/g1ConcurrentRefineThreadsNeeded.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 
 // Forward decl
 class G1ConcurrentRefine;
-class G1ConcurrentRefineThread;
 class G1DirtyCardQueueSet;
 class G1Policy;
 class ThreadClosure;
@@ -43,7 +44,7 @@ class ThreadClosure;
 // iterate over them.
 class G1ConcurrentRefineThreadControl {
   G1ConcurrentRefine* _cr;
-  G1ConcurrentRefineThread** _threads;
+  ManagedCHeapArray<ManagedCHeapObj<G1ConcurrentRefineThread>> _threads;
   uint _max_num_threads;
 
   // Create the refinement thread for the given worker id.

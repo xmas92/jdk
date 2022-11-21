@@ -28,6 +28,7 @@
 #include "gc/g1/g1NUMAStats.hpp"
 #include "gc/g1/heapRegion.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/os.hpp"
 
 class LogStream;
@@ -37,12 +38,12 @@ class G1NUMA: public CHeapObj<mtGC> {
   // fast resource management. I.e. for every node id provides a unique value in
   // the range from [0, {# of nodes-1}].
   // For invalid node id, return UnknownNodeIndex.
-  uint* _node_id_to_index_map;
+  ManagedCHeapArray<uint> _node_id_to_index_map;
   // Length of _num_active_node_ids_id to index map.
   int _len_node_id_to_index_map;
 
   // Current active node ids.
-  int* _node_ids;
+  ManagedCHeapArray<int> _node_ids;
   // Total number of node ids.
   uint _num_active_node_ids;
 
@@ -52,7 +53,7 @@ class G1NUMA: public CHeapObj<mtGC> {
   size_t _page_size;
 
   // Stores statistic data.
-  G1NUMAStats* _stats;
+  ManagedCHeapObj<G1NUMAStats> _stats;
 
   size_t region_size() const;
   size_t page_size() const;
@@ -75,7 +76,7 @@ public:
 
   static G1NUMA* create();
 
-  ~G1NUMA();
+  ~G1NUMA() = default;
 
   // Sets heap region size and page size after those values
   // are determined at G1CollectedHeap::initialize().
@@ -131,12 +132,12 @@ class G1NodeIndexCheckClosure : public HeapRegionClosure {
   const char* _desc;
   G1NUMA* _numa;
   // Records matched count of each node.
-  uint* _matched;
+  ManagedCHeapArray<uint> _matched;
   // Records mismatched count of each node.
-  uint* _mismatched;
+  ManagedCHeapArray<uint> _mismatched;
   // Records total count of each node.
   // Total = matched + mismatched + unknown.
-  uint* _total;
+  ManagedCHeapArray<uint> _total;
   LogStream* _ls;
 
 public:

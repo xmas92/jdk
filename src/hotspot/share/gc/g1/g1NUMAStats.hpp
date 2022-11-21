@@ -26,6 +26,7 @@
 #define SHARE_VM_GC_G1_NODE_TIMES_HPP
 
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 
 // Manages statistics of multi nodes.
 class G1NUMAStats : public CHeapObj<mtGC> {
@@ -57,11 +58,11 @@ class G1NUMAStats : public CHeapObj<mtGC> {
     // The number of nodes + 1 (for any node request)
     uint _num_row;
     // 2-dimension array that holds count of allocated / requested node index.
-    size_t** _data;
+    ManagedCHeapArray<ManagedCHeapArray<size_t>>  _data;
 
   public:
     NodeDataArray(uint num_nodes);
-    ~NodeDataArray();
+    ~NodeDataArray() = default;
 
     // Create Stat result of hit count, requested count and hit rate.
     // The result is copied to the given result parameter.
@@ -94,7 +95,7 @@ private:
   const int* _node_ids;
   uint _num_node_ids;
 
-  NodeDataArray* _node_data[NodeDataItemsSentinel];
+  ManagedCHeapObj<NodeDataArray> _node_data[NodeDataItemsSentinel];
 
   void print_info(G1NUMAStats::NodeDataItems phase);
 
@@ -102,7 +103,7 @@ private:
 
 public:
   G1NUMAStats(const int* node_ids, uint num_node_ids);
-  ~G1NUMAStats();
+  ~G1NUMAStats() = default;
 
   void clear(G1NUMAStats::NodeDataItems phase);
 

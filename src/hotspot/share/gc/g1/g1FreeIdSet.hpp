@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1FREEIDSET_HPP
 #define SHARE_GC_G1_G1FREEIDSET_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "runtime/semaphore.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -35,7 +36,7 @@
 // have such an id.
 class G1FreeIdSet {
   Semaphore _sem;
-  uint* _next;
+  ManagedCHeapArray<uint> _next;
   uint _start;
   uint _size;
   uintx _head_index_mask;
@@ -48,7 +49,7 @@ class G1FreeIdSet {
 
 public:
   G1FreeIdSet(uint start, uint size);
-  ~G1FreeIdSet();
+  ~G1FreeIdSet() = default;
 
   // Returns an unclaimed parallel id (waiting for one to be released if
   // necessary).  Must not safepoint while holding a claimed id.

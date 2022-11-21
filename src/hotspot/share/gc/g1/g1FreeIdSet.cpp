@@ -22,6 +22,7 @@
  *
  */
 
+#include "memory/allocationManaged.hpp"
 #include "precompiled.hpp"
 #include "gc/g1/g1FreeIdSet.hpp"
 #include "memory/allocation.inline.hpp"
@@ -48,14 +49,11 @@ G1FreeIdSet::G1FreeIdSet(uint start, uint size) :
   assert(shift <= (BitsPerWord / 2), "excessive size %u", size);
   _head_index_mask = (uintx(1) << shift) - 1;
   assert(size <= _head_index_mask, "invariant");
-  _next = NEW_C_HEAP_ARRAY(uint, size, mtGC);
+  // candidate: c-d
+  _next = make_managed_c_heap_array_default_init<uint>(size, mtGC);
   for (uint i = 0; i < size; ++i) {
     _next[i] = i + 1;
   }
-}
-
-G1FreeIdSet::~G1FreeIdSet() {
-  FREE_C_HEAP_ARRAY(uint, _next);
 }
 
 uint G1FreeIdSet::head_index(uintx head) const {

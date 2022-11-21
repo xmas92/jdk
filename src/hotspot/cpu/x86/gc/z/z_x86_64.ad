@@ -46,7 +46,15 @@ static void z_load_barrier(MacroAssembler& _masm, const MachNode* node, Address 
   __ bind(*stub->continuation());
 }
 
-static void z_load_barrier_cmpxchg(MacroAssembler& _masm, const MachNode* node, Address ref_addr, Register ref, Register tmp, Label& good) {
+static void z_load_barrier_cmpxchg(MacroAssembler& _masm, const MachNode* node, Address ref_addr, Register ref, Register tmp, Register tmp2, Label& good) {
+  if (ref_addr.base() == ref) {
+    assert(ref_addr.base() != ref_addr.index(), "assumption");
+    __ movptr(tmp2, ref_addr.base());
+    ref_addr = Address(tmp2, ref_addr.index(), ref_addr.scale(), ref_addr.disp());
+  } else if (ref_addr.index() == ref) {
+    __ movptr(tmp2, ref_addr.index());
+    ref_addr = Address(ref_addr.base(), tmp2, ref_addr.scale(), ref_addr.disp());
+  }
   ZLoadBarrierStubC2* const stub = ZLoadBarrierStubC2::create(node, ref_addr, ref, tmp, ZLoadBarrierStrong);
   {
     IntelJccErratumAlignment intel_alignment(_masm, 10 /* jcc_size */);
@@ -81,10 +89,10 @@ instruct zLoadP(rRegP dst, memory mem, rFlagsReg cr)
   ins_pipe(ialu_reg_mem);
 %}
 
-instruct zCompareAndExchangeP(memory mem, rax_RegP oldval, rRegP newval, rRegP tmp, rFlagsReg cr) %{
+instruct zCompareAndExchangeP(memory mem, rax_RegP oldval, rRegP newval, rRegP tmp, rRegP tmp2, rFlagsReg cr) %{
   match(Set oldval (CompareAndExchangeP mem (Binary oldval newval)));
   predicate(UseZGC && n->as_LoadStore()->barrier_data() == ZLoadBarrierStrong);
-  effect(KILL cr, TEMP tmp);
+  effect(KILL cr, TEMP tmp, TEMP tmp2);
 
   format %{ "lock\n\t"
             "cmpxchgq $newval, $mem" %}
@@ -98,7 +106,7 @@ instruct zCompareAndExchangeP(memory mem, rax_RegP oldval, rRegP newval, rRegP t
 
     if (barrier_data() != ZLoadBarrierElided) {
       Label good;
-      z_load_barrier_cmpxchg(_masm, this, $mem$$Address, $oldval$$Register, $tmp$$Register, good);
+      z_load_barrier_cmpxchg(_masm, this, $mem$$Address, $oldval$$Register, $tmp$$Register, $tmp2$$Register, good);
       __ movptr($oldval$$Register, $tmp$$Register);
       __ lock();
       __ cmpxchgptr($newval$$Register, $mem$$Address);
@@ -109,11 +117,11 @@ instruct zCompareAndExchangeP(memory mem, rax_RegP oldval, rRegP newval, rRegP t
   ins_pipe(pipe_cmpxchg);
 %}
 
-instruct zCompareAndSwapP(rRegI res, memory mem, rRegP newval, rRegP tmp, rFlagsReg cr, rax_RegP oldval) %{
+instruct zCompareAndSwapP(rRegI res, memory mem, rRegP newval, rRegP tmp, rRegP tmp2, rFlagsReg cr, rax_RegP oldval) %{
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   match(Set res (WeakCompareAndSwapP mem (Binary oldval newval)));
   predicate(UseZGC && n->as_LoadStore()->barrier_data() == ZLoadBarrierStrong);
-  effect(KILL cr, KILL oldval, TEMP tmp);
+  effect(KILL cr, KILL oldval, TEMP tmp, TEMP tmp2);
 
   format %{ "lock\n\t"
             "cmpxchgq $newval, $mem\n\t"
@@ -129,7 +137,7 @@ instruct zCompareAndSwapP(rRegI res, memory mem, rRegP newval, rRegP tmp, rFlags
 
     if (barrier_data() != ZLoadBarrierElided) {
       Label good;
-      z_load_barrier_cmpxchg(_masm, this, $mem$$Address, $oldval$$Register, $tmp$$Register, good);
+      z_load_barrier_cmpxchg(_masm, this, $mem$$Address, $oldval$$Register, $tmp$$Register, $tmp2$$Register, good);
       __ movptr($oldval$$Register, $tmp$$Register);
       __ lock();
       __ cmpxchgptr($newval$$Register, $mem$$Address);

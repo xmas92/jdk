@@ -22,6 +22,7 @@
  *
  */
 
+#include "memory/allocationManaged.hpp"
 #include "precompiled.hpp"
 #include "gc/g1/g1Analytics.hpp"
 #include "gc/g1/g1CollectedHeap.inline.hpp"
@@ -66,7 +67,6 @@ G1CollectionSet::G1CollectionSet(G1CollectedHeap* g1h, G1Policy* policy) :
 }
 
 G1CollectionSet::~G1CollectionSet() {
-  FREE_C_HEAP_ARRAY(uint, _collection_set_regions);
   free_optional_regions();
   clear_candidates();
 }
@@ -88,7 +88,8 @@ void G1CollectionSet::init_region_lengths(uint eden_cset_region_length,
 void G1CollectionSet::initialize(uint max_region_length) {
   guarantee(_collection_set_regions == NULL, "Must only initialize once.");
   _collection_set_max_length = max_region_length;
-  _collection_set_regions = NEW_C_HEAP_ARRAY(uint, max_region_length, mtGC);
+  // candidate: i-d
+  _collection_set_regions = make_managed_c_heap_array_default_init<uint>( max_region_length, mtGC);
 }
 
 void G1CollectionSet::free_optional_regions() {
@@ -395,7 +396,7 @@ void G1CollectionSet::finalize_old_part(double time_remaining_ms) {
   double non_young_end_time_sec = os::elapsedTime();
   phase_times()->record_non_young_cset_choice_time_ms((non_young_end_time_sec - non_young_start_time_sec) * 1000.0);
 
-  QuickSort::sort(_collection_set_regions, _collection_set_cur_length, compare_region_idx, true);
+  QuickSort::sort(_collection_set_regions.get(), _collection_set_cur_length, compare_region_idx, true);
 }
 
 void G1CollectionSet::move_candidates_to_collection_set(uint num_old_candidate_regions) {
@@ -459,17 +460,16 @@ void G1CollectionSet::abandon_optional_collection_set(G1ParScanThreadStateSet* p
 class G1VerifyYoungCSetIndicesClosure : public HeapRegionClosure {
 private:
   size_t _young_length;
-  uint* _heap_region_indices;
+  ManagedCHeapArray<uint> _heap_region_indices;
 public:
   G1VerifyYoungCSetIndicesClosure(size_t young_length) : HeapRegionClosure(), _young_length(young_length) {
-    _heap_region_indices = NEW_C_HEAP_ARRAY(uint, young_length + 1, mtGC);
+    // candidate: c-d
+    _heap_region_indices = make_managed_c_heap_array_default_init<uint>(young_length + 1, mtGC);
     for (size_t i = 0; i < young_length + 1; i++) {
       _heap_region_indices[i] = UINT_MAX;
     }
   }
-  ~G1VerifyYoungCSetIndicesClosure() {
-    FREE_C_HEAP_ARRAY(int, _heap_region_indices);
-  }
+  ~G1VerifyYoungCSetIndicesClosure() = default;
 
   virtual bool do_heap_region(HeapRegion* r) {
     const uint idx = r->young_index_in_cset();

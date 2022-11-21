@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1COLLECTIONSET_HPP
 #define SHARE_GC_G1_G1COLLECTIONSET_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -146,7 +147,7 @@ class G1CollectionSet {
   // We assume that at any time there is at most only one writer and (one or more)
   // concurrent readers. This means we are good with using storestore and loadload
   // barriers on the writer and reader respectively only.
-  uint* _collection_set_regions;
+  ManagedCHeapArray<uint> _collection_set_regions;
   volatile uint _collection_set_cur_length;
   uint _collection_set_max_length;
 

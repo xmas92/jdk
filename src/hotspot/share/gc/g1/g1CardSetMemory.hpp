@@ -36,28 +36,6 @@
 class G1CardSetConfiguration;
 class outputStream;
 
-// Collects G1CardSetAllocator options/heuristics. Called by G1CardSetAllocator
-// to determine the next size of the allocated memory Segment.
-class G1CardSetAllocOptions : public G1MonotonicArena::AllocOptions {
-  static const uint MinimumNumSlots = 8;
-  static const uint MaximumNumSlots = UINT_MAX / 2;
-
-  uint exponential_expand(uint prev_num_slots) const {
-    return clamp(prev_num_slots * 2, _initial_num_slots, _max_num_slots);
-  }
-
-public:
-  static const uint SlotAlignment = 8;
-
-  G1CardSetAllocOptions(uint slot_size, uint initial_num_slots = MinimumNumSlots, uint max_num_slots = MaximumNumSlots) :
-    G1MonotonicArena::AllocOptions(mtGCCardSet, slot_size, initial_num_slots, max_num_slots, SlotAlignment) {
-  }
-
-  virtual uint next_num_slots(uint prev_num_slots) const override {
-    return exponential_expand(prev_num_slots);
-  }
-};
-
 // Arena-like allocator for (card set) heap memory objects.
 //
 // Allocation occurs from an internal free list of objects first. If the free list is

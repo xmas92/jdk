@@ -36,6 +36,7 @@
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/concurrentHashTable.inline.hpp"
 #include "utilities/concurrentHashTableTasks.inline.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 G1CardSet::ContainerPtr G1CardSet::FullCardSet = (G1CardSet::ContainerPtr)-1;
@@ -146,16 +147,16 @@ G1CardSetConfiguration::G1CardSetConfiguration(uint inline_ptr_bits_per_card,
   log_configuration();
 }
 
-G1CardSetConfiguration::~G1CardSetConfiguration() {
-  FREE_C_HEAP_ARRAY(size_t, _card_set_alloc_options);
-}
-
 void G1CardSetConfiguration::init_card_set_alloc_options() {
-  _card_set_alloc_options = NEW_C_HEAP_ARRAY(G1CardSetAllocOptions, num_mem_object_types(), mtGC);
-  new (&_card_set_alloc_options[0]) G1CardSetAllocOptions((uint)CardSetHash::get_node_size());
-  new (&_card_set_alloc_options[1]) G1CardSetAllocOptions((uint)G1CardSetArray::size_in_bytes(_max_cards_in_array), 2, 256);
-  new (&_card_set_alloc_options[2]) G1CardSetAllocOptions((uint)G1CardSetBitMap::size_in_bytes(_max_cards_in_howl_bitmap), 2, 256);
-  new (&_card_set_alloc_options[3]) G1CardSetAllocOptions((uint)G1CardSetHowl::size_in_bytes(_num_buckets_in_howl), 2, 256);
+  // candidate: i-d
+  _card_set_alloc_options = make_managed_c_heap_array_with_initilizer<G1CardSetAllocOptions>(num_mem_object_types(), mtGC,
+      [&](G1CardSetAllocOptions* alloc) {
+        STATIC_ASSERT(num_mem_object_types() == 4);
+        new (alloc + 0) G1CardSetAllocOptions((uint)CardSetHash::get_node_size());
+        new (alloc + 1) G1CardSetAllocOptions((uint)G1CardSetArray::size_in_bytes(_max_cards_in_array), 2, 256);
+        new (alloc + 2) G1CardSetAllocOptions((uint)G1CardSetBitMap::size_in_bytes(_max_cards_in_howl_bitmap), 2, 256);
+        new (alloc + 3) G1CardSetAllocOptions((uint)G1CardSetHowl::size_in_bytes(_num_buckets_in_howl), 2, 256);
+      });
 }
 
 void G1CardSetConfiguration::log_configuration() {

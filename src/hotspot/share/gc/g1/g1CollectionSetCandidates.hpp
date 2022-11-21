@@ -28,6 +28,7 @@
 #include "gc/g1/g1CollectionSetCandidates.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/globals.hpp"
 
 class HeapRegion;
@@ -39,7 +40,7 @@ class HeapRegionClosure;
 // Maintains a cursor into the list that specifies the next collection set candidate
 // to put into the current collection set.
 class G1CollectionSetCandidates : public CHeapObj<mtGC> {
-  HeapRegion** _regions;
+  ManagedCHeapArray<HeapRegion*> _regions;
   uint _num_regions; // Total number of regions in the collection set candidate set.
 
   // The sum of bytes that can be reclaimed in the remaining set of collection
@@ -50,15 +51,13 @@ class G1CollectionSetCandidates : public CHeapObj<mtGC> {
   uint _front_idx;
 
 public:
-  G1CollectionSetCandidates(HeapRegion** regions, uint num_regions, size_t remaining_reclaimable_bytes) :
-    _regions(regions),
+  G1CollectionSetCandidates(ManagedCHeapArray<HeapRegion*>& regions, uint num_regions, size_t remaining_reclaimable_bytes) :
+    _regions(std::move(regions)),
     _num_regions(num_regions),
     _remaining_reclaimable_bytes(remaining_reclaimable_bytes),
     _front_idx(0) { }
 
-  ~G1CollectionSetCandidates() {
-    FREE_C_HEAP_ARRAY(HeapRegion*, _regions);
-  }
+  ~G1CollectionSetCandidates() = default;
 
   // Returns the total number of collection set candidate old regions added.
   uint num_regions() { return _num_regions; }

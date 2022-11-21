@@ -27,6 +27,7 @@
 #include "gc/g1/g1HeapTransition.hpp"
 #include "gc/g1/g1Policy.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/metaspaceUtils.hpp"
 
 G1HeapTransition::Data::Data(G1CollectedHeap* g1_heap) :
@@ -45,8 +46,9 @@ G1HeapTransition::Data::Data(G1CollectedHeap* g1_heap) :
     LogTarget(Debug, gc, heap, numa) lt;
 
     if (lt.is_enabled()) {
-      _eden_length_per_node = NEW_C_HEAP_ARRAY(uint, node_count, mtGC);
-      _survivor_length_per_node = NEW_C_HEAP_ARRAY(uint, node_count, mtGC);
+      // candidate: c-d
+      _eden_length_per_node = make_managed_c_heap_array_default_init<uint>(node_count, mtGC);
+      _survivor_length_per_node = make_managed_c_heap_array_default_init<uint>(node_count, mtGC);
 
       for (uint i = 0; i < node_count; i++) {
         _eden_length_per_node[i] = g1_heap->eden_regions_count(i);
@@ -54,11 +56,6 @@ G1HeapTransition::Data::Data(G1CollectedHeap* g1_heap) :
       }
     }
   }
-}
-
-G1HeapTransition::Data::~Data() {
-  FREE_C_HEAP_ARRAY(uint, _eden_length_per_node);
-  FREE_C_HEAP_ARRAY(uint, _survivor_length_per_node);
 }
 
 G1HeapTransition::G1HeapTransition(G1CollectedHeap* g1_heap) : _g1_heap(g1_heap), _before(g1_heap) { }
@@ -159,11 +156,11 @@ void G1HeapTransition::print() {
   }
 
   log_regions("Eden", _before._eden_length, after._eden_length, eden_capacity_length_after_gc,
-              _before._eden_length_per_node, after._eden_length_per_node);
+              _before._eden_length_per_node.get(), after._eden_length_per_node.get());
   log_trace(gc, heap)(" Used: 0K, Waste: 0K");
 
   log_regions("Survivor", _before._survivor_length, after._survivor_length, survivor_capacity_length_before_gc,
-              _before._survivor_length_per_node, after._survivor_length_per_node);
+              _before._survivor_length_per_node.get(), after._survivor_length_per_node.get());
   log_trace(gc, heap)(" Used: " SIZE_FORMAT "K, Waste: " SIZE_FORMAT "K",
       usage._survivor_used / K, ((after._survivor_length * HeapRegion::GrainBytes) - usage._survivor_used) / K);
 

@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "gc/g1/g1NUMAStats.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 
 double G1NUMAStats::Stat::rate() const {
   return _requested == 0 ? 0 : (double)_hit / _requested * 100;
@@ -36,19 +37,11 @@ G1NUMAStats::NodeDataArray::NodeDataArray(uint num_nodes) {
   // +1 for G1MemoryNodeManager::AnyNodeIndex.
   _num_row = num_nodes + 1;
 
-  _data = NEW_C_HEAP_ARRAY(size_t*, _num_row, mtGC);
+  // candidate: nested
+  _data = make_managed_c_heap_array_value_init<ManagedCHeapArray<size_t>>(_num_row, mtGC);
   for (uint row = 0; row < _num_row; row++) {
-    _data[row] = NEW_C_HEAP_ARRAY(size_t, _num_column, mtGC);
+    _data[row] = make_managed_c_heap_array_value_init<size_t>(_num_column, mtGC);
   }
-
-  clear();
-}
-
-G1NUMAStats::NodeDataArray::~NodeDataArray() {
-  for (uint row = 0; row < _num_row; row++) {
-    FREE_C_HEAP_ARRAY(size_t, _data[row]);
-  }
-  FREE_C_HEAP_ARRAY(size_t*, _data);
 }
 
 void G1NUMAStats::NodeDataArray::create_hit_rate(Stat* result) const {
@@ -103,7 +96,7 @@ void G1NUMAStats::NodeDataArray::increase(uint req_index, uint alloc_index) {
 
 void G1NUMAStats::NodeDataArray::clear() {
   for (uint row = 0; row < _num_row; row++) {
-    memset((void*)_data[row], 0, sizeof(size_t) * _num_column);
+    memset((void*)_data[row].get(), 0, sizeof(size_t) * _num_column);
   }
 }
 
@@ -126,12 +119,6 @@ G1NUMAStats::G1NUMAStats(const int* node_ids, uint num_node_ids) :
 
   for (int i = 0; i < NodeDataItemsSentinel; i++) {
     _node_data[i] = new NodeDataArray(_num_node_ids);
-  }
-}
-
-G1NUMAStats::~G1NUMAStats() {
-  for (int i = 0; i < NodeDataItemsSentinel; i++) {
-    delete _node_data[i];
   }
 }
 

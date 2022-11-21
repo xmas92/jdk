@@ -26,6 +26,7 @@
 #include "gc/g1/g1NUMA.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/os.hpp"
 
@@ -59,7 +60,7 @@ G1NUMA* G1NUMA::create() {
 
   // Returns memory node ids
 const int* G1NUMA::node_ids() const {
-  return _node_ids;
+  return _node_ids.get();
 }
 
 uint G1NUMA::index_of_node_id(int node_id) const {
@@ -74,18 +75,18 @@ uint G1NUMA::index_of_node_id(int node_id) const {
 G1NUMA::G1NUMA() :
   _node_id_to_index_map(NULL), _len_node_id_to_index_map(0),
   _node_ids(NULL), _num_active_node_ids(0),
-  _region_size(0), _page_size(0), _stats(NULL) {
+  _region_size(0), _page_size(0), _stats() {
 }
 
 void G1NUMA::initialize_without_numa() {
   // If NUMA is not enabled or supported, initialize as having a single node.
   _num_active_node_ids = 1;
-  _node_ids = NEW_C_HEAP_ARRAY(int, _num_active_node_ids, mtGC);
-  _node_ids[0] = 0;
+  // candidate: i-d
+  _node_ids = make_managed_c_heap_array_value_init<int>(_num_active_node_ids, mtGC);
   // Map index 0 to node 0
   _len_node_id_to_index_map = 1;
-  _node_id_to_index_map = NEW_C_HEAP_ARRAY(uint, _len_node_id_to_index_map, mtGC);
-  _node_id_to_index_map[0] = 0;
+  _node_id_to_index_map =
+      make_managed_c_heap_array_value_init<uint>( _len_node_id_to_index_map, mtGC);
 }
 
 void G1NUMA::initialize(bool use_numa) {
@@ -98,8 +99,9 @@ void G1NUMA::initialize(bool use_numa) {
   size_t num_node_ids = os::numa_get_groups_num();
 
   // Create an array of active node ids.
-  _node_ids = NEW_C_HEAP_ARRAY(int, num_node_ids, mtGC);
-  _num_active_node_ids = (uint)os::numa_get_leaf_groups(_node_ids, num_node_ids);
+  // candidate: i-d
+  _node_ids = make_managed_c_heap_array_default_init<int>(num_node_ids, mtGC);
+  _num_active_node_ids = (uint)os::numa_get_leaf_groups(_node_ids.get(), num_node_ids);
 
   int max_node_id = 0;
   for (uint i = 0; i < _num_active_node_ids; i++) {
@@ -108,7 +110,8 @@ void G1NUMA::initialize(bool use_numa) {
 
   // Create a mapping between node_id and index.
   _len_node_id_to_index_map = max_node_id + 1;
-  _node_id_to_index_map = NEW_C_HEAP_ARRAY(uint, _len_node_id_to_index_map, mtGC);
+  _node_id_to_index_map =
+      make_managed_c_heap_array_default_init<uint>(_len_node_id_to_index_map, mtGC);
 
   // Set all indices with unknown node id.
   for (int i = 0; i < _len_node_id_to_index_map; i++) {
@@ -120,13 +123,7 @@ void G1NUMA::initialize(bool use_numa) {
     _node_id_to_index_map[_node_ids[i]] = i;
   }
 
-  _stats = new G1NUMAStats(_node_ids, _num_active_node_ids);
-}
-
-G1NUMA::~G1NUMA() {
-  delete _stats;
-  FREE_C_HEAP_ARRAY(int, _node_id_to_index_map);
-  FREE_C_HEAP_ARRAY(int, _node_ids);
+  _stats = new G1NUMAStats(_node_ids.get(), _num_active_node_ids);
 }
 
 void G1NUMA::set_region_info(size_t region_size, size_t page_size) {
@@ -269,12 +266,10 @@ G1NodeIndexCheckClosure::G1NodeIndexCheckClosure(const char* desc, G1NUMA* numa,
   _desc(desc), _numa(numa), _ls(ls) {
 
   uint num_nodes = _numa->num_active_nodes();
-  _matched = NEW_C_HEAP_ARRAY(uint, num_nodes, mtGC);
-  _mismatched = NEW_C_HEAP_ARRAY(uint, num_nodes, mtGC);
-  _total = NEW_C_HEAP_ARRAY(uint, num_nodes, mtGC);
-  memset(_matched, 0, sizeof(uint) * num_nodes);
-  memset(_mismatched, 0, sizeof(uint) * num_nodes);
-  memset(_total, 0, sizeof(uint) * num_nodes);
+  // candidate: c-d
+  _matched = make_managed_c_heap_array_value_init<uint>(num_nodes, mtGC);
+  _mismatched = make_managed_c_heap_array_value_init<uint>(num_nodes, mtGC);
+  _total = make_managed_c_heap_array_value_init<uint>(num_nodes, mtGC);
 }
 
 G1NodeIndexCheckClosure::~G1NodeIndexCheckClosure() {
@@ -283,10 +278,6 @@ G1NodeIndexCheckClosure::~G1NodeIndexCheckClosure() {
   for (uint i = 0; i < _numa->num_active_nodes(); i++) {
     _ls->print("%d: %u/%u/%u ", numa_ids[i], _matched[i], _mismatched[i], _total[i]);
   }
-
-  FREE_C_HEAP_ARRAY(uint, _matched);
-  FREE_C_HEAP_ARRAY(uint, _mismatched);
-  FREE_C_HEAP_ARRAY(uint, _total);
 }
 
 bool G1NodeIndexCheckClosure::do_heap_region(HeapRegion* hr) {

@@ -25,11 +25,12 @@
 #ifndef SHARE_GC_G1_G1CARDSET_HPP
 #define SHARE_GC_G1_G1CARDSET_HPP
 
+#include "gc/g1/g1CardSetAllocOptions.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/memRegion.hpp"
 #include "utilities/concurrentHashTable.hpp"
 
-class G1CardSetAllocOptions;
 class G1CardSetHashTable;
 class G1CardSetHashTableValue;
 class G1CardSetMemoryManager;
@@ -59,7 +60,7 @@ class G1CardSetConfiguration {
   uint _log2_card_regions_per_heap_region;
   uint _log2_cards_per_card_region;
 
-  G1CardSetAllocOptions* _card_set_alloc_options;
+  ManagedCHeapArray<G1CardSetAllocOptions> _card_set_alloc_options;
 
   G1CardSetConfiguration(uint inline_ptr_bits_per_card,
                          uint max_cards_in_array,
@@ -84,7 +85,7 @@ public:
                          uint max_cards_in_cardset,
                          uint log2_card_region_per_region);
 
-  ~G1CardSetConfiguration();
+  ~G1CardSetConfiguration() = default;
 
   // Inline pointer configuration
   uint inline_ptr_bits_per_card() const { return _inline_ptr_bits_per_card; }

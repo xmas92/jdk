@@ -45,6 +45,7 @@
 #include "gc/shared/weakProcessor.inline.hpp"
 #include "gc/shared/workerPolicy.hpp"
 #include "logging/log.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/handles.inline.hpp"
 #include "utilities/debug.hpp"
 
@@ -129,34 +130,26 @@ G1FullCollector::G1FullCollector(G1CollectedHeap* heap,
   assert(SafepointSynchronize::is_at_safepoint(), "must be at a safepoint");
 
   _preserved_marks_set.init(_num_workers);
-  _markers = NEW_C_HEAP_ARRAY(G1FullGCMarker*, _num_workers, mtGC);
-  _compaction_points = NEW_C_HEAP_ARRAY(G1FullGCCompactionPoint*, _num_workers, mtGC);
+  // candidate: c-d
+  _markers = make_managed_c_heap_array_value_init<ManagedCHeapObj<G1FullGCMarker>>(
+      _num_workers, mtGC);
+  _compaction_points = make_managed_c_heap_array_value_init<ManagedCHeapObj<G1FullGCCompactionPoint>>(
+      _num_workers, mtGC);
 
-  _live_stats = NEW_C_HEAP_ARRAY(G1RegionMarkStats, _heap->max_regions(), mtGC);
-  _compaction_tops = NEW_C_HEAP_ARRAY(HeapWord*, _heap->max_regions(), mtGC);
+  _live_stats = make_managed_c_heap_array_value_init<G1RegionMarkStats>(_heap->max_regions(), mtGC);
+  _compaction_tops = make_managed_c_heap_array_value_init<HeapWord*>(_heap->max_regions(), mtGC);
   for (uint j = 0; j < heap->max_regions(); j++) {
-    _live_stats[j].clear();
-    _compaction_tops[j] = nullptr;
+    assert(_live_stats[j].is_clear(), "test");
+    assert(_compaction_tops[j] == nullptr, "test");
   }
 
   for (uint i = 0; i < _num_workers; i++) {
-    _markers[i] = new G1FullGCMarker(this, i, _preserved_marks_set.get(i), _live_stats);
+    _markers[i] = new G1FullGCMarker(this, i, _preserved_marks_set.get(i), _live_stats.get());
     _compaction_points[i] = new G1FullGCCompactionPoint(this);
     _oop_queue_set.register_queue(i, marker(i)->oop_stack());
     _array_queue_set.register_queue(i, marker(i)->objarray_stack());
   }
   _region_attr_table.initialize(heap->reserved(), HeapRegion::GrainBytes);
-}
-
-G1FullCollector::~G1FullCollector() {
-  for (uint i = 0; i < _num_workers; i++) {
-    delete _markers[i];
-    delete _compaction_points[i];
-  }
-  FREE_C_HEAP_ARRAY(G1FullGCMarker*, _markers);
-  FREE_C_HEAP_ARRAY(G1FullGCCompactionPoint*, _compaction_points);
-  FREE_C_HEAP_ARRAY(HeapWord*, _compaction_tops);
-  FREE_C_HEAP_ARRAY(G1RegionMarkStats, _live_stats);
 }
 
 class PrepareRegionsClosure : public HeapRegionClosure {

@@ -37,6 +37,7 @@
 #include "gc/shared/referenceProcessor.hpp"
 #include "gc/shared/taskqueue.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/oopsHierarchy.hpp"
 
 class WorkerTask;
@@ -75,15 +76,15 @@ class G1FullCollector : StackObj {
   G1CollectedHeap*          _heap;
   G1FullGCScope             _scope;
   uint                      _num_workers;
-  G1FullGCMarker**          _markers;
-  G1FullGCCompactionPoint** _compaction_points;
+  ManagedCHeapArray<ManagedCHeapObj<G1FullGCMarker>> _markers;
+  ManagedCHeapArray<ManagedCHeapObj<G1FullGCCompactionPoint>> _compaction_points;
   OopQueueSet               _oop_queue_set;
   ObjArrayTaskQueueSet      _array_queue_set;
   PreservedMarksSet         _preserved_marks_set;
   G1FullGCCompactionPoint   _serial_compaction_point;
   G1IsAliveClosure          _is_alive;
   ReferenceProcessorIsAliveMutator _is_alive_mutator;
-  G1RegionMarkStats*        _live_stats;
+  ManagedCHeapArray<G1RegionMarkStats> _live_stats;
 
   static uint calc_active_workers();
 
@@ -92,7 +93,7 @@ class G1FullCollector : StackObj {
 
   G1FullGCHeapRegionAttr _region_attr_table;
 
-  HeapWord* volatile* _compaction_tops;
+  ManagedCHeapArray<HeapWord* volatile> _compaction_tops;
 
 public:
   G1FullCollector(G1CollectedHeap* heap,
@@ -100,7 +101,7 @@ public:
                   bool clear_soft_refs,
                   bool do_maximal_compaction,
                   G1FullGCTracer* tracer);
-  ~G1FullCollector();
+  ~G1FullCollector() = default;
 
   void prepare_collection();
   void collect();
@@ -108,8 +109,8 @@ public:
 
   G1FullGCScope*           scope() { return &_scope; }
   uint                     workers() { return _num_workers; }
-  G1FullGCMarker*          marker(uint id) { return _markers[id]; }
-  G1FullGCCompactionPoint* compaction_point(uint id) { return _compaction_points[id]; }
+  G1FullGCMarker*          marker(uint id) { return _markers[id].get(); }
+  G1FullGCCompactionPoint* compaction_point(uint id) { return _compaction_points[id].get(); }
   OopQueueSet*             oop_queue_set() { return &_oop_queue_set; }
   ObjArrayTaskQueueSet*    array_queue_set() { return &_array_queue_set; }
   PreservedMarksSet*       preserved_mark_set() { return &_preserved_marks_set; }

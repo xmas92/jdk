@@ -28,6 +28,7 @@
 #include "gc/g1/g1CollectionSetChooser.hpp"
 #include "gc/g1/heapRegionRemSet.inline.hpp"
 #include "gc/shared/space.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/quickSort.hpp"
 
@@ -53,7 +54,7 @@ class G1BuildCandidateRegionsTask : public WorkerTask {
     uint const _max_size;
     uint const _chunk_size;
 
-    CandidateInfo* _data;
+    ManagedCHeapArray<CandidateInfo> _data;
 
     uint volatile _cur_claim_idx;
 
@@ -70,16 +71,12 @@ class G1BuildCandidateRegionsTask : public WorkerTask {
     G1BuildCandidateArray(uint max_num_regions, uint chunk_size, uint num_workers) :
       _max_size(required_array_size(max_num_regions, chunk_size, num_workers)),
       _chunk_size(chunk_size),
-      _data(NEW_C_HEAP_ARRAY(CandidateInfo, _max_size, mtGC)),
+      _data(make_managed_c_heap_array_value_init<CandidateInfo>(_max_size, mtGC)),
       _cur_claim_idx(0) {
-      for (uint i = 0; i < _max_size; i++) {
-        _data[i] = CandidateInfo();
-      }
+        // candidate: c-d
     }
 
-    ~G1BuildCandidateArray() {
-      FREE_C_HEAP_ARRAY(CandidateInfo, _data);
-    }
+    ~G1BuildCandidateArray() = default;
 
     // Claim a new chunk, returning its bounds [from, to[.
     void claim_chunk(uint& from, uint& to) {
@@ -105,7 +102,7 @@ class G1BuildCandidateRegionsTask : public WorkerTask {
       for (uint i = _cur_claim_idx; i < _max_size; i++) {
         assert(_data[i]._r == nullptr, "must be");
       }
-      qsort(_data, _cur_claim_idx, sizeof(_data[0]), (_sort_Fn)G1CollectionCandidateList::compare);
+      qsort(_data.get(), _cur_claim_idx, sizeof(_data[0]), (_sort_Fn)G1CollectionCandidateList::compare);
       for (uint i = _cur_claim_idx; i < _max_size; i++) {
         assert(_data[i]._r == nullptr, "must be");
       }

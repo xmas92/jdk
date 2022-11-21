@@ -27,6 +27,7 @@
 
 #include "gc/g1/g1CardSet.hpp"
 #include "gc/g1/g1MonotonicArena.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/growableArray.hpp"
 
 // Statistics for a monotonic arena. Contains the number of segments and memory
@@ -60,7 +61,7 @@ class G1MonotonicArenaFreePool {
   using SegmentFreeList = G1MonotonicArena::SegmentFreeList;
 
   const uint _num_free_lists;
-  SegmentFreeList* _free_lists;
+  ManagedCHeapArray<SegmentFreeList> _free_lists;
 
 public:
   class G1ReturnMemoryProcessor;
@@ -69,7 +70,7 @@ public:
   void update_unlink_processors(G1ReturnMemoryProcessorSet* unlink_processors);
 
   explicit G1MonotonicArenaFreePool(uint num_free_lists);
-  ~G1MonotonicArenaFreePool();
+  ~G1MonotonicArenaFreePool() = default;
 
   SegmentFreeList* free_list(uint i) {
     assert(i < _num_free_lists, "must be");

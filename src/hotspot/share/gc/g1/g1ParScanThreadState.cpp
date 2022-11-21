@@ -39,6 +39,7 @@
 #include "gc/shared/stringdedup/stringDedup.hpp"
 #include "gc/shared/taskqueue.inline.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/access.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
@@ -66,8 +67,8 @@ G1ParScanThreadState::G1ParScanThreadState(G1CollectedHeap* g1h,
     _task_queue(g1h->task_queue(worker_id)),
     _rdc_local_qset(rdcqs),
     _ct(g1h->card_table()),
-    _closures(NULL),
-    _plab_allocator(NULL),
+    _closures(),
+    _plab_allocator(),
     _age_table(false),
     _tenuring_threshold(g1h->policy()->tenuring_threshold()),
     _scanner(g1h, this),
@@ -98,9 +99,10 @@ G1ParScanThreadState::G1ParScanThreadState(G1CollectedHeap* g1h,
   const size_t padding_elem_num = (DEFAULT_CACHE_LINE_SIZE / sizeof(size_t));
   size_t array_length = padding_elem_num + _surviving_words_length + padding_elem_num;
 
-  _surviving_young_words_base = NEW_C_HEAP_ARRAY(size_t, array_length, mtGC);
-  _surviving_young_words = _surviving_young_words_base + padding_elem_num;
-  memset(_surviving_young_words, 0, _surviving_words_length * sizeof(size_t));
+  // candidate: c-d
+  _surviving_young_words_base =  make_managed_c_heap_array_value_init<size_t>(
+      array_length, mtGC);
+  _surviving_young_words = _surviving_young_words_base.get() + padding_elem_num;
 
   _plab_allocator = new G1PLABAllocator(_g1h->allocator());
 
@@ -128,14 +130,6 @@ size_t G1ParScanThreadState::flush_stats(size_t* surviving_young_words, uint num
     sum += _surviving_young_words[i];
   }
   return sum;
-}
-
-G1ParScanThreadState::~G1ParScanThreadState() {
-  delete _plab_allocator;
-  delete _closures;
-  FREE_C_HEAP_ARRAY(size_t, _surviving_young_words_base);
-  delete[] _oops_into_optional_regions;
-  FREE_C_HEAP_ARRAY(size_t, _obj_alloc_stat);
 }
 
 size_t G1ParScanThreadState::lab_waste_words() const {
@@ -576,7 +570,7 @@ G1ParScanThreadState* G1ParScanThreadStateSet::state_for_worker(uint worker_id) 
 
 const size_t* G1ParScanThreadStateSet::surviving_young_words() const {
   assert(_flushed, "thread local state from the per thread states should have been flushed");
-  return _surviving_young_words_total;
+  return _surviving_young_words_total.get();
 }
 
 void G1ParScanThreadStateSet::flush_stats() {
@@ -592,7 +586,7 @@ void G1ParScanThreadStateSet::flush_stats() {
     // because it resets the PLAB allocator where we get this info from.
     size_t lab_waste_bytes = pss->lab_waste_words() * HeapWordSize;
     size_t lab_undo_waste_bytes = pss->lab_undo_waste_words() * HeapWordSize;
-    size_t copied_bytes = pss->flush_stats(_surviving_young_words_total, _n_workers) * HeapWordSize;
+    size_t copied_bytes = pss->flush_stats(_surviving_young_words_total.get(), _n_workers) * HeapWordSize;
 
     p->record_or_add_thread_work_item(G1GCPhaseTimes::MergePSS, worker_id, copied_bytes, G1GCPhaseTimes::MergePSSCopiedBytes);
     p->record_or_add_thread_work_item(G1GCPhaseTimes::MergePSS, worker_id, lab_waste_bytes, G1GCPhaseTimes::MergePSSLABWasteBytes);
@@ -667,8 +661,8 @@ void G1ParScanThreadState::initialize_numa_stats() {
     if (lt.is_enabled()) {
       uint num_nodes = _numa->num_active_nodes();
       // Record only if there are multiple active nodes.
-      _obj_alloc_stat = NEW_C_HEAP_ARRAY(size_t, num_nodes, mtGC);
-      memset(_obj_alloc_stat, 0, sizeof(size_t) * num_nodes);
+      _obj_alloc_stat = make_managed_c_heap_array_value_init<size_t>(
+          num_nodes, mtGC);
     }
   }
 }
@@ -676,7 +670,7 @@ void G1ParScanThreadState::initialize_numa_stats() {
 void G1ParScanThreadState::flush_numa_stats() {
   if (_obj_alloc_stat != NULL) {
     uint node_index = _numa->index_of_current_thread();
-    _numa->copy_statistics(G1NUMAStats::LocalObjProcessAtCopyToSurv, node_index, _obj_alloc_stat);
+    _numa->copy_statistics(G1NUMAStats::LocalObjProcessAtCopyToSurv, node_index, _obj_alloc_stat.get());
   }
 }
 
@@ -694,24 +688,19 @@ G1ParScanThreadStateSet::G1ParScanThreadStateSet(G1CollectedHeap* g1h,
     _g1h(g1h),
     _rdcqs(G1BarrierSet::dirty_card_queue_set().allocator()),
     _preserved_marks_set(true /* in_c_heap */),
-    _states(NEW_C_HEAP_ARRAY(G1ParScanThreadState*, n_workers, mtGC)),
-    _surviving_young_words_total(NEW_C_HEAP_ARRAY(size_t, young_cset_length + 1, mtGC)),
+    _states(make_managed_c_heap_array_value_init<G1ParScanThreadState*>(n_workers, mtGC)),
+    _surviving_young_words_total(make_managed_c_heap_array_value_init<size_t>(young_cset_length + 1, mtGC)),
     _young_cset_length(young_cset_length),
     _optional_cset_length(optional_cset_length),
     _n_workers(n_workers),
     _flushed(false),
     _evac_failure_regions(evac_failure_regions) {
   _preserved_marks_set.init(n_workers);
-  for (uint i = 0; i < n_workers; ++i) {
-    _states[i] = NULL;
-  }
-  memset(_surviving_young_words_total, 0, (young_cset_length + 1) * sizeof(size_t));
+  // candidate: c-d
 }
 
 G1ParScanThreadStateSet::~G1ParScanThreadStateSet() {
   assert(_flushed, "thread local state from the per thread states should have been flushed");
-  FREE_C_HEAP_ARRAY(G1ParScanThreadState*, _states);
-  FREE_C_HEAP_ARRAY(size_t, _surviving_young_words_total);
   _preserved_marks_set.assert_empty();
   _preserved_marks_set.reclaim();
 }

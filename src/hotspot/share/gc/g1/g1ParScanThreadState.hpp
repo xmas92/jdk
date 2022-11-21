@@ -25,9 +25,12 @@
 #ifndef SHARE_GC_G1_G1PARSCANTHREADSTATE_HPP
 #define SHARE_GC_G1_G1PARSCANTHREADSTATE_HPP
 
+#include "gc/g1/g1Allocator.hpp"
 #include "gc/g1/g1CollectedHeap.hpp"
+#include "gc/g1/g1OopStarChunkedList.hpp"
 #include "gc/g1/g1RedirtyCardsQueue.hpp"
 #include "gc/g1/g1OopClosures.hpp"
+#include "gc/g1/g1RootClosures.hpp"
 #include "gc/g1/g1YoungGCEvacFailureInjector.hpp"
 #include "gc/g1/g1_globals.hpp"
 #include "gc/shared/ageTable.hpp"
@@ -37,14 +40,12 @@
 #include "gc/shared/stringdedup/stringDedup.hpp"
 #include "gc/shared/taskqueue.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/oop.hpp"
 #include "utilities/ticks.hpp"
 
 class G1CardTable;
 class G1EvacFailureRegions;
-class G1EvacuationRootClosures;
-class G1OopStarChunkedList;
-class G1PLABAllocator;
 class HeapRegion;
 class PreservedMarks;
 class PreservedMarksSet;
@@ -55,9 +56,9 @@ class G1ParScanThreadState : public CHeapObj<mtGC> {
   G1ScannerTasksQueue* _task_queue;
   G1RedirtyCardsLocalQueueSet _rdc_local_qset;
   G1CardTable* _ct;
-  G1EvacuationRootClosures* _closures;
+  ManagedCHeapObj<G1EvacuationRootClosures> _closures;
 
-  G1PLABAllocator* _plab_allocator;
+  ManagedCHeapObj<G1PLABAllocator> _plab_allocator;
 
   AgeTable _age_table;
   // Local tenuring threshold.
@@ -77,7 +78,7 @@ class G1ParScanThreadState : public CHeapObj<mtGC> {
   Tickspan _trim_ticks;
   // Map from young-age-index (0 == not young, 1 is youngest) to
   // surviving words. base is what we get back from the malloc call
-  size_t* _surviving_young_words_base;
+  ManagedCHeapArray<size_t> _surviving_young_words_base;
   // this points into the array, as we use the first few entries for padding
   size_t* _surviving_young_words;
   // Number of elements in the array above.
@@ -93,13 +94,13 @@ class G1ParScanThreadState : public CHeapObj<mtGC> {
   G1CardTable* ct() { return _ct; }
 
   size_t _num_optional_regions;
-  G1OopStarChunkedList* _oops_into_optional_regions;
+  ManagedCHeapObj<G1OopStarChunkedList[]> _oops_into_optional_regions;
 
   G1NUMA* _numa;
   // Records how many object allocations happened at each node during copy to survivor.
   // Only starts recording when log of gc+heap+numa is enabled and its data is
   // transferred when flushed.
-  size_t* _obj_alloc_stat;
+  ManagedCHeapArray<size_t> _obj_alloc_stat;
 
   // Per-thread evacuation failure data structures.
   EVAC_FAILURE_INJECTOR_ONLY(size_t _evac_failure_inject_counter;)
@@ -119,7 +120,7 @@ public:
                        size_t young_cset_length,
                        size_t optional_cset_length,
                        G1EvacFailureRegions* evac_failure_regions);
-  virtual ~G1ParScanThreadState();
+  virtual ~G1ParScanThreadState() = default;
 
   void set_ref_discoverer(ReferenceDiscoverer* rd) { _scanner.set_ref_discoverer(rd); }
 
@@ -145,7 +146,7 @@ public:
   // write_ref_field_post() above) has already been performed.
   template <class T> void enqueue_card_if_tracked(G1HeapRegionAttr region_attr, T* p, oop o);
 
-  G1EvacuationRootClosures* closures() { return _closures; }
+  G1EvacuationRootClosures* closures() { return _closures.get(); }
   uint worker_id() { return _worker_id; }
 
   size_t lab_waste_words() const;
@@ -232,8 +233,8 @@ class G1ParScanThreadStateSet : public StackObj {
   G1CollectedHeap* _g1h;
   G1RedirtyCardsQueueSet _rdcqs;
   PreservedMarksSet _preserved_marks_set;
-  G1ParScanThreadState** _states;
-  size_t* _surviving_young_words_total;
+  ManagedCHeapArray<G1ParScanThreadState*> _states;
+  ManagedCHeapArray<size_t> _surviving_young_words_total;
   size_t _young_cset_length;
   size_t _optional_cset_length;
   uint _n_workers;

@@ -41,6 +41,7 @@
 #include "logging/logStream.hpp"
 #include "logging/logTag.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/instanceKlass.hpp"
 #include "oops/oop.inline.hpp"
 #include "prims/jvmtiExport.hpp"
@@ -867,6 +868,7 @@ static bool append_to_string_flag(JVMFlag* flag, const char* new_value, JVMFlagO
     value = old_value;
   } else {
      size_t length = old_len + 1 + new_len + 1;
+     // candidate: temp
      char* buf = NEW_C_HEAP_ARRAY(char, length, mtArguments);
     // each new setting adds another LINE to the switch:
     jio_snprintf(buf, length, "%s\n%s", old_value, new_value);
@@ -3821,13 +3823,14 @@ jint Arguments::parse(const JavaVMInitArgs* initial_cmd_args) {
     return code;
   }
 
-  // Parse the options in the /java.base/jdk/internal/vm/options resource, if present
-  char *vmoptions = ClassLoader::lookup_vm_options();
-  if (vmoptions != NULL) {
-    code = parse_options_buffer("vm options resource", vmoptions, strlen(vmoptions), &initial_vm_options_args);
-    FREE_C_HEAP_ARRAY(char, vmoptions);
-    if (code != JNI_OK) {
-      return code;
+  {
+    // Parse the options in the /java.base/jdk/internal/vm/options resource, if present
+    ManagedCHeapArray<char> vmoptions = ClassLoader::lookup_vm_options();
+    if (vmoptions != NULL) {
+      code = parse_options_buffer("vm options resource", vmoptions.get(), strlen(vmoptions.get()), &initial_vm_options_args);
+      if (code != JNI_OK) {
+        return code;
+      }
     }
   }
 

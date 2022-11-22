@@ -52,7 +52,7 @@ G1GCPhaseTimes* G1CollectionSet::phase_times() {
 G1CollectionSet::G1CollectionSet(G1CollectedHeap* g1h, G1Policy* policy) :
   _g1h(g1h),
   _policy(policy),
-  _candidates(NULL),
+  _candidates(),
   _eden_region_length(0),
   _survivor_region_length(0),
   _old_region_length(0),
@@ -64,11 +64,6 @@ G1CollectionSet::G1CollectionSet(G1CollectedHeap* g1h, G1Policy* policy) :
   _inc_build_state(Inactive),
   _inc_part_start(0),
   _inc_bytes_used_before(0) {
-}
-
-G1CollectionSet::~G1CollectionSet() {
-  free_optional_regions();
-  clear_candidates();
 }
 
 void G1CollectionSet::init_region_lengths(uint eden_cset_region_length,
@@ -97,8 +92,7 @@ void G1CollectionSet::free_optional_regions() {
 }
 
 void G1CollectionSet::clear_candidates() {
-  delete _candidates;
-  _candidates = NULL;
+  _candidates.reset();
 }
 
 bool G1CollectionSet::has_candidates() {

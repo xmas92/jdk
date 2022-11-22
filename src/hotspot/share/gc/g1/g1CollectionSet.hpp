@@ -25,12 +25,12 @@
 #ifndef SHARE_GC_G1_G1COLLECTIONSET_HPP
 #define SHARE_GC_G1_G1COLLECTIONSET_HPP
 
+#include "gc/g1/g1CollectionSetCandidates.hpp"
 #include "memory/allocationManaged.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 class G1CollectedHeap;
-class G1CollectionSetCandidates;
 class G1CollectorState;
 class G1GCPhaseTimes;
 class G1ParScanThreadStateSet;
@@ -135,7 +135,7 @@ class G1CollectionSet {
   G1Policy* _policy;
 
   // All old gen collection set candidate regions for the current mixed phase.
-  G1CollectionSetCandidates* _candidates;
+  ManagedCHeapObj<G1CollectionSetCandidates> _candidates;
 
   uint _eden_region_length;
   uint _survivor_region_length;
@@ -218,7 +218,7 @@ class G1CollectionSet {
                          uint worker_id) const;
 public:
   G1CollectionSet(G1CollectedHeap* g1h, G1Policy* policy);
-  ~G1CollectionSet();
+  ~G1CollectionSet() = default;
 
   // Initializes the collection set giving the maximum possible length of the collection set.
   void initialize(uint max_region_length);
@@ -230,7 +230,7 @@ public:
     assert(_candidates == NULL, "Trying to replace collection set candidates.");
     _candidates = candidates;
   }
-  G1CollectionSetCandidates* candidates() { return _candidates; }
+  G1CollectionSetCandidates* candidates() { return _candidates.get(); }
 
   void init_region_lengths(uint eden_cset_region_length,
                            uint survivor_cset_region_length);

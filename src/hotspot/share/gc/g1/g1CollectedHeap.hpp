@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1COLLECTEDHEAP_HPP
 #define SHARE_GC_G1_G1COLLECTEDHEAP_HPP
 
+#include "gc/g1/g1Allocator.hpp"
 #include "gc/g1/g1BarrierSet.hpp"
 #include "gc/g1/g1BiasedArray.hpp"
 #include "gc/g1/g1CardTable.hpp"
@@ -54,6 +55,7 @@
 #include "gc/shared/softRefPolicy.hpp"
 #include "gc/shared/taskqueue.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "memory/memRegion.hpp"
 #include "runtime/mutexLocker.hpp"
@@ -65,8 +67,6 @@
 // heap subsets that will yield large amounts of garbage.
 
 // Forward declarations
-class G1Allocator;
-class G1ArchiveAllocator;
 class G1BatchedTask;
 class G1CardTableEntryClosure;
 class G1ConcurrentMark;
@@ -219,7 +219,7 @@ public:
 
 private:
   // Class that handles archive allocation ranges.
-  G1ArchiveAllocator* _archive_allocator;
+  ManagedCHeapObj<G1ArchiveAllocator> _archive_allocator;
 
   // GC allocation statistics policy for survivors.
   G1EvacStats _survivor_evac_stats;

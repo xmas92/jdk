@@ -534,8 +534,7 @@ void G1CollectedHeap::end_archive_alloc_range(GrowableArray<MemRegion>* ranges,
   // Call complete_archive to do the real work, filling in the MemRegion
   // array with the archive regions.
   _archive_allocator->complete_archive(ranges, end_alignment_in_bytes);
-  delete _archive_allocator;
-  _archive_allocator = nullptr;
+  _archive_allocator.reset();
 }
 
 bool G1CollectedHeap::check_archive_addresses(MemRegion* ranges, size_t count) {

@@ -26,6 +26,7 @@
 #define SHARE_GC_G1_G1REGIONMARKSTATSCACHE_HPP
 
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/oop.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -77,7 +78,7 @@ private:
   };
 
   // The actual cache and its number of entries.
-  G1RegionMarkStatsCacheEntry* _cache;
+  ManagedCHeapArray<G1RegionMarkStatsCacheEntry> _cache;
   uint _num_cache_entries;
 
   // Cache hits/miss counters.
@@ -101,7 +102,7 @@ public:
 
   G1RegionMarkStatsCache(G1RegionMarkStats* target, uint num_cache_entries);
 
-  ~G1RegionMarkStatsCache();
+  ~G1RegionMarkStatsCache() = default;
 
   void add_live_words(oop obj);
   void add_live_words(uint region_idx, size_t live_words) {

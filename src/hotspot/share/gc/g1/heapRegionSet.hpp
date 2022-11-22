@@ -26,6 +26,7 @@
 #define SHARE_GC_G1_HEAPREGIONSET_HPP
 
 #include "gc/g1/heapRegion.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/macros.hpp"
 
 #define assert_heap_region_set(p, message) \
@@ -146,12 +147,12 @@ private:
   // This class is only initialized if there are multiple active nodes.
   class NodeInfo : public CHeapObj<mtGC> {
     G1NUMA* _numa;
-    uint*   _length_of_node;
+    ManagedCHeapArray<uint> _length_of_node;
     uint    _num_nodes;
 
   public:
     NodeInfo();
-    ~NodeInfo();
+    ~NodeInfo() = default;
 
     inline void increase_length(uint node_index);
     inline void decrease_length(uint node_index);
@@ -170,7 +171,7 @@ private:
   // time. It helps to improve performance when adding several ordered items in a row.
   HeapRegion* _last;
 
-  NodeInfo*   _node_info;
+  ManagedCHeapObj<NodeInfo> _node_info;
 
   static uint _unrealistically_long_length;
 
@@ -191,7 +192,7 @@ protected:
 
 public:
   FreeRegionList(const char* name, HeapRegionSetChecker* checker = NULL);
-  ~FreeRegionList();
+  ~FreeRegionList() = default;
 
   void verify_list();
 

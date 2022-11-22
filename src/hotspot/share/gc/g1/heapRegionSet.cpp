@@ -22,6 +22,7 @@
  *
  */
 
+#include "memory/allocationManaged.hpp"
 #include "precompiled.hpp"
 #include "gc/g1/g1CollectedHeap.inline.hpp"
 #include "gc/g1/g1NUMA.hpp"
@@ -129,7 +130,7 @@ void FreeRegionList::add_list_common_start(FreeRegionList* from_list) {
   }
 
   if (_node_info != NULL && from_list->_node_info != NULL) {
-    _node_info->add(from_list->_node_info);
+    _node_info->add(from_list->_node_info.get());
   }
 
   #ifdef ASSERT
@@ -372,21 +373,11 @@ FreeRegionList::FreeRegionList(const char* name, HeapRegionSetChecker* checker):
   clear();
 }
 
-FreeRegionList::~FreeRegionList() {
-  if (_node_info != NULL) {
-    delete _node_info;
-  }
-}
-
 FreeRegionList::NodeInfo::NodeInfo() : _numa(G1NUMA::numa()), _length_of_node(NULL),
                                        _num_nodes(_numa->num_active_nodes()) {
   assert(UseNUMA, "Invariant");
-
-  _length_of_node = NEW_C_HEAP_ARRAY(uint, _num_nodes, mtGC);
-}
-
-FreeRegionList::NodeInfo::~NodeInfo() {
-  FREE_C_HEAP_ARRAY(uint, _length_of_node);
+  // candidate: c-d
+  _length_of_node = make_managed_c_heap_array_default_init<uint>(_num_nodes, mtGC);
 }
 
 void FreeRegionList::NodeInfo::clear() {

@@ -26,6 +26,7 @@
 #include "gc/g1/g1CollectedHeap.inline.hpp"
 #include "gc/g1/g1RegionMarkStatsCache.inline.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/powerOfTwo.hpp"
 
 G1RegionMarkStatsCache::G1RegionMarkStatsCache(G1RegionMarkStats* target, uint num_cache_entries) :
@@ -35,12 +36,9 @@ G1RegionMarkStatsCache::G1RegionMarkStatsCache(G1RegionMarkStats* target, uint n
 
   guarantee(is_power_of_2(num_cache_entries),
             "Number of cache entries must be power of two, but is %u", num_cache_entries);
-  _cache = NEW_C_HEAP_ARRAY(G1RegionMarkStatsCacheEntry, _num_cache_entries, mtGC);
+  // candidate: c-d
+  _cache = make_managed_c_heap_array_default_init<G1RegionMarkStatsCacheEntry>(_num_cache_entries, mtGC);
   reset();
-}
-
-G1RegionMarkStatsCache::~G1RegionMarkStatsCache() {
-  FREE_C_HEAP_ARRAY(G1RegionMarkStatsCacheEntry, _cache);
 }
 
 void G1RegionMarkStatsCache::add_live_words(oop obj) {

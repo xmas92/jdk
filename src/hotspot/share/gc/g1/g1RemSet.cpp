@@ -48,6 +48,7 @@
 #include "gc/shared/gcTraceTime.inline.hpp"
 #include "gc/shared/ptrQueue.hpp"
 #include "jfr/jfrEvents.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/access.inline.hpp"
@@ -137,32 +138,29 @@ private:
 
   // Set of (unique) regions that can be added to concurrently.
   class G1DirtyRegions : public CHeapObj<mtGC> {
-    uint* _buffer;
+    ManagedCHeapArray<uint> _buffer;
     uint _cur_idx;
     size_t _max_reserved_regions;
 
-    bool* _contains;
+    ManagedCHeapArray<volatile bool> _contains;
 
   public:
     G1DirtyRegions(size_t max_reserved_regions) :
-      _buffer(NEW_C_HEAP_ARRAY(uint, max_reserved_regions, mtGC)),
+      _buffer(make_managed_c_heap_array_default_init<uint>(max_reserved_regions, mtGC)),
       _cur_idx(0),
       _max_reserved_regions(max_reserved_regions),
-      _contains(NEW_C_HEAP_ARRAY(bool, max_reserved_regions, mtGC)) {
-
+      _contains(make_managed_c_heap_array_default_init<bool>(max_reserved_regions, mtGC)) {
+      // candidate: c-d
       reset();
     }
 
     static size_t chunk_size() { return M; }
 
-    ~G1DirtyRegions() {
-      FREE_C_HEAP_ARRAY(uint, _buffer);
-      FREE_C_HEAP_ARRAY(bool, _contains);
-    }
+    ~G1DirtyRegions() = default;
 
     void reset() {
       _cur_idx = 0;
-      ::memset(_contains, false, _max_reserved_regions * sizeof(bool));
+      ::memset(const_cast<bool*>(_contains.get()), false, _max_reserved_regions * sizeof(bool));
     }
 
     uint size() const { return _cur_idx; }
@@ -287,6 +285,7 @@ public:
   void initialize(size_t max_reserved_regions) {
     assert(_collection_set_iter_state == NULL, "Must not be initialized twice");
     _max_reserved_regions = max_reserved_regions;
+    // candidate: i-d
     _collection_set_iter_state = NEW_C_HEAP_ARRAY(G1RemsetIterState, max_reserved_regions, mtGC);
     _card_table_scan_state = NEW_C_HEAP_ARRAY(uint, max_reserved_regions, mtGC);
     _num_total_scan_chunks = max_reserved_regions * _scan_chunks_per_region;

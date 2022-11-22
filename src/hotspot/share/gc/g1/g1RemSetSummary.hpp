@@ -26,6 +26,7 @@
 #define SHARE_GC_G1_G1REMSETSUMMARY_HPP
 
 #include "gc/g1/g1CardSet.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/ostream.hpp"
 
@@ -35,7 +36,7 @@ class G1RemSet;
 
 class G1RemSetSummary {
   size_t _num_vtimes;
-  double* _rs_threads_vtimes;
+  ManagedCHeapArray<double> _rs_threads_vtimes;
 
   void set_rs_thread_vtime(uint thread, double value);
 
@@ -45,7 +46,7 @@ class G1RemSetSummary {
 public:
   G1RemSetSummary(bool should_update = true);
 
-  ~G1RemSetSummary();
+  ~G1RemSetSummary() = default;
 
   // set the counters in this summary to the values of the others
   void set(G1RemSetSummary* other);

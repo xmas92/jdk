@@ -30,6 +30,7 @@
 #include "gc/g1/g1RegionToSpaceMapper.hpp"
 #include "gc/g1/heapRegionSet.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "services/memoryUsage.hpp"
 
 class HeapRegion;
@@ -301,14 +302,14 @@ public:
 class HeapRegionClaimer : public StackObj {
   uint           _n_workers;
   uint           _n_regions;
-  volatile uint* _claims;
+  ManagedCHeapArray<volatile uint> _claims;
 
   static const uint Unclaimed = 0;
   static const uint Claimed   = 1;
 
  public:
   HeapRegionClaimer(uint n_workers);
-  ~HeapRegionClaimer();
+  ~HeapRegionClaimer() = default;
 
   inline uint n_regions() const {
     return _n_regions;

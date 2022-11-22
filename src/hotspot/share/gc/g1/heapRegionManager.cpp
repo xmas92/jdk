@@ -34,10 +34,12 @@
 #include "jfr/jfrEvents.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/orderAccess.hpp"
 #include "utilities/bitMap.inline.hpp"
+#include "utilities/debug.hpp"
 
 class MasterFreeRegionListChecker : public HeapRegionSetChecker {
 public:
@@ -738,13 +740,9 @@ void HeapRegionManager::verify_optional() {
 
 HeapRegionClaimer::HeapRegionClaimer(uint n_workers) :
     _n_workers(n_workers), _n_regions(G1CollectedHeap::heap()->_hrm._allocated_heapregions_length), _claims(NULL) {
-  uint* new_claims = NEW_C_HEAP_ARRAY(uint, _n_regions, mtGC);
-  memset(new_claims, Unclaimed, sizeof(*_claims) * _n_regions);
-  _claims = new_claims;
-}
-
-HeapRegionClaimer::~HeapRegionClaimer() {
-  FREE_C_HEAP_ARRAY(uint, _claims);
+  // candidate: c-d
+  STATIC_ASSERT(Unclaimed == uint{});
+  _claims = make_managed_c_heap_array_value_init<uint>(_n_regions, mtGC);
 }
 
 uint HeapRegionClaimer::offset_for_worker(uint worker_id) const {
@@ -766,7 +764,7 @@ bool HeapRegionClaimer::claim_region(uint region_index) {
 
 class G1RebuildFreeListTask : public WorkerTask {
   HeapRegionManager* _hrm;
-  FreeRegionList*    _worker_freelists;
+  ManagedCHeapArray<FreeRegionList> _worker_freelists;
   uint               _worker_chunk_size;
   uint               _num_workers;
 
@@ -774,20 +772,19 @@ public:
   G1RebuildFreeListTask(HeapRegionManager* hrm, uint num_workers) :
       WorkerTask("G1 Rebuild Free List Task"),
       _hrm(hrm),
-      _worker_freelists(NEW_C_HEAP_ARRAY(FreeRegionList, num_workers, mtGC)),
+      // candidate: c-d
+      _worker_freelists(),
       _worker_chunk_size((_hrm->reserved_length() + num_workers - 1) / num_workers),
       _num_workers(num_workers) {
-    for (uint worker = 0; worker < _num_workers; worker++) {
-      ::new (&_worker_freelists[worker]) FreeRegionList("Appendable Worker Free List");
-    }
+    _worker_freelists = make_managed_c_heap_array_with_initilizer<FreeRegionList>(num_workers, mtGC,
+        [&](FreeRegionList* alloc) {
+          for (uint worker = 0; worker < _num_workers; worker++) {
+            ::new (alloc + worker) FreeRegionList("Appendable Worker Free List");
+          }
+        });
   }
 
-  ~G1RebuildFreeListTask() {
-    for (uint worker = 0; worker < _num_workers; worker++) {
-      _worker_freelists[worker].~FreeRegionList();
-    }
-    FREE_C_HEAP_ARRAY(FreeRegionList, _worker_freelists);
-  }
+  ~G1RebuildFreeListTask() = default;
 
   FreeRegionList* worker_freelist(uint worker) {
     return &_worker_freelists[worker];

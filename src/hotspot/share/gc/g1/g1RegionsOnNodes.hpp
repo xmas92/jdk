@@ -26,19 +26,20 @@
 #define SHARE_VM_GC_G1_G1REGIONS_HPP
 
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 
 class G1NUMA;
 class HeapRegion;
 
 // Contains per node index region count
 class G1RegionsOnNodes : public StackObj {
-  volatile uint* _count_per_node;
+  ManagedCHeapArray<volatile uint> _count_per_node;
   G1NUMA*        _numa;
 
 public:
   G1RegionsOnNodes();
 
-  ~G1RegionsOnNodes();
+  ~G1RegionsOnNodes() = default;
 
   // Increase _count_per_node for the node of given heap region and returns node index.
   uint add(HeapRegion* hr);

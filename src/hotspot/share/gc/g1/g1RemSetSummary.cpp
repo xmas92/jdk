@@ -34,6 +34,7 @@
 #include "gc/g1/heapRegion.hpp"
 #include "gc/g1/heapRegionRemSet.inline.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "runtime/javaThread.hpp"
 
@@ -68,24 +69,18 @@ double G1RemSetSummary::rs_thread_vtime(uint thread) const {
 
 G1RemSetSummary::G1RemSetSummary(bool should_update) :
   _num_vtimes(G1ConcurrentRefine::max_num_threads()),
-  _rs_threads_vtimes(NEW_C_HEAP_ARRAY(double, _num_vtimes, mtGC)) {
-
-  memset(_rs_threads_vtimes, 0, sizeof(double) * _num_vtimes);
-
+  _rs_threads_vtimes(make_managed_c_heap_array_value_init<double>(_num_vtimes, mtGC)) {
+  // candidate: c-d
   if (should_update) {
     update();
   }
-}
-
-G1RemSetSummary::~G1RemSetSummary() {
-  FREE_C_HEAP_ARRAY(double, _rs_threads_vtimes);
 }
 
 void G1RemSetSummary::set(G1RemSetSummary* other) {
   assert(other != NULL, "just checking");
   assert(_num_vtimes == other->_num_vtimes, "just checking");
 
-  memcpy(_rs_threads_vtimes, other->_rs_threads_vtimes, sizeof(double) * _num_vtimes);
+  memcpy(_rs_threads_vtimes.get(), other->_rs_threads_vtimes.get(), sizeof(double) * _num_vtimes);
 }
 
 void G1RemSetSummary::subtract_from(G1RemSetSummary* other) {

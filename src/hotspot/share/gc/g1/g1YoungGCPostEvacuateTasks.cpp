@@ -37,6 +37,7 @@
 #include "gc/g1/g1YoungGCPostEvacuateTasks.hpp"
 #include "gc/shared/preservedMarks.inline.hpp"
 #include "jfr/jfrEvents.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/ticks.hpp"
 
 class G1PostEvacuateCollectionSetCleanupTask1::MergePssTask : public G1AbstractSubTask {
@@ -643,7 +644,7 @@ public:
 class G1PostEvacuateCollectionSetCleanupTask2::FreeCollectionSetTask : public G1AbstractSubTask {
   G1CollectedHeap*  _g1h;
   G1EvacInfo* _evacuation_info;
-  FreeCSetStats*    _worker_stats;
+  ManagedCHeapArray<FreeCSetStats> _worker_stats;
   HeapRegionClaimer _claimer;
   const size_t*     _surviving_young_words;
   uint              _active_workers;
@@ -681,10 +682,7 @@ public:
   virtual ~FreeCollectionSetTask() {
     Ticks serial_time = Ticks::now();
     report_statistics();
-    for (uint worker = 0; worker < _active_workers; worker++) {
-      _worker_stats[worker].~FreeCSetStats();
-    }
-    FREE_C_HEAP_ARRAY(FreeCSetStats, _worker_stats);
+    _worker_stats.reset();
     _g1h->phase_times()->record_serial_free_cset_time_ms((Ticks::now() - serial_time).seconds() * 1000.0);
     _g1h->clear_collection_set();
   }
@@ -693,10 +691,8 @@ public:
 
   void set_max_workers(uint max_workers) override {
     _active_workers = max_workers;
-    _worker_stats = NEW_C_HEAP_ARRAY(FreeCSetStats, max_workers, mtGC);
-    for (uint worker = 0; worker < _active_workers; worker++) {
-      ::new (&_worker_stats[worker]) FreeCSetStats();
-    }
+    // candidate: s-d
+    _worker_stats = make_managed_c_heap_array_value_init<FreeCSetStats>(max_workers, mtGC);
     _claimer.set_n_workers(_active_workers);
   }
 

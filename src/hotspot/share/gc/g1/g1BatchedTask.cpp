@@ -47,7 +47,7 @@ bool G1BatchedTask::try_claim_serial_task(int& task) {
 
 void G1BatchedTask::add_serial_task(G1AbstractSubTask* task) {
   assert(task != nullptr, "must be");
-  _serial_tasks.push(task);
+  _serial_tasks.push(ManagedCHeapObj<G1AbstractSubTask>(task));
 }
 
 void G1BatchedTask::add_parallel_task(G1AbstractSubTask* task) {
@@ -65,20 +65,20 @@ G1BatchedTask::G1BatchedTask(const char* name, G1GCPhaseTimes* phase_times) :
 
 uint G1BatchedTask::num_workers_estimate() const {
   double sum = 0.0;
-  for (G1AbstractSubTask* task : _serial_tasks) {
+  for (const ManagedCHeapObj<G1AbstractSubTask>& task : _serial_tasks) {
     sum += task->worker_cost();
   }
-  for (G1AbstractSubTask* task : _parallel_tasks) {
+  for (const ManagedCHeapObj<G1AbstractSubTask>& task : _parallel_tasks) {
     sum += task->worker_cost();
   }
   return ceil(sum);
 }
 
 void G1BatchedTask::set_max_workers(uint max_workers) {
-  for (G1AbstractSubTask* task : _serial_tasks) {
+  for (ManagedCHeapObj<G1AbstractSubTask>& task : _serial_tasks) {
     task->set_max_workers(max_workers);
   }
-  for (G1AbstractSubTask* task : _parallel_tasks) {
+  for (ManagedCHeapObj<G1AbstractSubTask>& task : _parallel_tasks) {
     task->set_max_workers(max_workers);
   }
 }
@@ -86,11 +86,11 @@ void G1BatchedTask::set_max_workers(uint max_workers) {
 void G1BatchedTask::work(uint worker_id) {
   int t = 0;
   while (try_claim_serial_task(t)) {
-    G1AbstractSubTask* task = _serial_tasks.at(t);
+    G1AbstractSubTask* task = _serial_tasks.at(t).get();
     G1GCParPhaseTimesTracker x(_phase_times, task->tag(), worker_id);
     task->do_work(worker_id);
   }
-  for (G1AbstractSubTask* task : _parallel_tasks) {
+  for (ManagedCHeapObj<G1AbstractSubTask>& task : _parallel_tasks) {
     G1GCParPhaseTimesTracker x(_phase_times, task->tag(), worker_id);
     task->do_work(worker_id);
   }
@@ -99,11 +99,4 @@ void G1BatchedTask::work(uint worker_id) {
 G1BatchedTask::~G1BatchedTask() {
   assert(Atomic::load(&_num_serial_tasks_done) >= _serial_tasks.length(),
          "Only %d tasks of %d claimed", Atomic::load(&_num_serial_tasks_done), _serial_tasks.length());
-
-  for (G1AbstractSubTask* task : _parallel_tasks) {
-    delete task;
-  }
-  for (G1AbstractSubTask* task : _serial_tasks) {
-    delete task;
-  }
 }

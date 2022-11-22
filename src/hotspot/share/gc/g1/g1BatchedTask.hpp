@@ -28,6 +28,7 @@
 #include "gc/g1/g1GCPhaseTimes.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 
 template <typename E, MEMFLAGS F>
 class GrowableArrayCHeap;
@@ -127,8 +128,8 @@ class G1BatchedTask : public WorkerTask {
 
   NONCOPYABLE(G1BatchedTask);
 
-  GrowableArrayCHeap<G1AbstractSubTask*, mtGC> _serial_tasks;
-  GrowableArrayCHeap<G1AbstractSubTask*, mtGC> _parallel_tasks;
+  GrowableArrayCHeap<ManagedCHeapObj<G1AbstractSubTask>, mtGC> _serial_tasks;
+  GrowableArrayCHeap<ManagedCHeapObj<G1AbstractSubTask>, mtGC> _parallel_tasks;
 
 protected:
   void add_serial_task(G1AbstractSubTask* task);

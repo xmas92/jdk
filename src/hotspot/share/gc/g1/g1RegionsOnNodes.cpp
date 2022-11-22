@@ -22,18 +22,16 @@
  *
  */
 
+#include "memory/allocationManaged.hpp"
 #include "precompiled.hpp"
 #include "gc/g1/g1NUMA.hpp"
 #include "gc/g1/g1RegionsOnNodes.hpp"
 #include "gc/g1/heapRegion.hpp"
 
 G1RegionsOnNodes::G1RegionsOnNodes() : _count_per_node(NULL), _numa(G1NUMA::numa()) {
-  _count_per_node = NEW_C_HEAP_ARRAY(uint, _numa->num_active_nodes(), mtGC);
+  // candidate: c-d
+  _count_per_node = make_managed_c_heap_array_default_init<uint>(_numa->num_active_nodes(), mtGC);
   clear();
-}
-
-G1RegionsOnNodes::~G1RegionsOnNodes() {
-  FREE_C_HEAP_ARRAY(uint, _count_per_node);
 }
 
 uint G1RegionsOnNodes::add(HeapRegion* hr) {
@@ -41,7 +39,7 @@ uint G1RegionsOnNodes::add(HeapRegion* hr) {
 
   // Update only if the node index is valid.
   if (node_index < _numa->num_active_nodes()) {
-    *(_count_per_node + node_index) += 1;
+    _count_per_node[node_index] += 1;
     return node_index;
   }
 

@@ -233,7 +233,7 @@ class G1ParScanThreadStateSet : public StackObj {
   G1CollectedHeap* _g1h;
   G1RedirtyCardsQueueSet _rdcqs;
   PreservedMarksSet _preserved_marks_set;
-  ManagedCHeapArray<G1ParScanThreadState*> _states;
+  ManagedCHeapArray<ManagedCHeapObj<G1ParScanThreadState>> _states;
   ManagedCHeapArray<size_t> _surviving_young_words_total;
   size_t _young_cset_length;
   size_t _optional_cset_length;

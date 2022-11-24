@@ -88,10 +88,6 @@ G1Policy::G1Policy(STWGCTimer* gc_timer) :
 {
 }
 
-G1Policy::~G1Policy() {
-  delete _ihop_control;
-}
-
 G1CollectorState* G1Policy::collector_state() const { return _g1h->collector_state(); }
 
 void G1Policy::init(G1CollectedHeap* g1h, G1CollectionSet* collection_set) {
@@ -961,7 +957,7 @@ void G1Policy::record_young_collection_end(bool concurrent_operation_is_full_mar
                       logged_cards_time_goal_ms);
 }
 
-G1IHOPControl* G1Policy::create_ihop_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
+ManagedCHeapObj<G1IHOPControl> G1Policy::create_ihop_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
                                              const G1Predictions* predictor) {
   if (G1UseAdaptiveIHOP) {
     return new G1AdaptiveIHOPControl(InitiatingHeapOccupancyPercent,

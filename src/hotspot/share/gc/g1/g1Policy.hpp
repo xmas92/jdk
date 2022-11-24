@@ -29,12 +29,14 @@
 #include "gc/g1/g1ConcurrentStartToMixedTimeTracker.hpp"
 #include "gc/g1/g1GCPhaseTimes.hpp"
 #include "gc/g1/g1HeapRegionAttr.hpp"
+#include "gc/g1/g1IHOPControl.hpp"
 #include "gc/g1/g1MMUTracker.hpp"
 #include "gc/g1/g1OldGenAllocationTracker.hpp"
 #include "gc/g1/g1RemSetTrackingPolicy.hpp"
 #include "gc/g1/g1Predictions.hpp"
 #include "gc/g1/g1YoungGenSizer.hpp"
 #include "gc/shared/gcCause.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/pair.hpp"
 #include "utilities/ticks.hpp"
@@ -48,7 +50,6 @@ class HeapRegion;
 class G1CollectionSet;
 class G1CollectionSetCandidates;
 class G1CollectionSetChooser;
-class G1IHOPControl;
 class G1Analytics;
 class G1SurvivorRegions;
 class GCPolicyCounters;
@@ -57,8 +58,8 @@ class STWGCTimer;
 class G1Policy: public CHeapObj<mtGC> {
  private:
 
-  static G1IHOPControl* create_ihop_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
-                                            const G1Predictions* predictor);
+  static ManagedCHeapObj<G1IHOPControl> create_ihop_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
+                                                            const G1Predictions* predictor);
   // Update the IHOP control with necessary statistics.
   void update_ihop_prediction(double mutator_time_s,
                               bool this_gc_was_young_only);
@@ -72,7 +73,7 @@ class G1Policy: public CHeapObj<mtGC> {
   // Tracking the allocation in the old generation between
   // two GCs.
   G1OldGenAllocationTracker _old_gen_alloc_tracker;
-  G1IHOPControl* _ihop_control;
+  ManagedCHeapObj<G1IHOPControl> _ihop_control;
 
   GCPolicyCounters* _policy_counters;
 
@@ -296,7 +297,7 @@ public:
 
   G1Policy(STWGCTimer* gc_timer);
 
-  virtual ~G1Policy();
+  virtual ~G1Policy() = default;
 
   G1CollectorState* collector_state() const;
 

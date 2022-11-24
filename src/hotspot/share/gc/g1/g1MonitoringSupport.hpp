@@ -27,14 +27,15 @@
 
 #include "gc/shared/collectorCounters.hpp"
 #include "gc/shared/generationCounters.hpp"
+#include "memory/allocationManaged.hpp"
 #include "services/memoryManager.hpp"
+#include "services/memoryPool.hpp"
 #include "services/memoryService.hpp"
 #include "runtime/mutex.hpp"
 
 class CollectorCounters;
 class G1CollectedHeap;
 class HSpaceCounters;
-class MemoryPool;
 
 // Class for monitoring logical spaces in G1. It provides data for
 // both G1's jstat counters as well as G1's memory pools.
@@ -132,9 +133,9 @@ class G1MonitoringSupport : public CHeapObj<mtGC> {
   GCMemoryManager _full_gc_memory_manager;
   GCMemoryManager _conc_gc_memory_manager;
 
-  MemoryPool* _eden_space_pool;
-  MemoryPool* _survivor_space_pool;
-  MemoryPool* _old_gen_pool;
+  ManagedCHeapObj<MemoryPool> _eden_space_pool;
+  ManagedCHeapObj<MemoryPool> _survivor_space_pool;
+  ManagedCHeapObj<MemoryPool> _old_gen_pool;
 
   // jstat performance counters
   //  incremental collections both young and mixed
@@ -184,7 +185,7 @@ class G1MonitoringSupport : public CHeapObj<mtGC> {
 
 public:
   G1MonitoringSupport(G1CollectedHeap* g1h);
-  ~G1MonitoringSupport();
+  ~G1MonitoringSupport() = default;
 
   void initialize_serviceability();
 

@@ -27,10 +27,14 @@
 
 #include "memory/allocation.hpp"
 #include "memory/iterator.hpp"
+#include "metaprogramming/enableIf.hpp"
+#include "metaprogramming/removeCV.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/ostream.hpp"
 #include "utilities/powerOfTwo.hpp"
+#include <type_traits>
+#include <utility>
 
 // A growable array.
 
@@ -102,6 +106,7 @@ public:
 };
 
 template <typename E> class GrowableArrayIterator;
+template <typename E> class GrowableArrayConstIterator;
 template <typename E, typename UnaryPredicate> class GrowableArrayFilterIterator;
 
 // Extends GrowableArrayBase with a typed data array.
@@ -170,11 +175,19 @@ public:
     return top();
   }
 
-  GrowableArrayIterator<E> begin() const {
+  GrowableArrayConstIterator<E> begin() const {
+    return GrowableArrayConstIterator<E>(this, 0);
+  }
+
+  GrowableArrayConstIterator<E> end() const {
+    return GrowableArrayConstIterator<E>(this, length());
+  }
+
+  GrowableArrayIterator<E> begin() {
     return GrowableArrayIterator<E>(this, 0);
   }
 
-  GrowableArrayIterator<E> end() const {
+  GrowableArrayIterator<E> end() {
     return GrowableArrayIterator<E>(this, length());
   }
 
@@ -363,6 +376,12 @@ class GrowableArrayWithAllocator : public GrowableArrayView<E> {
   void expand_to(int j);
   void grow(int j);
 
+
+  template<typename T = E, ENABLE_IF(std::is_copy_constructible<T>::value)>
+  static void copy_or_move_construct(E* new_data, E* old_data, int len);
+
+  template<typename T = E, ENABLE_IF(std::is_move_constructible<T>::value && !std::is_copy_constructible<T>::value)>
+  static void copy_or_move_construct(E* new_data, E* old_data, int len);
 protected:
   GrowableArrayWithAllocator(E* data, int capacity) :
       GrowableArrayView<E>(data, capacity, 0) {
@@ -392,6 +411,14 @@ public:
     return idx;
   }
 
+  template<typename T = E, ENABLE_IF(!std::is_copy_assignable<T>::value)>
+  int append(E&& elem) {
+    if (this->_len == this->_capacity) grow(this->_len);
+    int idx = this->_len++;
+    this->_data[idx] = std::move(elem);
+    return idx;
+  }
+
   bool append_if_missing(const E& elem) {
     // Returns TRUE if elem is added.
     bool missed = !this->contains(elem);
@@ -400,6 +427,8 @@ public:
   }
 
   void push(const E& elem) { append(elem); }
+  template<typename T = E, ENABLE_IF(!std::is_copy_assignable<T>::value)>
+  void push(E&& elem) { append(std::move(elem)); }
 
   E at_grow(int i, const E& fill = E()) {
     assert(0 <= i, "negative index");
@@ -495,14 +524,26 @@ public:
 };
 
 template <typename E, typename Derived>
+template<typename T, ENABLE_IF_SDEFN(std::is_copy_constructible<T>::value)>
+void GrowableArrayWithAllocator<E, Derived>::copy_or_move_construct(E* new_data, E* old_data, int len) {
+  for (int i = 0; i < len; ++i) ::new (&new_data[i]) E(old_data[i]);
+}
+
+template <typename E, typename Derived>
+template<typename T, ENABLE_IF_SDEFN(std::is_move_constructible<T>::value && !std::is_copy_constructible<T>::value)>
+void GrowableArrayWithAllocator<E, Derived>::copy_or_move_construct(E* new_data, E* old_data, int len) {
+  for (int i = 0; i < len; ++i) ::new (&new_data[i]) E(std::move(old_data[i]));
+}
+
+template <typename E, typename Derived>
 void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
   int old_capacity = this->_capacity;
   assert(new_capacity > old_capacity,
          "expected growth but %d <= %d", new_capacity, old_capacity);
   this->_capacity = new_capacity;
   E* newData = static_cast<Derived*>(this)->allocate();
-  int i = 0;
-  for (     ; i < this->_len; i++) ::new ((void*)&newData[i]) E(this->_data[i]);
+  copy_or_move_construct(newData, this->_data, this->_len);
+  int i = this->_len;
   for (     ; i < this->_capacity; i++) ::new ((void*)&newData[i]) E();
   for (i = 0; i < old_capacity; i++) this->_data[i].~E();
   if (this->_data != NULL) {
@@ -541,7 +582,7 @@ void GrowableArrayWithAllocator<E, Derived>::shrink_to_fit() {
   this->_capacity = len;        // Must preceed allocate().
   if (len > 0) {
     new_data = static_cast<Derived*>(this)->allocate();
-    for (int i = 0; i < len; ++i) ::new (&new_data[i]) E(old_data[i]);
+    copy_or_move_construct(new_data, old_data, len);
   }
   // Destroy contents of old data, and deallocate it.
   for (int i = 0; i < old_capacity; ++i) old_data[i].~E();
@@ -833,18 +874,19 @@ class GrowableArrayIterator : public StackObj {
   template <typename F, typename UnaryPredicate> friend class GrowableArrayFilterIterator;
 
  private:
-  const GrowableArrayView<E>* _array; // GrowableArray we iterate over
+  GrowableArrayView<E>* _array; // GrowableArray we iterate over
   int _position;                      // The current position in the GrowableArray
 
   // Private constructor used in GrowableArray::begin() and GrowableArray::end()
-  GrowableArrayIterator(const GrowableArrayView<E>* array, int position) : _array(array), _position(position) {
+  GrowableArrayIterator(GrowableArrayView<E>* array, int position) : _array(array), _position(position) {
     assert(0 <= position && position <= _array->length(), "illegal position");
   }
 
  public:
   GrowableArrayIterator() : _array(NULL), _position(0) { }
   GrowableArrayIterator<E>& operator++() { ++_position; return *this; }
-  E operator*()                          { return _array->at(_position); }
+  E& operator*()                         { return _array->at(_position); }
+  E* operator->()                        { return &_array->at(_position); }
 
   bool operator==(const GrowableArrayIterator<E>& rhs)  {
     assert(_array == rhs._array, "iterator belongs to different array");
@@ -852,6 +894,37 @@ class GrowableArrayIterator : public StackObj {
   }
 
   bool operator!=(const GrowableArrayIterator<E>& rhs)  {
+    assert(_array == rhs._array, "iterator belongs to different array");
+    return _position != rhs._position;
+  }
+};
+
+template <typename E>
+class GrowableArrayConstIterator : public StackObj {
+  friend class GrowableArrayView<E>;
+  template <typename F, typename UnaryPredicate> friend class GrowableArrayFilterIterator;
+
+ private:
+  const GrowableArrayView<E>* _array; // GrowableArray we iterate over
+  int _position;                      // The current position in the GrowableArray
+
+  // Private constructor used in GrowableArray::begin() and GrowableArray::end()
+  GrowableArrayConstIterator(const GrowableArrayView<E>* array, int position) : _array(array), _position(position) {
+    assert(0 <= position && position <= _array->length(), "illegal position");
+  }
+
+ public:
+  GrowableArrayConstIterator() : _array(NULL), _position(0) { }
+  GrowableArrayConstIterator<E>& operator++() { ++_position; return *this; }
+  const E& operator*()                         { return _array->at(_position); }
+  const E* operator->()                        { return &_array->at(_position); }
+
+  bool operator==(const GrowableArrayConstIterator<E>& rhs)  {
+    assert(_array == rhs._array, "iterator belongs to different array");
+    return _position == rhs._position;
+  }
+
+  bool operator!=(const GrowableArrayConstIterator<E>& rhs)  {
     assert(_array == rhs._array, "iterator belongs to different array");
     return _position != rhs._position;
   }

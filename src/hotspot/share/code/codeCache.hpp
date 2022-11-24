@@ -345,8 +345,8 @@ template <class T, class Filter, bool is_relaxed> class CodeBlobIterator : publi
 
  private:
   CodeBlob* _code_blob;   // Current CodeBlob
-  GrowableArrayIterator<CodeHeap*> _heap;
-  GrowableArrayIterator<CodeHeap*> _end;
+  GrowableArrayConstIterator<CodeHeap*> _heap;
+  GrowableArrayConstIterator<CodeHeap*> _end;
   bool _only_not_unloading;
 
   void initialize_iteration(T* nm) {

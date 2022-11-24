@@ -49,7 +49,7 @@ class G1ConcurrentRefineThreadControl {
 
   // Create the refinement thread for the given worker id.
   // If initializing is true, ignore InjectGCWorkerCreationFailure.
-  G1ConcurrentRefineThread* create_refinement_thread(uint worker_id, bool initializing);
+  ManagedCHeapObj<G1ConcurrentRefineThread> create_refinement_thread(uint worker_id, bool initializing);
 
   NONCOPYABLE(G1ConcurrentRefineThreadControl);
 

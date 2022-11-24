@@ -59,7 +59,7 @@ class G1MonotonicArenaFreeMemoryTask : public G1ServiceTask {
   using G1ReturnMemoryProcessor = G1MonotonicArenaFreePool::G1ReturnMemoryProcessor;
   using G1ReturnMemoryProcessorSet = G1MonotonicArenaFreePool::G1ReturnMemoryProcessorSet;
 
-  G1ReturnMemoryProcessorSet* _return_info;
+  G1ReturnMemoryProcessorSet _return_info;
 
   // Returns whether the given deadline has passed.
   bool deadline_exceeded(jlong deadline);

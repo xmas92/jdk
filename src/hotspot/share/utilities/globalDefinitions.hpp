@@ -299,7 +299,7 @@ inline jdouble jdouble_cast(jlong x);
 #define CONST64(x)  (x ## LL)
 #define UCONST64(x) (x ## ULL)
 
-const jlong min_jlong = CONST64(0x8000000000000000);
+const jlong min_jlong = static_cast<jlong>(CONST64(0x8000000000000000));
 const jlong max_jlong = CONST64(0x7fffffffffffffff);
 
 //-------------------------------------------
@@ -446,18 +446,6 @@ typedef uintptr_t     address_word; // unsigned integer which will hold a pointe
                                     // linkage pointer to function. Should never
                                     // need one of those to be placed in this
                                     // type anyway.
-
-//  Utility functions to "portably" (?) bit twiddle pointers
-//  Where portable means keep ANSI C++ compilers quiet
-
-inline address       set_address_bits(address x, int m)       { return address(intptr_t(x) | m); }
-inline address       clear_address_bits(address x, int m)     { return address(intptr_t(x) & ~m); }
-
-//  Utility functions to "portably" make cast to/from function pointers.
-
-inline address_word  mask_address_bits(address x, int m)      { return address_word(x) & m; }
-inline address_word  castable_address(address x)              { return address_word(x) ; }
-inline address_word  castable_address(void* x)                { return address_word(x) ; }
 
 // Pointer subtraction.
 // The idea here is to avoid ptrdiff_t, which is signed and so doesn't have
@@ -1164,7 +1152,8 @@ inline int extract_high_short_from_int(jint x) {
 }
 
 inline int build_int_from_shorts( jushort low, jushort high ) {
-  return ((int)((unsigned int)high << 16) | (unsigned int)low);
+  STATIC_ASSERT(sizeof(int) >= 4);
+  return static_cast<int>(((unsigned int)high << 16) | (unsigned int)low);
 }
 
 // swap a & b
@@ -1218,7 +1207,7 @@ inline TYPE NAME (TYPE lhs, jint rhs) {                 \
   const uint rhs_mask = (sizeof(TYPE) * 8) - 1;         \
   STATIC_ASSERT(rhs_mask == 31 || rhs_mask == 63);      \
   XTYPE xres = static_cast<XTYPE>(lhs);                 \
-  xres OP ## = (rhs & rhs_mask);                        \
+  xres OP ## = (static_cast<juint>(rhs) & rhs_mask);    \
   return reinterpret_cast<TYPE&>(xres);                 \
 }
 

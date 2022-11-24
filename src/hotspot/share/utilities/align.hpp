@@ -112,11 +112,11 @@ inline T align_object_size(T word_size) {
 }
 
 inline bool is_object_aligned(size_t word_size) {
-  return is_aligned(word_size, MinObjAlignment);
+  return is_aligned(word_size, static_cast<size_t>(MinObjAlignment));
 }
 
 inline bool is_object_aligned(const void* addr) {
-  return is_aligned(addr, MinObjAlignmentInBytes);
+  return is_aligned(addr, static_cast<size_t>(MinObjAlignmentInBytes));
 }
 
 // Pad out certain offsets to jlong alignment, in HeapWord units.

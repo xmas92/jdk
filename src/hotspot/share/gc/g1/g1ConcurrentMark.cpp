@@ -61,6 +61,7 @@
 #include "jvm.h"
 #include "logging/log.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.hpp"
 #include "memory/metaspaceUtils.hpp"
 #include "memory/resourceArea.hpp"
@@ -410,8 +411,9 @@ G1ConcurrentMark::G1ConcurrentMark(G1CollectedHeap* g1h,
   _num_concurrent_workers(0),
   _max_concurrent_workers(0),
 
-  _region_mark_stats(NEW_C_HEAP_ARRAY(G1RegionMarkStats, _g1h->max_reserved_regions(), mtGC)),
-  _top_at_rebuild_starts(NEW_C_HEAP_ARRAY(HeapWord*, _g1h->max_reserved_regions(), mtGC)),
+  // candidate: leaked
+  _region_mark_stats(make_managed_c_heap_array_default_init<G1RegionMarkStats>(_g1h->max_reserved_regions(), mtGC)),
+  _top_at_rebuild_starts(make_managed_c_heap_array_default_init<HeapWord*>(_g1h->max_reserved_regions(), mtGC)),
   _needs_remembered_set_rebuild(false)
 {
   assert(CGC_lock != NULL, "CGC_lock must be initialized");
@@ -437,8 +439,9 @@ G1ConcurrentMark::G1ConcurrentMark(G1CollectedHeap* g1h,
     vm_exit_during_initialization("Failed to allocate initial concurrent mark overflow mark stack.");
   }
 
-  _tasks = NEW_C_HEAP_ARRAY(G1CMTask*, _max_num_tasks, mtGC);
-  _accum_task_vtime = NEW_C_HEAP_ARRAY(double, _max_num_tasks, mtGC);
+  // candidate: leaked
+  _tasks = make_managed_c_heap_array_default_init<ManagedCHeapObj<G1CMTask>>(_max_num_tasks, mtGC);
+  _accum_task_vtime = make_managed_c_heap_array_default_init<double>(_max_num_tasks, mtGC);
 
   // so that the assertion in MarkingTaskQueue::task_queue doesn't fail
   _num_active_tasks = _max_num_tasks;
@@ -447,7 +450,7 @@ G1ConcurrentMark::G1ConcurrentMark(G1CollectedHeap* g1h,
     G1CMTaskQueue* task_queue = new G1CMTaskQueue();
     _task_queues->register_queue(i, task_queue);
 
-    _tasks[i] = new G1CMTask(i, this, task_queue, _region_mark_stats);
+    _tasks[i] = new G1CMTask(i, this, task_queue, _region_mark_stats.get());
 
     _accum_task_vtime[i] = 0.0;
   }
@@ -565,8 +568,6 @@ void G1ConcurrentMark::reset_at_marking_complete() {
 }
 
 G1ConcurrentMark::~G1ConcurrentMark() {
-  FREE_C_HEAP_ARRAY(HeapWord*, _top_at_rebuild_starts);
-  FREE_C_HEAP_ARRAY(G1RegionMarkStats, _region_mark_stats);
   // The G1ConcurrentMark instance is never freed.
   ShouldNotReachHere();
 }
@@ -1980,7 +1981,7 @@ void G1ConcurrentMark::verify_no_collection_set_oops() {
   // Verify the task fingers
   assert(_num_concurrent_workers <= _max_num_tasks, "sanity");
   for (uint i = 0; i < _num_concurrent_workers; ++i) {
-    G1CMTask* task = _tasks[i];
+    ManagedCHeapObj<G1CMTask>& task = _tasks[i];
     HeapWord* task_finger = task->finger();
     if (task_finger != nullptr && task_finger < _heap.end()) {
       // See above note on the global finger verification.

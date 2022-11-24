@@ -359,7 +359,7 @@ void G1FullCollector::phase2c_prepare_serial_compaction() {
   // Update the forwarding information for the regions in the serial
   // compaction point.
   G1FullGCCompactionPoint* cp = serial_compaction_point();
-  for (GrowableArrayIterator<HeapRegion*> it = cp->regions()->begin(); it != cp->regions()->end(); ++it) {
+  for (GrowableArrayIterator<HeapRegion*> it = cp->regions().begin(); it != cp->regions().end(); ++it) {
     HeapRegion* current = *it;
     if (!cp->is_initialized()) {
       // Initialize the compaction point. Nothing more is needed for the first heap region

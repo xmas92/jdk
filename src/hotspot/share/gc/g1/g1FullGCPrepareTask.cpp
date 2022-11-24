@@ -81,8 +81,8 @@ void G1FullGCPrepareTask::work(uint worker_id) {
     G1FullGCCompactionPoint* compaction_point = collector()->compaction_point(worker_id);
     G1CalculatePointersClosure closure(collector(), compaction_point);
 
-    for (GrowableArrayIterator<HeapRegion*> it = compaction_point->regions()->begin();
-         it != compaction_point->regions()->end();
+    for (GrowableArrayIterator<HeapRegion*> it = compaction_point->regions().begin();
+         it != compaction_point->regions().end();
          ++it) {
       closure.do_heap_region(*it);
     }
@@ -92,7 +92,7 @@ void G1FullGCPrepareTask::work(uint worker_id) {
     // - any regions in queue, so no free ones either.
     // - and the current region is not the last one in the list.
     if (compaction_point->has_regions() &&
-        compaction_point->current_region() != compaction_point->regions()->last()) {
+        compaction_point->current_region() != compaction_point->regions().last()) {
       set_has_free_compaction_targets();
     }
   }

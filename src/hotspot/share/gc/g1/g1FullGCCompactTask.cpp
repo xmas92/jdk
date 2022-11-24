@@ -118,9 +118,9 @@ void G1FullGCCompactTask::compact_region(HeapRegion* hr) {
 
 void G1FullGCCompactTask::work(uint worker_id) {
   Ticks start = Ticks::now();
-  GrowableArray<HeapRegion*>* compaction_queue = collector()->compaction_point(worker_id)->regions();
-  for (GrowableArrayIterator<HeapRegion*> it = compaction_queue->begin();
-       it != compaction_queue->end();
+  GrowableArrayView<HeapRegion*>& compaction_queue = collector()->compaction_point(worker_id)->regions();
+  for (GrowableArrayIterator<HeapRegion*> it = compaction_queue.begin();
+       it != compaction_queue.end();
        ++it) {
     compact_region(*it);
   }
@@ -132,9 +132,9 @@ void G1FullGCCompactTask::work(uint worker_id) {
 
 void G1FullGCCompactTask::serial_compaction() {
   GCTraceTime(Debug, gc, phases) tm("Phase 4: Serial Compaction", collector()->scope()->timer());
-  GrowableArray<HeapRegion*>* compaction_queue = collector()->serial_compaction_point()->regions();
-  for (GrowableArrayIterator<HeapRegion*> it = compaction_queue->begin();
-       it != compaction_queue->end();
+  GrowableArrayView<HeapRegion*>& compaction_queue = collector()->serial_compaction_point()->regions();
+  for (GrowableArrayIterator<HeapRegion*> it = compaction_queue.begin();
+       it != compaction_queue.end();
        ++it) {
     compact_region(*it);
   }

@@ -32,13 +32,9 @@
 G1FullGCCompactionPoint::G1FullGCCompactionPoint(G1FullCollector* collector) :
     _collector(collector),
     _current_region(nullptr),
-    _compaction_top(nullptr) {
-  _compaction_regions = new (mtGC) GrowableArray<HeapRegion*>(32, mtGC);
-  _compaction_region_iterator = _compaction_regions->begin();
-}
-
-G1FullGCCompactionPoint::~G1FullGCCompactionPoint() {
-  delete _compaction_regions;
+    _compaction_top(nullptr),
+    _compaction_regions(32) {
+  _compaction_region_iterator = _compaction_regions.begin();
 }
 
 void G1FullGCCompactionPoint::update() {
@@ -52,7 +48,7 @@ void G1FullGCCompactionPoint::initialize_values() {
 }
 
 bool G1FullGCCompactionPoint::has_regions() {
-  return !_compaction_regions->is_empty();
+  return !_compaction_regions.is_empty();
 }
 
 bool G1FullGCCompactionPoint::is_initialized() {
@@ -74,7 +70,7 @@ HeapRegion* G1FullGCCompactionPoint::next_region() {
   return next;
 }
 
-GrowableArray<HeapRegion*>* G1FullGCCompactionPoint::regions() {
+GrowableArrayView<HeapRegion*>& G1FullGCCompactionPoint::regions() {
   return _compaction_regions;
 }
 
@@ -113,9 +109,9 @@ void G1FullGCCompactionPoint::forward(oop object, size_t size) {
 }
 
 void G1FullGCCompactionPoint::add(HeapRegion* hr) {
-  _compaction_regions->append(hr);
+  _compaction_regions.append(hr);
 }
 
 HeapRegion* G1FullGCCompactionPoint::remove_last() {
-  return _compaction_regions->pop();
+  return _compaction_regions.pop();
 }

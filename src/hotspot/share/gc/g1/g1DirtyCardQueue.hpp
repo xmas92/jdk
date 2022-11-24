@@ -31,6 +31,7 @@
 #include "gc/shared/bufferNodeList.hpp"
 #include "gc/shared/ptrQueue.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/padded.hpp"
 #include "utilities/nonblockingQueue.hpp"
 
@@ -41,7 +42,7 @@ class Thread;
 
 // A ptrQueue whose elements are "oops", pointers to object heads.
 class G1DirtyCardQueue: public PtrQueue {
-  G1ConcurrentRefineStats* _refinement_stats;
+  ManagedCHeapObj<G1ConcurrentRefineStats> _refinement_stats;
 
 public:
   G1DirtyCardQueue(G1DirtyCardQueueSet* qset);
@@ -51,7 +52,7 @@ public:
   ~G1DirtyCardQueue();
 
   G1ConcurrentRefineStats* refinement_stats() const {
-    return _refinement_stats;
+    return _refinement_stats.get();
   }
 
   // Compiler support.

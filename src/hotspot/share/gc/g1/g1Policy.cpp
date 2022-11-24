@@ -504,7 +504,7 @@ uint G1Policy::calculate_desired_eden_length_before_mixed(double base_time_ms,
 double G1Policy::predict_survivor_regions_evac_time() const {
   const GrowableArray<HeapRegion*>* survivor_regions = _g1h->survivor()->regions();
   double survivor_regions_evac_time = predict_young_region_other_time_ms(_g1h->survivor()->length());
-  for (GrowableArrayIterator<HeapRegion*> it = survivor_regions->begin();
+  for (GrowableArrayConstIterator<HeapRegion*> it = survivor_regions->begin();
        it != survivor_regions->end();
        ++it) {
     survivor_regions_evac_time += predict_region_copy_time_ms(*it, _g1h->collector_state()->in_young_only_phase());
@@ -1519,7 +1519,7 @@ void G1Policy::calculate_optional_collection_set_regions(G1CollectionCandidateRe
 void G1Policy::transfer_survivors_to_cset(const G1SurvivorRegions* survivors) {
   start_adding_survivor_regions();
 
-  for (GrowableArrayIterator<HeapRegion*> it = survivors->regions()->begin();
+  for (GrowableArrayConstIterator<HeapRegion*> it = survivors->regions()->begin();
        it != survivors->regions()->end();
        ++it) {
     HeapRegion* curr = *it;

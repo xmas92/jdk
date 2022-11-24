@@ -42,8 +42,8 @@
 #include "utilities/globalDefinitions.hpp"
 #include <math.h>
 
-G1ConcurrentRefineThread* G1ConcurrentRefineThreadControl::create_refinement_thread(uint worker_id, bool initializing) {
-  G1ConcurrentRefineThread* result = nullptr;
+ManagedCHeapObj<G1ConcurrentRefineThread> G1ConcurrentRefineThreadControl::create_refinement_thread(uint worker_id, bool initializing) {
+  ManagedCHeapObj<G1ConcurrentRefineThread> result;
   if (initializing || !InjectGCWorkerCreationFailure) {
     result = G1ConcurrentRefineThread::create(_cr, worker_id);
   }
@@ -51,10 +51,7 @@ G1ConcurrentRefineThread* G1ConcurrentRefineThreadControl::create_refinement_thr
     log_warning(gc)("Failed to create refinement thread %u, no more %s",
                     worker_id,
                     result == nullptr ? "memory" : "OS threads");
-    if (result != nullptr) {
-      delete result;
-      result = nullptr;
-    }
+    result.reset();
   }
   return result;
 }
@@ -175,13 +172,12 @@ jint G1ConcurrentRefine::initialize() {
 }
 
 G1ConcurrentRefine* G1ConcurrentRefine::create(G1Policy* policy, jint* ecode) {
-  G1ConcurrentRefine* cr = new G1ConcurrentRefine(policy);
+  ManagedCHeapObj<G1ConcurrentRefine> cr = new G1ConcurrentRefine(policy);
   *ecode = cr->initialize();
   if (*ecode != 0) {
-    delete cr;
-    cr = nullptr;
+    cr.reset();
   }
-  return cr;
+  return cr.leak();
 }
 
 void G1ConcurrentRefine::stop() {

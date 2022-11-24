@@ -37,7 +37,7 @@ class G1FullGCCompactionPoint : public CHeapObj<mtGC> {
   G1FullCollector* _collector;
   HeapRegion* _current_region;
   HeapWord*   _compaction_top;
-  GrowableArray<HeapRegion*>* _compaction_regions;
+  GrowableArrayCHeap<HeapRegion*, mtGC> _compaction_regions;
   GrowableArrayIterator<HeapRegion*> _compaction_region_iterator;
 
   bool object_will_fit(size_t size);
@@ -48,7 +48,7 @@ class G1FullGCCompactionPoint : public CHeapObj<mtGC> {
 
 public:
   G1FullGCCompactionPoint(G1FullCollector* collector);
-  ~G1FullGCCompactionPoint();
+  ~G1FullGCCompactionPoint() = default;
 
   bool has_regions();
   bool is_initialized();
@@ -62,7 +62,7 @@ public:
   void remove_at_or_above(uint bottom);
   HeapRegion* current_region();
 
-  GrowableArray<HeapRegion*>* regions();
+  GrowableArrayView<HeapRegion*>& regions();
 };
 
 #endif // SHARE_GC_G1_G1FULLGCCOMPACTIONPOINT_HPP

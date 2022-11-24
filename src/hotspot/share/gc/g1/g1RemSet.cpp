@@ -89,22 +89,21 @@
 // contiguous ranges of dirty cards to be scanned. These blocks are converted to actual
 // memory ranges and then passed on to actual scanning.
 class G1RemSetScanState : public CHeapObj<mtGC> {
-  class G1DirtyRegions;
 
   size_t _max_reserved_regions;
 
   // Has this region that is part of the regions in the collection set been processed yet.
   typedef bool G1RemsetIterState;
 
-  G1RemsetIterState volatile* _collection_set_iter_state;
+  ManagedCHeapArray<G1RemsetIterState volatile> _collection_set_iter_state;
 
   // Card table iteration claim for each heap region, from 0 (completely unscanned)
   // to (>=) HeapRegion::CardsPerRegion (completely scanned).
-  uint volatile* _card_table_scan_state;
+  ManagedCHeapArray<uint volatile> _card_table_scan_state;
 
   uint _scan_chunks_per_region;         // Number of chunks per region.
   uint8_t _log_scan_chunks_per_region;  // Log of number of chunks per region.
-  bool* _region_scan_chunks;
+  ManagedCHeapArray<bool> _region_scan_chunks;
   size_t _num_total_scan_chunks;        // Total number of elements in _region_scan_chunks.
   uint8_t _scan_chunks_shift;           // For conversion between card index and chunk index.
 public:
@@ -120,22 +119,6 @@ public:
   }
 
 private:
-  // The complete set of regions which card table needs to be cleared at the end
-  // of GC because we scribbled over these card tables.
-  //
-  // Regions may be added for two reasons:
-  // - they were part of the collection set: they may contain g1_young_card_val
-  // or regular card marks that we never scan so we must always clear their card
-  // table
-  // - or in case g1 does an optional evacuation pass, g1 marks the cards in there
-  // as g1_scanned_card_val. If G1 only did an initial evacuation pass, the
-  // scanning already cleared these cards. In that case they are not in this set
-  // at the end of the collection.
-  G1DirtyRegions* _all_dirty_regions;
-  // The set of regions which card table needs to be scanned for new dirty cards
-  // in the current evacuation pass.
-  G1DirtyRegions* _next_dirty_regions;
-
   // Set of (unique) regions that can be added to concurrently.
   class G1DirtyRegions : public CHeapObj<mtGC> {
     ManagedCHeapArray<uint> _buffer;
@@ -193,13 +176,29 @@ private:
       }
     }
   };
+  // The complete set of regions which card table needs to be cleared at the end
+  // of GC because we scribbled over these card tables.
+  //
+  // Regions may be added for two reasons:
+  // - they were part of the collection set: they may contain g1_young_card_val
+  // or regular card marks that we never scan so we must always clear their card
+  // table
+  // - or in case g1 does an optional evacuation pass, g1 marks the cards in there
+  // as g1_scanned_card_val. If G1 only did an initial evacuation pass, the
+  // scanning already cleared these cards. In that case they are not in this set
+  // at the end of the collection.
+  ManagedCHeapObj<G1DirtyRegions> _all_dirty_regions;
+  // The set of regions which card table needs to be scanned for new dirty cards
+  // in the current evacuation pass.
+  ManagedCHeapObj<G1DirtyRegions> _next_dirty_regions;
+
 
   // For each region, contains the maximum top() value to be used during this garbage
   // collection. Subsumes common checks like filtering out everything but old and
   // humongous regions outside the collection set.
   // This is valid because we are not interested in scanning stray remembered set
   // entries from free or archive regions.
-  HeapWord** _scan_top;
+  ManagedCHeapArray<HeapWord*> _scan_top;
 
   class G1ClearCardTableTask : public G1AbstractSubTask {
     G1CollectedHeap* _g1h;
@@ -270,29 +269,24 @@ public:
     _region_scan_chunks(NULL),
     _num_total_scan_chunks(0),
     _scan_chunks_shift(0),
-    _all_dirty_regions(NULL),
-    _next_dirty_regions(NULL),
+    _all_dirty_regions(),
+    _next_dirty_regions(),
     _scan_top(NULL) {
   }
 
-  ~G1RemSetScanState() {
-    FREE_C_HEAP_ARRAY(G1RemsetIterState, _collection_set_iter_state);
-    FREE_C_HEAP_ARRAY(uint, _card_table_scan_state);
-    FREE_C_HEAP_ARRAY(bool, _region_scan_chunks);
-    FREE_C_HEAP_ARRAY(HeapWord*, _scan_top);
-  }
+  ~G1RemSetScanState() = default;
 
   void initialize(size_t max_reserved_regions) {
     assert(_collection_set_iter_state == NULL, "Must not be initialized twice");
     _max_reserved_regions = max_reserved_regions;
     // candidate: i-d
-    _collection_set_iter_state = NEW_C_HEAP_ARRAY(G1RemsetIterState, max_reserved_regions, mtGC);
-    _card_table_scan_state = NEW_C_HEAP_ARRAY(uint, max_reserved_regions, mtGC);
+    _collection_set_iter_state = make_managed_c_heap_array_default_init<G1RemsetIterState>(max_reserved_regions, mtGC);
+    _card_table_scan_state = make_managed_c_heap_array_default_init<uint>(max_reserved_regions, mtGC);
     _num_total_scan_chunks = max_reserved_regions * _scan_chunks_per_region;
-    _region_scan_chunks = NEW_C_HEAP_ARRAY(bool, _num_total_scan_chunks, mtGC);
+    _region_scan_chunks = make_managed_c_heap_array_default_init<bool>(_num_total_scan_chunks, mtGC);
 
     _scan_chunks_shift = (uint8_t)log2i(HeapRegion::CardsPerRegion / _scan_chunks_per_region);
-    _scan_top = NEW_C_HEAP_ARRAY(HeapWord*, max_reserved_regions, mtGC);
+    _scan_top = make_managed_c_heap_array_default_init<HeapWord*>(max_reserved_regions, mtGC);
   }
 
   void prepare() {
@@ -316,12 +310,12 @@ public:
       _card_table_scan_state[i] = 0;
     }
 
-    ::memset(_region_scan_chunks, false, _num_total_scan_chunks * sizeof(*_region_scan_chunks));
+    ::memset(_region_scan_chunks.get(), false, _num_total_scan_chunks * sizeof(*_region_scan_chunks.get()));
   }
 
   void complete_evac_phase(bool merge_dirty_regions) {
     if (merge_dirty_regions) {
-      _all_dirty_regions->merge(_next_dirty_regions);
+      _all_dirty_regions->merge(_next_dirty_regions.get());
     }
     _next_dirty_regions->reset();
   }
@@ -372,15 +366,12 @@ public:
   G1AbstractSubTask* create_cleanup_after_scan_heap_roots_task() {
     uint const chunk_length = G1ClearCardTableTask::chunk_size() / (uint)HeapRegion::CardsPerRegion;
 
-    return new G1ClearCardTableTask(G1CollectedHeap::heap(), _all_dirty_regions, chunk_length, this);
+    return new G1ClearCardTableTask(G1CollectedHeap::heap(), _all_dirty_regions.get(), chunk_length, this);
   }
 
   void cleanup() {
-    delete _all_dirty_regions;
-    _all_dirty_regions = NULL;
-
-    delete _next_dirty_regions;
-    _next_dirty_regions = NULL;
+    _all_dirty_regions.reset();
+    _next_dirty_regions.reset();
   }
 
   void iterate_dirty_regions_from(HeapRegionClosure* cl, uint worker_id) {

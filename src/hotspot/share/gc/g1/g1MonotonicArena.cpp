@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "gc/g1/g1MonotonicArena.inline.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/vmOperations.hpp"
 #include "utilities/globalCounter.inline.hpp"
@@ -43,8 +44,12 @@ G1MonotonicArena::Segment* G1MonotonicArena::Segment::create_segment(uint slot_s
                                                                      Segment* next,
                                                                      MEMFLAGS mem_flag) {
   size_t block_size = size_in_bytes(slot_size, num_slots);
+  // candidate: manual
   char* alloc_block = NEW_C_HEAP_ARRAY(char, block_size, mem_flag);
-  return new (alloc_block) Segment(slot_size, num_slots, next, mem_flag);
+  return make_managed_c_heap_object_from_buffer<Segment>(mem_flag, block_size,
+      [&](address alloc) {
+        return new (alloc) Segment(slot_size, num_slots, next, mem_flag);
+      }).release();
 }
 
 void G1MonotonicArena::Segment::delete_segment(Segment* segment) {
@@ -53,8 +58,7 @@ void G1MonotonicArena::Segment::delete_segment(Segment* segment) {
   if (!VM_Exit::vm_exited()) {
     GlobalCounter::write_synchronize();
   }
-  segment->~Segment();
-  FREE_C_HEAP_ARRAY(_mem_flag, segment);
+  ManagedCHeapObject<Segment>(segment).reset();
 }
 
 void G1MonotonicArena::SegmentFreeList::bulk_add(Segment& first,

@@ -299,7 +299,7 @@ public:
 
 class G1PostEvacuateCollectionSetCleanupTask2::RestorePreservedMarksTask : public G1AbstractSubTask {
   PreservedMarksSet* _preserved_marks;
-  WorkerTask* _task;
+  ManagedCHeapObj<WorkerTask> _task;
 
 public:
   RestorePreservedMarksTask(PreservedMarksSet* preserved_marks) :
@@ -307,9 +307,7 @@ public:
     _preserved_marks(preserved_marks),
     _task(preserved_marks->create_task()) { }
 
-  virtual ~RestorePreservedMarksTask() {
-    delete _task;
-  }
+  ~RestorePreservedMarksTask() override = default;
 
   double worker_cost() const override {
     return _preserved_marks->num();

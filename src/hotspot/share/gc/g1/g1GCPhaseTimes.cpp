@@ -64,6 +64,7 @@ G1GCPhaseTimes::G1GCPhaseTimes(STWGCTimer* gc_timer, uint max_gc_threads) :
     GCParPhases phase = strong_oopstorage_phase(id);
     const char* phase_name_postfix = " Roots (ms):";
     const char* storage_name = OopStorageSet::storage(id)->name();
+    // candidate: leaked
     char* oop_storage_phase_name = NEW_C_HEAP_ARRAY(char, strlen(phase_name_postfix) + strlen(storage_name) + 1, mtGC);
     strcpy(oop_storage_phase_name, storage_name);
     strcat(oop_storage_phase_name, phase_name_postfix);

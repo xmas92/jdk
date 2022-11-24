@@ -396,6 +396,7 @@ G1CardSet::G1CardSet(G1CardSetConfiguration* config, G1CardSetMemoryManager* mm)
 }
 
 G1CardSet::~G1CardSet() {
+  // fix requires restructuring definition order
   delete _table;
   _mm->flush();
 }

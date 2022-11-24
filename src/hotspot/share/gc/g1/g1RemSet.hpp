@@ -61,6 +61,7 @@ public:
   typedef CardTable::CardValue CardValue;
 
 private:
+  // defined in cpp file. requires refactoring
   G1RemSetScanState* _scan_state;
 
   G1RemSetSummary _prev_period_summary;

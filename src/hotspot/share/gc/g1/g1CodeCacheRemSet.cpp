@@ -141,6 +141,8 @@ int G1CodeRootSetTable::remove_if(CB& should_remove) {
 }
 
 G1CodeRootSet::~G1CodeRootSet() {
+  // while the defered purge list can also be abstracted it is probably not helpful
+  // unless there are a lot of places that use the same protocol
   delete _table;
 }
 

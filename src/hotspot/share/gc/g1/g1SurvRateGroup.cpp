@@ -29,6 +29,7 @@
 #include "gc/g1/heapRegion.hpp"
 #include "logging/log.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 
 G1SurvRateGroup::G1SurvRateGroup() :
   _stats_arrays_length(0),
@@ -49,7 +50,7 @@ void G1SurvRateGroup::reset() {
   // the _surv_rate_pred array, so we need to make sure to call
   // "delete".
   for (size_t i = 0; i < _stats_arrays_length; ++i) {
-    delete _surv_rate_predictors[i];
+    _surv_rate_predictors[i].reset();
   }
   _stats_arrays_length = 0;
 
@@ -71,8 +72,10 @@ void G1SurvRateGroup::start_adding_regions() {
 
 void G1SurvRateGroup::stop_adding_regions() {
   if (_num_added_regions > _stats_arrays_length) {
-    _accum_surv_rate_pred = REALLOC_C_HEAP_ARRAY(double, _accum_surv_rate_pred, _num_added_regions, mtGC);
-    _surv_rate_predictors = REALLOC_C_HEAP_ARRAY(TruncatedSeq*, _surv_rate_predictors, _num_added_regions, mtGC);
+    _accum_surv_rate_pred = reallocate_managed_c_heap_array_default_init(std::move(_accum_surv_rate_pred),
+      _stats_arrays_length, _num_added_regions, mtGC);
+    _surv_rate_predictors = reallocate_managed_c_heap_array_value_init(std::move(_surv_rate_predictors),
+      _stats_arrays_length, _num_added_regions, mtGC);
 
     for (size_t i = _stats_arrays_length; i < _num_added_regions; ++i) {
       _surv_rate_predictors[i] = new TruncatedSeq(10);
@@ -110,7 +113,7 @@ void G1SurvRateGroup::finalize_predictions(const G1Predictions& predictor) {
   double accum = 0.0;
   double pred = 0.0;
   for (size_t i = 0; i < _stats_arrays_length; ++i) {
-    pred = predictor.predict_in_unit_interval(_surv_rate_predictors[i]);
+    pred = predictor.predict_in_unit_interval(_surv_rate_predictors[i].get());
     accum += pred;
     _accum_surv_rate_pred[i] = accum;
   }

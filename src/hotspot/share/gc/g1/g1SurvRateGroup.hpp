@@ -26,6 +26,7 @@
 #define SHARE_GC_G1_G1SURVRATEGROUP_HPP
 
 #include "gc/g1/g1Predictions.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/numberSeq.hpp"
 
 // A survivor rate group tracks survival ratios of objects allocated in the
@@ -50,9 +51,9 @@
 // index 0 contains the rate information for the region retired most recently.
 class G1SurvRateGroup : public CHeapObj<mtGC> {
   size_t  _stats_arrays_length;
-  double* _accum_surv_rate_pred;
+  ManagedCHeapArray<double>  _accum_surv_rate_pred;
   double  _last_pred;
-  TruncatedSeq** _surv_rate_predictors;
+  ManagedCHeapArray<ManagedCHeapObj<TruncatedSeq>> _surv_rate_predictors;
 
   size_t _num_added_regions;   // The number of regions in this survivor rate group.
 
@@ -86,7 +87,7 @@ public:
 
     age = MIN2(age, (int)_stats_arrays_length - 1);
 
-    return predictor.predict_in_unit_interval(_surv_rate_predictors[age]);
+    return predictor.predict_in_unit_interval(_surv_rate_predictors[age].get());
   }
 
   int next_age_index() {

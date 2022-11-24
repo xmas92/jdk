@@ -93,9 +93,9 @@ G1MonitoringSupport::G1MonitoringSupport(G1CollectedHeap* g1h) :
   _young_gc_memory_manager("G1 Young Generation"),
   _full_gc_memory_manager("G1 Old Generation"),
   _conc_gc_memory_manager("G1 Concurrent GC"),
-  _eden_space_pool(nullptr),
-  _survivor_space_pool(nullptr),
-  _old_gen_pool(nullptr),
+  _eden_space_pool(),
+  _survivor_space_pool(),
+  _old_gen_pool(),
   _young_collection_counters(nullptr),
   _full_collection_counters(nullptr),
   _conc_collection_counters(nullptr),
@@ -182,15 +182,9 @@ G1MonitoringSupport::G1MonitoringSupport(G1CollectedHeap* g1h) :
   //  name "generation.0.space.2"
   // See _old_space_counters for additional counters
   _to_space_counters = new HSpaceCounters(young_collection_name_space,
-                                          "s1", 2 /* ordinal */,
-                                          g1h->max_capacity() /* max_capacity */,
-                                          _survivor_space_committed /* init_capacity */);
-}
-
-G1MonitoringSupport::~G1MonitoringSupport() {
-  delete _eden_space_pool;
-  delete _survivor_space_pool;
-  delete _old_gen_pool;
+    "s1", 2 /* ordinal */,
+    pad_capacity(g1h->max_capacity()) /* max_capacity */,
+    pad_capacity(_survivor_space_committed) /* init_capacity */);
 }
 
 void G1MonitoringSupport::initialize_serviceability() {
@@ -198,15 +192,15 @@ void G1MonitoringSupport::initialize_serviceability() {
   _survivor_space_pool = new G1SurvivorPool(_g1h, _survivor_space_committed);
   _old_gen_pool = new G1OldGenPool(_g1h, _old_gen_committed, _g1h->max_capacity());
 
-  _full_gc_memory_manager.add_pool(_eden_space_pool);
-  _full_gc_memory_manager.add_pool(_survivor_space_pool);
-  _full_gc_memory_manager.add_pool(_old_gen_pool);
+  _full_gc_memory_manager.add_pool(_eden_space_pool.get());
+  _full_gc_memory_manager.add_pool(_survivor_space_pool.get());
+  _full_gc_memory_manager.add_pool(_old_gen_pool.get());
 
-  _conc_gc_memory_manager.add_pool(_old_gen_pool);
+  _conc_gc_memory_manager.add_pool(_old_gen_pool.get());
 
-  _young_gc_memory_manager.add_pool(_eden_space_pool);
-  _young_gc_memory_manager.add_pool(_survivor_space_pool);
-  _young_gc_memory_manager.add_pool(_old_gen_pool, false /* always_affected_by_gc */);
+  _young_gc_memory_manager.add_pool(_eden_space_pool.get());
+  _young_gc_memory_manager.add_pool(_survivor_space_pool.get());
+  _young_gc_memory_manager.add_pool(_old_gen_pool.get(), false /* always_affected_by_gc */);
 }
 
 MemoryUsage G1MonitoringSupport::memory_usage() {
@@ -224,9 +218,9 @@ GrowableArray<GCMemoryManager*> G1MonitoringSupport::memory_managers() {
 
 GrowableArray<MemoryPool*> G1MonitoringSupport::memory_pools() {
   GrowableArray<MemoryPool*> memory_pools(3);
-  memory_pools.append(_eden_space_pool);
-  memory_pools.append(_survivor_space_pool);
-  memory_pools.append(_old_gen_pool);
+  memory_pools.append(_eden_space_pool.get());
+  memory_pools.append(_survivor_space_pool.get());
+  memory_pools.append(_old_gen_pool.get());
   return memory_pools;
 }
 

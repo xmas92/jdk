@@ -34,6 +34,7 @@
 #include "gc/shared/gcTraceTime.inline.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "runtime/os.hpp"
+#include "utilities/debug.hpp"
 
 constexpr const char* G1MonotonicArenaFreeMemoryTask::_state_names[];
 
@@ -58,7 +59,8 @@ bool G1MonotonicArenaFreeMemoryTask::calculate_return_infos(jlong deadline) {
   G1MonotonicArenaFreePool* freelist_pool = g1h->card_set_freelist_pool();
   G1MonotonicArenaMemoryStats free = freelist_pool->memory_sizes();
 
-  _return_info = new G1ReturnMemoryProcessorSet(used.num_pools());
+  precond(_return_info.is_empty() && _return_info.is_full());
+  _return_info.reserve(used.num_pools());
   for (uint i = 0; i < used.num_pools(); i++) {
     size_t return_to_vm_size = keep_size(free._num_mem_sizes[i],
                                          used._num_mem_sizes[i],
@@ -69,16 +71,16 @@ bool G1MonotonicArenaFreeMemoryTask::calculate_return_infos(jlong deadline) {
                         free._num_mem_sizes[i], free._num_segments[i],
                         used._num_mem_sizes[i], return_to_vm_size);
 
-    _return_info->append(new G1ReturnMemoryProcessor(return_to_vm_size));
+    _return_info.append(new G1ReturnMemoryProcessor(return_to_vm_size));
   }
 
-  freelist_pool->update_unlink_processors(_return_info);
+  freelist_pool->update_unlink_processors(&_return_info);
   return false;
 }
 
 bool G1MonotonicArenaFreeMemoryTask::return_memory_to_vm(jlong deadline) {
-  for (int i = 0; i < _return_info->length(); i++) {
-    G1ReturnMemoryProcessor* info = _return_info->at(i);
+  for (int i = 0; i < _return_info.length(); i++) {
+    G1ReturnMemoryProcessor* info = _return_info.at(i).get();
     if (!info->finished_return_to_vm()) {
       if (info->return_to_vm(deadline)) {
         return true;
@@ -89,8 +91,8 @@ bool G1MonotonicArenaFreeMemoryTask::return_memory_to_vm(jlong deadline) {
 }
 
 bool G1MonotonicArenaFreeMemoryTask::return_memory_to_os(jlong deadline) {
-  for (int i = 0; i < _return_info->length(); i++) {
-    G1ReturnMemoryProcessor* info = _return_info->at(i);
+  for (int i = 0; i < _return_info.length(); i++) {
+    G1ReturnMemoryProcessor* info = _return_info.at(i).get();
     if (!info->finished_return_to_os()) {
       if (info->return_to_os(deadline)) {
         return true;
@@ -101,13 +103,7 @@ bool G1MonotonicArenaFreeMemoryTask::return_memory_to_os(jlong deadline) {
 }
 
 bool G1MonotonicArenaFreeMemoryTask::cleanup_return_infos() {
-  for (int i = 0; i < _return_info->length(); i++) {
-     G1ReturnMemoryProcessor* info = _return_info->at(i);
-     delete info;
-  }
-  delete _return_info;
-
-  _return_info = nullptr;
+  _return_info.clear_and_deallocate();
   return false;
 }
 
@@ -184,7 +180,7 @@ jlong G1MonotonicArenaFreeMemoryTask::reschedule_delay_ms() const {
 }
 
 G1MonotonicArenaFreeMemoryTask::G1MonotonicArenaFreeMemoryTask(const char* name) :
-  G1ServiceTask(name), _state(State::CalculateUsed), _return_info(nullptr) { }
+  G1ServiceTask(name), _state(State::CalculateUsed), _return_info() { }
 
 void G1MonotonicArenaFreeMemoryTask::execute() {
   SuspendibleThreadSetJoiner sts;

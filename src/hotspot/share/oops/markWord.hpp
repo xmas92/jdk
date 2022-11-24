@@ -68,10 +68,10 @@ class outputStream;
 
 class markWord {
  private:
-  uintptr_t _value;
+  intptr_t _value;
 
  public:
-  explicit markWord(uintptr_t value) : _value(value) {}
+  explicit markWord(intptr_t value) : _value(value) {}
 
   markWord() = default;         // Doesn't initialize _value.
 
@@ -82,7 +82,7 @@ class markWord {
   markWord& operator=(const markWord&) = default;
 
   static markWord from_pointer(void* ptr) {
-    return markWord((uintptr_t)ptr);
+    return markWord((intptr_t)ptr);
   }
   void* to_pointer() const {
     return (void*)_value;
@@ -96,7 +96,7 @@ class markWord {
   }
 
   // Conversion
-  uintptr_t value() const { return _value; }
+  intptr_t value() const { return _value; }
 
   // Constants
   static const int age_bits                       = 4;
@@ -110,26 +110,26 @@ class markWord {
   static const int age_shift                      = lock_bits + first_unused_gap_bits;
   static const int hash_shift                     = age_shift + age_bits + second_unused_gap_bits;
 
-  static const uintptr_t lock_mask                = right_n_bits(lock_bits);
-  static const uintptr_t lock_mask_in_place       = lock_mask << lock_shift;
-  static const uintptr_t age_mask                 = right_n_bits(age_bits);
-  static const uintptr_t age_mask_in_place        = age_mask << age_shift;
-  static const uintptr_t hash_mask                = right_n_bits(hash_bits);
-  static const uintptr_t hash_mask_in_place       = hash_mask << hash_shift;
+  static const intptr_t lock_mask                = right_n_bits(lock_bits);
+  static const intptr_t lock_mask_in_place       = lock_mask << lock_shift;
+  static const intptr_t age_mask                 = right_n_bits(age_bits);
+  static const intptr_t age_mask_in_place        = age_mask << age_shift;
+  static const intptr_t hash_mask                = right_n_bits(hash_bits);
+  static const intptr_t hash_mask_in_place       = hash_mask << hash_shift;
 
-  static const uintptr_t locked_value             = 0;
-  static const uintptr_t unlocked_value           = 1;
-  static const uintptr_t monitor_value            = 2;
-  static const uintptr_t marked_value             = 3;
+  static const intptr_t locked_value             = 0;
+  static const intptr_t unlocked_value           = 1;
+  static const intptr_t monitor_value            = 2;
+  static const intptr_t marked_value             = 3;
 
-  static const uintptr_t no_hash                  = 0 ;  // no hash value assigned
-  static const uintptr_t no_hash_in_place         = (address_word)no_hash << hash_shift;
-  static const uintptr_t no_lock_in_place         = unlocked_value;
+  static const intptr_t no_hash                  = 0 ;  // no hash value assigned
+  static const intptr_t no_hash_in_place         = (address_word)no_hash << hash_shift;
+  static const intptr_t no_lock_in_place         = unlocked_value;
 
   static const uint max_age                       = age_mask;
 
   // Creates a markWord with all bits set to zero.
-  static markWord zero() { return markWord(uintptr_t(0)); }
+  static markWord zero() { return markWord(intptr_t(0)); }
 
   // lock accessors (note that these assume lock_shift == 0)
   bool is_locked()   const {
@@ -189,7 +189,7 @@ class markWord {
   markWord displaced_mark_helper() const;
   void set_displaced_mark_helper(markWord m) const;
   markWord copy_set_hash(intptr_t hash) const {
-    uintptr_t tmp = value() & (~hash_mask_in_place);
+    intptr_t tmp = value() & (~hash_mask_in_place);
     tmp |= ((hash & hash_mask) << hash_shift);
     return markWord(tmp);
   }
@@ -204,7 +204,7 @@ class markWord {
     return from_pointer(lock);
   }
   static markWord encode(ObjectMonitor* monitor) {
-    uintptr_t tmp = (uintptr_t) monitor;
+    intptr_t tmp = (intptr_t) monitor;
     return markWord(tmp | monitor_value);
   }
 
@@ -215,7 +215,9 @@ class markWord {
   markWord set_marked()   { return markWord((value() & ~lock_mask_in_place) | marked_value); }
   markWord set_unmarked() { return markWord((value() & ~lock_mask_in_place) | unlocked_value); }
 
-  uint     age()           const { return mask_bits(value() >> age_shift, age_mask); }
+  uint     age()           const {
+    return static_cast<uint>(mask_bits(value() >> age_shift, age_mask));
+  }
   markWord set_age(uint v) const {
     assert((v & ~age_mask) == 0, "shouldn't overflow age field");
     return markWord((value() & ~age_mask_in_place) | ((v & age_mask) << age_shift));
@@ -250,7 +252,7 @@ class markWord {
 template<>
 struct PrimitiveConversions::Translate<markWord> : public TrueType {
   typedef markWord Value;
-  typedef uintptr_t Decayed;
+  typedef intptr_t Decayed;
 
   static Decayed decay(const Value& x) { return x.value(); }
   static Value recover(Decayed x) { return Value(x); }

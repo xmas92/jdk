@@ -952,7 +952,7 @@ intptr_t ObjectSynchronizer::FastHashCode(Thread* current, oop obj) {
       hash = get_next_hash(current, obj);  // get a new hash
       temp = mark.copy_set_hash(hash)   ;  // merge the hash into header
       assert(temp.is_neutral(), "invariant: header=" INTPTR_FORMAT, temp.value());
-      uintptr_t v = Atomic::cmpxchg((volatile uintptr_t*)monitor->header_addr(), mark.value(), temp.value());
+      intptr_t v = Atomic::cmpxchg((volatile intptr_t*)monitor->header_addr(), mark.value(), temp.value());
       test = markWord(v);
       if (test != mark) {
         // The attempt to update the ObjectMonitor's header/dmw field

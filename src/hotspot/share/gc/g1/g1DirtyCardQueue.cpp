@@ -57,10 +57,6 @@ G1DirtyCardQueue::G1DirtyCardQueue(G1DirtyCardQueueSet* qset) :
   _refinement_stats(new G1ConcurrentRefineStats())
 { }
 
-G1DirtyCardQueue::~G1DirtyCardQueue() {
-  delete _refinement_stats;
-}
-
 // Assumed to be zero by concurrent threads.
 static uint par_ids_start() { return 0; }
 

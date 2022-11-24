@@ -1273,6 +1273,11 @@ template<typename K> bool primitive_equals(const K& k0, const K& k1) {
 
 //----------------------------------------------------------------------------------------------------
 
+template<typename To,typename From>
+To narrow_cast(From&& from) {
+  return static_cast<To>(std::forward<From>(from));
+}
+
 // Allow use of C++ thread_local when approved - see JDK-8282469.
 #define APPROVED_CPP_THREAD_LOCAL thread_local
 

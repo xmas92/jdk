@@ -143,7 +143,7 @@ public:
     int start_enc = start->encoding();
     int   end_enc = end->encoding();
     assert(start_enc <= end_enc, "must be");
-    uint32_t bits = ~0;
+    uint32_t bits = ~0u;
     bits <<= start_enc;
     bits <<= 31 - end_enc;
     bits >>= 31 - end_enc;

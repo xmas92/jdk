@@ -82,7 +82,7 @@ private:
 
   size_t initial_refill_waste_limit();
 
-  static int    target_refills()                 { return _target_refills; }
+  static uint    target_refills()                { return _target_refills; }
   size_t initial_desired_size();
 
   size_t remaining();
@@ -101,12 +101,6 @@ private:
   void print_stats(const char* tag);
 
   Thread* thread();
-
-  // statistics
-
-  int number_of_refills() const { return _number_of_refills; }
-  int gc_waste() const          { return _gc_waste; }
-  int slow_allocations() const  { return _slow_allocations; }
 
 public:
   ThreadLocalAllocBuffer();

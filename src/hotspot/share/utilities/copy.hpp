@@ -199,7 +199,7 @@ class Copy : AllStatic {
     assert_params_ok(from, to, HeapWordSize);
     assert_byte_count_ok(byte_count, HeapWordSize);
 
-    size_t count = align_up(byte_count, HeapWordSize) >> LogHeapWordSize;
+    size_t count = align_up(byte_count, static_cast<uint>(HeapWordSize)) >> LogHeapWordSize;
     assert(to <= from || from + count <= to, "do not overwrite source data");
 
     while (count-- > 0) {
@@ -213,7 +213,7 @@ class Copy : AllStatic {
     assert_params_ok(from, to, HeapWordSize);
     assert_byte_count_ok(byte_count, HeapWordSize);
 
-    size_t count = align_up(byte_count, HeapWordSize) >> LogHeapWordSize;
+    size_t count = align_up(byte_count, static_cast<uint>(HeapWordSize)) >> LogHeapWordSize;
     assert(from <= to || to + count <= from, "do not overwrite source data");
 
     from += count - 1;
@@ -335,21 +335,21 @@ class Copy : AllStatic {
   }
 
   static void assert_params_ok(const void* from, void* to, intptr_t alignment) {
-    assert(is_aligned(from, alignment), "must be aligned: " PTR_FORMAT, p2i(from));
-    assert(is_aligned(to, alignment),   "must be aligned: " PTR_FORMAT, p2i(to));
+    assert(is_aligned(from, static_cast<size_t>(alignment)), "must be aligned: " PTR_FORMAT, p2i(from));
+    assert(is_aligned(to, static_cast<size_t>(alignment)),   "must be aligned: " PTR_FORMAT, p2i(to));
   }
 
   static void assert_params_ok(HeapWord* to, intptr_t alignment) {
-    assert(is_aligned(to, alignment), "must be aligned: " PTR_FORMAT, p2i(to));
+    assert(is_aligned(to, static_cast<size_t>(alignment)), "must be aligned: " PTR_FORMAT, p2i(to));
   }
 
   static void assert_params_aligned(const HeapWord* from, HeapWord* to) {
-    assert(is_aligned(from, BytesPerLong), "must be aligned: " PTR_FORMAT, p2i(from));
-    assert(is_aligned(to, BytesPerLong),   "must be aligned: " PTR_FORMAT, p2i(to));
+    assert(is_aligned(from, static_cast<uint>(BytesPerLong)), "must be aligned: " PTR_FORMAT, p2i(from));
+    assert(is_aligned(to, static_cast<uint>(BytesPerLong)),   "must be aligned: " PTR_FORMAT, p2i(to));
   }
 
   static void assert_params_aligned(HeapWord* to) {
-    assert(is_aligned(to, BytesPerLong), "must be aligned: " PTR_FORMAT, p2i(to));
+    assert(is_aligned(to, static_cast<uint>(BytesPerLong)), "must be aligned: " PTR_FORMAT, p2i(to));
   }
 
   static void assert_byte_count_ok(size_t byte_count, size_t unit_size) {

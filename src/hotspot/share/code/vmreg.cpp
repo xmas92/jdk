@@ -30,7 +30,8 @@
 // used by SA and jvmti, but it's a leaky abstraction: SA and jvmti
 // "know" that stack0 is an integer masquerading as a pointer. For the
 // sake of those clients, we preserve this interface.
-VMReg VMRegImpl::stack0 = (VMReg)VMRegImpl::stack_0()->value();
+VMReg VMRegImpl::stack0 =
+    reinterpret_cast<VMReg>(static_cast<intptr_t>(VMRegImpl::stack_0()->value()));
 
 // VMRegs are 4 bytes wide on all platforms
 const int VMRegImpl::stack_slot_size = 4;
@@ -42,7 +43,7 @@ const char *VMRegImpl::regName[ConcreteRegisterImpl::number_of_registers];
 
 void VMRegImpl::print_on(outputStream* st) const {
   if (is_reg()) {
-    assert(VMRegImpl::regName[value()], "VMRegImpl::regName[" INTPTR_FORMAT "] returns NULL", value());
+    assert(VMRegImpl::regName[value()], "VMRegImpl::regName[" INT32_FORMAT_X_0 "] returns NULL", value());
     st->print("%s",VMRegImpl::regName[value()]);
   } else if (is_stack()) {
     int stk = reg2stack();

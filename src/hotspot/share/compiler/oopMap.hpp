@@ -55,7 +55,7 @@ class OopMapValue: public StackObj {
 private:
   short _value;
   int value() const                                 { return _value; }
-  void set_value(int value)                         { _value = value; }
+  void set_value(int value)                         { _value = static_cast<short>(value); }
   short _content_reg;
 
 public:
@@ -102,7 +102,7 @@ public:
     } else {
       assert (!r->is_valid(), "valid VMReg not allowed");
     }
-    _content_reg = r->value();
+    _content_reg = static_cast<short>(r->value());
   }
 
  public:
@@ -127,7 +127,7 @@ public:
   bool is_callee_saved()      { return mask_bits(value(), type_mask_in_place) == callee_saved_value; }
   bool is_derived_oop()       { return mask_bits(value(), type_mask_in_place) == derived_oop_value; }
 
-  VMReg reg() const { return VMRegImpl::as_VMReg(mask_bits(value(), register_mask_in_place) >> register_shift); }
+  VMReg reg() const { return VMRegImpl::as_VMReg((value() & register_mask_in_place) >> register_shift); }
   oop_types type() const      { return (oop_types)mask_bits(value(), type_mask_in_place); }
 
   static bool legal_vm_reg_name(VMReg p) {
@@ -330,7 +330,10 @@ private:
   int _count; // nr of ImmutableOopMapPairs in the Set
   int _size; // nr of bytes including ImmutableOopMapSet itself
 
-  address data() const { return (address) this + sizeof(*this) + sizeof(ImmutableOopMapPair) * _count; }
+  address data() const {
+    STATIC_ASSERT(sizeof(*this) % std::alignment_of<ImmutableOopMapPair>::value == 0);
+    return (address) this + sizeof(*this) + sizeof(ImmutableOopMapPair) * static_cast<uint>(_count);
+  }
 
 public:
   ImmutableOopMapSet(const OopMapSet* oopmap_set, int size) : _count(oopmap_set->size()), _size(size) {}

@@ -69,7 +69,7 @@ class CompressedReadStream : public CompressedStream {
   jlong    read_long();                // jlong_from(2*read_signed_int())
 
   jint     read_int() {
-    return UNSIGNED5::read_uint(_buffer, _position, 0);
+    return static_cast<jint>(UNSIGNED5::read_uint(_buffer, _position, 0));
   }
 };
 
@@ -97,7 +97,7 @@ class CompressedWriteStream : public CompressedStream {
   : CompressedStream(buffer, position) { _size = initial_size; }
 
   void write_bool(jboolean value)      { write(value);      }
-  void write_byte(jbyte value)         { write(value);      }
+  void write_byte(jbyte value)         { write(static_cast<u_char>(value));      }
   void write_char(jchar value)         { write_int(value); }
   void write_short(jshort value)       { write_signed_int(value);  }
   void write_signed_int(jint value)    { write_int(UNSIGNED5::encode_sign(value)); }
@@ -105,9 +105,12 @@ class CompressedWriteStream : public CompressedStream {
   void write_double(jdouble value);    // write_int(reverse_bits(<low,high>))
   void write_long(jlong value);        // write_signed_int(<low,high>)
 
+  // Only use for jint which are known to always be positive,
+  // otherwise use write_signed_int
+  void write_int(jint value) { write_int(static_cast<juint>(value)); }
   void write_int(juint value) {
     UNSIGNED5::write_uint_grow(value, _buffer, _position, _size,
-                               [&](int){ grow(); });
+                               [&](uint){ grow(); });
   }
 };
 

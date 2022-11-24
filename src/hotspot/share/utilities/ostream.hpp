@@ -85,9 +85,12 @@ class outputStream : public CHeapObjBase {
    void move_to(int col, int slop = 6, int min_space = 2);
 
    // sizing
+   // _position does only grow but does not check for overflow
+   // _precount + _position is valid when for no overflows but not checked
+   // this cast is not valid until this is fixed.
    int position() const { return _position; }
-   julong count() const { return _precount + _position; }
-   void set_count(julong count) { _precount = count - _position; }
+   julong count() const { return _precount + static_cast<uint>(_position); }
+   void set_count(julong count) { _precount = count - static_cast<uint>(_position); }
    void set_position(int pos)   { _position = pos; }
 
    // printing

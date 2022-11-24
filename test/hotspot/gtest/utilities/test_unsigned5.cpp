@@ -101,7 +101,7 @@ TEST_VM(unsigned5, transcode_single) {
     int offset = 0;
     UNSIGNED5::write_uint(value, buffer, offset, limit);
     int length = offset;
-    EXPECT_TRUE(length <= UNSIGNED5::MAX_LENGTH);
+    EXPECT_TRUE(length <= (int)UNSIGNED5::MAX_LENGTH);
     EXPECT_EQ(length, UNSIGNED5::encoded_length(value)) << "for value=" << value;
     buffer[length] = 0;
     offset = 0;
@@ -142,7 +142,7 @@ TEST_VM(unsigned5, transcode_multiple) {
     EXPECT_TRUE(done) << "must have hit the sublimit";
     EXPECT_TRUE(count < case_count);
     int length = offset;
-    EXPECT_TRUE(length <= sublimit && length + UNSIGNED5::MAX_LENGTH > sublimit)
+    EXPECT_TRUE(length <= sublimit && length + (int)UNSIGNED5::MAX_LENGTH > sublimit)
            << "length=" << length << " sublimit=" << sublimit;
     for (int i = length; i <= sublimit; i++) {
       buffer[i] = 0;

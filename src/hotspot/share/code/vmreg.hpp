@@ -88,7 +88,7 @@ public:
       return "STACKED REG";
     }
   }
-  intptr_t value() const { return this - first(); }
+  int value() const { return static_cast<int>(this - first()); }
   static VMReg Bad() { return BAD_REG+first(); }
   bool is_valid() const { return value() != BAD_REG; }
   bool is_stack() const { return this >= stack_0(); }
@@ -143,9 +143,9 @@ public:
     return stack_0() + idx;
   }
 
-  uintptr_t reg2stack() const {
+  int reg2stack() const {
     assert(is_stack(), "Not a stack-based register");
-    return this - stack_0();
+    return static_cast<int>(this - stack_0());
   }
 
   static void set_regName();

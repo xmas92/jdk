@@ -34,7 +34,7 @@
 #include <new>
 
 // The byte alignment to be used by Arena::Amalloc.
-#define ARENA_AMALLOC_ALIGNMENT BytesPerLong
+#define ARENA_AMALLOC_ALIGNMENT static_cast<uint>(BytesPerLong)
 #define ARENA_ALIGN(x) (align_up((x), ARENA_AMALLOC_ALIGNMENT))
 
 //------------------------------Chunk------------------------------------------
@@ -104,7 +104,7 @@ protected:
   debug_only(void* malloc(size_t size);)
 
   void* internal_amalloc(size_t x, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM)  {
-    assert(is_aligned(x, BytesPerWord), "misaligned size");
+    assert(is_aligned(x, static_cast<uint>(BytesPerWord)), "misaligned size");
     if (pointer_delta(_max, _hwm, 1) >= x) {
       char *old = _hwm;
       _hwm += x;
@@ -137,7 +137,7 @@ protected:
   // Allocate in the arena, assuming the size has been aligned to size of pointer, which
   // is 4 bytes on 32 bits, hence the name.
   void* AmallocWords(size_t x, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM) {
-    assert(is_aligned(x, BytesPerWord), "misaligned size");
+    assert(is_aligned(x, static_cast<uint>(BytesPerWord)), "misaligned size");
     debug_only(if (UseMallocOnly) return malloc(x);)
     return internal_amalloc(x, alloc_failmode);
   }

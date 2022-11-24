@@ -283,7 +283,7 @@ public:
     int max = length() - 1;
 
     while (max >= min) {
-      int mid = (int)(((uint)max + min) / 2);
+      int mid = (int)(((uint)max + (uint)min) / 2);
       E value = at(mid);
       int diff = compare(key, value);
       if (diff > 0) {
@@ -305,7 +305,7 @@ public:
     int max = length() - 1;
 
     while (max >= min) {
-      int mid = (int)(((uint)max + min) / 2);
+      int mid = (int)(((uint)max + (uint)min) / 2);
       E value = at(mid);
       int diff = cc->do_compare(key, value);
       if (diff > 0) {
@@ -514,7 +514,8 @@ void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
 template <typename E, typename Derived>
 void GrowableArrayWithAllocator<E, Derived>::grow(int j) {
   // grow the array by increasing _capacity to the first power of two larger than the size we need
-  expand_to(next_power_of_2((uint32_t)j));
+  // Rather crash in next_power_of_2 if overflow. But maybe I am missing something
+  expand_to(next_power_of_2(j));
 }
 
 template <typename E, typename Derived>

@@ -266,7 +266,7 @@ class StackOverflow {
   // Returns true if address points into the reserved zone.
   bool in_stack_reserved_zone(address a) const {
     return (a < stack_reserved_zone_base()) &&
-           (a >= (address)((intptr_t)stack_reserved_zone_base() - stack_reserved_zone_size()));
+           (a >= (address)(stack_reserved_zone_base() - stack_reserved_zone_size()));
   }
 
   static size_t stack_yellow_reserved_zone_size() {
@@ -317,7 +317,7 @@ class StackOverflow {
     } else {
       low_addr = stack_reserved_zone_base();
     }
-    return cur_sp > low_addr ? cur_sp - low_addr : 0;
+    return cur_sp > low_addr ? static_cast<size_t>(cur_sp - low_addr) : 0;
   }
 
   bool stack_guards_enabled() const;

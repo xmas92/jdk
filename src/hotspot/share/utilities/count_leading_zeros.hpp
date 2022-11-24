@@ -48,25 +48,25 @@ template <typename T> unsigned count_leading_zeros(T v) {
 
 template <typename T> struct CountLeadingZerosImpl<T, 1> {
   static unsigned doit(T v) {
-    return __builtin_clz((uint32_t)v & 0xFF) - 24u;
+    return static_cast<unsigned>(__builtin_clz((uint32_t)v & 0xFF)) - 24u;
   }
 };
 
 template <typename T> struct CountLeadingZerosImpl<T, 2> {
   static unsigned doit(T v) {
-    return __builtin_clz((uint32_t)v & 0xFFFF) - 16u;
+    return static_cast<unsigned>(__builtin_clz((uint32_t)v & 0xFFFF)) - 16u;
   }
 };
 
 template <typename T> struct CountLeadingZerosImpl<T, 4> {
   static unsigned doit(T v) {
-    return __builtin_clz(v);
+    return static_cast<unsigned>(__builtin_clz((uint32_t)v));
   }
 };
 
 template <typename T> struct CountLeadingZerosImpl<T, 8> {
   static unsigned doit(T v) {
-    return __builtin_clzll(v);
+    return static_cast<unsigned>(__builtin_clzll((uint64_t)v));
   }
 };
 

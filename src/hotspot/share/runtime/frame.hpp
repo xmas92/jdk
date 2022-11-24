@@ -533,7 +533,10 @@ class FrameValues {
     if (a->location == b->location) {
       return a->priority - b->priority;
     }
-    return a->location - b->location;
+    // narrowing assumption:
+    //    the distance between two frames fits within an int
+    // TODO: check validity
+    return narrow_cast<int>(a->location - b->location);
   }
 
   void print_on(outputStream* out, int min_index, int max_index, intptr_t* v0, intptr_t* v1,

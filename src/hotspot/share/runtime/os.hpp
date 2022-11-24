@@ -457,7 +457,8 @@ class os: AllStatic {
   // Touch memory pages that cover the memory range from start to end
   // (exclusive) to make the OS back the memory range with actual memory.
   // Other threads may use the memory range concurrently with pretouch.
-  static void   pretouch_memory(void* start, void* end, size_t page_size = vm_page_size());
+  static void   pretouch_memory(void* start, void* end,
+                                size_t page_size = static_cast<unsigned>(vm_page_size()));
 
   enum ProtType { MEM_PROT_NONE, MEM_PROT_READ, MEM_PROT_RW, MEM_PROT_RWX };
   static bool   protect_memory(char* addr, size_t bytes, ProtType prot,

@@ -331,9 +331,10 @@ void DebugInformationRecorder::describe_scope(int         pc_offset,
          bci == -1, "illegal bci");
 
   // serialize the locals/expressions/monitors
-  stream()->write_int((intptr_t) locals);
-  stream()->write_int((intptr_t) expressions);
-  stream()->write_int((intptr_t) monitors);
+  // TODO: Why is this narrow_cast valid (64-bit)
+  stream()->write_int(narrow_cast<juint>((intptr_t) locals));
+  stream()->write_int(narrow_cast<juint>((intptr_t) expressions));
+  stream()->write_int(narrow_cast<juint>((intptr_t) monitors));
 
   // Here's a tricky bit.  We just wrote some bytes.
   // Wouldn't it be nice to find that we had already

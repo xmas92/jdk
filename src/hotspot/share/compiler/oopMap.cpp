@@ -281,15 +281,15 @@ void OopMapSort::print() {
     OopMapValue omv = _values[i];
     if (omv.type() == OopMapValue::oop_value || omv.type() == OopMapValue::narrowoop_value) {
       if (omv.reg()->is_reg()) {
-        tty->print_cr("[%c][%d] -> reg (" INTPTR_FORMAT ")", omv.type() == OopMapValue::narrowoop_value ? 'n' : 'o', i, omv.reg()->value());
+        tty->print_cr("[%c][%d] -> reg (" INT32_FORMAT_X_0 ")", omv.type() == OopMapValue::narrowoop_value ? 'n' : 'o', i, omv.reg()->value());
       } else {
-        tty->print_cr("[%c][%d] -> stack ("  INTPTR_FORMAT ")", omv.type() == OopMapValue::narrowoop_value ? 'n' : 'o', i, omv.reg()->reg2stack() * VMRegImpl::stack_slot_size);
+        tty->print_cr("[%c][%d] -> stack ("  INT32_FORMAT_X_0 ")", omv.type() == OopMapValue::narrowoop_value ? 'n' : 'o', i, omv.reg()->reg2stack() * VMRegImpl::stack_slot_size);
       }
     } else {
       if (omv.content_reg()->is_reg()) {
-        tty->print_cr("[d][%d] -> reg (" INTPTR_FORMAT ") stack (" INTPTR_FORMAT ")", i, omv.content_reg()->value(), omv.reg()->reg2stack() * VMRegImpl::stack_slot_size);
+        tty->print_cr("[d][%d] -> reg (" INT32_FORMAT_X_0 ") stack (" UINT32_FORMAT_X_0 ")", i, omv.content_reg()->value(), omv.reg()->reg2stack() * VMRegImpl::stack_slot_size);
       } else if (omv.reg()->is_reg()) {
-        tty->print_cr("[d][%d] -> stack (" INTPTR_FORMAT ") reg (" INTPTR_FORMAT ")", i, omv.content_reg()->reg2stack() * VMRegImpl::stack_slot_size, omv.reg()->value());
+        tty->print_cr("[d][%d] -> stack (" UINT32_FORMAT_X_0 ") reg (" INT32_FORMAT_X_0 ")", i, omv.content_reg()->reg2stack() * VMRegImpl::stack_slot_size, omv.reg()->value());
       } else {
         int derived_offset = omv.reg()->reg2stack() * VMRegImpl::stack_slot_size;
         int base_offset = omv.content_reg()->reg2stack() * VMRegImpl::stack_slot_size;

@@ -52,7 +52,7 @@ class Register {
 
    public:
     // accessors
-    int raw_encoding() const { return this - first(); }
+    int raw_encoding() const { return static_cast<int>(this - first()); }
     int encoding() const     { assert(is_valid(), "invalid register"); return raw_encoding(); }
     bool is_valid() const    { return 0 <= raw_encoding() && raw_encoding() < number_of_registers; }
 
@@ -175,7 +175,7 @@ class FloatRegister {
 
    public:
     // accessors
-    int raw_encoding() const { return this - first(); }
+    int raw_encoding() const { return static_cast<int>(this - first()); }
     int encoding() const     { assert(is_valid(), "invalid register"); return raw_encoding(); }
     bool is_valid() const    { return 0 <= raw_encoding() && raw_encoding() < number_of_registers; }
 
@@ -308,7 +308,7 @@ public:
 
    public:
     // accessors
-    int raw_encoding() const  { return this - first(); }
+    int raw_encoding() const  { return static_cast<int>(this - first()); }
     int encoding() const      { assert(is_valid(), "invalid register"); return raw_encoding(); }
     bool is_valid() const     { return 0 <= raw_encoding() && raw_encoding() < number_of_registers; }
     bool is_governing() const { return 0 <= raw_encoding() && raw_encoding() < number_of_governing_registers; }

@@ -84,14 +84,14 @@
 class UNSIGNED5 : AllStatic {
  private:
   // Math constants for the modified UNSIGNED5 coding of Pack200
-  static const int lg_H  = 6;        // log-base-2 of H (lg 64 == 6)
-  static const int H     = 1<<lg_H;  // number of "high" bytes (64)
-  static const int X     = 1  ;      // there is one excluded byte ('\0')
-  static const int MAX_b = (1<<BitsPerByte)-1;  // largest byte value
-  static const int L     = (MAX_b+1)-X-H;       // number of "low" bytes (191)
+  static const uint lg_H  = 6;        // log-base-2 of H (lg 64 == 6)
+  static const uint H     = 1<<lg_H;  // number of "high" bytes (64)
+  static const uint X     = 1  ;      // there is one excluded byte ('\0')
+  static const uint MAX_b = (1<<BitsPerByte)-1;  // largest byte value
+  static const uint L     = (MAX_b+1)-X-H;       // number of "low" bytes (191)
 
  public:
-  static const int MAX_LENGTH = 5;   // lengths are in [1..5]
+  static const uint MAX_LENGTH = 5;   // lengths are in [1..5]
   static const uint32_t MAX_VALUE = (uint32_t)-1;  // 2^^32-1
 
   // The default method for reading and writing bytes is simply
@@ -176,7 +176,7 @@ class UNSIGNED5 : AllStatic {
     // results from any of these expressions.  Beware of signed overflow!
     uint32_t sum = 0;
     uint32_t lg_H_i = 0;
-    for (uint32_t i = 0; ; i++) {  // for i in [1..4]
+    for (int i = 0; ; i++) {  // for i in [1..4]
       if (value <= sum + ((L-1) << lg_H_i) || i == MAX_LENGTH-1) {
         return i + 1;  // stopping at byte i implies length is i+1
       }
@@ -206,7 +206,7 @@ class UNSIGNED5 : AllStatic {
   template<typename OFF>
   static constexpr bool fits_in_limit(uint32_t value, OFF offset, OFF limit) {
     assert(limit != 0, "");
-    return (offset + MAX_LENGTH <= limit ||
+    return (offset + static_cast<OFF>(MAX_LENGTH) <= limit ||
             offset + encoded_length(value) <= limit);
   }
 
@@ -242,7 +242,7 @@ class UNSIGNED5 : AllStatic {
     const OFF pos = offset;
     if (!fits_in_limit(value, pos, limit)) {
       grow(MAX_LENGTH);  // caller must ensure it somehow fixes array/limit span
-      assert(pos + MAX_LENGTH <= limit, "should have grown");
+      assert(pos + static_cast<OFF>(MAX_LENGTH) <= limit, "should have grown");
     }
     write_uint(value, array, offset, limit, set);
   }
@@ -398,8 +398,13 @@ class UNSIGNED5 : AllStatic {
   // 32-bit one-to-one sign encoding taken from Pack200
   // converts leading sign bits into leading zeroes with trailing sign bit
   // use this to better compress 32-bit values that might be negative
-  static uint32_t encode_sign(int32_t value) { return ((uint32_t)value << 1) ^ (value >> 31); }
-  static int32_t decode_sign(uint32_t value) { return (value >> 1) ^ -(int32_t)(value & 1); }
+  static uint32_t encode_sign(int32_t value) {
+    return (static_cast<uint32_t>(value) << 1) ^ static_cast<uint32_t>(value >> 31);
+  }
+  static int32_t decode_sign(uint32_t value) {
+    return static_cast<int32_t>(
+      (value >> 1) ^ static_cast<uint32_t>(-static_cast<int32_t>(value & 1)));
+  }
 
   template<typename ARR, typename OFF, typename GET = ArrayGetSet<ARR,OFF>>
   static OFF print(ARR array, OFF offset = 0, OFF limit = 0,

@@ -53,7 +53,7 @@ template<typename T, ENABLE_IF(std::is_integral<T>::value)>
 inline int log2i(T value) {
   assert(value > T(0), "value must be > 0");
   const int bits = sizeof(value) * BitsPerByte;
-  return bits - count_leading_zeros(value) - 1;
+  return bits - static_cast<int>(count_leading_zeros(value)) - 1;
 }
 
 // Log2 of positive, integral value, i.e., largest i such that 2^i <= value
@@ -76,7 +76,7 @@ inline int log2i_exact(T value) {
   assert(is_power_of_2(value),
          "value must be a power of 2: " UINT64_FORMAT_X,
          static_cast<uint64_t>(value));
-  return count_trailing_zeros(value);
+  return static_cast<int>(count_trailing_zeros(value));
 }
 
 // Preconditions: value != 0, and the unsigned representation of value is a power of two

@@ -28,6 +28,7 @@
 
 #include "gc/shared/freeListAllocator.hpp"
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/lockFreeStack.hpp"
 
@@ -113,6 +114,7 @@ protected:
 // A single segment/arena containing _num_slots blocks of memory of _slot_size.
 // Segments can be linked together using a singly linked list.
 class G1MonotonicArena::Segment {
+  friend ManagedCHeapObject<Segment>;
   const uint _slot_size;
   const uint _num_slots;
   Segment* volatile _next;

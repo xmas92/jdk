@@ -235,7 +235,7 @@ class G1ParScanThreadStateSet : public StackObj {
   G1CollectionSet* _collection_set;
   G1RedirtyCardsQueueSet _rdcqs;
   PreservedMarksSet _preserved_marks_set;
-  ManagedCHeapArray<G1ParScanThreadState*> _states;
+  ManagedCHeapArray<ManagedCHeapObj<G1ParScanThreadState>> _states;
   ManagedCHeapArray<size_t> _surviving_young_words_total;
   uint _num_workers;
   bool _flushed;

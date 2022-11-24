@@ -567,7 +567,7 @@ G1ParScanThreadState* G1ParScanThreadStateSet::state_for_worker(uint worker_id) 
                                _collection_set,
                                _evac_failure_regions);
   }
-  return _states[worker_id];
+  return _states[worker_id].get();
 }
 
 const size_t* G1ParScanThreadStateSet::surviving_young_words() const {
@@ -579,7 +579,7 @@ void G1ParScanThreadStateSet::flush_stats() {
   assert(!_flushed, "thread local state from the per thread states should be flushed once");
 
   for (uint worker_id = 0; worker_id < _num_workers; ++worker_id) {
-    G1ParScanThreadState* pss = _states[worker_id];
+    ManagedCHeapObj<G1ParScanThreadState>& pss = _states[worker_id];
     assert(pss != nullptr, "must be initialized");
 
     G1GCPhaseTimes* p = _g1h->phase_times();
@@ -594,15 +594,14 @@ void G1ParScanThreadStateSet::flush_stats() {
     p->record_or_add_thread_work_item(G1GCPhaseTimes::MergePSS, worker_id, lab_waste_bytes, G1GCPhaseTimes::MergePSSLABWasteBytes);
     p->record_or_add_thread_work_item(G1GCPhaseTimes::MergePSS, worker_id, lab_undo_waste_bytes, G1GCPhaseTimes::MergePSSLABUndoWasteBytes);
 
-    delete pss;
-    _states[worker_id] = nullptr;
+    pss.reset();
   }
   _flushed = true;
 }
 
 void G1ParScanThreadStateSet::record_unused_optional_region(HeapRegion* hr) {
   for (uint worker_index = 0; worker_index < _num_workers; ++worker_index) {
-    G1ParScanThreadState* pss = _states[worker_index];
+    ManagedCHeapObj<G1ParScanThreadState>& pss = _states[worker_index];
     assert(pss != nullptr, "must be initialized");
 
     size_t used_memory = pss->oops_into_optional_region(hr)->used_memory();
@@ -690,7 +689,7 @@ G1ParScanThreadStateSet::G1ParScanThreadStateSet(G1CollectedHeap* g1h,
     _collection_set(collection_set),
     _rdcqs(G1BarrierSet::dirty_card_queue_set().allocator()),
     _preserved_marks_set(true /* in_c_heap */),
-    _states(make_managed_c_heap_array_value_init<G1ParScanThreadState*>(num_workers, mtGC)),
+    _states(make_managed_c_heap_array_value_init<ManagedCHeapObj<G1ParScanThreadState>>(num_workers, mtGC)),
     _surviving_young_words_total(make_managed_c_heap_array_value_init<size_t>(collection_set->young_region_length() + 1, mtGC)),
     _num_workers(num_workers),
     _flushed(false),

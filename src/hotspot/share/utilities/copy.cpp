@@ -88,7 +88,7 @@ private:
    * Byte swap a 16-bit value
    */
   static uint16_t byte_swap(uint16_t x) {
-    return (x << 8) | (x >> 8);
+    return static_cast<uint16_t>((x << 8) | (x >> 8));
   }
 
   /**
@@ -240,7 +240,7 @@ void Copy::fill_to_memory_atomic(void* to, size_t size, jubyte value) {
   address dst = (address) to;
   uintptr_t bits = (uintptr_t) to | (uintptr_t) size;
   if (bits % sizeof(jlong) == 0) {
-    jlong fill = (julong)( (jubyte)value ); // zero-extend
+    jlong fill = zero_extend<jlong>(value);
     if (fill != 0) {
       fill += fill << 8;
       fill += fill << 16;
@@ -251,7 +251,7 @@ void Copy::fill_to_memory_atomic(void* to, size_t size, jubyte value) {
       *(jlong*)(dst + off) = fill;
     }
   } else if (bits % sizeof(jint) == 0) {
-    jint fill = (juint)( (jubyte)value ); // zero-extend
+    jint fill = zero_extend<jint>(value);
     if (fill != 0) {
       fill += fill << 8;
       fill += fill << 16;
@@ -261,7 +261,7 @@ void Copy::fill_to_memory_atomic(void* to, size_t size, jubyte value) {
       *(jint*)(dst + off) = fill;
     }
   } else if (bits % sizeof(jshort) == 0) {
-    jshort fill = (jushort)( (jubyte)value ); // zero-extend
+    jshort fill = zero_extend<jshort>(value);
     fill += fill << 8;
     //Copy::fill_to_jshorts_atomic((jshort*) dst, size / sizeof(jshort));
     for (uintptr_t off = 0; off < size; off += sizeof(jshort)) {

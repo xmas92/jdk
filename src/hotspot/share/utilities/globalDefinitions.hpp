@@ -36,6 +36,7 @@
 
 #include <cstddef>
 #include <utility>
+#include <type_traits>
 
 class oopDesc;
 
@@ -1277,6 +1278,42 @@ template<typename K> bool primitive_equals(const K& k0, const K& k1) {
 template<typename To,typename From>
 To narrow_cast(From&& from) {
   return static_cast<To>(std::forward<From>(from));
+}
+
+
+template <class To, class From>
+std::enable_if_t<
+    sizeof(To) == sizeof(From) &&
+    std::is_trivially_copyable<From>::value &&
+    std::is_trivially_copyable<To>::value,
+    To> bit_cast(const From& src) {
+  // std::remove_cv_t<To> dst; requires std::is_trivially_constructible_v<To>
+  alignas(To) uint8_t dst[sizeof(To)];
+  memcpy(&dst, &src, sizeof(To));
+  return *reinterpret_cast<To*>(dst);
+}
+
+// TODO: Move this to own header, <type_traits> does not need to be exported here
+
+template<typename To, typename From>
+std::enable_if_t<!std::is_signed<To>::value, To> zero_extend(From from) {
+  return static_cast<To>(bit_cast<std::make_unsigned_t<From>>(from));
+}
+template<typename To, typename From>
+std::enable_if_t<std::is_signed<To>::value, To> zero_extend(From from) {
+  return bit_cast<To>(
+          static_cast<std::make_unsigned_t<To>>(
+            static_cast<std::make_unsigned_t<From>>(from)));
+}
+
+template<typename To, typename From>
+std::enable_if_t<(sizeof(To) > sizeof(From)), To> sign_extend(From from) {
+  return static_cast<To>(bit_cast<std::make_signed_t<From>>(from));
+}
+
+template<typename To, typename From>
+std::enable_if_t<sizeof(To) <= sizeof(From), To> sign_extend(From&& from) {
+  return zero_extend<To>(std::forward<From>(from));
 }
 
 // Allow use of C++ thread_local when approved - see JDK-8282469.

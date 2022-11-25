@@ -50,8 +50,8 @@ class arrayOopDesc : public oopDesc {
   // Returns the aligned header_size_in_bytes.  This is not equivalent to
   // sizeof(arrayOopDesc) which should not appear in the code.
   static int header_size_in_bytes() {
-    size_t hs = align_up(length_offset_in_bytes() + sizeof(int),
-                              HeapWordSize);
+    size_t hs = align_up(static_cast<size_t>(length_offset_in_bytes()) + sizeof(int),
+                         static_cast<uint>(HeapWordSize));
 #ifdef ASSERT
     // make sure it isn't called before UseCompressedOops is initialized.
     static size_t arrayoopdesc_hs = 0;
@@ -127,8 +127,8 @@ class arrayOopDesc : public oopDesc {
   // Returns the header size in words aligned to the requirements of the
   // array object type.
   static int header_size(BasicType type) {
-    size_t typesize_in_bytes = header_size_in_bytes();
-    return (int)(element_type_should_be_aligned(type)
+    int typesize_in_bytes = header_size_in_bytes();
+    return (element_type_should_be_aligned(type)
       ? align_object_offset(typesize_in_bytes/HeapWordSize)
       : typesize_in_bytes/HeapWordSize);
   }
@@ -142,9 +142,11 @@ class arrayOopDesc : public oopDesc {
     assert(type2aelembytes(type) != 0, "wrong type");
 
     const size_t max_element_words_per_size_t =
-      align_down((SIZE_MAX/HeapWordSize - header_size(type)), MinObjAlignment);
+      align_down((SIZE_MAX/HeapWordSize - static_cast<size_t>(header_size(type))),
+                 static_cast<uint>(MinObjAlignment));
     const size_t max_elements_per_size_t =
-      HeapWordSize * max_element_words_per_size_t / type2aelembytes(type);
+      HeapWordSize * max_element_words_per_size_t /
+      static_cast<uint>(type2aelembytes(type));
     if ((size_t)max_jint < max_elements_per_size_t) {
       // It should be ok to return max_jint here, but parts of the code
       // (CollectedHeap, Klass::oop_oop_iterate(), and more) uses an int for

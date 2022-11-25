@@ -1421,7 +1421,7 @@ public:
 private:
   // Divide global root_stack into worker queues
   bool prepare_worker_queues() {
-    _task_queues = new ShenandoahObjToScanQueueSet((int) _num_workers);
+    _task_queues = new ShenandoahObjToScanQueueSet(_num_workers);
     // Initialize queues for every workers
     for (uint i = 0; i < _num_workers; ++i) {
       ShenandoahObjToScanQueue* task_queue = new ShenandoahObjToScanQueue();

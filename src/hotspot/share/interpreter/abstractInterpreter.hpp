@@ -272,14 +272,14 @@ class AbstractInterpreter: AllStatic {
     if (sizeof(intptr_t) >= sizeof(jlong)) {
       return *(jlong*) slot_addr;
     } else {
-      return Bytes::get_native_u8((address)slot_addr);
+      return static_cast<jlong>(Bytes::get_native_u8((address)slot_addr));
     }
   }
   static void set_long_in_slot(intptr_t* slot_addr, jlong value) {
     if (sizeof(intptr_t) >= sizeof(jlong)) {
       *(jlong*) slot_addr = value;
     } else {
-      Bytes::put_native_u8((address)slot_addr, value);
+      Bytes::put_native_u8((address)slot_addr, static_cast<u8>(value));
     }
   }
 

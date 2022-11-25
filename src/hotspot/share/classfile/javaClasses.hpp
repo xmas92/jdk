@@ -1582,10 +1582,10 @@ class Backtrace: AllStatic {
   // Helper backtrace functions to store bci|version together.
   static int merge_bci_and_version(int bci, int version);
   static int merge_mid_and_cpref(int mid, int cpref);
-  static int bci_at(unsigned int merged);
-  static int version_at(unsigned int merged);
-  static int mid_at(unsigned int merged);
-  static int cpref_at(unsigned int merged);
+  static int bci_at(int merged);
+  static int version_at(int merged);
+  static int mid_at(int merged);
+  static int cpref_at(int merged);
   static int get_line_number(Method* method, int bci);
   static Symbol* get_source_file_name(InstanceKlass* holder, int version);
 

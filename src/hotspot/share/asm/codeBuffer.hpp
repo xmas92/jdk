@@ -120,7 +120,7 @@ class CodeSection {
 
   void initialize_outer(CodeBuffer* outer, int index) {
     _outer = outer;
-    _index = index;
+    _index = narrow_cast<char>(index);
   }
 
   void initialize(address start, csize_t size = 0) {

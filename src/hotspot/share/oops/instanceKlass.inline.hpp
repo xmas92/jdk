@@ -41,7 +41,10 @@
 inline intptr_t* InstanceKlass::start_of_itable()   const { return (intptr_t*)start_of_vtable() + vtable_length(); }
 inline intptr_t* InstanceKlass::end_of_itable()     const { return start_of_itable() + itable_length(); }
 
-inline int InstanceKlass::itable_offset_in_words() const { return start_of_itable() - (intptr_t*)this; }
+inline int InstanceKlass::itable_offset_in_words() const {
+    // the offset of the vtable can be represented by an int
+  return narrow_cast<int>(start_of_itable() - (intptr_t*)this);
+  }
 
 inline oop InstanceKlass::static_field_base_raw() { return java_mirror(); }
 

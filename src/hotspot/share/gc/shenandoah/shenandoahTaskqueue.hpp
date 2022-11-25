@@ -152,7 +152,8 @@ private:
   static const uintptr_t oop_extract_mask       = right_n_bits(oop_bits) - 3;
   static const uintptr_t skip_live_extract_mask = 1 << 0;
   static const uintptr_t weak_extract_mask      = 1 << 1;
-  static const uintptr_t chunk_pow_extract_mask = ~right_n_bits(oop_bits);
+  static const uintptr_t chunk_pow_extract_mask =
+      static_cast<uintptr_t>(~right_n_bits(oop_bits));
 
   static const int chunk_range_mask = right_n_bits(chunk_bits);
   static const int pow_range_mask   = right_n_bits(pow_bits);
@@ -312,7 +313,7 @@ public:
   using GenericTaskQueueSet<T, F>::size;
 
 public:
-  ParallelClaimableQueueSet(int n) : GenericTaskQueueSet<T, F>(n), _claimed_index(0) {
+  ParallelClaimableQueueSet(uint n) : GenericTaskQueueSet<T, F>(n), _claimed_index(0) {
     debug_only(_reserved = 0; )
   }
 
@@ -348,7 +349,7 @@ T* ParallelClaimableQueueSet<T, F>::claim_next() {
 
 class ShenandoahObjToScanQueueSet: public ParallelClaimableQueueSet<ShenandoahObjToScanQueue, mtGC> {
 public:
-  ShenandoahObjToScanQueueSet(int n) : ParallelClaimableQueueSet<ShenandoahObjToScanQueue, mtGC>(n) {}
+  ShenandoahObjToScanQueueSet(uint n) : ParallelClaimableQueueSet<ShenandoahObjToScanQueue, mtGC>(n) {}
 
   bool is_empty();
   void clear();

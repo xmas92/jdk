@@ -184,7 +184,7 @@ inline void ShenandoahHeap::conc_update_with_forwarded(T* p) {
 //
 
 inline void ShenandoahHeap::atomic_update_oop(oop update, oop* addr, oop compare) {
-  assert(is_aligned(addr, HeapWordSize), "Address should be aligned: " PTR_FORMAT, p2i(addr));
+  assert(is_aligned(addr, static_cast<uint>(HeapWordSize)), "Address should be aligned: " PTR_FORMAT, p2i(addr));
   Atomic::cmpxchg(addr, compare, update, memory_order_release);
 }
 
@@ -202,7 +202,7 @@ inline void ShenandoahHeap::atomic_update_oop(oop update, narrowOop* addr, oop c
 }
 
 inline bool ShenandoahHeap::atomic_update_oop_check(oop update, oop* addr, oop compare) {
-  assert(is_aligned(addr, HeapWordSize), "Address should be aligned: " PTR_FORMAT, p2i(addr));
+  assert(is_aligned(addr, static_cast<uint>(HeapWordSize)), "Address should be aligned: " PTR_FORMAT, p2i(addr));
   return (oop) Atomic::cmpxchg(addr, compare, update, memory_order_release) == compare;
 }
 
@@ -224,7 +224,7 @@ inline bool ShenandoahHeap::atomic_update_oop_check(oop update, narrowOop* addr,
 // relaxed memory ordering there.
 
 inline void ShenandoahHeap::atomic_clear_oop(oop* addr, oop compare) {
-  assert(is_aligned(addr, HeapWordSize), "Address should be aligned: " PTR_FORMAT, p2i(addr));
+  assert(is_aligned(addr, static_cast<uint>(HeapWordSize)), "Address should be aligned: " PTR_FORMAT, p2i(addr));
   Atomic::cmpxchg(addr, compare, oop(), memory_order_relaxed);
 }
 

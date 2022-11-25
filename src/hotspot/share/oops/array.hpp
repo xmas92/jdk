@@ -63,7 +63,7 @@ protected:
   // Can't distinguish between array of length 0 and length 1,
   // will always return 0 in those cases.
   static int bytes_to_length(size_t bytes)       {
-    assert(is_aligned(bytes, BytesPerWord), "Must be, for now");
+    assert(is_aligned(bytes, static_cast<uint>(BytesPerWord)), "Must be, for now");
 
     if (sizeof(Array<T>) >= bytes) {
       return 0;

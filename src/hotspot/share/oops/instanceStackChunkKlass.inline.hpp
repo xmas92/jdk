@@ -38,14 +38,15 @@
 #include "utilities/macros.hpp"
 
 inline size_t InstanceStackChunkKlass::instance_size(size_t stack_size_in_words) const {
-  return align_object_size(size_helper() + stack_size_in_words + bitmap_size(stack_size_in_words));
+  const uint size = static_cast<uint>(size_helper());
+  return align_object_size(size + stack_size_in_words + bitmap_size(stack_size_in_words));
 }
 
 inline size_t InstanceStackChunkKlass::bitmap_size_in_bits(size_t stack_size_in_words) {
   // Need one bit per potential narrowOop* or oop* address.
   size_t size_in_bits = stack_size_in_words << (LogBitsPerWord - LogBitsPerHeapOop);
 
-  return align_up(size_in_bits, BitsPerWord);
+  return align_up(size_in_bits, static_cast<uint>(BitsPerWord));
 }
 
 inline size_t InstanceStackChunkKlass::bitmap_size(size_t stack_size_in_words) {

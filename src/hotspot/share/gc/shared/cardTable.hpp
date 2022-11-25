@@ -185,7 +185,7 @@ public:
            p2i(p), p2i(_byte_map), p2i(_byte_map + _byte_map_size));
     // As _byte_map_base may be "negative" (the card table has been allocated before
     // the heap in memory), do not use pointer_delta() to avoid the assertion failure.
-    size_t delta = p - _byte_map_base;
+    size_t delta = static_cast<size_t>(p - _byte_map_base);
     HeapWord* result = (HeapWord*) (delta << _card_shift);
     assert(_whole_heap.contains(result),
            "Returning result = " PTR_FORMAT " out of bounds of "
@@ -200,7 +200,7 @@ public:
            "Attempt to access p = " PTR_FORMAT " out of bounds of "
            " card marking array's _whole_heap = [" PTR_FORMAT "," PTR_FORMAT ")",
            p2i(p), p2i(_whole_heap.start()), p2i(_whole_heap.end()));
-    return byte_for(p) - _byte_map;
+    return static_cast<size_t>(byte_for(p) - _byte_map);
   }
 
   CardValue* byte_for_index(const size_t card_index) const {

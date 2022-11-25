@@ -121,7 +121,8 @@ class MacroAssembler: public Assembler {
      accesses, and these can exceed the offset range. */
   Address legitimize_address(const Address &a, int size, Register scratch) {
     if (a.getMode() == Address::base_plus_offset) {
-      if (! Address::offset_ok_for_immed(a.offset(), exact_log2(size))) {
+      const uint log2_size = static_cast<uint>(exact_log2(size));
+      if (!Address::offset_ok_for_immed(a.offset(), log2_size)) {
         block_comment("legitimize_address {");
         lea(scratch, a);
         block_comment("} legitimize_address");
@@ -1029,7 +1030,7 @@ public:
   void bang_stack_with_offset(int offset) {
     // stack grows down, caller passes positive offset
     assert(offset > 0, "must bang with negative offset");
-    sub(rscratch2, sp, offset);
+    sub(rscratch2, sp, static_cast<uint64_t>(offset));
     str(zr, Address(rscratch2));
   }
 
@@ -1074,7 +1075,7 @@ public:
     if (src.is_register())
       orr(rscratch1, rscratch1, src.as_register());
     else
-      orr(rscratch1, rscratch1, src.as_constant());
+      orr(rscratch1, rscratch1, static_cast<uint64_t>(src.as_constant()));
     str(rscratch1, adr);
   }
 
@@ -1302,8 +1303,8 @@ public:
   void tableswitch(Register index, jint lowbound, jint highbound,
                    Label &jumptable, Label &jumptable_end, int stride = 1) {
     adr(rscratch1, jumptable);
-    subsw(rscratch2, index, lowbound);
-    subsw(zr, rscratch2, highbound - lowbound);
+    subsw(rscratch2, index, static_cast<uint64_t>(lowbound));
+    subsw(zr, rscratch2, static_cast<uint64_t>(highbound - lowbound));
     br(Assembler::HS, jumptable_end);
     add(rscratch1, rscratch1, rscratch2,
         ext::sxtw, exact_log2(stride * Assembler::instruction_size));

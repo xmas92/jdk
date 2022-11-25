@@ -106,7 +106,11 @@ class FieldInfo {
   u2 access_flags() const                        { return _shorts[access_flags_offset];            }
   u4 offset() const {
     assert((_shorts[low_packed_offset] & FIELDINFO_TAG_OFFSET) != 0, "Offset must have been set");
-    return build_int_from_shorts(_shorts[low_packed_offset], _shorts[high_packed_offset]) >> FIELDINFO_TAG_SIZE;
+    // TODO: Check is the sign extentions correct here?
+    const int offset =
+        build_int_from_shorts(_shorts[low_packed_offset], _shorts[high_packed_offset])
+        >> FIELDINFO_TAG_SIZE;
+    return static_cast<u4>(offset);
   }
 
   bool is_contended() const {
@@ -140,10 +144,12 @@ class FieldInfo {
   }
 
   void set_access_flags(u2 val)                  { _shorts[access_flags_offset] = val;             }
-  void set_offset(u4 val)                        {
+  void set_offset(s4 val)                        {
     val = val << FIELDINFO_TAG_SIZE; // make room for tag
-    _shorts[low_packed_offset] = extract_low_short_from_int(val) | FIELDINFO_TAG_OFFSET;
-    _shorts[high_packed_offset] = extract_high_short_from_int(val);
+    const u2 low_bits = static_cast<u2>(extract_low_short_from_int(val) | FIELDINFO_TAG_OFFSET);
+    const u2 high_bits = static_cast<u2>(extract_high_short_from_int(val));
+    _shorts[low_packed_offset] = low_bits;
+    _shorts[high_packed_offset] = high_bits;
   }
 
   void set_contended_group(u2 val) {

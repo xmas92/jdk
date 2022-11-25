@@ -52,7 +52,9 @@ class klassVtable {
 
  public:
   klassVtable(Klass* klass, void* base, int length) : _klass(klass) {
-    _tableOffset = (address)base - (address)klass; _length = length;
+    // the offset of the vtable can be represented by an int
+    _tableOffset = narrow_cast<int>((address)base - (address)klass);
+    _length = length;
   }
 
   // accessors

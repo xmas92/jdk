@@ -320,7 +320,11 @@ class ConstantPoolCacheEntry {
   bool is_resolved(Bytecodes::Code code) const;
 
   // Accessors
-  int indices() const                            { return _indices; }
+  int indices() const {
+    // Note: Would rather have _indices be a int, but maybe we want
+    //       sizeof(ConstantPoolCacheEntry) == sizeof(uintptr_t) * 4
+    return narrow_cast<int>(_indices);
+  }
   int indices_ord() const;
   int constant_pool_index() const                { return (indices() & cp_index_mask); }
   Bytecodes::Code bytecode_1() const;

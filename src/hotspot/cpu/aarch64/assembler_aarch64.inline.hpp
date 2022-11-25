@@ -44,7 +44,7 @@ inline bool Address::offset_ok_for_immed(int64_t offset, uint shift) {
     return Assembler::is_simm9(offset);
   } else {
     // Scaled unsigned offset, encoded in an unsigned imm12:_ field.
-    return Assembler::is_uimm12(offset >> shift);
+    return Assembler::is_uimm12(static_cast<uint64_t>(offset >> shift));
   }
 }
 

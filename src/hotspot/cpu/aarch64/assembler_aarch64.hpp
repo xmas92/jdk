@@ -225,7 +225,7 @@ public:
     int nbits = msb - lsb + 1;
     int64_t chk = val >> (nbits - 1);
     guarantee (chk == -1 || chk == 0, "Field too big for insn");
-    unsigned uval = val;
+    unsigned uval = narrow_cast<uint>(val);
     unsigned mask = checked_cast<unsigned>(right_n_bits(nbits));
     uval &= mask;
     uval <<= lsb;
@@ -235,8 +235,11 @@ public:
     target |= uval;
     *(unsigned *)a = target;
   }
-
-  void f(unsigned val, int msb, int lsb) {
+  template<typename T,
+           ENABLE_IF(std::is_integral<T>::value || std::is_enum<T>::value),
+           ENABLE_IF(sizeof(T) <= sizeof(unsigned))>
+  void f(T t_val, int msb, int lsb) {
+    unsigned val = static_cast<unsigned>(t_val);
     int nbits = msb - lsb + 1;
     guarantee(val < (1ULL << nbits), "Field too big for insn");
     assert_cond(msb >= lsb);
@@ -250,7 +253,8 @@ public:
 #endif
   }
 
-  void f(unsigned val, int bit) {
+  template<typename T>
+  void f(T val, int bit) {
     f(val, bit, bit);
   }
 
@@ -258,7 +262,7 @@ public:
     int nbits = msb - lsb + 1;
     int64_t chk = val >> (nbits - 1);
     guarantee (chk == -1 || chk == 0, "Field too big for insn");
-    unsigned uval = val;
+    unsigned uval = narrow_cast<uint>(val);
     unsigned mask = checked_cast<unsigned>(right_n_bits(nbits));
     uval &= mask;
     f(uval, lsb + nbits - 1, lsb);
@@ -379,7 +383,7 @@ class Address {
 
   template<typename T, ENABLE_IF(std::is_integral<T>::value)>
   Address(Register r, T o)
-    : _base(r), _index(noreg), _offset(o), _mode(base_plus_offset), _target(0) {}
+    : _base(r), _index(noreg), _offset(static_cast<int64_t>(o)), _mode(base_plus_offset), _target(0) {}
 
   Address(Register r, ByteSize disp)
     : Address(r, in_bytes(disp)) { }
@@ -451,7 +455,7 @@ class Address {
           i->sf(_offset, 20, 12);
         } else {
           i->f(0b01, 25, 24);
-          i->f(_offset >> size, 21, 10);
+          i->f(checked_cast<uint>(_offset >> size), 21, 10);
         }
       }
       break;
@@ -528,7 +532,7 @@ class Address {
       size = i->get(31, 31);
     }
 
-    size = 4 << size;
+    size = 4u << size;
     guarantee(_offset % size == 0, "bad offset");
     i->sf(_offset / size, 21, 15);
     i->srf(_base, 5);
@@ -538,7 +542,7 @@ class Address {
     // Only base + offset is allowed
     i->f(0b000, 25, 23);
     unsigned size = i->get(31, 31);
-    size = 4 << size;
+    size = 4u << size;
     guarantee(_offset % size == 0, "bad offset");
     i->sf(_offset / size, 21, 15);
     i->srf(_base, 5);
@@ -553,7 +557,7 @@ class Address {
   static bool offset_ok_for_sve_immed(int64_t offset, int shift, int vl /* sve vector length */) {
     if (offset % vl == 0) {
       // Convert address offset into sve imm offset (MUL VL).
-      int sve_offset = offset / vl;
+      int sve_offset = narrow_cast<int>(offset / vl);
       if (((-(1 << (shift - 1))) <= sve_offset) && (sve_offset < (1 << (shift - 1)))) {
         // sve_offset can be encoded
         return true;
@@ -618,7 +622,7 @@ public:
 #ifndef PRODUCT
   static const uintptr_t asm_bp;
 
-  void emit_int32(jint x) {
+  void emit_int32(juint x) {
     if ((uintptr_t)pc() == asm_bp)
       NOP();
     AbstractAssembler::emit_int32(x);
@@ -1633,7 +1637,8 @@ void mvnw(Register Rd, Register Rm,
            ext::operation option, int amount = 0) {                     \
     starti;                                                             \
     zrf(Rm, 16), srf(Rn, 5), srf(Rd, 0);                                \
-    add_sub_extended_reg(current_insn, op, 0b01011, Rd, Rn, Rm, 0b00, option, amount); \
+    add_sub_extended_reg(current_insn, op, 0b01011, Rd, Rn, Rm, 0b00,   \
+                         option, static_cast<uint>(amount));            \
   }
 
   void add_sub_extended_reg(Instruction_aarch64 &current_insn, unsigned op, unsigned decode,
@@ -1656,7 +1661,8 @@ void mvnw(Register Rd, Register Rm,
            ext::operation option, int amount = 0) {                     \
     starti;                                                             \
     zrf(Rm, 16), srf(Rn, 5), zrf(Rd, 0);                                \
-    add_sub_extended_reg(current_insn, op, 0b01011, Rd, Rn, Rm, 0b00, option, amount); \
+    add_sub_extended_reg(current_insn, op, 0b01011, Rd, Rn, Rm, 0b00,   \
+                         option, static_cast<uint>(amount));            \
   }
 
   INSN(addsw, 0b001);
@@ -1714,7 +1720,7 @@ void mvnw(Register Rd, Register Rm,
 
   // Conditional compare (both kinds)
   void conditional_compare(unsigned op, int o1, int o2, int o3,
-                           Register Rn, unsigned imm5, unsigned nzcv,
+                           Register Rn, int imm5, int nzcv,
                            unsigned cond) {
     starti;
     f(op, 31, 29);
@@ -2197,13 +2203,13 @@ private:
 public:
 
   void fmovs(FloatRegister Vn, double value) {
-    if (value)
+    if (value != 0.0)
       fmov_imm(Vn, value, 0b00);
     else
       movi(Vn, T2S, 0);
   }
   void fmovd(FloatRegister Vn, double value) {
-    if (value)
+    if (value != 0.0)
       fmov_imm(Vn, value, 0b01);
     else
       movi(Vn, T1D, 0);
@@ -2312,7 +2318,7 @@ public:
       ld_st(Vt, T, a.base(), op1, op2);
       break;
     case Address::post:
-      ld_st(Vt, T, a.base(), a.offset(), op1, op2, regs);
+      ld_st(Vt, T, a.base(), checked_cast<int>(a.offset()), op1, op2, regs);
       break;
     case Address::post_reg:
       ld_st(Vt, T, a.base(), a.index(), op1, op2);
@@ -3257,7 +3263,7 @@ private:
               int op1, int type, int imm_op2, int scalar_op2) {
     switch (a.getMode()) {
     case Address::base_plus_offset:
-      sve_ld_st1(Zt, a.base(), a.offset(), Pg, T, op1, type, imm_op2);
+      sve_ld_st1(Zt, a.base(), checked_cast<int>(a.offset()), Pg, T, op1, type, imm_op2);
       break;
     case Address::base_plus_offset_reg:
       sve_ld_st1(Zt, a.base(), a.index(), Pg, T, op1, type, scalar_op2);
@@ -3309,7 +3315,8 @@ public:
     starti;                                                                     \
     assert(a.index() == noreg, "invalid address variant");                      \
     f(op1, 31, 29), f(0b0010110, 28, 22), sf(a.offset() >> 3, 21, 16),          \
-    f(0b010, 15, 13), f(a.offset() & 0x7, 12, 10), srf(a.base(), 5), rf(Zt, 0); \
+    f(0b010, 15, 13), f(narrow_cast<int>(a.offset() & 0x7), 12, 10),           \
+    srf(a.base(), 5), rf(Zt, 0);                                                \
   }
 
   INSN(sve_ldr, 0b100); // LDR (vector)
@@ -3418,8 +3425,8 @@ public:
     starti;                                                              \
     assert(a.index() == noreg, "invalid address variant");               \
     f(op1, 31, 29), f(0b0010110, 28, 22), sf(a.offset() >> 3, 21, 16),   \
-    f(0b000, 15, 13), f(a.offset() & 0x7, 12, 10), srf(a.base(), 5),     \
-    f(0, 4), prf(Pt, 0);                                                 \
+    f(0b000, 15, 13), f(narrow_cast<int>(a.offset() & 0x7), 12, 10),    \
+    srf(a.base(), 5), f(0, 4), prf(Pt, 0);                               \
   }
 
   INSN(sve_ldr, 0b100); // LDR (predicate)

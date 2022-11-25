@@ -33,7 +33,10 @@
 
 inline const ImmutableOopMap* CodeBlob::oop_map_for_slot(int slot, address return_address) const {
   assert(_oop_maps != NULL, "nope");
-  return _oop_maps->find_map_at_slot(slot, (intptr_t) return_address - (intptr_t) code_begin());
+  const ptrdiff_t offset = return_address - code_begin();
+  const int offset_narrow = narrow_cast<int>(offset);
+  postcond(offset == offset_narrow);
+  return _oop_maps->find_map_at_slot(slot, offset_narrow);
 }
 
 #endif // SHARE_CODE_CODEBLOB_INLINE_HPP

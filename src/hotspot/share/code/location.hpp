@@ -85,17 +85,21 @@ class Location {
   }
 
   inline void set(Where where_, Type type_, unsigned offset_) {
-    _value = (juint) ((where_  << WHERE_SHIFT) |
-                      (type_   << TYPE_SHIFT)  |
-                      ((offset_ << OFFSET_SHIFT) & OFFSET_MASK));
+    _value = (static_cast<juint>(where_  << WHERE_SHIFT) |
+              static_cast<juint>(type_   << TYPE_SHIFT)  |
+              ((offset_ << OFFSET_SHIFT) & OFFSET_MASK));
   }
 
  public:
 
   // Stack location Factory.  Offset is 4-byte aligned; remove low bits
-  static Location new_stk_loc( Type t, int offset ) { return Location(on_stack,t,offset>>LogBytesPerInt); }
+  static Location new_stk_loc( Type t, int offset ) {
+    return Location(on_stack,t,static_cast<uint>(offset >> LogBytesPerInt));
+  }
   // Register location Factory
-  static Location new_reg_loc( Type t, VMReg reg ) { return Location(in_register, t, reg->value()); }
+  static Location new_reg_loc( Type t, VMReg reg ) {
+    return Location(in_register, t, static_cast<uint>(reg->value()));
+  }
   // Default constructor
   Location() { set(on_stack,invalid,0); }
 
@@ -108,10 +112,19 @@ class Location {
   bool is_register() const    { return where() == in_register; }
   bool is_stack() const       { return where() == on_stack;    }
 
-  int stack_offset() const    { assert(where() == on_stack,    "wrong Where"); return offset()<<LogBytesPerInt; }
-  int register_number() const { assert(where() == in_register, "wrong Where"); return offset()   ; }
+  int stack_offset() const    {
+    assert(where() == on_stack,    "wrong Where");
+    return static_cast<int>(offset() << LogBytesPerInt);
+  }
+  int register_number() const {
+    assert(where() == in_register, "wrong Where");
+    return static_cast<int>(offset());
+  }
 
-  VMReg reg() const { assert(where() == in_register, "wrong Where"); return VMRegImpl::as_VMReg(offset())   ; }
+  VMReg reg() const {
+    assert(where() == in_register, "wrong Where");
+    return VMRegImpl::as_VMReg(static_cast<int>(offset()))   ;
+  }
 
   // Printing
   void print_on(outputStream* st) const;

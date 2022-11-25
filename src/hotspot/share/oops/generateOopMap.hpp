@@ -61,7 +61,10 @@ class RetTableEntry : public ResourceObj {
   // Query
   int target_bci() const                      { return _target_bci; }
   int nof_jsrs() const                        { return _jsrs->length(); }
-  int jsrs(int i) const                       { assert(i>=0 && i<nof_jsrs(), "Index out of bounds"); return _jsrs->at(i); }
+  int jsrs(int i) const {
+    assert(i>=0 && i<nof_jsrs(), "Index out of bounds");
+    return narrow_cast<int>(_jsrs->at(i));
+  }
 
   // Update entry
   void add_jsr    (int return_bci)            { _jsrs->append(return_bci); }
@@ -88,7 +91,7 @@ class RetTable {
 //
 class CellTypeState {
  private:
-  unsigned int _state;
+  int _state;
 
   // Masks for separating the BITS and INFO portions of a CellTypeState
   enum { info_mask            = right_n_bits(28),
@@ -197,7 +200,7 @@ class CellTypeState {
   bool is_address() const               { return ((_state & bits_mask) == addr_bit); }
   bool is_reference() const             { return ((_state & bits_mask) == ref_bit); }
   bool is_value() const                 { return ((_state & bits_mask) == val_bit); }
-  bool is_uninit() const                { return ((_state & bits_mask) == (uint)uninit_bit); }
+  bool is_uninit() const                { return ((_state & bits_mask) == uninit_bit); }
 
   bool can_be_address() const           { return ((_state & addr_bit) != 0); }
   bool can_be_reference() const         { return ((_state & ref_bit) != 0); }
@@ -356,7 +359,7 @@ class GenerateOopMap {
   void          initialize_bb               ();
   void          mark_bbheaders_and_count_gc_points();
   bool          is_bb_header                (int bci) const   {
-    return _bb_hdr_bits.at(bci);
+    return _bb_hdr_bits.at(static_cast<BitMap::idx_t>(bci));
   }
   int           gc_points                   () const                          { return _gc_points; }
   int           bb_count                    () const                          { return _bb_count; }

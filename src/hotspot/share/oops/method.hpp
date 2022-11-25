@@ -155,18 +155,18 @@ class Method : public Metadata {
 
   // name
   Symbol* name() const                           { return constants()->symbol_at(name_index()); }
-  int name_index() const                         { return constMethod()->name_index();         }
-  void set_name_index(int index)                 { constMethod()->set_name_index(index);       }
+  u2 name_index() const                         { return constMethod()->name_index();         }
+  void set_name_index(u2 index)                 { constMethod()->set_name_index(index);       }
 
   // signature
   Symbol* signature() const                      { return constants()->symbol_at(signature_index()); }
-  int signature_index() const                    { return constMethod()->signature_index();         }
-  void set_signature_index(int index)            { constMethod()->set_signature_index(index);       }
+  u2 signature_index() const                    { return constMethod()->signature_index();         }
+  void set_signature_index(u2 index)            { constMethod()->set_signature_index(index);       }
 
   // generics support
   Symbol* generic_signature() const              { int idx = generic_signature_index(); return ((idx != 0) ? constants()->symbol_at(idx) : (Symbol*)NULL); }
-  int generic_signature_index() const            { return constMethod()->generic_signature_index(); }
-  void set_generic_signature_index(int index)    { constMethod()->set_generic_signature_index(index); }
+  u2 generic_signature_index() const            { return constMethod()->generic_signature_index(); }
+  void set_generic_signature_index(u2 index)    { constMethod()->set_generic_signature_index(index); }
 
   // annotations support
   AnnotationArray* annotations() const           {
@@ -279,13 +279,13 @@ class Method : public Metadata {
 
   // max stack
   // return original max stack size for method verification
-  int  verifier_max_stack() const                { return constMethod()->max_stack(); }
+  u2  verifier_max_stack() const                 { return constMethod()->max_stack(); }
   int           max_stack() const                { return constMethod()->max_stack() + extra_stack_entries(); }
-  void      set_max_stack(int size)              {        constMethod()->set_max_stack(size); }
+  void      set_max_stack(u2 size)               {        constMethod()->set_max_stack(size); }
 
   // max locals
-  int  max_locals() const                        { return constMethod()->max_locals(); }
-  void set_max_locals(int size)                  { constMethod()->set_max_locals(size); }
+  u2  max_locals() const                        { return constMethod()->max_locals(); }
+  void set_max_locals(u2 size)                  { constMethod()->set_max_locals(size); }
 
   int highest_comp_level() const;
   void set_highest_comp_level(int level);
@@ -315,8 +315,8 @@ class Method : public Metadata {
   void compute_from_signature(Symbol* sig);
 
   // size of parameters (receiver if any + arguments)
-  int  size_of_parameters() const                { return constMethod()->size_of_parameters(); }
-  void set_size_of_parameters(int size)          { constMethod()->set_size_of_parameters(size); }
+  u2  size_of_parameters() const                { return constMethod()->size_of_parameters(); }
+  void set_size_of_parameters(u2 size)          { constMethod()->set_size_of_parameters(size); }
 
   bool has_stackmap_table() const {
     return constMethod()->has_stackmap_table();
@@ -333,7 +333,7 @@ class Method : public Metadata {
   // exception handler table
   bool has_exception_handler() const
                              { return constMethod()->has_exception_handler(); }
-  int exception_table_length() const
+  u2 exception_table_length() const
                              { return constMethod()->exception_table_length(); }
   ExceptionTableElement* exception_table_start() const
                              { return constMethod()->exception_table_start(); }
@@ -1014,7 +1014,7 @@ public:
   address* native_function_addr() const          { assert(is_native(), "must be native"); return (address*) (this+1); }
   address* signature_handler_addr() const        { return native_function_addr() + 1; }
 
-  void set_num_stack_arg_slots(int n) { constMethod()->set_num_stack_arg_slots(n); }
+  void set_num_stack_arg_slots(u2 n) { constMethod()->set_num_stack_arg_slots(n); }
 };
 
 

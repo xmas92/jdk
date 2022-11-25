@@ -101,7 +101,9 @@ class InterpreterOopMap: ResourceObj {
   Method*        method() const                  { return _method; }
   void           set_method(Method* v)           { _method = v; }
   int            bci() const                     { return _bci; }
-  void           set_bci(int v)                  { _bci = v; }
+  void           set_bci(int v)                  {
+    _bci = narrow_cast<unsigned short>(v);
+  }
   int            mask_size() const               { return _mask_size; }
   void           set_mask_size(int v)            { _mask_size = v; }
   // Test bit mask size and return either the in-line bit mask or allocated
@@ -110,7 +112,7 @@ class InterpreterOopMap: ResourceObj {
 
   // return the word size of_bit_mask.  mask_size() <= 4 * MAX_USHORT
   size_t mask_word_size() const {
-    return (mask_size() + BitsPerWord - 1) / BitsPerWord;
+    return static_cast<size_t>((mask_size() + BitsPerWord - 1) / BitsPerWord);
   }
 
   uintptr_t entry_at(int offset) const           { int i = offset * bits_per_entry; return bit_mask()[i / BitsPerWord] >> (i % BitsPerWord); }

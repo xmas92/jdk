@@ -94,7 +94,7 @@ protected:
 
   void set_char_at(int offset, char c) { *addr_at(offset) = (u_char)c; }
   void set_int_at(int offset, jint i) { *(jint*)addr_at(offset) = i; }
-  void set_uint_at(int offset, jint i) { *(juint*)addr_at(offset) = i; }
+  void set_uint_at(int offset, juint i) { *(juint*)addr_at(offset) = i; }
   void set_ptr_at(int offset, address ptr) { *(address*)addr_at(offset) = ptr; }
   void set_oop_at(int offset, oop o) { *(oop*)addr_at(offset) = o; }
 
@@ -210,13 +210,13 @@ public:
   address destination() const;
 
   void set_destination(address dest) {
-    int offset = dest - instruction_address();
-    unsigned int insn = 0b100101 << 26;
+    int offset = narrow_cast<int>(dest - instruction_address());
+    unsigned int insn = 0b100101u << 26;
     assert((offset & 3) == 0, "should be");
     offset >>= 2;
     offset &= (1 << 26) - 1; // mask off insn part
-    insn |= offset;
-    set_int_at(displacement_offset, insn);
+    insn |= static_cast<uint>(offset);
+    set_uint_at(displacement_offset, insn);
   }
 
   void verify_alignment() { ; }
@@ -604,7 +604,9 @@ inline NativeCallTrampolineStub* nativeCallTrampolineStub_at(address addr) {
 class NativeMembar : public NativeInstruction {
 public:
   unsigned int get_kind() { return Instruction_aarch64::extract(uint_at(0), 11, 8); }
-  void set_kind(int order_kind) { Instruction_aarch64::patch(addr_at(0), 11, 8, order_kind); }
+  void set_kind(int order_kind) {
+    Instruction_aarch64::patch(addr_at(0), 11, 8, static_cast<uint64_t>(order_kind));
+  }
 };
 
 inline NativeMembar* NativeMembar_at(address addr) {
@@ -614,7 +616,9 @@ inline NativeMembar* NativeMembar_at(address addr) {
 
 class NativeLdSt : public NativeInstruction {
 private:
-  int32_t size() { return Instruction_aarch64::extract(uint_at(0), 31, 30); }
+  int32_t size() {
+    return static_cast<int32_t>(Instruction_aarch64::extract(uint_at(0), 31, 30));
+  }
   // Check whether instruction is with unscaled offset.
   bool is_ldst_ur() {
     return (Instruction_aarch64::extract(uint_at(0), 29, 21) == 0b111000010 ||
@@ -628,11 +632,11 @@ private:
 public:
   Register target() {
     uint32_t r = Instruction_aarch64::extract(uint_at(0), 4, 0);
-    return r == 0x1f ? zr : as_Register(r);
+    return r == 0x1f ? zr : as_Register(static_cast<int>(r));
   }
   Register base() {
     uint32_t b = Instruction_aarch64::extract(uint_at(0), 9, 5);
-    return b == 0x1f ? sp : as_Register(b);
+    return b == 0x1f ? sp : as_Register(static_cast<int>(b));
   }
   int64_t offset() {
     if (is_ldst_ur()) {

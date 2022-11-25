@@ -36,7 +36,7 @@ class Klass;
 
 // count is number of array elements being written
 void ModRefBarrierSet::write_ref_array(HeapWord* start, size_t count) {
-  HeapWord* end = (HeapWord*)((char*)start + (count*heapOopSize));
+  HeapWord* end = (HeapWord*)((char*)start + (count*static_cast<uint>(heapOopSize)));
   // In the case of compressed oops, start and end may potentially be misaligned;
   // so we need to conservatively align the first downward (this is not
   // strictly necessary for current uses, but a case of good hygiene and,
@@ -48,8 +48,8 @@ void ModRefBarrierSet::write_ref_array(HeapWord* start, size_t count) {
   // interface, so it is "exactly precise" (if i may be allowed the adverbial
   // redundancy for emphasis) and does not include narrow oop slots not
   // included in the original write interval.
-  HeapWord* aligned_start = align_down(start, HeapWordSize);
-  HeapWord* aligned_end   = align_up  (end,   HeapWordSize);
+  HeapWord* aligned_start = align_down(start, static_cast<uint>(HeapWordSize));
+  HeapWord* aligned_end   = align_up  (end,   static_cast<uint>(HeapWordSize));
   // If compressed oops were not being used, these should already be aligned
   assert(UseCompressedOops || (aligned_start == start && aligned_end == end),
          "Expected heap word alignment of start and end");

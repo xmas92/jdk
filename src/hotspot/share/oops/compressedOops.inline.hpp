@@ -151,8 +151,9 @@ inline narrowKlass CompressedKlassPointers::encode_not_null(Klass* v, address na
   assert(KlassEncodingMetaspaceMax > pd, "change encoding max if new encoding");
   uint64_t result = pd >> shift();
   assert((result & CONST64(0xffffffff00000000)) == 0, "narrow klass pointer overflow");
-  assert(decode_not_null(result, narrow_base) == v, "reversibility");
-  return (narrowKlass)result;
+  const narrowKlass klass = narrow_cast<narrowKlass>(result);
+  assert(decode_not_null(klass, narrow_base) == v, "reversibility");
+  return klass;
 }
 
 inline narrowKlass CompressedKlassPointers::encode(Klass* v) {

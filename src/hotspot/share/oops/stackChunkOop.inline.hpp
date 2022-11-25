@@ -113,7 +113,7 @@ inline int stackChunkOopDesc::to_offset(intptr_t* p) const {
   assert(is_in_chunk(p)
     || (p >= start_address() && (p - start_address()) <= stack_size() + frame::metadata_words),
     "p: " PTR_FORMAT " start: " PTR_FORMAT " end: " PTR_FORMAT, p2i(p), p2i(start_address()), p2i(bottom_address()));
-  return p - start_address();
+  return narrow_cast<int>(p - start_address());
 }
 
 inline intptr_t* stackChunkOopDesc::from_offset(int offset) const {
@@ -232,7 +232,7 @@ inline frame stackChunkOopDesc::relativize(frame fr)   const { relativize_frame(
 inline frame stackChunkOopDesc::derelativize(frame fr) const { derelativize_frame(fr); return fr; }
 
 inline BitMapView stackChunkOopDesc::bitmap() const {
-  int stack_sz = stack_size();
+  uint stack_sz = static_cast<uint>(stack_size());
 
   // The bitmap is located after the stack.
   HeapWord* bitmap_addr = start_of_stack() + stack_sz;
@@ -252,7 +252,7 @@ inline BitMap::idx_t stackChunkOopDesc::bit_index_for(intptr_t* p) const {
 template <typename OopT>
 inline BitMap::idx_t stackChunkOopDesc::bit_index_for(OopT* p) const {
   assert(p >= (OopT*)start_address(), "Address not in chunk");
-  return p - (OopT*)start_address();
+  return static_cast<BitMap::idx_t>(p - (OopT*)start_address());
 }
 
 inline intptr_t* stackChunkOopDesc::address_for_bit(BitMap::idx_t index) const {
@@ -330,7 +330,7 @@ inline void stackChunkOopDesc::copy_from_stack_to_chunk(intptr_t* from, intptr_t
   // to figure out the argument is always null and then warn about it.
   if (to != nullptr)
 #endif
-  memcpy(to, from, size << LogBytesPerWord);
+  memcpy(to, from, static_cast<size_t>(size << LogBytesPerWord));
 }
 
 inline void stackChunkOopDesc::copy_from_chunk_to_stack(intptr_t* from, intptr_t* to, int size) {
@@ -349,7 +349,7 @@ inline void stackChunkOopDesc::copy_from_chunk_to_stack(intptr_t* from, intptr_t
   // to figure out the argument is always null and then warn about it.
   if (to != nullptr)
 #endif
-  memcpy(to, from, size << LogBytesPerWord);
+  memcpy(to, from, static_cast<size_t>(size << LogBytesPerWord));
 }
 
 inline intptr_t* stackChunkOopDesc::relative_base() const {
@@ -367,11 +367,11 @@ inline intptr_t* stackChunkOopDesc::derelativize_address(int offset) const {
 
 inline int stackChunkOopDesc::relativize_address(intptr_t* p) const {
   intptr_t* base = relative_base();
-  intptr_t offset = base - p;
+  ptrdiff_t offset = base - p;
   assert(start_address() <= p && p <= base, "start_address: " PTR_FORMAT " p: " PTR_FORMAT " base: " PTR_FORMAT,
          p2i(start_address()), p2i(p), p2i(base));
   assert(0 <= offset && offset <= std::numeric_limits<int>::max(), "offset: " PTR_FORMAT, offset);
-  return offset;
+  return narrow_cast<int>(offset);
 }
 
 inline void stackChunkOopDesc::relativize_frame(frame& fr) const {

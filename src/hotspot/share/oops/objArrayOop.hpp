@@ -47,13 +47,13 @@ class objArrayOopDesc : public arrayOopDesc {
 
   template <class T>
   static ptrdiff_t obj_at_offset(int index) {
-    return base_offset_in_bytes() + sizeof(T) * index;
+    return static_cast<uint>(base_offset_in_bytes()) + sizeof(T) * static_cast<uint>(index);
   }
 
 private:
   // Give size of objArrayOop in HeapWords minus the header
   static int array_size(int length) {
-    const uint OopsPerHeapWord = HeapWordSize/heapOopSize;
+    const uint OopsPerHeapWord = static_cast<uint>(HeapWordSize/heapOopSize);
     assert(OopsPerHeapWord >= 1 && (HeapWordSize % heapOopSize == 0),
            "Else the following (new) computation would be in error");
     uint res = ((uint)length + OopsPerHeapWord - 1)/OopsPerHeapWord;
@@ -64,16 +64,16 @@ private:
     // oop->length() * HeapWordsPerOop;
     // With narrowOops, HeapWordsPerOop is 1/2 or equal 0 as an integer.
     // The oop elements are aligned up to wordSize
-    const uint HeapWordsPerOop = heapOopSize/HeapWordSize;
+    const uint HeapWordsPerOop = static_cast<uint>(heapOopSize/HeapWordSize);
     uint old_res;
     if (HeapWordsPerOop > 0) {
-      old_res = length * HeapWordsPerOop;
+      old_res =  static_cast<uint>(length) * HeapWordsPerOop;
     } else {
       old_res = align_up((uint)length, OopsPerHeapWord)/OopsPerHeapWord;
     }
     assert(res == old_res, "Inconsistency between old and new.");
 #endif  // ASSERT
-    return res;
+    return narrow_cast<int>(res);
   }
 
  public:
@@ -98,8 +98,9 @@ private:
 
   static size_t object_size(int length) {
     // This returns the object size in HeapWords.
-    uint asz = array_size(length);
-    uint osz = align_object_size(header_size() + asz);
+    const uint asz = static_cast<uint>(array_size(length));
+    const uint hsz = static_cast<uint>(header_size());
+    const uint osz = align_object_size(hsz + asz);
     assert(osz >= asz,   "no overflow");
     assert((int)osz > 0, "no overflow");
     return (size_t)osz;

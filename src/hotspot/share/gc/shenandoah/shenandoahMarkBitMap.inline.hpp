@@ -112,7 +112,7 @@ template<ShenandoahMarkBitMap::bm_word_t flip, bool aligned_right>
 inline ShenandoahMarkBitMap::idx_t ShenandoahMarkBitMap::get_next_bit_impl(idx_t l_index, idx_t r_index) const {
   STATIC_ASSERT(flip == find_ones_flip || flip == find_zeros_flip);
   verify_range(l_index, r_index);
-  assert(!aligned_right || is_aligned(r_index, BitsPerWord), "r_index not aligned");
+  assert(!aligned_right || is_aligned(r_index, static_cast<uint>(BitsPerWord)), "r_index not aligned");
 
   // The first word often contains an interesting bit, either due to
   // density or because of features of the calling algorithm.  So it's

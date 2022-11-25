@@ -98,9 +98,14 @@ class OopMapBlock {
   uint count() const         { return _count; }
   void set_count(uint count) { _count = count; }
 
-  void increment_count(int diff) { _count += diff; }
+  void increment_count(int diff) { _count += static_cast<uint>(diff); }
 
-  int offset_span() const { return _count * heapOopSize; }
+  int offset_span() const {
+    const int count = narrow_cast<int>(_count);
+    const int offset_span = count * heapOopSize;
+    postcond(count > 0 && offset_span >= count);
+    return offset_span;
+  }
 
   int end_offset() const {
     return offset() + offset_span();
@@ -393,7 +398,9 @@ class InstanceKlass: public Klass {
   FieldInfo* field(int index) const { return FieldInfo::from_field_array(_fields, index); }
 
  public:
-  int     field_offset      (int index) const { return field(index)->offset(); }
+  int     field_offset      (int index) const {
+    return static_cast<int>(field(index)->offset());
+  }
   int     field_access_flags(int index) const { return field(index)->access_flags(); }
   Symbol* field_name        (int index) const { return field(index)->name(constants()); }
   Symbol* field_signature   (int index) const { return field(index)->signature(constants()); }
@@ -668,10 +675,10 @@ public:
   void set_source_debug_extension(const char* array, int length);
 
   // nonstatic oop-map blocks
-  static int nonstatic_oop_map_size(unsigned int oop_map_count) {
+  static int nonstatic_oop_map_size(int oop_map_count) {
     return oop_map_count * OopMapBlock::size_in_words();
   }
-  unsigned int nonstatic_oop_map_count() const {
+  int nonstatic_oop_map_count() const {
     return _nonstatic_oop_map_size / OopMapBlock::size_in_words();
   }
   int nonstatic_oop_map_size() const { return _nonstatic_oop_map_size; }
@@ -904,7 +911,9 @@ public:
   GrowableArray<Klass*>* compute_secondary_supers(int num_extra_slots,
                                                   Array<InstanceKlass*>* transitive_interfaces);
   bool can_be_primary_super_slow() const;
-  size_t oop_size(oop obj)  const             { return size_helper(); }
+  size_t oop_size(oop obj) const {
+    return static_cast<size_t>(size_helper());
+  }
   // slow because it's a virtual call and used for verifying the layout_helper.
   // Using the layout_helper bits, we can call is_instance_klass without a virtual call.
   DEBUG_ONLY(bool is_instance_klass_slow() const      { return true; })

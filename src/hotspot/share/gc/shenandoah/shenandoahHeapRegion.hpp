@@ -374,9 +374,15 @@ public:
   HeapWord* bottom() const      { return _bottom;  }
   HeapWord* end() const         { return _end;     }
 
-  size_t capacity() const       { return byte_size(bottom(), end()); }
-  size_t used() const           { return byte_size(bottom(), top()); }
-  size_t free() const           { return byte_size(top(),    end()); }
+  size_t capacity() const       {
+    return static_cast<size_t>(byte_size(bottom(), end()));
+  }
+  size_t used() const           {
+    return static_cast<size_t>(byte_size(bottom(), top()));
+  }
+  size_t free() const           {
+    return static_cast<size_t>(byte_size(top(),    end()));
+  }
 
   inline void adjust_alloc_metadata(ShenandoahAllocRequest::Type type, size_t);
   void reset_alloc_metadata();

@@ -378,7 +378,7 @@ class AbstractAssembler : public ResourceObj  {
     CodeSection* c1 = _code_section;
     address ptr = start_a_const(sizeof(c), sizeof(c));
     if (ptr != NULL) {
-      emit_int32(c);
+      emit_int32(static_cast<juint>(c));
       end_a_const(c1);
     }
     return ptr;
@@ -387,7 +387,7 @@ class AbstractAssembler : public ResourceObj  {
     CodeSection* c1 = _code_section;
     address ptr = start_a_const(sizeof(c), sizeof(c));
     if (ptr != NULL) {
-      emit_int64(c);
+      emit_int64(static_cast<julong>(c));
       end_a_const(c1);
     }
     return ptr;
@@ -439,11 +439,11 @@ class AbstractAssembler : public ResourceObj  {
         jvalue e = c->at(i);
         switch(bt) {
           case T_BOOLEAN: emit_int8(e.z);   break;
-          case T_BYTE:    emit_int8(e.b);   break;
+          case T_BYTE:    emit_int8(static_cast<jubyte>(e.b));   break;
           case T_CHAR:    emit_int16(e.c);  break;
-          case T_SHORT:   emit_int16(e.s);  break;
-          case T_INT:     emit_int32(e.i);  break;
-          case T_LONG:    emit_int64(e.j);  break;
+          case T_SHORT:   emit_int16(static_cast<jushort>(e.s));  break;
+          case T_INT:     emit_int32(static_cast<juint>(e.i));  break;
+          case T_LONG:    emit_int64(static_cast<julong>(e.j));  break;
           case T_FLOAT:   emit_float(e.f);  break;
           case T_DOUBLE:  emit_double(e.d); break;
           default:

@@ -62,7 +62,10 @@ class InterpreterCodelet: public Stub {
   static  int alignment()                        { return HeapWordSize; }
 
   // Code info
-  address code_begin() const                     { return align_up((address)this + sizeof(InterpreterCodelet), CodeEntryAlignment); }
+  address code_begin() const {
+    return align_up((address)this + sizeof(InterpreterCodelet),
+                    static_cast<uintx>(CodeEntryAlignment));
+  }
   address code_end() const                       { return (address)this + size(); }
 
   // Debugging
@@ -74,7 +77,9 @@ class InterpreterCodelet: public Stub {
   void    initialize(const char* description, Bytecodes::Code bytecode);
 
   // Interpreter-specific attributes
-  int         code_size() const                  { return code_end() - code_begin(); }
+  int         code_size() const                  {
+    return narrow_cast<int>(code_end() - code_begin());
+  }
   const char* description() const                { return _description; }
   Bytecodes::Code bytecode() const               { return _bytecode; }
 #ifndef PRODUCT
@@ -106,7 +111,8 @@ class CodeletMark: ResourceMark {
   int codelet_size() {
     // Request the whole code buffer (minus a little for alignment).
     // The commit call below trims it back for each codelet.
-    int codelet_size = AbstractInterpreter::code()->available_space() - 2*K;
+    const int extra_space = 2*K;
+    int codelet_size = AbstractInterpreter::code()->available_space() - extra_space;
 
     // Guarantee there's a little bit of code space left.
     guarantee(codelet_size > 0 && (size_t)codelet_size > 2*K,

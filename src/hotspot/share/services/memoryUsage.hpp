@@ -72,7 +72,7 @@ public:
       ret = -1L;
     } else {
       NOT_LP64(ret = val;)
-      LP64_ONLY(ret = MIN2(val, (size_t)max_jlong);)
+      LP64_ONLY(ret = static_cast<jlong>(MIN2(val, (size_t)max_jlong));)
     }
     return ret;
   }

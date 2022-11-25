@@ -199,7 +199,7 @@ inline void SATBMarkQueueSet::apply_filter(Filter filter_out, SATBMarkQueue& que
   }
   // dst points to the lowest retained entry, or the end of the buffer
   // if all the entries were filtered out.
-  queue.set_index(dst - buf);
+  queue.set_index(static_cast<size_t>(dst - buf));
 }
 
 #endif // SHARE_GC_SHARED_SATBMARKQUEUE_HPP

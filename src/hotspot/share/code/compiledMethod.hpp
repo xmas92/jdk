@@ -261,11 +261,15 @@ public:
 
   address scopes_data_begin() const { return _scopes_data_begin; }
   virtual address scopes_data_end() const = 0;
-  int scopes_data_size() const { return scopes_data_end() - scopes_data_begin(); }
+  int scopes_data_size() const {
+    return narrow_cast<int>(scopes_data_end() - scopes_data_begin());
+  }
 
   virtual PcDesc* scopes_pcs_begin() const = 0;
   virtual PcDesc* scopes_pcs_end() const = 0;
-  int scopes_pcs_size() const { return (intptr_t) scopes_pcs_end() - (intptr_t) scopes_pcs_begin(); }
+  int scopes_pcs_size() const {
+    return narrow_cast<int>((intptr_t) scopes_pcs_end() - (intptr_t) scopes_pcs_begin());
+    }
 
   address insts_begin() const { return code_begin(); }
   address insts_end() const { return stub_begin(); }
@@ -274,29 +278,39 @@ public:
   bool insts_contains(address addr) const { return insts_begin() <= addr && addr < insts_end(); }
   bool insts_contains_inclusive(address addr) const { return insts_begin() <= addr && addr <= insts_end(); }
 
-  int insts_size() const { return insts_end() - insts_begin(); }
+  int insts_size() const {
+    return narrow_cast<int>(insts_end() - insts_begin());
+  }
 
   virtual address consts_begin() const = 0;
   virtual address consts_end() const = 0;
   bool consts_contains(address addr) const { return consts_begin() <= addr && addr < consts_end(); }
-  int consts_size() const { return consts_end() - consts_begin(); }
+  int consts_size() const {
+    return narrow_cast<int>(consts_end() - consts_begin());
+  }
 
   virtual address stub_begin() const = 0;
   virtual address stub_end() const = 0;
   bool stub_contains(address addr) const { return stub_begin() <= addr && addr < stub_end(); }
-  int stub_size() const { return stub_end() - stub_begin(); }
+  int stub_size() const {
+    return narrow_cast<int>(stub_end() - stub_begin());
+  }
 
   virtual address handler_table_begin() const = 0;
   virtual address handler_table_end() const = 0;
   bool handler_table_contains(address addr) const { return handler_table_begin() <= addr && addr < handler_table_end(); }
-  int handler_table_size() const { return handler_table_end() - handler_table_begin(); }
+  int handler_table_size() const {
+    return narrow_cast<int>(handler_table_end() - handler_table_begin());
+  }
 
   virtual address exception_begin() const = 0;
 
   virtual address nul_chk_table_begin() const = 0;
   virtual address nul_chk_table_end() const = 0;
   bool nul_chk_table_contains(address addr) const { return nul_chk_table_begin() <= addr && addr < nul_chk_table_end(); }
-  int nul_chk_table_size() const { return nul_chk_table_end() - nul_chk_table_begin(); }
+  int nul_chk_table_size() const {
+    return  narrow_cast<int>(nul_chk_table_end() - nul_chk_table_begin());
+  }
 
   virtual oop* oop_addr_at(int index) const = 0;
   virtual Metadata** metadata_addr_at(int index) const = 0;

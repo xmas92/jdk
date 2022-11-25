@@ -5298,7 +5298,8 @@ void ClassFileParser::fill_instance_klass(InstanceKlass* ik,
 
   assert(_field_info != NULL, "invariant");
   assert(ik->static_field_size() == _field_info->_static_field_size, "sanity");
-  assert(ik->nonstatic_oop_map_count() == _field_info->oop_map_blocks->_nonstatic_oop_map_count,
+  assert(static_cast<uint>(ik->nonstatic_oop_map_count()) ==
+         _field_info->oop_map_blocks->_nonstatic_oop_map_count,
          "sanity");
 
   assert(ik->is_instance_klass(), "sanity");

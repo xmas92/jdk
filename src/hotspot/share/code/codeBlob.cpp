@@ -59,16 +59,19 @@ const char* CodeBlob::compiler_name() const {
   return compilertype2name(_type);
 }
 
-unsigned int CodeBlob::align_code_offset(int offset) {
+int CodeBlob::align_code_offset(int offset) {
   // align the size to CodeEntryAlignment
   int header_size = (int)CodeHeap::header_size();
-  return align_up(offset + header_size, CodeEntryAlignment) - header_size;
+  // CodeEntryAlignment is limited by CodeCacheSegmentSize and
+  // can be represented by an int
+  const int alignment = narrow_cast<int>(CodeEntryAlignment);
+  return align_up(offset + header_size, alignment) - header_size;
 }
 
 
 // This must be consistent with the CodeBlob constructor's layout actions.
-unsigned int CodeBlob::allocation_size(CodeBuffer* cb, int header_size) {
-  unsigned int size = header_size;
+int CodeBlob::allocation_size(CodeBuffer* cb, int header_size) {
+  int size = header_size;
   size += align_up(cb->total_relocation_size(), oopSize);
   // align the size to CodeEntryAlignment
   size = align_code_offset(size);
@@ -231,7 +234,8 @@ void RuntimeBlob::trace_new_stub(RuntimeBlob* stub, const char* name1, const cha
 
 const ImmutableOopMap* CodeBlob::oop_map_for_return_address(address return_address) const {
   assert(_oop_maps != NULL, "nope");
-  return _oop_maps->find_map_at_offset((intptr_t) return_address - (intptr_t) code_begin());
+  const int offset = checked_cast<int>(return_address - code_begin());
+  return _oop_maps->find_map_at_offset(offset);
 }
 
 void CodeBlob::print_code() {
@@ -251,14 +255,14 @@ BufferBlob* BufferBlob::create(const char* name, int buffer_size) {
   ThreadInVMfromUnknown __tiv;  // get to VM state in case we block on CodeCache_lock
 
   BufferBlob* blob = NULL;
-  unsigned int size = sizeof(BufferBlob);
+  int size = sizeof(BufferBlob);
   // align the size to CodeEntryAlignment
   size = CodeBlob::align_code_offset(size);
   size += align_up(buffer_size, oopSize);
   assert(name != NULL, "must provide a name");
   {
     MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
-    blob = new (size) BufferBlob(name, size);
+    blob = new (static_cast<size_t>(size)) BufferBlob(name, size);
   }
   // Track memory usage statistic after releasing CodeCache_lock
   MemoryService::track_code_cache_memory_usage();

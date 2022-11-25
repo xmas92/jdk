@@ -57,7 +57,7 @@ bool java_lang_String::value_equals(typeArrayOop str_value1, typeArrayOop str_va
           (str_value1->length() == str_value2->length() &&
            (!memcmp(str_value1->base(T_BYTE),
                     str_value2->base(T_BYTE),
-                    str_value2->length() * sizeof(jbyte)))));
+                    static_cast<size_t>(str_value2->length()) * sizeof(jbyte)))));
 }
 
 typeArrayOop java_lang_String::value(oop java_string) {
@@ -222,11 +222,11 @@ inline oop java_lang_VirtualThread::vthread_scope() {
 
 #if INCLUDE_JFR
 inline u2 java_lang_Thread::jfr_epoch(oop ref) {
-  return ref->short_field(_jfr_epoch_offset);
+  return ref->char_field(_jfr_epoch_offset);
 }
 
 inline void java_lang_Thread::set_jfr_epoch(oop ref, u2 epoch) {
-  ref->short_field_put(_jfr_epoch_offset, epoch);
+  ref->char_field_put(_jfr_epoch_offset, epoch);
 }
 #endif // INCLUDE_JFR
 
@@ -307,7 +307,7 @@ inline size_t java_lang_Class::oop_size(oop java_class) {
   assert(_oop_size_offset != 0, "must be set");
   int size = java_class->int_field(_oop_size_offset);
   assert(size > 0, "Oop size must be greater than zero, not %d", size);
-  return size;
+  return static_cast<size_t>(size);
 }
 
 inline bool java_lang_invoke_DirectMethodHandle::is_instance(oop obj) {
@@ -321,30 +321,34 @@ inline bool java_lang_Module::is_instance(oop obj) {
 inline int Backtrace::merge_bci_and_version(int bci, int version) {
   // only store u2 for version, checking for overflow.
   if (version > USHRT_MAX || version < 0) version = USHRT_MAX;
-  assert((jushort)bci == bci, "bci should be short");
-  return build_int_from_shorts(version, bci);
+  const jushort low_bits = static_cast<jushort>(version);
+  const jushort high_bits = static_cast<jushort>(bci);
+  assert(high_bits == bci, "bci should be short");
+  return build_int_from_shorts(low_bits, high_bits);
 }
 
 inline int Backtrace::merge_mid_and_cpref(int mid, int cpref) {
   // only store u2 for mid and cpref, checking for overflow.
-  assert((jushort)mid == mid, "mid should be short");
-  assert((jushort)cpref == cpref, "cpref should be short");
-  return build_int_from_shorts(cpref, mid);
+  const jushort low_bits = static_cast<jushort>(cpref);
+  const jushort high_bits = static_cast<jushort>(mid);
+  assert(high_bits == mid, "mid should be short");
+  assert(low_bits == cpref, "cpref should be short");
+  return build_int_from_shorts(low_bits, high_bits);
 }
 
-inline int Backtrace::bci_at(unsigned int merged) {
+inline int Backtrace::bci_at(int merged) {
   return extract_high_short_from_int(merged);
 }
 
-inline int Backtrace::version_at(unsigned int merged) {
+inline int Backtrace::version_at(int merged) {
   return extract_low_short_from_int(merged);
 }
 
-inline int Backtrace::mid_at(unsigned int merged) {
+inline int Backtrace::mid_at(int merged) {
   return extract_high_short_from_int(merged);
 }
 
-inline int Backtrace::cpref_at(unsigned int merged) {
+inline int Backtrace::cpref_at(int merged) {
   return extract_low_short_from_int(merged);
 }
 

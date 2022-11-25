@@ -115,7 +115,9 @@ class CodeHeap : public CHeapObj<mtCode> {
   size_t   size_to_segments(size_t size) const { return (size + _segment_size - 1) >> _log2_segment_size; }
   size_t   segments_to_size(size_t number_of_segments) const { return number_of_segments << _log2_segment_size; }
 
-  size_t   segment_for(void* p) const            { return ((char*)p - _memory.low()) >> _log2_segment_size; }
+  size_t   segment_for(void* p) const            {
+    return static_cast<size_t>(((char*)p - _memory.low()) >> _log2_segment_size);
+  }
   bool     is_segment_unused(int val) const      { return val == free_sentinel; }
   void*    address_for(size_t i) const           { return (void*)(_memory.low() + segments_to_size(i)); }
   void*    find_block_for(void* p) const;

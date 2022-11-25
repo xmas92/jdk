@@ -75,10 +75,10 @@ class MethodCounters : public Metadata {
       _interpreter_throwout_count++;
     }
   }
-  int  interpreter_throwout_count() const {
+  u2 interpreter_throwout_count() const {
     return _interpreter_throwout_count;
   }
-  void set_interpreter_throwout_count(int count) {
+  void set_interpreter_throwout_count(u2 count) {
     _interpreter_throwout_count = count;
   }
 #else // COMPILER2_OR_JVMCI
@@ -104,10 +104,10 @@ class MethodCounters : public Metadata {
   float rate() const                             { return _rate; }
   void set_rate(float rate)                      { _rate = rate; }
 
-  int highest_comp_level() const                 { return _highest_comp_level;  }
-  void set_highest_comp_level(int level)         { _highest_comp_level = level; }
-  int highest_osr_comp_level() const             { return _highest_osr_comp_level;  }
-  void set_highest_osr_comp_level(int level)     { _highest_osr_comp_level = level; }
+  u1 highest_comp_level() const                 { return _highest_comp_level;  }
+  void set_highest_comp_level(u1 level)         { _highest_comp_level = level; }
+  u1 highest_osr_comp_level() const             { return _highest_osr_comp_level;  }
+  void set_highest_osr_comp_level(u1 level)     { _highest_osr_comp_level = level; }
 
   // invocation counter
   InvocationCounter* invocation_counter() { return &_invocation_counter; }

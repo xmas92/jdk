@@ -123,8 +123,12 @@ class ConstantPool : public Metadata {
   } _saved;
 
   void set_tags(Array<u1>* tags)               { _tags = tags; }
-  void tag_at_put(int which, jbyte t)          { tags()->at_put(which, t); }
-  void release_tag_at_put(int which, jbyte t)  { tags()->release_at_put(which, t); }
+  void tag_at_put(int which, jbyte t)          {
+    tags()->at_put(which, static_cast<u1>(t));
+  }
+  void release_tag_at_put(int which, jbyte t)  {
+    tags()->release_at_put(which, static_cast<u1>(t));
+  }
 
   u1* tag_addr_at(int which) const             { return tags()->adr_at(which); }
 
@@ -294,8 +298,8 @@ class ConstantPool : public Metadata {
   void unresolved_klass_at_put(int which, int name_index, int resolved_klass_index) {
     release_tag_at_put(which, JVM_CONSTANT_UnresolvedClass);
 
-    assert((name_index & 0xffff0000) == 0, "must be");
-    assert((resolved_klass_index & 0xffff0000) == 0, "must be");
+    assert((static_cast<uint>(name_index) & 0xffff0000) == 0, "must be");
+    assert((static_cast<uint>(resolved_klass_index) & 0xffff0000) == 0, "must be");
     *int_at_addr(which) =
       build_int_from_shorts((jushort)resolved_klass_index, (jushort)name_index);
   }
@@ -393,7 +397,9 @@ class ConstantPool : public Metadata {
 
   // Tag query
 
-  constantTag tag_at(int which) const { return (constantTag)tags()->at_acquire(which); }
+  constantTag tag_at(int which) const {
+    return constantTag{static_cast<jbyte>(tags()->at_acquire(which))};
+  }
 
   // Fetching constants
 
@@ -558,8 +564,10 @@ class ConstantPool : public Metadata {
   static void operand_offset_at_put(Array<u2>* operands, int bsms_attribute_index, int offset) {
     int n = bsms_attribute_index * 2;
     assert(n >= 0 && n+2 <= operands->length(), "oob");
-    operands->at_put(n+0, extract_low_short_from_int(offset));
-    operands->at_put(n+1, extract_high_short_from_int(offset));
+    const u2 low_bits = static_cast<u2>(extract_low_short_from_int(offset));
+    const u2 high_bits = static_cast<u2>(extract_high_short_from_int(offset));
+    operands->at_put(n+0, low_bits);
+    operands->at_put(n+1, high_bits);
   }
   static int operand_array_length(Array<u2>* operands) {
     if (operands == NULL || operands->length() == 0)  return 0;

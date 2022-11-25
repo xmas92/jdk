@@ -301,7 +301,7 @@ MethodParametersElement* ConstMethod::method_parameters_start() const {
 }
 
 
-int ConstMethod::checked_exceptions_length() const {
+u2 ConstMethod::checked_exceptions_length() const {
   return has_checked_exceptions() ? *(checked_exceptions_length_addr()) : 0;
 }
 
@@ -315,7 +315,7 @@ CheckedExceptionElement* ConstMethod::checked_exceptions_start() const {
 }
 
 
-int ConstMethod::localvariable_table_length() const {
+u2 ConstMethod::localvariable_table_length() const {
   return has_localvariable_table() ? *(localvariable_table_length_addr()) : 0;
 }
 
@@ -328,7 +328,7 @@ LocalVariableTableElement* ConstMethod::localvariable_table_start() const {
   return (LocalVariableTableElement*) addr;
 }
 
-int ConstMethod::exception_table_length() const {
+u2 ConstMethod::exception_table_length() const {
   return has_exception_handler() ? *(exception_table_length_addr()) : 0;
 }
 

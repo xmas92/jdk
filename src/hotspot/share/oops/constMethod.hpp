@@ -308,15 +308,15 @@ public:
   }
 
   // name
-  int name_index() const                         { return _name_index; }
-  void set_name_index(int index)                 { _name_index = index; }
+  u2 name_index() const                         { return _name_index; }
+  void set_name_index(u2 index)                  { _name_index = index; }
 
   // signature
-  int signature_index() const                    { return _signature_index; }
-  void set_signature_index(int index)            { _signature_index = index; }
+  u2 signature_index() const                    { return _signature_index; }
+  void set_signature_index(u2 index)            { _signature_index = index; }
 
   // generics support
-  int generic_signature_index() const            {
+  u2 generic_signature_index() const            {
     if (has_generic_signature()) {
       return *generic_signature_index_addr();
     } else {
@@ -349,7 +349,7 @@ public:
     assert(max_method_code_size < (1 << 16),
            "u2 is too small to hold method code size in general");
     assert(0 <= size && size <= max_method_code_size, "invalid code size");
-    _code_size = size;
+    _code_size = narrow_cast<u2>(size);
   }
 
   // linenumber table - note that length is unknown until decompression,
@@ -362,15 +362,15 @@ public:
   u2* method_parameters_length_addr() const;
 
   // checked exceptions
-  int checked_exceptions_length() const;
+  u2 checked_exceptions_length() const;
   CheckedExceptionElement* checked_exceptions_start() const;
 
   // localvariable table
-  int localvariable_table_length() const;
+  u2 localvariable_table_length() const;
   LocalVariableTableElement* localvariable_table_start() const;
 
   // exception table
-  int exception_table_length() const;
+  u2 exception_table_length() const;
   ExceptionTableElement* exception_table_start() const;
 
   // method parameters table
@@ -447,7 +447,7 @@ public:
   // byte codes
   void    set_code(address code) {
     if (code_size() > 0) {
-      memcpy(code_base(), code, code_size());
+      memcpy(code_base(), code, static_cast<size_t>(code_size()));
     }
   }
   address code_base() const            { return (address) (this+1); }
@@ -481,20 +481,20 @@ public:
   void set_orig_method_idnum(u2 idnum)           { _orig_method_idnum = idnum; }
 
   // max stack
-  int  max_stack() const                         { return _max_stack; }
-  void set_max_stack(int size)                   { _max_stack = size; }
+  u2  max_stack() const                         { return _max_stack; }
+  void set_max_stack(u2 size)                    { _max_stack = size; }
 
   // max locals
-  int  max_locals() const                        { return _max_locals; }
-  void set_max_locals(int size)                  { _max_locals = size; }
+  u2  max_locals() const                        { return _max_locals; }
+  void set_max_locals(u2 size)                   { _max_locals = size; }
 
   // size of parameters
-  int  size_of_parameters() const                { return _size_of_parameters; }
-  void set_size_of_parameters(int size)          { _size_of_parameters = size; }
+  u2  size_of_parameters() const                { return _size_of_parameters; }
+  void set_size_of_parameters(u2 size)           { _size_of_parameters = size; }
 
   // Number of arguments passed on the stack even when compiled
-  int  num_stack_arg_slots() const               { return _num_stack_arg_slots; }
-  void set_num_stack_arg_slots(int n)            { _num_stack_arg_slots = n; }
+  u2  num_stack_arg_slots() const               { return _num_stack_arg_slots; }
+  void set_num_stack_arg_slots(u2 n)             { _num_stack_arg_slots = n; }
 
   // result type (basic type of return value)
   BasicType result_type() const                  { assert(_result_type >= T_BOOLEAN, "Must be set");

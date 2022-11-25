@@ -123,11 +123,11 @@ class Symbol : public MetaspaceObj {
 
   static int byte_size(int length) {
     // minimum number of natural words needed to hold these bits (no non-heap version)
-    return (int)(sizeof(Symbol) + (length > 2 ? length - 2 : 0));
+    return ((int)sizeof(Symbol) + (length > 2 ? length - 2 : 0));
   }
   static int size(int length) {
     // minimum number of natural words needed to hold these bits (no non-heap version)
-    return (int)heap_word_size(byte_size(length));
+    return (int)heap_word_size(static_cast<size_t>(byte_size(length)));
   }
 
   Symbol(const u1* name, int length, int refcount);
@@ -155,9 +155,12 @@ class Symbol : public MetaspaceObj {
   // Returns the largest size symbol we can safely hold.
   static int max_length() { return max_symbol_length; }
   unsigned identity_hash() const {
-    unsigned addr_bits = (unsigned)((uintptr_t)this >> LogBytesPerWord);
-    return ((unsigned)extract_hash(_hash_and_refcount) & 0xffff) |
-           ((addr_bits ^ (length() << 8) ^ (( _body[0] << 8) | _body[1])) << 16);
+    const uint addr_bits = narrow_cast<uint>(
+        reinterpret_cast<uintptr_t>(this) >> LogBytesPerWord);
+    const uint length_bits = static_cast<uint>(length() << 8);
+    const uint body_bits = static_cast<uint>(( _body[0] << 8) | _body[1]);
+    return (extract_hash(_hash_and_refcount) & 0xffff) |
+           ((addr_bits ^ length_bits ^ body_bits) << 16);
   }
 
   // Reference counting.  See comments above this class for when to use.
@@ -212,7 +215,8 @@ class Symbol : public MetaspaceObj {
     return starts_with(prefix, (int) strlen(prefix));
   }
   bool starts_with(int prefix_char) const {
-    return contains_byte_at(0, prefix_char);
+    precond(prefix_char >= 0 && prefix_char <= max_jubyte);
+    return contains_byte_at(0, narrow_cast<char>(prefix_char));
   }
   // Tests if the symbol ends with the given suffix.
   bool ends_with(const char* suffix, int len) const {
@@ -222,7 +226,8 @@ class Symbol : public MetaspaceObj {
     return ends_with(suffix, (int) strlen(suffix));
   }
   bool ends_with(int suffix_char) const {
-    return contains_byte_at(utf8_length() - 1, suffix_char);
+    precond(suffix_char >= 0 && suffix_char <= max_jubyte);
+    return contains_byte_at(utf8_length() - 1, narrow_cast<char>(suffix_char));
   }
 
   // Tests if the symbol contains the given utf8 substring
@@ -231,7 +236,8 @@ class Symbol : public MetaspaceObj {
     assert(len >= 0 && substring != NULL, "substring must be valid");
     if (position < 0)  return false;  // can happen with ends_with
     if (position + len > utf8_length()) return false;
-    return (memcmp((char*)base() + position, substring, len) == 0);
+    return (memcmp((char*)base() + position, substring,
+                   static_cast<size_t>(len)) == 0);
   }
 
   // Tests if the symbol contains the given byte at the given position.

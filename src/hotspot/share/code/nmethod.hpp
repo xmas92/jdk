@@ -144,18 +144,20 @@ class nmethod : public CompiledMethod {
   static const uint claim_strong_request_tag = 2;
   static const uint claim_strong_done_tag = 3;
 
+  static const size_t mark_link_tag_mask = 0x3;
+
   static oops_do_mark_link* mark_link(nmethod* nm, uint tag) {
     assert(tag <= claim_strong_done_tag, "invalid tag %u", tag);
-    assert(is_aligned(nm, 4), "nmethod pointer must have zero lower two LSB");
-    return (oops_do_mark_link*)(((uintptr_t)nm & ~0x3) | tag);
+    assert(is_aligned(nm, 4u), "nmethod pointer must have zero lower two LSB");
+    return (oops_do_mark_link*)((uintptr_t)nm | tag);
   }
 
   static uint extract_state(oops_do_mark_link* link) {
-    return (uint)((uintptr_t)link & 0x3);
+    return (uint)((uintptr_t)link & mark_link_tag_mask);
   }
 
   static nmethod* extract_nmethod(oops_do_mark_link* link) {
-    return (nmethod*)((uintptr_t)link & ~0x3);
+    return (nmethod*)((uintptr_t)link & ~mark_link_tag_mask);
   }
 
   void oops_do_log_change(const char* state);
@@ -221,7 +223,9 @@ class nmethod : public CompiledMethod {
 #endif
   int _nmethod_end_offset;
 
-  int code_offset() const { return (address) code_begin() - header_begin(); }
+  int code_offset() const {
+    return narrow_cast<int>(code_begin() - header_begin());
+  }
 
   // location in frame (offset for sp) that deopt can store the original
   // pc during a deopt.
@@ -315,7 +319,9 @@ class nmethod : public CompiledMethod {
   void init_defaults();
 
   // Offsets
-  int content_offset() const                  { return content_begin() - header_begin(); }
+  int content_offset() const {
+    return narrow_cast<int>(content_begin() - header_begin());
+  }
   int data_offset() const                     { return _data_offset; }
 
   address header_end() const                  { return (address)    header_begin() + header_size(); }
@@ -400,12 +406,22 @@ class nmethod : public CompiledMethod {
 #endif
 
   // Sizes
-  int oops_size         () const                  { return (address)  oops_end         () - (address)  oops_begin         (); }
-  int metadata_size     () const                  { return (address)  metadata_end     () - (address)  metadata_begin     (); }
-  int dependencies_size () const                  { return            dependencies_end () -            dependencies_begin (); }
+  int oops_size         () const {
+    return narrow_cast<int>((address)  oops_end         () - (address)  oops_begin         ());
+  }
+  int metadata_size     () const {
+    return narrow_cast<int>((address)  metadata_end     () - (address)  metadata_begin     ());
+  }
+  int dependencies_size () const {
+    return narrow_cast<int>(dependencies_end () -            dependencies_begin ());
+  }
 #if INCLUDE_JVMCI
-  int speculations_size () const                  { return            speculations_end () -            speculations_begin (); }
-  int jvmci_data_size   () const                  { return            jvmci_data_end   () -            jvmci_data_begin   (); }
+  int speculations_size () const {
+    return narrow_cast<int>(speculations_end () -            speculations_begin ());
+  }
+  int jvmci_data_size   () const {
+    return narrow_cast<int>(jvmci_data_end   () -            jvmci_data_begin   ());
+  }
 #endif
 
   int     oops_count() const { assert(oops_size() % oopSize == 0, "");  return (oops_size() / oopSize) + 1; }

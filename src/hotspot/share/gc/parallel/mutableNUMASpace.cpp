@@ -29,6 +29,7 @@
 #include "gc/shared/spaceDecorator.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/typeArrayOop.hpp"
 #include "runtime/atomic.hpp"
@@ -257,8 +258,9 @@ bool MutableNUMASpace::update_layout(bool force) {
   if (force || changed) {
     // Compute lgrp intersection. Add/remove spaces.
     int lgrp_limit = (int)os::numa_get_groups_num();
-    int *lgrp_ids = NEW_C_HEAP_ARRAY(int, lgrp_limit, mtGC);
-    int lgrp_num = (int)os::numa_get_leaf_groups(lgrp_ids, lgrp_limit);
+    // candidate: manual
+    ManagedCHeapArray<int>lgrp_ids = make_managed_c_heap_array_default_init<int>(lgrp_limit, mtGC);
+    int lgrp_num = (int)os::numa_get_leaf_groups(lgrp_ids.get(), lgrp_limit);
     assert(lgrp_num > 0, "There should be at least one locality group");
     // Add new spaces for the new nodes
     for (int i = 0; i < lgrp_num; i++) {
@@ -290,8 +292,6 @@ bool MutableNUMASpace::update_layout(bool force) {
         i++;
       }
     }
-
-    FREE_C_HEAP_ARRAY(int, lgrp_ids);
 
     if (changed) {
       for (JavaThreadIteratorWithHandle jtiwh; JavaThread *thread = jtiwh.next(); ) {

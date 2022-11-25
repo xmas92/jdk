@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_SHARED_GENERATIONCOUNTERS_HPP
 #define SHARE_GC_SHARED_GENERATIONCOUNTERS_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "memory/virtualspace.hpp"
 #include "runtime/perfDataTypes.hpp"
 
@@ -50,7 +51,7 @@ private:
   // PerfConstant*           _max_size;
   // PerfConstant*           _spaces;
 
-  char*              _name_space;
+  ManagedCHeapArray<char> _name_space;
 
   // This constructor is only meant for use with the PSGenerationCounters
   // constructor. The need for such an constructor should be eliminated
@@ -68,11 +69,11 @@ private:
   GenerationCounters(const char* name, int ordinal, int spaces,
                      size_t min_capacity, size_t max_capacity, VirtualSpace* v);
 
-  ~GenerationCounters();
+  ~GenerationCounters() = default;
 
   virtual void update_all();
 
-  const char* name_space() const        { return _name_space; }
+  const char* name_space() const        { return _name_space.get(); }
 
 };
 #endif // SHARE_GC_SHARED_GENERATIONCOUNTERS_HPP

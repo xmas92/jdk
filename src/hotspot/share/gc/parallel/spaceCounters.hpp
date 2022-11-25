@@ -27,6 +27,7 @@
 
 #include "gc/parallel/mutableSpace.hpp"
 #include "gc/shared/generationCounters.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/perfData.hpp"
 #include "utilities/macros.hpp"
 
@@ -45,14 +46,14 @@ class SpaceCounters: public CHeapObj<mtGC> {
   // PerfConstant*     _size;
 
   MutableSpace*     _object_space;
-  char*             _name_space;
+  ManagedCHeapArray<char> _name_space;
 
  public:
 
   SpaceCounters(const char* name, int ordinal, size_t max_size,
                 MutableSpace* m, GenerationCounters* gc);
 
-  ~SpaceCounters();
+  ~SpaceCounters() = default;
 
   inline void update_capacity() {
     _capacity->set_value(_object_space->capacity_in_bytes());
@@ -65,7 +66,7 @@ class SpaceCounters: public CHeapObj<mtGC> {
     update_capacity();
   }
 
-  const char* name_space() const        { return _name_space; }
+  const char* name_space() const        { return _name_space.get(); }
 };
 
 class MutableSpaceUsedHelper: public PerfLongSampleHelper {

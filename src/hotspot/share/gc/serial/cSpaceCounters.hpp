@@ -27,6 +27,7 @@
 
 #include "gc/shared/generationCounters.hpp"
 #include "gc/shared/space.hpp"
+#include "memory/allocationManaged.hpp"
 #include "runtime/perfData.hpp"
 
 // A CSpaceCounters is a holder class for performance counters
@@ -45,20 +46,20 @@ class CSpaceCounters: public CHeapObj<mtGC> {
   // PerfConstant*     _size;
 
   ContiguousSpace*     _space;
-  char*                _name_space;
+  ManagedCHeapArray<char> _name_space;
 
  public:
 
   CSpaceCounters(const char* name, int ordinal, size_t max_size,
                  ContiguousSpace* s, GenerationCounters* gc);
 
-  ~CSpaceCounters();
+  ~CSpaceCounters() = default;
 
   void update_capacity();
   void update_used();
   void update_all();
 
-  const char* name_space() const        { return _name_space; }
+  const char* name_space() const        { return _name_space.get(); }
 };
 
 class ContiguousSpaceUsedHelper : public PerfLongSampleHelper {

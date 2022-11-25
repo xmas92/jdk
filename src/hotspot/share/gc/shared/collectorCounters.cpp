@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "gc/shared/collectorCounters.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/os.hpp"
 
@@ -36,34 +37,33 @@ CollectorCounters::CollectorCounters(const char* name, int ordinal) {
 
     const char* cns = PerfDataManager::name_space("collector", ordinal);
 
-    _name_space = NEW_C_HEAP_ARRAY(char, strlen(cns)+1, mtGC);
-    strcpy(_name_space, cns);
+    // candidate: c-d
+    const size_t len = strlen(cns) + 1;
+    _name_space = make_managed_c_heap_array_default_init<char>(len, mtGC);
+    strncpy(_name_space.get(), cns, len);
+    _name_space[len-1] = '\0';
 
-    char* cname = PerfDataManager::counter_name(_name_space, "name");
+    char* cname = PerfDataManager::counter_name(_name_space.get(), "name");
     PerfDataManager::create_string_constant(SUN_GC, cname, name, CHECK);
 
-    cname = PerfDataManager::counter_name(_name_space, "invocations");
+    cname = PerfDataManager::counter_name(_name_space.get(), "invocations");
     _invocations = PerfDataManager::create_counter(SUN_GC, cname,
                                                    PerfData::U_Events, CHECK);
 
-    cname = PerfDataManager::counter_name(_name_space, "time");
+    cname = PerfDataManager::counter_name(_name_space.get(), "time");
     _time = PerfDataManager::create_counter(SUN_GC, cname, PerfData::U_Ticks,
                                             CHECK);
 
-    cname = PerfDataManager::counter_name(_name_space, "lastEntryTime");
+    cname = PerfDataManager::counter_name(_name_space.get(), "lastEntryTime");
     _last_entry_time = PerfDataManager::create_variable(SUN_GC, cname,
                                                         PerfData::U_Ticks,
                                                         CHECK);
 
-    cname = PerfDataManager::counter_name(_name_space, "lastExitTime");
+    cname = PerfDataManager::counter_name(_name_space.get(), "lastExitTime");
     _last_exit_time = PerfDataManager::create_variable(SUN_GC, cname,
                                                        PerfData::U_Ticks,
                                                        CHECK);
   }
-}
-
-CollectorCounters::~CollectorCounters() {
-  FREE_C_HEAP_ARRAY(char, _name_space);
 }
 
 TraceCollectorStats::TraceCollectorStats(CollectorCounters* c) :

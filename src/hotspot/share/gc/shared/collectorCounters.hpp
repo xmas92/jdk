@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_SHARED_COLLECTORCOUNTERS_HPP
 #define SHARE_GC_SHARED_COLLECTORCOUNTERS_HPP
 
+#include "memory/allocationManaged.hpp"
 #include "runtime/perfData.hpp"
 
 // CollectorCounters is a holder class for performance counters
@@ -43,13 +44,13 @@ class CollectorCounters: public CHeapObj<mtGC> {
     // However, it's a good idea to document them here.
     // PerfStringConstant*     _name;
 
-    char*             _name_space;
+    ManagedCHeapArray<char> _name_space;
 
   public:
 
     CollectorCounters(const char* name, int ordinal);
 
-    ~CollectorCounters();
+    ~CollectorCounters() = default;
 
     inline PerfCounter* invocation_counter() const  { return _invocations; }
 
@@ -59,7 +60,7 @@ class CollectorCounters: public CHeapObj<mtGC> {
 
     inline PerfVariable* last_exit_counter() const  { return _last_exit_time; }
 
-    const char* name_space() const                  { return _name_space; }
+    const char* name_space() const                  { return _name_space.get(); }
 };
 
 class TraceCollectorStats: public PerfTraceTimedEvent {

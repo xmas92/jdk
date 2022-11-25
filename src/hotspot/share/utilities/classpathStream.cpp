@@ -31,7 +31,7 @@ const char* ClasspathStream::get_next() {
   while (_class_path[_end] != '\0' && _class_path[_end] != os::path_separator()[0]) {
     _end++;
   }
-  int path_len = _end - _start;
+  size_t path_len = static_cast<size_t>(_end - _start);
   char* path = NEW_RESOURCE_ARRAY(char, path_len + 1);
   strncpy(path, &_class_path[_start], path_len);
   path[path_len] = '\0';

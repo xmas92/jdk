@@ -63,6 +63,7 @@
 #include "gc/shared/workerThread.hpp"
 #include "gc/shared/workerUtils.hpp"
 #include "logging/log.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/iterator.inline.hpp"
 #include "memory/metaspaceUtils.hpp"
 #include "memory/resourceArea.hpp"
@@ -2222,14 +2223,14 @@ class TaskQueue : StackObj {
   volatile uint _counter;
   uint _size;
   uint _insert_index;
-  PSParallelCompact::UpdateDensePrefixTask* _backing_array;
+  ManagedCHeapObj<PSParallelCompact::UpdateDensePrefixTask[]> _backing_array;
 public:
-  explicit TaskQueue(uint size) : _counter(0), _size(size), _insert_index(0), _backing_array(NULL) {
-    _backing_array = NEW_C_HEAP_ARRAY(PSParallelCompact::UpdateDensePrefixTask, _size, mtGC);
+  explicit TaskQueue(uint size) : _counter(0), _size(size), _insert_index(0), _backing_array() {
+    // candidate: c-d
+    _backing_array = new PSParallelCompact::UpdateDensePrefixTask[_size];
   }
   ~TaskQueue() {
     assert(_counter >= _insert_index, "not all queue elements were claimed");
-    FREE_C_HEAP_ARRAY(T, _backing_array);
   }
 
   void push(const PSParallelCompact::UpdateDensePrefixTask& value) {

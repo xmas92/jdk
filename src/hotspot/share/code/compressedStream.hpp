@@ -26,6 +26,8 @@
 #define SHARE_CODE_COMPRESSEDSTREAM_HPP
 
 #include "memory/allocation.hpp"
+#include "metaprogramming/enableIf.hpp"
+#include "metaprogramming/isIntegral.hpp"
 #include "utilities/unsigned5.hpp"
 
 // Simple interface for filing out and filing in basic types
@@ -107,9 +109,12 @@ class CompressedWriteStream : public CompressedStream {
 
   // Only use for jint which are known to always be positive,
   // otherwise use write_signed_int
-  void write_int(jint value) { write_int(static_cast<juint>(value)); }
-  void write_int(juint value) {
-    UNSIGNED5::write_uint_grow(value, _buffer, _position, _size,
+  template<typename T,
+           ENABLE_IF((IsIntegral<T>::value || std::is_enum<T>::value) &&
+                     sizeof(T) <= sizeof(juint))>
+  void write_int(T value) {
+    const juint val = static_cast<juint>(value);
+    UNSIGNED5::write_uint_grow(val, _buffer, _position, _size,
                                [&](uint){ grow(); });
   }
 };

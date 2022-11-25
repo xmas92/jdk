@@ -110,15 +110,15 @@ inline T align_metadata_size(T size) {
 // Align objects in the Java Heap by rounding up their size, in HeapWord units.
 template <typename T>
 inline T align_object_size(T word_size) {
-  return align_up(word_size, static_cast<size_t>(MinObjAlignment));
+  return align_up(word_size, static_cast<T>(MinObjAlignment));
 }
 
 inline bool is_object_aligned(size_t word_size) {
-  return is_aligned(word_size, static_cast<size_t>(MinObjAlignment));
+  return is_aligned(word_size, static_cast<uint>(MinObjAlignment));
 }
 
 inline bool is_object_aligned(const void* addr) {
-  return is_aligned(addr, static_cast<size_t>(MinObjAlignmentInBytes));
+  return is_aligned(addr, static_cast<uint>(MinObjAlignmentInBytes));
 }
 
 // Pad out certain offsets to jlong alignment, in HeapWord units.

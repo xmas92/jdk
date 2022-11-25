@@ -272,7 +272,7 @@ private:
 //
 
 #define GENERATE_VM_LONG_CONSTANT_ENTRY(name) \
-  { QUOTE(name), name },
+  { QUOTE(name), static_cast<uint64_t>(name) },
 
 #define GENERATE_PREPROCESSOR_VM_LONG_CONSTANT_ENTRY(name, value) \
   { name, value },

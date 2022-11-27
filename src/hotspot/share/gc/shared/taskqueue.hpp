@@ -26,6 +26,7 @@
 #define SHARE_GC_SHARED_TASKQUEUE_HPP
 
 #include "memory/allocation.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/padded.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "runtime/atomic.hpp"
@@ -478,7 +479,7 @@ public:
 
 private:
   uint _n;
-  T** _queues;
+  ManagedCHeapArray<T*> _queues;
 
   // Attempts to steal an element from a foreign queue (!= queue_num), setting
   // the result in t. Validity of this value and the return value is the same
@@ -487,7 +488,7 @@ private:
 
 public:
   GenericTaskQueueSet(uint n);
-  ~GenericTaskQueueSet();
+  ~GenericTaskQueueSet() = default;
 
   // Set the i'th queue to the provided queue.
   // Does not transfer ownership of the queue to this queue set.

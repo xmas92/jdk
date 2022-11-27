@@ -30,6 +30,7 @@
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/allocationManaged.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
@@ -41,15 +42,8 @@
 template <class T, MEMFLAGS F>
 inline GenericTaskQueueSet<T, F>::GenericTaskQueueSet(uint n) : _n(n) {
   typedef T* GenericTaskQueuePtr;
-  _queues = NEW_C_HEAP_ARRAY(GenericTaskQueuePtr, n, F);
-  for (uint i = 0; i < n; i++) {
-    _queues[i] = NULL;
-  }
-}
-
-template <class T, MEMFLAGS F>
-inline GenericTaskQueueSet<T, F>::~GenericTaskQueueSet() {
-  FREE_C_HEAP_ARRAY(T*, _queues);
+  // candidate: c-d
+  _queues = make_managed_c_heap_array_value_init<GenericTaskQueuePtr>(n, F);
 }
 
 #if TASKQUEUE_STATS

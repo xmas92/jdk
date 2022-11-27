@@ -315,7 +315,7 @@ public:
   static uint assign_compile_id_unlocked(Thread* thread, const methodHandle& method, int osr_bci);
 
   static void compiler_thread_loop();
-  static uint get_compilation_id() { return _compilation_id; }
+  static uint get_compilation_id() { return static_cast<uint>(_compilation_id); }
 
   // Set _should_block.
   // Call this from the VM, with Threads_lock held and a safepoint requested.

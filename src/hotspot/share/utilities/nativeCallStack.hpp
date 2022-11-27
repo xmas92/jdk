@@ -62,7 +62,7 @@ public:
 
   enum class FakeMarker { its_fake };
 #ifdef ASSERT
-  static constexpr uintptr_t _fake_address = -2; // 0xFF...FE
+  static constexpr uintptr_t _fake_address = -2ul; // 0xFF...FE
   inline void assert_not_fake() const {
     assert(_stack[0] != (address)_fake_address, "Must not be a fake stack");
   }
@@ -120,7 +120,7 @@ public:
     for (int i = 0; i < NMT_TrackingStackDepth; i++) {
       hash += (uintptr_t)_stack[i];
     }
-    return hash;
+    return narrow_cast<uint>(hash);
   }
 
   void print_on(outputStream* out) const;

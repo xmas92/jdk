@@ -125,12 +125,13 @@ class UNSIGNED5 : AllStatic {
     // must collect more bytes:  b[1]...b[4]
     int lg_H_i = lg_H;  // lg(H)*i == lg(H^^i)
     for (int i = 1; ; i++) {  // for i in [1..4]
-      assert(limit == 0 || pos + i < limit, "oob");
-      const uint32_t b_i = (uint8_t) get(array, pos + i);  //b_i = a[i]
+      const OFF array_i = pos + static_cast<OFF>(i);
+      assert(limit == 0 || array_i < limit, "oob");
+      const uint32_t b_i = (uint8_t) get(array, array_i);  //b_i = a[i]
       assert(b_i >= X, "avoid excluded bytes");
       sum += (b_i - X) << lg_H_i;  // sum += (b[i]-X)*(64^^i)
       if (b_i < X+L || i == MAX_LENGTH-1) {
-        offset_rw = pos + i + 1;
+        offset_rw = array_i + 1;
         return sum;
       }
       lg_H_i += lg_H;
@@ -224,8 +225,9 @@ class UNSIGNED5 : AllStatic {
     }
     // parse more bytes:  b[1]...b[4]
     for (int i = 1; ; i++) {  // for i in [1..4]
-      if (limit != 0 && pos + i >= limit)  return 0;  // limit failure
-      const uint32_t b_i = (uint8_t) get(array, pos + i);  //b_i = a[i]
+      const OFF array_i = pos + static_cast<OFF>(i);
+      if (limit != 0 && array_i >= limit)  return 0;  // limit failure
+      const uint32_t b_i = (uint8_t) get(array, array_i);  //b_i = a[i]
       if (b_i < X)  return 0;  // excluded byte found
       if (b_i < X+L || i == MAX_LENGTH-1) {
         return i + 1;

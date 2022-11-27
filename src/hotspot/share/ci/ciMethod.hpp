@@ -123,7 +123,7 @@ class ciMethod : public ciMetadata {
     Bytecodes::check(code);
     assert(0 <= bci && bci < code_size(), "valid bci");
     address bcp = _code + bci;
-    *bcp = code;
+    *bcp = narrow_cast<u_char>(code);
   }
 
   // Check bytecode and profile data collected are compatible

@@ -64,14 +64,21 @@ class ICStub: public Stub {
 
   // ICStub_from_destination_address looks up Stub* address from code entry address,
   // which unfortunately means the stub head should be at the same alignment as the code.
-  static  int alignment()                        { return CodeEntryAlignment; }
+  static  int alignment() {
+    // CodeEntryAlignment is limited by CodeCacheSegmentSize and
+    // can be represented by an int
+    return narrow_cast<int>(CodeEntryAlignment);
+  }
 
  public:
   // Creation
   void set_stub(CompiledIC *ic, void* cached_value, address dest_addr);
 
   // Code info
-  address code_begin() const                     { return align_up((address)this + sizeof(ICStub), CodeEntryAlignment); }
+  address code_begin() const{
+    return align_up((address)this + sizeof(ICStub),
+                    static_cast<uintx>(CodeEntryAlignment));
+  }
   address code_end() const                       { return (address)this + size(); }
 
   // Call site info
@@ -93,7 +100,8 @@ class ICStub: public Stub {
 
 // ICStub Creation
 inline ICStub* ICStub_from_destination_address(address destination_address) {
-  ICStub* stub = (ICStub*) (destination_address - align_up(sizeof(ICStub), CodeEntryAlignment));
+  const size_t offset = align_up(sizeof(ICStub), static_cast<uintx>(CodeEntryAlignment));
+  ICStub* stub = (ICStub*) (destination_address - offset);
   #ifdef ASSERT
   stub->verify();
   #endif

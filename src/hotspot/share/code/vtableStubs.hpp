@@ -131,7 +131,7 @@ class VtableStub {
   void* operator new(size_t size, int code_size) throw();
 
   VtableStub(bool is_vtable_stub, int index)
-        : _next(NULL), _index(index), _ame_offset(-1), _npe_offset(-1),
+        : _next(NULL), _index(checked_cast<short>(index)), _ame_offset(-1), _npe_offset(-1),
           _is_vtable_stub(is_vtable_stub) {}
   VtableStub* next() const                       { return _next; }
   int index() const                              { return _index; }
@@ -151,8 +151,8 @@ class VtableStub {
 
  private:
   void set_exception_points(address npe_addr, address ame_addr) {
-    _npe_offset = npe_addr - code_begin();
-    _ame_offset = ame_addr - code_begin();
+    _npe_offset = checked_cast<short>(npe_addr - code_begin());
+    _ame_offset = checked_cast<short>(ame_addr - code_begin());
     assert(is_abstract_method_error(ame_addr),   "offset must be correct");
     assert(is_null_pointer_exception(npe_addr),  "offset must be correct");
     assert(!is_abstract_method_error(npe_addr),  "offset must be correct");
@@ -165,8 +165,9 @@ class VtableStub {
   // static bool pd_disregard_arg_size();
 
   static void align_chunk() {
-    uintptr_t off = (uintptr_t)( _chunk + sizeof(VtableStub) ) % pd_code_alignment();
-    if (off != 0)  _chunk += pd_code_alignment() - off;
+    const uint aligment = static_cast<uint>(pd_code_alignment());
+    uintptr_t off = (uintptr_t)( _chunk + sizeof(VtableStub) ) % aligment;
+    if (off != 0)  _chunk += aligment - off;
   }
 
  public:

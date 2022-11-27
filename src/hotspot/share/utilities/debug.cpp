@@ -163,7 +163,7 @@ bool error_is_suppressed(const char* file_name, int line_no) {
     if ((*cp) == '\0')  break;
     sfile = cp;
     while ((*cp) != '\0' && !is_token_break(*cp) && (*cp) != ':')  cp++;
-    sfile_len = cp - sfile;
+    sfile_len = narrow_cast<int>(cp - sfile);
     if ((*cp) == ':')  cp++;
     sline = 0;
     while ((*cp) != '\0' && isdigit(*cp)) {
@@ -305,7 +305,7 @@ void report_fatal(VMErrorType error_type, const char* file, int line, const char
 
   print_error_for_unit_test("fatal error", detail_fmt, detail_args);
 
-  VMError::report_and_die(error_type, "fatal error", detail_fmt, detail_args,
+  VMError::report_and_die(narrow_cast<int>(error_type), "fatal error", detail_fmt, detail_args,
                           Thread::current_or_null(), NULL, NULL, context,
                           file, line, 0);
   va_end(detail_args);
@@ -695,10 +695,10 @@ extern "C" JNIEXPORT intptr_t u5p(intptr_t addr,
   Command c("u5p");
   u1* arr = (u1*)addr;
   if (limit && limit < addr)  limit = addr;
-  size_t lim = !limit ? 0 : (limit - addr);
+  size_t lim = !limit ? 0 : static_cast<size_t>(limit - addr);
   size_t endpos = UNSIGNED5::print_count(count > 0 ? count : -1,
                                          arr, (size_t)0, lim);
-  return addr + endpos;
+  return narrow_cast<intptr_t>(static_cast<uintptr_t>(addr) + endpos);
 }
 
 

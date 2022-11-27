@@ -120,7 +120,8 @@ class CompileTask : public CHeapObj<mtCompiler> {
   static CompileTask* allocate();
   static void         free(CompileTask* task);
 
-  int          compile_id() const                { return _compile_id; }
+  // TODO: unify compile_id type
+  int          compile_id() const                { return narrow_cast<int>(_compile_id); }
   Method*      method() const                    { return _method; }
   Method*      hot_method() const                { return _hot_method; }
   int          osr_bci() const                   { return _osr_bci; }

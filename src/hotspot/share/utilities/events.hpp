@@ -99,14 +99,15 @@ template <class T> class EventLogBase : public EventLog {
   EventRecord<T>* _records;
 
  public:
-  EventLogBase<T>(const char* name, const char* handle, int length = LogEventsBufferEntries):
+  EventLogBase<T>(const char* name, const char* handle,
+      int length = narrow_cast<int>(LogEventsBufferEntries)):
     _mutex(Mutex::event, name),
     _name(name),
     _handle(handle),
     _length(length),
     _index(0),
     _count(0) {
-    _records = new EventRecord<T>[length];
+    _records = new EventRecord<T>[static_cast<uint>(length)];
   }
 
   double fetch_timestamp() {
@@ -166,7 +167,8 @@ typedef FormatStringLogMessage<512> ExtendedStringLogMessage;
 template <size_t bufsz>
 class FormatStringEventLog : public EventLogBase< FormatStringLogMessage<bufsz> > {
  public:
-  FormatStringEventLog(const char* name, const char* short_name, int count = LogEventsBufferEntries)
+  FormatStringEventLog(const char* name, const char* short_name,
+      int count = narrow_cast<int>(LogEventsBufferEntries))
    : EventLogBase< FormatStringLogMessage<bufsz> >(name, short_name, count) {}
 
   void logv(Thread* thread, const char* format, va_list ap) ATTRIBUTE_PRINTF(3, 0) {
@@ -195,7 +197,8 @@ class InstanceKlass;
 // Event log for class unloading events to materialize the class name in place in the log stream.
 class UnloadingEventLog : public EventLogBase<StringLogMessage> {
  public:
-  UnloadingEventLog(const char* name, const char* short_name, int count = LogEventsBufferEntries)
+  UnloadingEventLog(const char* name, const char* short_name,
+      int count = narrow_cast<int>(LogEventsBufferEntries))
    : EventLogBase<StringLogMessage>(name, short_name, count) {}
 
   void log(Thread* thread, InstanceKlass* ik);
@@ -204,7 +207,8 @@ class UnloadingEventLog : public EventLogBase<StringLogMessage> {
 // Event log for exceptions
 class ExceptionsEventLog : public ExtendedStringEventLog {
  public:
-  ExceptionsEventLog(const char* name, const char* short_name, int count = LogEventsBufferEntries)
+  ExceptionsEventLog(const char* name, const char* short_name,
+      int count = narrow_cast<int>(LogEventsBufferEntries))
    : ExtendedStringEventLog(name, short_name, count) {}
 
   void log(Thread* thread, Handle h_exception, const char* message, const char* file, int line);

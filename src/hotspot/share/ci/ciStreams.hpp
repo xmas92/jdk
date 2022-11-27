@@ -96,7 +96,7 @@ public:
       reset(NULL, 0);
     } else {
       _holder = m->holder();
-      reset(m->code(), m->code_size());
+      reset(m->code(), static_cast<uint>(m->code_size()));
     }
   }
 
@@ -110,9 +110,9 @@ public:
   }
 
   address cur_bcp() const       { return _bc_start; }  // Returns bcp to current instruction
-  int next_bci() const          { return _pc - _start; }
-  int cur_bci() const           { return _bc_start - _start; }
-  int instruction_size() const  { return _pc - _bc_start; }
+  int next_bci() const          { return narrow_cast<int>(_pc - _start); }
+  int cur_bci() const           { return narrow_cast<int>(_bc_start - _start); }
+  int instruction_size() const  { return narrow_cast<int>(_pc - _bc_start); }
 
   Bytecodes::Code cur_bc() const{ return check_java(_bc); }
   Bytecodes::Code cur_bc_raw() const { return check_defined(_raw_bc); }

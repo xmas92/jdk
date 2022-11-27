@@ -114,7 +114,7 @@ public:
   };
 
   // Tag values
-  enum {
+  enum : u1 {
     no_tag,
     bit_data_tag,
     counter_data_tag,
@@ -235,7 +235,7 @@ public:
   // Return a value which, when or-ed as a word into _header, sets the flag.
   static u8 flag_mask_to_header_mask(uint byte_constant) {
     DataLayout temp; temp.set_header(0);
-    temp._header._struct._flags = byte_constant;
+    temp._header._struct._flags = checked_cast<u1>(byte_constant);
     return temp._header._bits;
   }
 
@@ -344,10 +344,10 @@ protected:
     return cast_to_oop(intptr_at(index));
   }
 
-  void set_flag_at(int flag_number) {
+  void set_flag_at(u1 flag_number) {
     data()->set_flag_at(flag_number);
   }
-  bool flag_at(int flag_number) const {
+  bool flag_at(u1 flag_number) const {
     return data()->flag_at(flag_number);
   }
 
@@ -355,7 +355,7 @@ protected:
   static ByteSize cell_offset(int index) {
     return DataLayout::cell_offset(index);
   }
-  static int flag_number_to_constant(int flag_number) {
+  static int flag_number_to_constant(u1 flag_number) {
     return DataLayout::flag_number_to_constant(flag_number);
   }
 
@@ -375,10 +375,10 @@ public:
     return (address)_data;
   }
 
-  int trap_state() const {
+  uint trap_state() const {
     return data()->trap_state();
   }
-  void set_trap_state(int new_state) {
+  void set_trap_state(uint new_state) {
     data()->set_trap_state(new_state);
   }
 
@@ -964,7 +964,7 @@ private:
 
   // number of cells not counting the header
   int cell_count_no_header() const {
-    return uint_at(cell_count_global_offset());
+    return int_at(cell_count_global_offset());
   }
 
   void check_number_of_arguments(int total) {
@@ -1117,7 +1117,7 @@ public:
   virtual bool is_ReceiverTypeData() const { return true; }
 
   static int static_cell_count() {
-    return counter_cell_count + (uint) TypeProfileWidth * receiver_type_row_cell_count JVMCI_ONLY(+ 1);
+    return counter_cell_count + (int) TypeProfileWidth * receiver_type_row_cell_count JVMCI_ONLY(+ 1);
   }
 
   virtual int cell_count() const {
@@ -1126,13 +1126,14 @@ public:
 
   // Direct accessors
   static uint row_limit() {
-    return TypeProfileWidth;
+    // TypeProfileWidth in range(0, 8)
+    return narrow_cast<uint>(TypeProfileWidth);
   }
   static int receiver_cell_index(uint row) {
-    return receiver0_offset + row * receiver_type_row_cell_count;
+    return receiver0_offset + static_cast<int>(row) * receiver_type_row_cell_count;
   }
   static int receiver_count_cell_index(uint row) {
-    return count0_offset + row * receiver_type_row_cell_count;
+    return count0_offset + static_cast<int>(row) * receiver_type_row_cell_count;
   }
 
   Klass* receiver(uint row) const {
@@ -1145,7 +1146,7 @@ public:
 
   void set_receiver(uint row, Klass* k) {
     assert((uint)row < row_limit(), "oob");
-    set_intptr_at(receiver_cell_index(row), (uintptr_t)k);
+    set_intptr_at(receiver_cell_index(row), reinterpret_cast<intptr_t>(k));
   }
 
   uint receiver_count(uint row) const {
@@ -1267,7 +1268,7 @@ private:
 
   // number of cells not counting the header
   int cell_count_no_header() const {
-    return uint_at(cell_count_global_offset());
+    return int_at(cell_count_global_offset());
   }
 
   void check_number_of_arguments(int total) {
@@ -1399,15 +1400,15 @@ protected:
 
   void set_bci(uint row, int bci) {
     assert((uint)row < row_limit(), "oob");
-    set_int_at(bci0_offset + row * ret_row_cell_count, bci);
+    set_int_at(bci0_offset + static_cast<int>(row) * ret_row_cell_count, bci);
   }
   void release_set_bci(uint row, int bci);
   void set_bci_count(uint row, uint count) {
     assert((uint)row < row_limit(), "oob");
-    set_uint_at(count0_offset + row * ret_row_cell_count, count);
+    set_uint_at(count0_offset + static_cast<int>(row) * ret_row_cell_count, count);
   }
   void set_bci_displacement(uint row, int disp) {
-    set_int_at(displacement0_offset + row * ret_row_cell_count, disp);
+    set_int_at(displacement0_offset + static_cast<int>(row) * ret_row_cell_count, disp);
   }
 
 public:
@@ -1422,7 +1423,8 @@ public:
   };
 
   static int static_cell_count() {
-    return counter_cell_count + (uint) BciProfileWidth * ret_row_cell_count;
+    const int width = checked_cast<int>(BciProfileWidth);
+    return counter_cell_count + width * ret_row_cell_count;
   }
 
   virtual int cell_count() const {
@@ -1430,16 +1432,17 @@ public:
   }
 
   static uint row_limit() {
-    return BciProfileWidth;
+    const uint width = checked_cast<uint>(BciProfileWidth);
+    return width;
   }
   static int bci_cell_index(uint row) {
-    return bci0_offset + row * ret_row_cell_count;
+    return bci0_offset + static_cast<int>(row) * ret_row_cell_count;
   }
   static int bci_count_cell_index(uint row) {
-    return count0_offset + row * ret_row_cell_count;
+    return count0_offset + static_cast<int>(row) * ret_row_cell_count;
   }
   static int bci_displacement_cell_index(uint row) {
-    return displacement0_offset + row * ret_row_cell_count;
+    return displacement0_offset + static_cast<int>(row) * ret_row_cell_count;
   }
 
   // Direct accessors
@@ -1715,7 +1718,7 @@ public:
   }
 
   void set_arg_modified(int arg, uint val) {
-    array_set_int_at(arg, val);
+    array_set_int_at(arg, narrow_cast<int>(val));
   }
 
   void print_data_on(outputStream* st, const char* extra = NULL) const;
@@ -2001,7 +2004,8 @@ public:
     // Return (uint)-1 for overflow.
     uint trap_count(int reason) const {
       assert((uint)reason < ARRAY_SIZE(_trap_hist._array), "oob");
-      return (int)((_trap_hist._array[reason]+1) & _trap_hist_mask) - 1;
+      // TODO: check this c cast, int -> int ?
+      return static_cast<uint>((int)((_trap_hist._array[reason]+1) & _trap_hist_mask) - 1);
     }
 
     uint inc_trap_count(int reason) {
@@ -2010,7 +2014,7 @@ public:
       assert((uint)reason < ARRAY_SIZE(_trap_hist._array), "oob");
       uint cnt1 = 1 + _trap_hist._array[reason];
       if ((cnt1 & _trap_hist_mask) != 0) {  // if no counter overflow...
-        _trap_hist._array[reason] = cnt1;
+        _trap_hist._array[reason] = narrow_cast<u1>(cnt1);
         return cnt1;
       } else {
         return _trap_hist_mask + (++_nof_overflow_traps);
@@ -2102,7 +2106,7 @@ private:
 
   // Helper for initialization
   DataLayout* data_layout_at(int data_index) const {
-    assert(data_index % sizeof(intptr_t) == 0, "unaligned");
+    assert(static_cast<uint>(data_index) % sizeof(intptr_t) == 0, "unaligned");
     return (DataLayout*) (((address)_data) + data_index);
   }
 
@@ -2202,13 +2206,13 @@ public:
     if (invocation_counter()->carry()) {
       return InvocationCounter::count_limit;
     }
-    return invocation_counter()->count();
+    return narrow_cast<int>(invocation_counter()->count());
   }
   int backedge_count() {
     if (backedge_counter()->carry()) {
       return InvocationCounter::count_limit;
     }
-    return backedge_counter()->count();
+    return narrow_cast<int>(backedge_counter()->count());
   }
 
   int invocation_count_start() {
@@ -2262,9 +2266,9 @@ public:
   bool would_profile() const                  { return _would_profile != no_profile; }
 
   int num_loops() const                       { return _num_loops;  }
-  void set_num_loops(int n)                   { _num_loops = n;     }
+  void set_num_loops(short n)                 { _num_loops = n;     }
   int num_blocks() const                      { return _num_blocks; }
-  void set_num_blocks(int n)                  { _num_blocks = n;    }
+  void set_num_blocks(short n)                { _num_blocks = n;    }
 
   bool is_mature() const;  // consult mileage and ProfileMaturityPercentage
   static int mileage_of(Method* m);
@@ -2326,7 +2330,8 @@ public:
 
   // Convert a dp (data pointer) to a di (data index).
   int dp_to_di(address dp) const {
-    return dp - ((address)_data);
+    const ptrdiff_t index = dp - ((address)_data);
+    return checked_cast<int>(index);
   }
 
   // bci to di/dp conversion.
@@ -2366,7 +2371,10 @@ public:
   DataLayout* extra_data_limit() const { return (DataLayout*)((address)this + size_in_bytes()); }
   DataLayout* args_data_limit() const  { return (DataLayout*)((address)this + size_in_bytes() -
                                                               parameters_size_in_bytes()); }
-  int extra_data_size() const          { return (address)extra_data_limit() - (address)extra_data_base(); }
+  int extra_data_size() const {
+    const ptrdiff_t size = (address)extra_data_limit() - (address)extra_data_base();
+    return checked_cast<int>(size);
+  }
   static DataLayout* next_extra(DataLayout* dp);
 
   // Return (uint)-1 for overflow.

@@ -265,7 +265,7 @@ class Dependencies: public ResourceObj {
 
   bool note_dep_seen(int dept, ciBaseObject* x) {
     assert(dept < BitsPerInt, "oob");
-    int x_id = x->ident();
+    int x_id = checked_cast<int>(x->ident());
     assert(_dep_seen != NULL, "deps must be writable");
     int seen = _dep_seen->at_grow(x_id, 0);
     _dep_seen->at_put(x_id, seen | (1<<dept));
@@ -596,7 +596,7 @@ class Dependencies: public ResourceObj {
         _deps(NULL),
         _bytes(code->dependencies_begin())
     {
-      initial_asserts(code->dependencies_size());
+      initial_asserts(static_cast<size_t>(code->dependencies_size()));
     }
 
     bool next();
@@ -664,7 +664,9 @@ class DependencySignature : public ResourceObj {
   }
 
   static bool     equals(DependencySignature const& s1, DependencySignature const& s2);
-  static unsigned hash  (DependencySignature const& s1) { return s1.arg(0) >> 2; }
+  static unsigned hash  (DependencySignature const& s1) {
+    return narrow_cast<uint>(s1.arg(0) >> 2);
+  }
 
   int args_count()             const { return _args_count; }
   uintptr_t arg(int idx)       const { return _argument_hash[idx]; }

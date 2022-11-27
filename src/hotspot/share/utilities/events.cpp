@@ -136,7 +136,7 @@ void UnloadingEventLog::log(Thread* thread, InstanceKlass* ik) {
   _records[index].thread = thread;
   _records[index].timestamp = timestamp;
   stringStream st(_records[index].data.buffer(),
-                  _records[index].data.size());
+                  static_cast<uint>(_records[index].data.size()));
   st.print("Unloading class " PTR_FORMAT " ", p2i(ik));
   ik->name()->print_value_on(&st);
 }
@@ -150,7 +150,7 @@ void ExceptionsEventLog::log(Thread* thread, Handle h_exception, const char* mes
   _records[index].thread = thread;
   _records[index].timestamp = timestamp;
   stringStream st(_records[index].data.buffer(),
-                  _records[index].data.size());
+                  static_cast<uint>(_records[index].data.size()));
   st.print("Exception <");
   h_exception->print_value_on(&st);
   st.print("%s%s> (" PTR_FORMAT ") \n"

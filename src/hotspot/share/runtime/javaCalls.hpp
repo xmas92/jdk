@@ -113,8 +113,8 @@ class JavaCallArguments : public StackObj {
 
   JavaCallArguments(int max_size) {
     if (max_size > _default_size) {
-      _value = NEW_RESOURCE_ARRAY(intptr_t, max_size + 1);
-      _value_state = NEW_RESOURCE_ARRAY(u_char, max_size + 1);
+      _value = NEW_RESOURCE_ARRAY(intptr_t, static_cast<uint>(max_size + 1));
+      _value_state = NEW_RESOURCE_ARRAY(u_char, static_cast<uint>(max_size + 1));
 
       // Reserve room for potential receiver in value and state
       _value++;

@@ -36,7 +36,7 @@ size_t MarkBitMap::compute_size(size_t heap_size) {
 }
 
 size_t MarkBitMap::mark_distance() {
-  return MinObjAlignmentInBytes * BitsPerByte;
+  return static_cast<uint>(MinObjAlignmentInBytes) * BitsPerByte;
 }
 
 void MarkBitMap::initialize(MemRegion heap, MemRegion storage) {

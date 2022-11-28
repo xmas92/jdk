@@ -65,7 +65,7 @@ void ObjectCountEventSender::send_event_if_enabled(Klass* klass, jlong count, ju
 
 void ObjectCountEventSender::send(const KlassInfoEntry* entry, const Ticks& timestamp) {
   Klass* klass = entry->klass();
-  jlong count = entry->count();
+  jlong count = narrow_cast<jlong>(entry->count());
   julong total_size = entry->words() * BytesPerWord;
 
   send_event_if_enabled<EventObjectCount>(klass, count, total_size, timestamp);

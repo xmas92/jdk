@@ -155,12 +155,12 @@ void GenCollectedHeap::initialize_size_policy(size_t init_eden_size,
                                         init_promo_size,
                                         init_survivor_size,
                                         max_gc_pause_sec,
-                                        GCTimeRatio);
+                                        narrow_cast<uint>(GCTimeRatio));
 }
 
 ReservedHeapSpace GenCollectedHeap::allocate(size_t alignment) {
   // Now figure out the total size.
-  const size_t pageSize = UseLargePages ? os::large_page_size() : os::vm_page_size();
+  const size_t pageSize = UseLargePages ? os::large_page_size() : static_cast<uint>(os::vm_page_size());
   assert(alignment % pageSize == 0, "Must be");
 
   // Check for overflow.

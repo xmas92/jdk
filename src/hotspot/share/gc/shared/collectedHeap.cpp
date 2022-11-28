@@ -102,7 +102,7 @@ void GCHeapLog::log_heap(CollectedHeap* heap, bool before) {
   _records[index].thread = NULL; // Its the GC thread so it's not that interesting.
   _records[index].timestamp = timestamp;
   _records[index].data.is_before = before;
-  stringStream st(_records[index].data.buffer(), _records[index].data.size());
+  stringStream st(_records[index].data.buffer(), static_cast<uint>(_records[index].data.size()));
 
   st.print_cr("{Heap %s GC invocations=%u (full %u):",
                  before ? "before" : "after",
@@ -416,14 +416,14 @@ size_t CollectedHeap::max_tlab_size() const {
   // We actually lose a little by dividing first,
   // but that just makes the TLAB  somewhat smaller than the biggest array,
   // which is fine, since we'll be able to fill that.
-  size_t max_int_size = typeArrayOopDesc::header_size(T_INT) +
+  size_t max_int_size = static_cast<uint>(typeArrayOopDesc::header_size(T_INT)) +
               sizeof(jint) *
               ((juint) max_jint / (size_t) HeapWordSize);
-  return align_down(max_int_size, MinObjAlignment);
+  return align_down(max_int_size, static_cast<uint>(MinObjAlignment));
 }
 
 size_t CollectedHeap::filler_array_hdr_size() {
-  return align_object_offset(arrayOopDesc::header_size(T_INT)); // align to Long
+  return static_cast<uint>(align_object_offset(arrayOopDesc::header_size(T_INT))); // align to Long
 }
 
 size_t CollectedHeap::filler_array_min_size() {

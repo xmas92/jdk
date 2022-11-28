@@ -103,7 +103,7 @@ ReferenceProcessor::ReferenceProcessor(BoolObjectClosure* is_subject_to_discover
   _num_queues              = MAX2(1U, mt_processing_degree);
   _max_num_queues          = MAX2(_num_queues, mt_discovery_degree);
   _discovered_refs         = NEW_C_HEAP_ARRAY(DiscoveredList,
-            _max_num_queues * number_of_subclasses_of_ref(), mtGC);
+            _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()), mtGC);
 
   _discoveredSoftRefs    = &_discovered_refs[0];
   _discoveredWeakRefs    = &_discoveredSoftRefs[_max_num_queues];
@@ -111,7 +111,7 @@ ReferenceProcessor::ReferenceProcessor(BoolObjectClosure* is_subject_to_discover
   _discoveredPhantomRefs = &_discoveredFinalRefs[_max_num_queues];
 
   // Initialize all entries to NULL
-  for (uint i = 0; i < _max_num_queues * number_of_subclasses_of_ref(); i++) {
+  for (uint i = 0; i < _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()); i++) {
     _discovered_refs[i].clear();
   }
 
@@ -121,7 +121,7 @@ ReferenceProcessor::ReferenceProcessor(BoolObjectClosure* is_subject_to_discover
 #ifndef PRODUCT
 void ReferenceProcessor::verify_no_references_recorded() {
   guarantee(!_discovering_refs, "Discovering refs?");
-  for (uint i = 0; i < _max_num_queues * number_of_subclasses_of_ref(); i++) {
+  for (uint i = 0; i < _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()); i++) {
     guarantee(_discovered_refs[i].is_empty(),
               "Found non-empty discovered list at %u", i);
   }
@@ -133,7 +133,7 @@ bool ReferenceProcessor::processing_is_mt() const {
 }
 
 void ReferenceProcessor::weak_oops_do(OopClosure* f) {
-  for (uint i = 0; i < _max_num_queues * number_of_subclasses_of_ref(); i++) {
+  for (uint i = 0; i < _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()); i++) {
     if (UseCompressedOops) {
       f->do_oop((narrowOop*)_discovered_refs[i].adr_head());
     } else {
@@ -414,7 +414,7 @@ ReferenceProcessor::clear_discovered_references(DiscoveredList& refs_list) {
 
 void ReferenceProcessor::abandon_partial_discovery() {
   // loop over the lists
-  for (uint i = 0; i < _max_num_queues * number_of_subclasses_of_ref(); i++) {
+  for (uint i = 0; i < _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()); i++) {
     if ((i % _max_num_queues) == 0) {
       log_develop_trace(gc, ref)("Abandoning %s discovered list", list_name(i));
     }
@@ -1146,10 +1146,10 @@ bool ReferenceProcessor::preclean_discovered_reflist(DiscoveredList&    refs_lis
 }
 
 const char* ReferenceProcessor::list_name(uint i) {
-   assert(i <= _max_num_queues * number_of_subclasses_of_ref(),
+   assert(i <= _max_num_queues * static_cast<uint>(number_of_subclasses_of_ref()),
           "Out of bounds index");
 
-   int j = i / _max_num_queues;
+   int j = narrow_cast<int>(i / _max_num_queues);
    switch (j) {
      case 0: return "SoftRef";
      case 1: return "WeakRef";

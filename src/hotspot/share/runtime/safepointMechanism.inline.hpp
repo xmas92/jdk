@@ -55,7 +55,7 @@ inline uintptr_t SafepointMechanism::ThreadData::get_polling_word() {
 }
 
 bool SafepointMechanism::local_poll_armed(JavaThread* thread) {
-  return thread->poll_data()->get_polling_word() & poll_bit();
+  return thread->poll_data()->get_polling_word() & static_cast<uintptr_t>(poll_bit());
 }
 
 bool SafepointMechanism::global_poll() {

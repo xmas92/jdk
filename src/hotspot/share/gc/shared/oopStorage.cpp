@@ -247,7 +247,7 @@ size_t OopStorage::Block::allocation_size() {
 }
 
 size_t OopStorage::Block::allocation_alignment_shift() {
-  return exact_log2(block_alignment);
+  return static_cast<uint>(exact_log2(block_alignment));
 }
 
 static inline bool is_full_bitmask(uintx bitmask) { return ~bitmask == 0; }
@@ -300,7 +300,7 @@ void OopStorage::Block::set_active_index(size_t index) {
 
 size_t OopStorage::Block::active_index_safe(const Block* block) {
   STATIC_ASSERT(sizeof(intptr_t) == sizeof(block->_active_index));
-  return SafeFetchN((intptr_t*)&block->_active_index, 0);
+  return static_cast<uintptr_t>(SafeFetchN((intptr_t*)&block->_active_index, 0));
 }
 
 unsigned OopStorage::Block::get_index(const oop* ptr) const {

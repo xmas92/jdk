@@ -52,7 +52,7 @@ inline jlong Thread::cooked_allocated_bytes() {
       // ending up with incorrect values. There is still a race between
       // incrementing _allocated_bytes and clearing the TLAB, that might
       // cause double counting in rare cases.
-      return allocated_bytes + used_bytes;
+      return allocated_bytes + narrow_cast<jlong>(used_bytes);
     }
   }
   return allocated_bytes;

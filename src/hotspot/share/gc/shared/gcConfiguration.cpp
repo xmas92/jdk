@@ -109,15 +109,15 @@ size_t GCTLABConfiguration::min_tlab_size() const {
 }
 
 uint GCTLABConfiguration::tlab_refill_waste_limit() const {
-  return TLABRefillWasteFraction;
+  return narrow_cast<uint>(TLABRefillWasteFraction);
 }
 
 intx GCSurvivorConfiguration::max_tenuring_threshold() const {
-  return MaxTenuringThreshold;
+  return narrow_cast<intx>(MaxTenuringThreshold);
 }
 
 intx GCSurvivorConfiguration::initial_tenuring_threshold() const {
-  return InitialTenuringThreshold;
+  return narrow_cast<intx>(InitialTenuringThreshold);
 }
 
 size_t GCHeapConfiguration::max_size() const {
@@ -141,7 +141,7 @@ CompressedOops::Mode GCHeapConfiguration::narrow_oop_mode() const {
 }
 
 uint GCHeapConfiguration::object_alignment_in_bytes() const {
-  return ObjectAlignmentInBytes;
+  return static_cast<uint>(ObjectAlignmentInBytes);
 }
 
 int GCHeapConfiguration::heap_address_size_in_bits() const {
@@ -161,5 +161,5 @@ uintx GCYoungGenerationConfiguration::min_size() const {
 }
 
 intx GCYoungGenerationConfiguration::new_ratio() const {
-  return NewRatio;
+  return narrow_cast<intx>(NewRatio);
 }

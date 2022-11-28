@@ -54,7 +54,7 @@ HSpaceCounters::HSpaceCounters(const char* name_space,
     cname = PerfDataManager::counter_name(_name_space, "capacity");
     _capacity = PerfDataManager::create_variable(SUN_GC, cname,
                                                  PerfData::U_Bytes,
-                                                 initial_capacity, CHECK);
+                                                 narrow_cast<jlong>(initial_capacity), CHECK);
 
     cname = PerfDataManager::counter_name(_name_space, "used");
     _used = PerfDataManager::create_variable(SUN_GC, cname, PerfData::U_Bytes,
@@ -62,7 +62,7 @@ HSpaceCounters::HSpaceCounters(const char* name_space,
 
     cname = PerfDataManager::counter_name(_name_space, "initCapacity");
     PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_Bytes,
-                                     initial_capacity, CHECK);
+                                     narrow_cast<jlong>(initial_capacity), CHECK);
   }
 }
 
@@ -71,11 +71,11 @@ HSpaceCounters::~HSpaceCounters() {
 }
 
 void HSpaceCounters::update_capacity(size_t v) {
-  _capacity->set_value(v);
+  _capacity->set_value(narrow_cast<jlong>(v));
 }
 
 void HSpaceCounters::update_used(size_t v) {
-  _used->set_value(v);
+  _used->set_value(narrow_cast<jlong>(v));
 }
 
 void HSpaceCounters::update_all(size_t capacity, size_t used) {

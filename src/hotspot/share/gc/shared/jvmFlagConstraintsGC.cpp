@@ -141,7 +141,7 @@ JVMFlag::Error MaxHeapFreeRatioConstraintFunc(uintx value, bool verbose) {
 }
 
 static JVMFlag::Error CheckMaxHeapSizeAndSoftRefLRUPolicyMSPerMB(size_t maxHeap, intx softRef, bool verbose) {
-  if ((softRef > 0) && ((maxHeap / M) > (max_uintx / softRef))) {
+  if ((softRef > 0) && ((maxHeap / M) > (max_uintx / static_cast<uintx>(softRef)))) {
     JVMFlag::printError(verbose,
                         "Desired lifetime of SoftReferences cannot be expressed correctly. "
                         "MaxHeapSize (" SIZE_FORMAT ") or SoftRefLRUPolicyMSPerMB "

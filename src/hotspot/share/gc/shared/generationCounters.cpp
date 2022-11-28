@@ -49,16 +49,16 @@ void GenerationCounters::initialize(const char* name, int ordinal, int spaces,
 
     cname = PerfDataManager::counter_name(_name_space, "minCapacity");
     PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_Bytes,
-                                     min_capacity, CHECK);
+                                     narrow_cast<jlong>(min_capacity), CHECK);
 
     cname = PerfDataManager::counter_name(_name_space, "maxCapacity");
     PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_Bytes,
-                                     max_capacity, CHECK);
+                                     narrow_cast<jlong>(max_capacity), CHECK);
 
     cname = PerfDataManager::counter_name(_name_space, "capacity");
     _current_size =
       PerfDataManager::create_variable(SUN_GC, cname, PerfData::U_Bytes,
-                                       curr_capacity, CHECK);
+                                       narrow_cast<jlong>(curr_capacity), CHECK);
   }
 }
 
@@ -86,5 +86,5 @@ GenerationCounters::~GenerationCounters() {
 
 void GenerationCounters::update_all() {
   assert(_virtual_space != NULL, "otherwise, override this method");
-  _current_size->set_value(_virtual_space->committed_size());
+  _current_size->set_value(narrow_cast<jlong>(_virtual_space->committed_size()));
 }

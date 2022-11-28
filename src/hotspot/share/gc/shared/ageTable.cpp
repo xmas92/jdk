@@ -82,7 +82,7 @@ uint AgeTable::compute_tenuring_threshold(size_t desired_survivor_size) {
   if (AlwaysTenure || NeverTenure) {
     assert(MaxTenuringThreshold == 0 || MaxTenuringThreshold == markWord::max_age + 1,
            "MaxTenuringThreshold should be 0 or markWord::max_age + 1, but is " UINTX_FORMAT, MaxTenuringThreshold);
-    result = MaxTenuringThreshold;
+    result = narrow_cast<uint>(MaxTenuringThreshold);
   } else {
     size_t total = 0;
     uint age = 1;
@@ -94,7 +94,7 @@ uint AgeTable::compute_tenuring_threshold(size_t desired_survivor_size) {
       if (total > desired_survivor_size) break;
       age++;
     }
-    result = age < MaxTenuringThreshold ? age : MaxTenuringThreshold;
+    result = age < MaxTenuringThreshold ? age : narrow_cast<uint>(MaxTenuringThreshold);
   }
 
 
@@ -120,7 +120,7 @@ void AgeTable::print_age_table(uint tenuring_threshold) {
       }
       AgeTableTracer::send_tenuring_distribution_event(age, wordSize * oopSize);
       if (UsePerfData) {
-        _perf_sizes[age]->set_value(wordSize * oopSize);
+        _perf_sizes[age]->set_value(narrow_cast<jlong>(wordSize * oopSize));
       }
       age++;
     }

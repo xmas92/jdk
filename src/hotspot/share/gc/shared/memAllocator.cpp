@@ -262,7 +262,7 @@ HeapWord* MemAllocator::allocate_outside_tlab(Allocation& allocation) const {
 
   NOT_PRODUCT(Universe::heap()->check_for_non_bad_heap_word_value(mem, _word_size));
   size_t size_in_bytes = _word_size * HeapWordSize;
-  _thread->incr_allocated_bytes(size_in_bytes);
+  _thread->incr_allocated_bytes(narrow_cast<jlong>(size_in_bytes));
 
   return mem;
 }
@@ -422,7 +422,7 @@ MemRegion ObjArrayAllocator::obj_memory_range(oop obj) const {
     return MemAllocator::obj_memory_range(obj);
   }
   ArrayKlass* array_klass = ArrayKlass::cast(_klass);
-  const size_t hs = arrayOopDesc::header_size(array_klass->element_type());
+  const size_t hs = static_cast<uint>(arrayOopDesc::header_size(array_klass->element_type()));
   return MemRegion(cast_from_oop<HeapWord*>(obj) + hs, _word_size - hs);
 }
 
@@ -457,7 +457,8 @@ oop StackChunkAllocator::initialize(HeapWord* mem) const {
 
   // zero out fields (but not the stack)
   const size_t hs = oopDesc::header_size();
-  Copy::fill_to_aligned_words(mem + hs, vmClasses::StackChunk_klass()->size_helper() - hs);
+  Copy::fill_to_aligned_words(mem + hs,
+      static_cast<uint>(vmClasses::StackChunk_klass()->size_helper()) - hs);
 
   jdk_internal_vm_StackChunk::set_size(mem, (int)_stack_size);
   jdk_internal_vm_StackChunk::set_sp(mem, (int)_stack_size);

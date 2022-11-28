@@ -201,7 +201,7 @@ public:
   // mult parameter is provided in order to adding the appropriate
   // padding multiple times so that the capacities add up correctly.
   static size_t pad_capacity(size_t size_bytes, size_t mult = 1) {
-    return size_bytes + MinObjAlignmentInBytes * mult;
+    return size_bytes + static_cast<uint>(MinObjAlignmentInBytes) * mult;
   }
 
   // Recalculate all the sizes from scratch and update all the jstat

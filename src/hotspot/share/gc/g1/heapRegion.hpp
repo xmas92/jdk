@@ -113,9 +113,9 @@ public:
   // given address.
   bool is_in_reserved(const void* p) const { return _bottom <= p && p < _end; }
 
-  size_t capacity() const { return byte_size(bottom(), end()); }
-  size_t used() const { return byte_size(bottom(), top()); }
-  size_t free() const { return byte_size(top(), end()); }
+  size_t capacity() const { return static_cast<uintx>(byte_size(bottom(), end())); }
+  size_t used() const { return static_cast<uintx>(byte_size(bottom(), top())); }
+  size_t free() const { return static_cast<uintx>(byte_size(top(), end())); }
 
   bool is_empty() const { return used() == 0; }
 

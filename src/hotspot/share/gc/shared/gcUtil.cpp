@@ -86,10 +86,10 @@ void AdaptivePaddedAverage::sample(float new_sample) {
 
   // Now update the deviation and the padded average.
   float new_avg = average();
-  float new_dev = compute_adaptive_average(fabsd(new_sample - new_avg),
+  float new_dev = compute_adaptive_average(narrow_cast<float>(fabsd(new_sample - new_avg)),
                                            deviation());
   set_deviation(new_dev);
-  set_padded_average(new_avg + padding() * new_dev);
+  set_padded_average(new_avg + narrow_cast<float>(padding()) * new_dev);
   _last_sample = new_sample;
 }
 
@@ -100,12 +100,12 @@ void AdaptivePaddedNoZeroDevAverage::sample(float new_sample) {
   float new_avg = average();
   if (new_sample != 0) {
     // We only create a new deviation if the sample is non-zero
-    float new_dev = compute_adaptive_average(fabsd(new_sample - new_avg),
+    float new_dev = compute_adaptive_average(narrow_cast<float>(fabsd(new_sample - new_avg)),
                                              deviation());
 
     set_deviation(new_dev);
   }
-  set_padded_average(new_avg + padding() * deviation());
+  set_padded_average(new_avg + narrow_cast<float>(padding()) * deviation());
   _last_sample = new_sample;
 }
 
@@ -118,8 +118,8 @@ void LinearLeastSquareFit::update(double x, double y) {
   _sum_x_squared = _sum_x_squared + x * x;
   _sum_y = _sum_y + y;
   _sum_xy = _sum_xy + x * y;
-  _mean_x.sample(x);
-  _mean_y.sample(y);
+  _mean_x.sample(narrow_cast<float>(x));
+  _mean_y.sample(narrow_cast<float>(y));
   assert(_mean_x.count() == _mean_y.count(), "Incorrect count");
   if ( _mean_x.count() > 1 ) {
     double slope_denominator;

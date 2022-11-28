@@ -53,7 +53,7 @@ public:
     _regions_on_node.clear();
   }
 
-  uint length() const { return _length; }
+  uint length() const { return static_cast<uint>(_length); }
   uint regions_on_node(uint node_index) const { return _regions_on_node.count(node_index); }
 
   size_t used_bytes() const { return _used_bytes; }

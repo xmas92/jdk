@@ -76,7 +76,7 @@ public:
     if ((size_t)age < _stats_arrays_length)
       return _accum_surv_rate_pred[age];
     else {
-      double diff = (double)(age - _stats_arrays_length + 1);
+      double diff = (double)(static_cast<uint>(age) - _stats_arrays_length + 1);
       return _accum_surv_rate_pred[_stats_arrays_length - 1] + diff * _last_pred;
     }
   }
@@ -94,7 +94,7 @@ public:
   }
 
   int age_in_group(int age_index) const {
-    int result = (int)(_num_added_regions - age_index);
+    int result = (int)(_num_added_regions - static_cast<uint>(age_index));
     assert(is_valid_age_index(result), "invariant" );
     return result;
   }

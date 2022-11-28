@@ -306,7 +306,7 @@ inline void HeapRegion::note_start_of_marking() {
 inline void HeapRegion::note_end_of_marking(size_t marked_bytes) {
   assert_at_safepoint();
 
-  _garbage_bytes = byte_size(bottom(), top_at_mark_start()) - marked_bytes;
+  _garbage_bytes = static_cast<uintx>(byte_size(bottom(), top_at_mark_start())) - marked_bytes;
 
   if (needs_scrubbing()) {
     _parsable_bottom = top_at_mark_start();

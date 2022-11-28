@@ -49,12 +49,12 @@ GCPolicyCounters::GCPolicyCounters(const char* name, int collectors,
 
     cname = PerfDataManager::counter_name(_name_space, "maxTenuringThreshold");
     PerfDataManager::create_constant(SUN_GC, cname, PerfData::U_None,
-                                     MaxTenuringThreshold, CHECK);
+                                     narrow_cast<jlong>(MaxTenuringThreshold), CHECK);
 
     cname = PerfDataManager::counter_name(_name_space, "tenuringThreshold");
     _tenuring_threshold =
         PerfDataManager::create_variable(SUN_GC, cname, PerfData::U_None,
-                                         MaxTenuringThreshold, CHECK);
+                                         narrow_cast<jlong>(MaxTenuringThreshold), CHECK);
 
     cname = PerfDataManager::counter_name(_name_space, "desiredSurvivorSize");
     _desired_survivor_size =

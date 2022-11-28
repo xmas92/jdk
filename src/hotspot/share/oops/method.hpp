@@ -1022,6 +1022,7 @@ public:
 
 class CompressedLineNumberWriteStream: public CompressedWriteStream {
  private:
+  static constexpr jbyte _escape_byte = -1;
   int _bci;
   int _line;
  public:

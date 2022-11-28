@@ -76,7 +76,7 @@
 // operators
 #define TRACE_ID_RAW(ptr)                         (JfrTraceIdBits::load(ptr))
 #define TRACE_ID(ptr)                             (TRACE_ID_RAW(ptr) >> TRACE_ID_SHIFT)
-#define TRACE_ID_MASKED(ptr)                      (TRACE_ID_RAW(ptr) & ALL_BITS_MASK)
+#define TRACE_ID_MASKED(ptr)                      (TRACE_ID_RAW(ptr) & static_cast<uint>(ALL_BITS_MASK))
 #define TRACE_ID_PREDICATE(ptr, bits)             ((TRACE_ID_RAW(ptr) & bits) != 0)
 #define TRACE_ID_TAG(ptr, bits)                   (JfrTraceIdBits::store(bits, ptr))
 #define TRACE_ID_TAG_CAS(ptr, bits)               (JfrTraceIdBits::cas(bits, ptr))
@@ -108,8 +108,8 @@
 #define IS_METHOD_BLESSED(method)                 (METHOD_FLAG_PREDICATE(method, BLESSED_METHOD_BIT))
 
 // setters
-#define SET_USED_THIS_EPOCH(ptr)                  (TRACE_ID_TAG(ptr, THIS_EPOCH_BIT))
-#define SET_METHOD_AND_CLASS_USED_THIS_EPOCH(kls) (TRACE_ID_TAG(kls, THIS_EPOCH_METHOD_AND_CLASS_BITS))
+#define SET_USED_THIS_EPOCH(ptr)                  (TRACE_ID_TAG(ptr, narrow_cast<jbyte>(THIS_EPOCH_BIT)))
+#define SET_METHOD_AND_CLASS_USED_THIS_EPOCH(kls) (TRACE_ID_TAG(kls, narrow_cast<jbyte>(THIS_EPOCH_METHOD_AND_CLASS_BITS)))
 #define SET_METHOD_FLAG_USED_THIS_EPOCH(method)   (METHOD_FLAG_TAG(method, THIS_EPOCH_METHOD_FLAG_BIT))
 #define PREVIOUS_EPOCH_METHOD_AND_CLASS_BIT_MASK  (~(PREVIOUS_EPOCH_METHOD_BIT | PREVIOUS_EPOCH_BIT))
 #define CLEAR_PREVIOUS_EPOCH_METHOD_AND_CLASS(kls) (TRACE_ID_MASK_CLEAR(kls, PREVIOUS_EPOCH_METHOD_AND_CLASS_BIT_MASK))

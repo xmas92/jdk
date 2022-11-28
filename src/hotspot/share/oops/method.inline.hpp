@@ -54,7 +54,7 @@ inline CompiledMethod* volatile Method::code() const {
 inline void CompressedLineNumberWriteStream::write_pair_regular(int bci_delta, int line_delta) {
   // bci and line number does not compress into single byte.
   // Write out escape character and use regular compression for bci and line number.
-  write_byte((jubyte)0xFF);
+  write_byte(_escape_byte);
   write_signed_int(bci_delta);
   write_signed_int(line_delta);
 }
@@ -69,9 +69,9 @@ inline void CompressedLineNumberWriteStream::write_pair_inline(int bci, int line
   // Check if bci is 5-bit and line number 3-bit unsigned.
   if (((bci_delta & ~0x1F) == 0) && ((line_delta & ~0x7) == 0)) {
     // Compress into single byte.
-    jubyte value = ((jubyte) bci_delta << 3) | (jubyte) line_delta;
+    jbyte value = narrow_cast<jbyte>(((jubyte) bci_delta << 3) | (jubyte) line_delta);
     // Check that value doesn't match escape character.
-    if (value != 0xFF) {
+    if (value != _escape_byte) {
       write_byte(value);
       return;
     }

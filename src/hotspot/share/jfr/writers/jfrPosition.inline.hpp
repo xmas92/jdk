@@ -76,7 +76,7 @@ inline Position<AP>::Position() : _start_pos(NULL), _current_pos(NULL), _end_pos
 
 template <typename AP>
 inline size_t Position<AP>::available_size() const {
-  return _end_pos - _current_pos;
+  return narrow_cast<size_t>(_end_pos - _current_pos);
 }
 
 template <typename AP>

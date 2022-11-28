@@ -36,7 +36,7 @@
 inline intptr_t* ContinuationEntry::bottom_sender_sp() const {
   intptr_t* sp = entry_sp() - argsize();
 #ifdef _LP64
-  sp = align_down(sp, frame::frame_alignment);
+  sp = align_down(sp, static_cast<uint>(frame::frame_alignment));
 #endif
   return sp;
 }

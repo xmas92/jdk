@@ -133,7 +133,7 @@ class JfrBuffer {
   }
 
   size_t free_size() const {
-    return end() - Atomic::load_acquire(&_pos);
+    return narrow_cast<size_t>(end() - Atomic::load_acquire(&_pos));
   }
 
   size_t unflushed_size() const;

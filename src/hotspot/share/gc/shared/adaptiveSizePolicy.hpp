@@ -367,14 +367,14 @@ class AdaptiveSizePolicy : public CHeapObj<mtGC> {
     return _major_collection_estimator;
   }
 
-  float minor_pause_young_slope() {
+  double minor_pause_young_slope() {
     return _minor_pause_young_estimator->slope();
   }
 
-  float minor_collection_slope() { return _minor_collection_estimator->slope();}
-  float major_collection_slope() { return _major_collection_estimator->slope();}
+  double minor_collection_slope() { return _minor_collection_estimator->slope();}
+  double major_collection_slope() { return _major_collection_estimator->slope();}
 
-  float minor_pause_old_slope() {
+  double minor_pause_old_slope() {
     return _minor_pause_old_estimator->slope();
   }
 

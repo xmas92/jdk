@@ -48,22 +48,22 @@ AdaptiveSizePolicy::AdaptiveSizePolicy(size_t init_eden_size,
     _eden_size(init_eden_size),
     _promo_size(init_promo_size),
     _survivor_size(init_survivor_size),
-    _avg_minor_pause(new AdaptivePaddedAverage(AdaptiveTimeWeight, PausePadding)),
-    _avg_minor_interval(new AdaptiveWeightedAverage(AdaptiveTimeWeight)),
-    _avg_minor_gc_cost(new AdaptiveWeightedAverage(AdaptiveTimeWeight)),
-    _avg_major_interval(new AdaptiveWeightedAverage(AdaptiveTimeWeight)),
-    _avg_major_gc_cost(new AdaptiveWeightedAverage(AdaptiveTimeWeight)),
-    _avg_young_live(new AdaptiveWeightedAverage(AdaptiveSizePolicyWeight)),
-    _avg_eden_live(new AdaptiveWeightedAverage(AdaptiveSizePolicyWeight)),
-    _avg_old_live(new AdaptiveWeightedAverage(AdaptiveSizePolicyWeight)),
-    _avg_survived(new AdaptivePaddedAverage(AdaptiveSizePolicyWeight, SurvivorPadding)),
-    _avg_pretenured(new AdaptivePaddedNoZeroDevAverage(AdaptiveSizePolicyWeight, SurvivorPadding)),
-    _minor_pause_old_estimator(new LinearLeastSquareFit(AdaptiveSizePolicyWeight)),
-    _minor_pause_young_estimator(new LinearLeastSquareFit(AdaptiveSizePolicyWeight)),
-    _minor_collection_estimator(new LinearLeastSquareFit(AdaptiveSizePolicyWeight)),
-    _major_collection_estimator(new LinearLeastSquareFit(AdaptiveSizePolicyWeight)),
+    _avg_minor_pause(new AdaptivePaddedAverage(narrow_cast<uint>(AdaptiveTimeWeight), narrow_cast<uint>(PausePadding))),
+    _avg_minor_interval(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveTimeWeight))),
+    _avg_minor_gc_cost(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveTimeWeight))),
+    _avg_major_interval(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveTimeWeight))),
+    _avg_major_gc_cost(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveTimeWeight))),
+    _avg_young_live(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _avg_eden_live(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _avg_old_live(new AdaptiveWeightedAverage(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _avg_survived(new AdaptivePaddedAverage(narrow_cast<uint>(AdaptiveSizePolicyWeight), narrow_cast<uint>(SurvivorPadding))),
+    _avg_pretenured(new AdaptivePaddedNoZeroDevAverage(narrow_cast<uint>(AdaptiveSizePolicyWeight), narrow_cast<uint>(SurvivorPadding))),
+    _minor_pause_old_estimator(new LinearLeastSquareFit(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _minor_pause_young_estimator(new LinearLeastSquareFit(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _minor_collection_estimator(new LinearLeastSquareFit(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
+    _major_collection_estimator(new LinearLeastSquareFit(narrow_cast<uint>(AdaptiveSizePolicyWeight))),
     _latest_minor_mutator_interval_seconds(0),
-    _threshold_tolerance_percent(1.0 + ThresholdTolerance/100.0),
+    _threshold_tolerance_percent(1.0 + narrow_cast<double>(ThresholdTolerance)/100.0),
     _gc_pause_goal_sec(gc_pause_goal_sec),
     _young_gen_policy_is_ready(false),
     _change_young_gen_for_min_pauses(0),
@@ -114,7 +114,7 @@ void AdaptiveSizePolicy::minor_collection_end(GCCause::Cause gc_cause) {
     double minor_pause_in_ms = minor_pause_in_seconds * MILLIUNITS;
 
     // Sample for performance counter
-    _avg_minor_pause->sample(minor_pause_in_seconds);
+    _avg_minor_pause->sample(narrow_cast<float>(minor_pause_in_seconds));
 
     // Cost of collection (unit-less)
     double collection_cost = 0.0;
@@ -124,9 +124,9 @@ void AdaptiveSizePolicy::minor_collection_end(GCCause::Cause gc_cause) {
         _latest_minor_mutator_interval_seconds + minor_pause_in_seconds;
       collection_cost =
         minor_pause_in_seconds / interval_in_seconds;
-      _avg_minor_gc_cost->sample(collection_cost);
+      _avg_minor_gc_cost->sample(narrow_cast<float>(collection_cost));
       // Sample for performance counter
-      _avg_minor_interval->sample(interval_in_seconds);
+      _avg_minor_interval->sample(narrow_cast<float>(interval_in_seconds));
     }
 
     // The policy does not have enough data until at least some
@@ -162,7 +162,7 @@ size_t AdaptiveSizePolicy::eden_increment(size_t cur_eden, uint percent_change) 
 }
 
 size_t AdaptiveSizePolicy::eden_increment(size_t cur_eden) {
-  return eden_increment(cur_eden, YoungGenerationSizeIncrement);
+  return eden_increment(cur_eden, narrow_cast<uint>(YoungGenerationSizeIncrement));
 }
 
 size_t AdaptiveSizePolicy::eden_decrement(size_t cur_eden) {
@@ -178,7 +178,7 @@ size_t AdaptiveSizePolicy::promo_increment(size_t cur_promo, uint percent_change
 }
 
 size_t AdaptiveSizePolicy::promo_increment(size_t cur_promo) {
-  return promo_increment(cur_promo, TenuredGenerationSizeIncrement);
+  return promo_increment(cur_promo, narrow_cast<uint>(TenuredGenerationSizeIncrement));
 }
 
 size_t AdaptiveSizePolicy::promo_decrement(size_t cur_promo) {
@@ -276,7 +276,7 @@ class AdaptiveSizePolicyTimeOverheadTester: public GCOverheadTester {
   AdaptiveSizePolicyTimeOverheadTester(double gc_cost) : _gc_cost(gc_cost) {}
 
   bool is_exceeded() {
-    return _gc_cost > (GCTimeLimit / 100.0);
+    return _gc_cost > (narrow_cast<double>(GCTimeLimit) / 100.0);
   }
 };
 
@@ -323,14 +323,14 @@ class AdaptiveSizePolicySpaceOverheadTester: public GCOverheadTester {
       MIN2(_eden_live, (size_t)_avg_eden_live);
     const size_t free_in_eden = _max_eden_size > live_in_eden ?
       _max_eden_size - live_in_eden : 0;
-    const size_t free_in_old_gen = (size_t)(_max_old_gen_size - _avg_old_live);
+    const size_t free_in_old_gen = (size_t)(narrow_cast<double>(_max_old_gen_size) - _avg_old_live);
     const size_t total_free_limit = free_in_old_gen + free_in_eden;
     const size_t total_mem = _max_old_gen_size + _max_eden_size;
-    const double free_limit_ratio = GCHeapFreeLimit / 100.0;
-    const double mem_free_limit = total_mem * free_limit_ratio;
-    const double mem_free_old_limit = _max_old_gen_size * free_limit_ratio;
-    const double mem_free_eden_limit = _max_eden_size * free_limit_ratio;
-    size_t promo_limit = (size_t)(_max_old_gen_size - _avg_old_live);
+    const double free_limit_ratio = narrow_cast<double>(GCHeapFreeLimit) / 100.0;
+    const double mem_free_limit = narrow_cast<double>(total_mem) * free_limit_ratio;
+    const double mem_free_old_limit = narrow_cast<double>(_max_old_gen_size) * free_limit_ratio;
+    const double mem_free_eden_limit = narrow_cast<double>(_max_eden_size) * free_limit_ratio;
+    size_t promo_limit = (size_t)(narrow_cast<double>(_max_old_gen_size) - _avg_old_live);
     // But don't force a promo size below the current promo size. Otherwise,
     // the promo size will shrink for no good reason.
     promo_limit = MAX2(promo_limit, _promo_size);

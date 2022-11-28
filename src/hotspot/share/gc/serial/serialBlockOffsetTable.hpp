@@ -303,7 +303,7 @@ class BlockOffsetArray: public BlockOffsetTable {
       assert(_array->is_card_boundary(new_end),
              "new _end would not be a card boundary");
       // set all the newly added cards
-      _array->set_offset_array(_end, new_end, BOTConstants::card_size_in_words());
+      _array->set_offset_array(_end, new_end, narrow_cast<u_char>(BOTConstants::card_size_in_words()));
     }
     _end = new_end;  // update _end
   }

@@ -47,7 +47,7 @@ void CardTable::initialize_card_size() {
          "Initialize card size should only be called by card based collectors.");
 
   _card_size = GCCardSizeInBytes;
-  _card_shift = log2i_exact(_card_size);
+  _card_shift = static_cast<uint>(log2i_exact(_card_size));
   _card_size_in_words = _card_size / sizeof(HeapWord);
 
   // Set blockOffsetTable size based on card table entry size
@@ -63,13 +63,13 @@ void CardTable::initialize_card_size() {
 
 size_t CardTable::compute_byte_map_size(size_t num_bytes) {
   assert(_page_size != 0, "uninitialized, check declaration order");
-  const size_t granularity = os::vm_allocation_granularity();
+  const size_t granularity = static_cast<uint>(os::vm_allocation_granularity());
   return align_up(num_bytes, MAX2(_page_size, granularity));
 }
 
 CardTable::CardTable(MemRegion whole_heap) :
   _whole_heap(whole_heap),
-  _page_size(os::vm_page_size()),
+  _page_size(static_cast<uint>(os::vm_page_size())),
   _byte_map_size(0),
   _byte_map(NULL),
   _byte_map_base(NULL),
@@ -339,8 +339,8 @@ void CardTable::resize_covered_region(MemRegion new_region) {
 // Note that these versions are precise!  The scanning code has to handle the
 // fact that the write barrier may be either precise or imprecise.
 void CardTable::dirty_MemRegion(MemRegion mr) {
-  assert(align_down(mr.start(), HeapWordSize) == mr.start(), "Unaligned start");
-  assert(align_up  (mr.end(),   HeapWordSize) == mr.end(),   "Unaligned end"  );
+  assert(align_down(mr.start(), static_cast<uint>(HeapWordSize)) == mr.start(), "Unaligned start");
+  assert(align_up  (mr.end(),   static_cast<uint>(HeapWordSize)) == mr.end(),   "Unaligned end"  );
   CardValue* cur  = byte_for(mr.start());
   CardValue* last = byte_after(mr.last());
   while (cur < last) {
@@ -372,12 +372,12 @@ void CardTable::clear(MemRegion mr) {
 
 uintx CardTable::ct_max_alignment_constraint() {
   // Calculate maximum alignment using GCCardSizeInBytes as card_size hasn't been set yet
-  return GCCardSizeInBytes * os::vm_page_size();
+  return GCCardSizeInBytes * static_cast<uint>(os::vm_page_size());
 }
 
 void CardTable::invalidate(MemRegion mr) {
-  assert(align_down(mr.start(), HeapWordSize) == mr.start(), "Unaligned start");
-  assert(align_up  (mr.end(),   HeapWordSize) == mr.end(),   "Unaligned end"  );
+  assert(align_down(mr.start(), static_cast<uint>(HeapWordSize)) == mr.start(), "Unaligned start");
+  assert(align_up  (mr.end(),   static_cast<uint>(HeapWordSize)) == mr.end(),   "Unaligned end"  );
   for (int i = 0; i < _cur_covered_regions; i++) {
     MemRegion mri = mr.intersection(_covered[i]);
     if (!mri.is_empty()) dirty_MemRegion(mri);

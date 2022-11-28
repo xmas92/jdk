@@ -160,7 +160,7 @@ class Space: public CHeapObj<mtGC> {
   }
 
   // Size computations.  Sizes are in bytes.
-  size_t capacity()     const { return byte_size(bottom(), end()); }
+  size_t capacity()     const { return static_cast<size_t>(byte_size(bottom(), end())); }
   virtual size_t used() const = 0;
   virtual size_t free() const = 0;
 
@@ -471,9 +471,9 @@ class ContiguousSpace: public CompactibleSpace {
   void check_mangled_unused_area_complete() PRODUCT_RETURN;
 
   // Size computations: sizes in bytes.
-  size_t capacity() const        { return byte_size(bottom(), end()); }
-  size_t used() const            { return byte_size(bottom(), top()); }
-  size_t free() const            { return byte_size(top(),    end()); }
+  size_t capacity() const        { return static_cast<size_t>(byte_size(bottom(), end())); }
+  size_t used() const            { return static_cast<size_t>(byte_size(bottom(), top())); }
+  size_t free() const            { return static_cast<size_t>(byte_size(top(),    end())); }
 
   virtual bool is_free_block(const HeapWord* p) const;
 

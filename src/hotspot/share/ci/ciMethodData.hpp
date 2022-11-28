@@ -196,13 +196,13 @@ public:
 
   void set_receiver(uint row, ciKlass* recv) {
     assert((uint)row < row_limit(), "oob");
-    set_intptr_at(receiver0_offset + row * receiver_type_row_cell_count,
+    set_intptr_at(receiver0_offset + narrow_cast<int>(row) * receiver_type_row_cell_count,
                   (intptr_t) recv);
   }
 
   ciKlass* receiver(uint row) const {
     assert((uint)row < row_limit(), "oob");
-    ciKlass* recv = (ciKlass*)intptr_at(receiver0_offset + row * receiver_type_row_cell_count);
+    ciKlass* recv = (ciKlass*)intptr_at(receiver0_offset + narrow_cast<int>(row) * receiver_type_row_cell_count);
     assert(recv == NULL || recv->is_klass(), "wrong type");
     return recv;
   }
@@ -425,7 +425,7 @@ private:
   void print_impl(outputStream* st);
 
   DataLayout* data_layout_at(int data_index) const {
-    assert(data_index % sizeof(intptr_t) == 0, "unaligned");
+    assert(static_cast<uint>(data_index) % sizeof(intptr_t) == 0, "unaligned");
     return (DataLayout*) (((address)_data) + data_index);
   }
 
@@ -501,7 +501,7 @@ public:
 
   // Convert a dp (data pointer) to a di (data index).
   int dp_to_di(address dp) {
-    return dp - ((address)_data);
+    return narrow_cast<int>(dp - ((address)_data));
   }
 
   // Get the data at an arbitrary (sort of) data index.

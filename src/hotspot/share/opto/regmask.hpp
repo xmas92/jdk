@@ -409,7 +409,7 @@ class RegMaskIterator {
       assert(next_bit > 0, "must be");
       assert(((_current_bits >> next_bit) & 0x1) == 1, "lowest bit must be set after shift");
       _current_bits = (_current_bits >> next_bit) - 1;
-      _reg = OptoReg::add(_reg, next_bit);
+      _reg = OptoReg::add(_reg, narrow_cast<int>(next_bit));
       return r;
     }
 

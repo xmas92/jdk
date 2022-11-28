@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_OPTOREG_HPP
 #define SHARE_OPTO_OPTOREG_HPP
 
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 
 // AdGlobals contains c2 specific register handling code as specified
@@ -88,7 +89,7 @@ class OptoReg {
   // Get the stack slot number of an OptoReg::Name
   static unsigned int reg2stack( OptoReg::Name r) {
     assert( r >= stack0(), " must be");
-    return r - stack0();
+    return static_cast<uint>(r - stack0());
   }
 
   static void invalidate(Name n) {
@@ -128,7 +129,7 @@ class OptoReg {
       // Must use table, it'd be nice if Bad was indexable...
       return opto2vm[n];
     } else if (is_stack(n)) {
-      int stack_slot = reg2stack(n);
+      int stack_slot = narrow_cast<int>(reg2stack(n));
       if (stack_slot < arg_count) {
         return VMRegImpl::stack2reg(stack_slot + frame_size);
       }
@@ -188,22 +189,36 @@ private:
   short _first;
 public:
   void set_bad (                   ) { _second = OptoReg::Bad; _first = OptoReg::Bad; }
-  void set1    ( OptoReg::Name n  ) { _second = OptoReg::Bad; _first = n; }
-  void set2    ( OptoReg::Name n  ) { _second = n + 1;       _first = n; }
-  void set_pair( OptoReg::Name second, OptoReg::Name first    ) { _second= second;    _first= first; }
+  void set1    ( OptoReg::Name n  ) {
+    _second = OptoReg::Bad;
+    _first = narrow_cast<short>(n); }
+  void set2    ( OptoReg::Name n  ) {
+    _second = narrow_cast<short>(n + 1);
+    _first = narrow_cast<short>(n);
+  }
+  void set_pair( OptoReg::Name second, OptoReg::Name first    ) {
+    _second = narrow_cast<short>(second);
+    _first = narrow_cast<short>(first);
+    }
   void set_ptr ( OptoReg::Name ptr ) {
 #ifdef _LP64
-    _second = ptr+1;
+    _second = narrow_cast<short>(ptr+1);
 #else
     _second = OptoReg::Bad;
 #endif
-    _first = ptr;
+    _first = narrow_cast<short>(ptr);
   }
 
   OptoReg::Name second() const { return _second; }
   OptoReg::Name first() const { return _first; }
-  OptoRegPair(OptoReg::Name second, OptoReg::Name first) {  _second = second; _first = first; }
-  OptoRegPair(OptoReg::Name f) { _second = OptoReg::Bad; _first = f; }
+  OptoRegPair(OptoReg::Name second, OptoReg::Name first) {
+    _second = narrow_cast<short>(second);
+    _first = narrow_cast<short>(first);
+  }
+  OptoRegPair(OptoReg::Name f) {
+    _second = OptoReg::Bad;
+    _first = narrow_cast<short>(f);
+  }
   OptoRegPair() { _second = OptoReg::Bad; _first = OptoReg::Bad; }
 };
 

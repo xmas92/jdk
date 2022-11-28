@@ -806,7 +806,7 @@ class Compile : public Phase {
                                              _dead_node_count = 0;
                                            }
   uint          live_nodes() const         {
-    int  val = _unique - _dead_node_count;
+    int  val = narrow_cast<int>(_unique - _dead_node_count);
     assert (val >= 0, "number of tracked dead nodes %d more than created nodes %d", _unique, _dead_node_count);
             return (uint) val;
                                            }
@@ -881,8 +881,8 @@ class Compile : public Phase {
   AliasType*        alias_type(ciField*         field);
 
   int               get_alias_index(const TypePtr* at)  { return alias_type(at)->index(); }
-  const TypePtr*    get_adr_type(uint aidx)             { return alias_type(aidx)->adr_type(); }
-  int               get_general_index(uint aidx)        { return alias_type(aidx)->general_index(); }
+  const TypePtr*    get_adr_type(uint aidx)             { return alias_type(narrow_cast<int>(aidx))->adr_type(); }
+  int               get_general_index(uint aidx)        { return alias_type(narrow_cast<int>(aidx))->general_index(); }
 
   // Building nodes
   void              rethrow_exceptions(JVMState* jvms);

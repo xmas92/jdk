@@ -528,7 +528,7 @@ public:
   // Replace ith edge of "n" with "in"
   void replace_input_of(Node* n, int i, Node* in) {
     rehash_node_delayed(n);
-    n->set_req_X(i, in, this);
+    n->set_req_X(static_cast<uint>(i), in, this);
   }
 
   // Add "in" as input (req) of "n"
@@ -540,13 +540,13 @@ public:
   // Delete ith edge of "n"
   void delete_input_of(Node* n, int i) {
     rehash_node_delayed(n);
-    n->del_req(i);
+    n->del_req(static_cast<uint>(i));
   }
 
   // Delete precedence edge i of "n"
   void delete_precedence_of(Node* n, int i) {
     rehash_node_delayed(n);
-    n->rm_prec(i);
+    n->rm_prec(static_cast<uint>(i));
   }
 
   bool delay_transform() const { return _delay_transform; }

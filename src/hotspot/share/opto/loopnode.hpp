@@ -114,10 +114,10 @@ public:
   void mark_loop_vectorized() { _loop_flags |= VectorizedLoop; }
   void mark_has_atomic_post_loop() { _loop_flags |= HasAtomicPostLoop; }
   void mark_has_range_checks() { _loop_flags |=  HasRangeChecks; }
-  void clear_has_range_checks() { _loop_flags &= ~HasRangeChecks; }
+  void clear_has_range_checks() { _loop_flags &= static_cast<uint>(~HasRangeChecks); }
   void mark_is_multiversioned() { _loop_flags |= IsMultiversioned; }
   void mark_strip_mined() { _loop_flags |= StripMined; }
-  void clear_strip_mined() { _loop_flags &= ~StripMined; }
+  void clear_strip_mined() { _loop_flags &= static_cast<uint>(~StripMined); }
   void mark_profile_trip_failed() { _loop_flags |= ProfileTripFailed; }
   void mark_subword_loop() { _loop_flags |= SubwordLoop; }
   void mark_loop_nest_inner_loop() { _loop_flags |= LoopNestInnerLoop; }
@@ -133,7 +133,7 @@ public:
 
   void set_unswitch_count(int val) {
     assert (val <= unswitch_max(), "too many unswitches");
-    _unswitch_count = val;
+    _unswitch_count = narrow_cast<char>(val);
   }
 
   void set_profile_trip_cnt(float ptc) { _profile_trip_cnt = ptc; }
@@ -300,13 +300,13 @@ public:
   bool has_atomic_post_loop  () const { return (_loop_flags & HasAtomicPostLoop) == HasAtomicPostLoop; }
   void set_main_no_pre_loop() { _loop_flags |= MainHasNoPreLoop; }
 
-  int main_idx() const { return _main_idx; }
+  int main_idx() const { return narrow_cast<int>(_main_idx); }
 
 
   void set_pre_loop  (CountedLoopNode *main) { assert(is_normal_loop(),""); _loop_flags |= Pre ; _main_idx = main->_idx; }
   void set_main_loop (                     ) { assert(is_normal_loop(),""); _loop_flags |= Main;                         }
   void set_post_loop (CountedLoopNode *main) { assert(is_normal_loop(),""); _loop_flags |= Post; _main_idx = main->_idx; }
-  void set_normal_loop(                    ) { _loop_flags &= ~PreMainPostFlagsMask; }
+  void set_normal_loop(                    ) { _loop_flags &= static_cast<uint>(~PreMainPostFlagsMask); }
 
   void set_trip_count(uint tc) { _trip_count = tc; }
   uint trip_count()            { return _trip_count; }
@@ -317,10 +317,10 @@ public:
     _loop_flags |= HasExactTripCount;
   }
   void set_nonexact_trip_count() {
-    _loop_flags &= ~HasExactTripCount;
+    _loop_flags &= static_cast<uint>(~HasExactTripCount);
   }
   void set_notpassed_slp() {
-    _loop_flags &= ~PassedSlpAnalysis;
+    _loop_flags &= static_cast<uint>(~PassedSlpAnalysis);
   }
 
   void double_unrolled_count() { _unrolled_count_log2++; }
@@ -849,11 +849,11 @@ class PhaseIdealLoop : public PhaseTransform {
     }
   }
   // Check for pre-visited.  Zero for NOT visited; non-zero for visited.
-  int is_visited( Node *n ) const { return _preorders[n->_idx]; }
+  int is_visited( Node *n ) const { return narrow_cast<int>(_preorders[n->_idx]); }
   // Pre-order numbers are written to the Nodes array as low-bit-set values.
   void set_preorder_visited( Node *n, int pre_order ) {
     assert( !is_visited( n ), "already set" );
-    _preorders[n->_idx] = (pre_order<<1);
+    _preorders[n->_idx] = static_cast<uint>(pre_order<<1);
   };
   // Return pre-order number.
   int get_preorder( Node *n ) const { assert( is_visited(n), "" ); return _preorders[n->_idx]>>1; }

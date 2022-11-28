@@ -454,7 +454,7 @@ protected:
   int find_edge(Node* n);
   int find_prec_edge(Node* n) {
     for (uint i = req(); i < len(); i++) {
-      if (_in[i] == n) return i;
+      if (_in[i] == n) return narrow_cast<int>(i);
       if (_in[i] == NULL) {
         DEBUG_ONLY( while ((++i) < len()) assert(_in[i] == NULL, "Gap in prec edges!"); )
         break;
@@ -1523,7 +1523,7 @@ protected:
   Node** _nodes;
   void   grow( uint i );        // Grow array node to fit
 public:
-  Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
+  Node_Array(Arena* a, uint max = narrow_cast<uint>(OptoNodeListSize)) : _a(a), _max(max) {
     _nodes = NEW_ARENA_ARRAY(a, Node*, max);
     clear();
   }
@@ -1550,8 +1550,8 @@ class Node_List : public Node_Array {
   friend class VMStructs;
   uint _cnt;
 public:
-  Node_List(uint max = OptoNodeListSize) : Node_Array(Thread::current()->resource_area(), max), _cnt(0) {}
-  Node_List(Arena *a, uint max = OptoNodeListSize) : Node_Array(a, max), _cnt(0) {}
+  Node_List(uint max = narrow_cast<uint>(OptoNodeListSize)) : Node_Array(Thread::current()->resource_area(), max), _cnt(0) {}
+  Node_List(Arena *a, uint max = narrow_cast<uint>(OptoNodeListSize)) : Node_Array(a, max), _cnt(0) {}
   bool contains(const Node* n) const {
     for (uint e = 0; e < size(); e++) {
       if (at(e) == n) return true;
@@ -1680,16 +1680,11 @@ protected:
   Arena *_a;         // Arena to allocate in
   void grow();
 public:
-  Node_Stack(int size) {
-    size_t max = (size > OptoNodeListSize) ? size : OptoNodeListSize;
-    _a = Thread::current()->resource_area();
-    _inodes = NEW_ARENA_ARRAY( _a, INode, max );
-    _inode_max = _inodes + max;
-    _inode_top = _inodes - 1; // stack is empty
-  }
+  Node_Stack(int size) : Node_Stack(Thread::current()->resource_area(), size) {}
 
   Node_Stack(Arena *a, int size) : _a(a) {
-    size_t max = (size > OptoNodeListSize) ? size : OptoNodeListSize;
+    size_t max = (size > OptoNodeListSize) ?
+        static_cast<uint>(size) : static_cast<uintx>(OptoNodeListSize);
     _inodes = NEW_ARENA_ARRAY( _a, INode, max );
     _inode_max = _inodes + max;
     _inode_top = _inodes - 1; // stack is empty

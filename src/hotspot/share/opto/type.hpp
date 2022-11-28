@@ -545,7 +545,7 @@ public:
 
 class TypeInteger : public Type {
 protected:
-  TypeInteger(TYPES t, int w) : Type(t), _widen(w) {}
+  TypeInteger(TYPES t, int w) : Type(t), _widen(narrow_cast<short>(w)) {}
 
 public:
   const short _widen;           // Limit on times we widen this sucker
@@ -790,7 +790,7 @@ public:
   BasicType element_basic_type() const { return _elem->array_element_basic_type(); }
   uint length() const { return _length; }
   uint length_in_bytes() const {
-   return _length * type2aelembytes(element_basic_type());
+   return _length * static_cast<uint>(type2aelembytes(element_basic_type()));
   }
 
   virtual bool eq(const Type *t) const;

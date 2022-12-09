@@ -929,6 +929,7 @@ void VM_PopulateDumpSharedSpace::dump_one_heap_bitmap(MemRegion region,
 
   if (size_in_bits > 0) {
     size_in_bytes = bitmap.size_in_bytes();
+    // candidate: leaked
     buffer = (uintptr_t*)NEW_C_HEAP_ARRAY(char, size_in_bytes, mtInternal);
     bitmap.write_to(buffer, size_in_bytes);
   } else {

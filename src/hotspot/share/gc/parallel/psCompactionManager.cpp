@@ -72,6 +72,7 @@ void ParCompactionManager::initialize(ParMarkBitMap* mbm) {
   uint parallel_gc_threads = ParallelScavengeHeap::heap()->workers().max_workers();
 
   assert(_manager_array == NULL, "Attempt to initialize twice");
+  // candidate: leaked
   _manager_array = NEW_C_HEAP_ARRAY(ParCompactionManager*, parallel_gc_threads, mtGC);
 
   _oop_task_queues = new OopTaskQueueSet(parallel_gc_threads);

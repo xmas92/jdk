@@ -705,6 +705,7 @@ static jint invoke_string_value_callback(jvmtiStringPrimitiveValueCallback cb,
       value = s_value->char_at_addr(0);
     } else {
       // Inflate latin1 encoded string to UTF16
+      // candidate: temp
       jchar* buf = NEW_C_HEAP_ARRAY(jchar, s_len, mtInternal);
       for (int i = 0; i < s_len; i++) {
         buf[i] = ((jchar) s_value->byte_at(i)) & 0xff;

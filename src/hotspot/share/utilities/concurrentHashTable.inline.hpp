@@ -195,6 +195,7 @@ inline ConcurrentHashTable<CONFIG, F>::
 {
   assert(_log2_size >= SIZE_SMALL_LOG2 && _log2_size <= SIZE_BIG_LOG2,
          "Bad size");
+  // candidate: c-d
   _buckets = NEW_C_HEAP_ARRAY(Bucket, _size, F);
   // Use placement new for each element instead of new[] which could use more
   // memory than allocated.

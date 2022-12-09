@@ -61,6 +61,7 @@ ShenandoahHeuristics::ShenandoahHeuristics() :
   size_t num_regions = ShenandoahHeap::heap()->num_regions();
   assert(num_regions > 0, "Sanity");
 
+  // candidate: c-d
   _region_data = NEW_C_HEAP_ARRAY(RegionData, num_regions, mtGC);
 }
 

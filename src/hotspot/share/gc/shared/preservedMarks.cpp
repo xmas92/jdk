@@ -75,6 +75,7 @@ void PreservedMarksSet::init(uint num) {
   assert(_stacks == nullptr && _num == 0, "do not re-initialize");
   assert(num > 0, "pre-condition");
   if (_in_c_heap) {
+    // candidate: manual
     _stacks = NEW_C_HEAP_ARRAY(Padded<PreservedMarks>, num, mtGC);
   } else {
     _stacks = NEW_RESOURCE_ARRAY(Padded<PreservedMarks>, num);

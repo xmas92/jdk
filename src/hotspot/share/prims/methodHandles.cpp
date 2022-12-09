@@ -1085,6 +1085,7 @@ void MethodHandles::trace_method_handle_interpreter_entry(MacroAssembler* _masm,
     const char* name = vmIntrinsics::name_at(iid);
     if (*name == '_')  name += 1;
     const size_t len = strlen(name) + 50;
+    // candidate: leaked
     char* qname = NEW_C_HEAP_ARRAY(char, len, mtInternal);
     const char* suffix = "";
     if (is_signature_polymorphic(iid)) {

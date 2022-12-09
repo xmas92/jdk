@@ -1554,6 +1554,7 @@ static void cache_class_file_data(InstanceKlass* new_ik, const ClassFileStream* 
     return;
   }
   const jint stream_len = new_stream->length();
+  // candidate: weird
   JvmtiCachedClassFileData* p =
     (JvmtiCachedClassFileData*)NEW_C_HEAP_ARRAY_RETURN_NULL(u1, offset_of(JvmtiCachedClassFileData, data) + stream_len, mtInternal);
   if (p == NULL) {

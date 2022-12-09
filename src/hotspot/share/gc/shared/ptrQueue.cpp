@@ -42,6 +42,7 @@ BufferNode::AllocatorConfig::AllocatorConfig(size_t size) : _buffer_size(size) {
 
 void* BufferNode::AllocatorConfig::allocate() {
   size_t byte_size = _buffer_size * sizeof(void*);
+  // candidate: manual
   return NEW_C_HEAP_ARRAY(char, buffer_offset() + byte_size, mtGC);
 }
 

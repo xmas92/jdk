@@ -37,6 +37,7 @@ WorkerDataArray<T>::WorkerDataArray(const char* short_name, const char* title, u
  _short_name(short_name),
  _title(title) {
   assert(length > 0, "Must have some workers to store data for");
+  // candidate: c-d
   _data = NEW_C_HEAP_ARRAY(T, _length, mtGC);
   for (uint i = 0; i < MaxThreadWorkItems; i++) {
     _thread_work_items[i] = NULL;

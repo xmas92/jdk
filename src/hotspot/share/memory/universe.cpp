@@ -1073,6 +1073,7 @@ void Universe::initialize_verify_flags() {
   const char delimiter[] = " ,";
 
   size_t length = strlen(VerifySubSet);
+  // candidate: temp
   char* subset_list = NEW_C_HEAP_ARRAY(char, length + 1, mtInternal);
   strncpy(subset_list, VerifySubSet, length + 1);
   char* save_ptr;

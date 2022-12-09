@@ -44,6 +44,7 @@ StringArrayArgument::~StringArrayArgument() {
 
 void StringArrayArgument::add(const char* str, size_t len) {
   if (str != NULL) {
+    // candidate: i-d
     char* ptr = NEW_C_HEAP_ARRAY(char, len+1, mtInternal);
     strncpy(ptr, str, len);
     ptr[len] = 0;
@@ -183,6 +184,7 @@ template <> void DCmdArgument<char*>::parse_value(const char* str,
   if (str == NULL) {
     _value = NULL;
   } else {
+    // candidate: manual
     _value = NEW_C_HEAP_ARRAY(char, len + 1, mtInternal);
     int n = os::snprintf(_value, len + 1, "%.*s", (int)len, str);
     assert((size_t)n <= len, "Unexpected number of characters in string");

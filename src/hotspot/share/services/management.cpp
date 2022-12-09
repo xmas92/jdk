@@ -1646,6 +1646,7 @@ ThreadTimesClosure::ThreadTimesClosure(objArrayHandle names,
   assert(times() != NULL, "times was NULL");
   _names_strings = names;
   _names_len = names->length();
+  // candidate: c-d
   _names_chars = NEW_C_HEAP_ARRAY(char*, _names_len, mtInternal);
   _times = times;
   _times_len = times->length();

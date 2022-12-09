@@ -305,6 +305,7 @@ bool os::dll_locate_lib(char *buffer, size_t buflen,
   bool retval = false;
 
   size_t fullfnamelen = strlen(JNI_LIB_PREFIX) + strlen(fname) + strlen(JNI_LIB_SUFFIX);
+  // candidate: temp
   char* fullfname = NEW_C_HEAP_ARRAY(char, fullfnamelen + 1, mtInternal);
   if (dll_build_name(fullfname, fullfnamelen + 1, fname)) {
     const size_t pnamelen = pname ? strlen(pname) : 0;
@@ -1289,7 +1290,7 @@ char* os::format_boot_path(const char* format_string,
         if (*p == '%') formatted_path_len += home_len - 1;
         ++formatted_path_len;
     }
-
+   // candidate: temp returned
     char* formatted_path = NEW_C_HEAP_ARRAY(char, formatted_path_len + 1, mtInternal);
 
     // Create boot classpath from format, substituting separator chars and
@@ -1401,6 +1402,7 @@ char** os::split_path(const char* path, size_t* elements, size_t file_name_lengt
     return NULL;
   }
   const char psepchar = *os::path_separator();
+  // candidate: temp, nested
   char* inpath = NEW_C_HEAP_ARRAY(char, strlen(path) + 1, mtInternal);
   strcpy(inpath, path);
   size_t count = 1;

@@ -78,6 +78,7 @@ class JfrBasicHashtable : public CHeapObj<mtTracing> {
  protected:
   JfrBasicHashtable(uintptr_t table_size, size_t entry_size) :
     _buckets(NULL), _table_size(table_size), _entry_size(entry_size), _number_of_entries(0) {
+    // candidate: c-d
     _buckets = NEW_C_HEAP_ARRAY2(Bucket, table_size, mtTracing, CURRENT_PC);
     memset((void*)_buckets, 0, table_size * sizeof(Bucket));
   }

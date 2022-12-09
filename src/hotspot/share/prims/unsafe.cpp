@@ -650,7 +650,7 @@ static jclass Unsafe_DefineClass_impl(JNIEnv *env, jstring name, jbyteArray data
   if (UsePerfData) {
     ClassLoader::unsafe_defineClassCallCounter()->inc();
   }
-
+  // candidate: temp
   body = NEW_C_HEAP_ARRAY_RETURN_NULL(jbyte, length, mtInternal);
   if (body == NULL) {
     throw_new(env, "java/lang/OutOfMemoryError");

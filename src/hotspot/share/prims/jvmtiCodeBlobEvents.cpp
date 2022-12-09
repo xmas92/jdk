@@ -274,6 +274,7 @@ void JvmtiCodeBlobEvents::build_jvmti_addr_location_map(nmethod *nm,
     int pcds_in_method;
 
     pcds_in_method = (nm->scopes_pcs_end() - nm->scopes_pcs_begin());
+    // candidate: c-d
     map = NEW_C_HEAP_ARRAY(jvmtiAddrLocationMap, pcds_in_method, mtInternal);
 
     address scopes_data = nm->scopes_data_begin();

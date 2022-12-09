@@ -40,6 +40,7 @@ ShenandoahHeapRegionCounters::ShenandoahHeapRegionCounters() :
     ShenandoahHeap* heap = ShenandoahHeap::heap();
     size_t num_regions = heap->num_regions();
     const char* cns = PerfDataManager::name_space("shenandoah", "regions");
+    // candidate: c-d
     _name_space = NEW_C_HEAP_ARRAY(char, strlen(cns)+1, mtGC);
     strcpy(_name_space, cns);
 
@@ -55,7 +56,7 @@ ShenandoahHeapRegionCounters::ShenandoahHeapRegionCounters() :
     cname = PerfDataManager::counter_name(_name_space, "status");
     _status = PerfDataManager::create_long_variable(SUN_GC, cname,
                                                     PerfData::U_None, CHECK);
-
+    // candidate: leaked
     _regions_data = NEW_C_HEAP_ARRAY(PerfVariable*, num_regions, mtGC);
     for (uint i = 0; i < num_regions; i++) {
       const char* reg_name = PerfDataManager::name_space(_name_space, "region", i);

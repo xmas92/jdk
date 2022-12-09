@@ -38,6 +38,7 @@
 
 ShenandoahParallelCodeCacheIterator::ShenandoahParallelCodeCacheIterator(const GrowableArray<CodeHeap*>* heaps) {
   _length = heaps->length();
+  // candidate: c-d
   _iters = NEW_C_HEAP_ARRAY(ShenandoahParallelCodeHeapIterator, _length, mtGC);
   for (int h = 0; h < _length; h++) {
     _iters[h] = ShenandoahParallelCodeHeapIterator(heaps->at(h));

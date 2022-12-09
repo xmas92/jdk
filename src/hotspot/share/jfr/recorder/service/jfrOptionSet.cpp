@@ -772,6 +772,7 @@ bool JfrOptionSet::parse_start_flight_recording_option(const JavaVMOption** opti
     start_flight_recording_options_array = new (mtTracing) GrowableArray<const char*>(8, mtTracing);
   }
   assert(start_flight_recording_options_array != NULL, "invariant");
+  // candidate: manual
   char* const startup_value = NEW_C_HEAP_ARRAY(char, value_length + 1, mtTracing);
   strncpy(startup_value, value, value_length + 1);
   assert(strncmp(startup_value, value, value_length) == 0, "invariant");

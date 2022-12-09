@@ -32,6 +32,7 @@ SamplePriorityQueue::SamplePriorityQueue(size_t size) :
   _allocated_size(size),
   _count(0),
   _total(0) {
+  // candidate: c-d
   _items =  NEW_C_HEAP_ARRAY(ObjectSample*, size, mtTracing);
   memset(_items, 0, sizeof(ObjectSample*) * size);
 }

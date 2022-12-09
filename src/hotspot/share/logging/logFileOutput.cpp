@@ -125,6 +125,7 @@ static uint next_file_number(const char* filename,
 
   // len is filename + dot + digits + null char
   size_t len = strlen(filename) + number_of_digits + 2;
+  // candidate: temp
   char* archive_name = NEW_C_HEAP_ARRAY(char, len, mtLogging);
   char* oldest_name = NEW_C_HEAP_ARRAY(char, len, mtLogging);
 
@@ -209,6 +210,7 @@ bool LogFileOutput::initialize(const char* options, outputStream* errstream) {
     // compute digits with filecount - 1 since numbers will start from 0
     _file_count_max_digits = number_of_digits(_file_count - 1);
     _archive_name_len = 2 + strlen(_file_name) + _file_count_max_digits;
+    // candidate: i-d
     _archive_name = NEW_C_HEAP_ARRAY(char, _archive_name_len, mtLogging);
     _archive_name[0] = 0;
   }
@@ -429,6 +431,7 @@ char* LogFileOutput::make_file_name(const char* file_name,
 
   // Allocate the new buffer, size it to hold all we want to put in there +1.
   size_t result_len =  strlen(file_name) + first_len - first_replace_len + second_len - second_replace_len;
+  // candidate: c-d
   result = NEW_C_HEAP_ARRAY(char, result_len + 1, mtLogging);
 
   // Assemble the strings

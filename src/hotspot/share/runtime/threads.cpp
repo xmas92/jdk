@@ -516,6 +516,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
 #if INCLUDE_JVMCI
   if (JVMCICounterSize > 0) {
+    // candidate: manual
     JavaThread::_jvmci_old_thread_counters = NEW_C_HEAP_ARRAY(jlong, JVMCICounterSize, mtJVMCI);
     memset(JavaThread::_jvmci_old_thread_counters, 0, sizeof(jlong) * JVMCICounterSize);
   } else {
@@ -834,6 +835,7 @@ static OnLoadEntry_t lookup_on_load(AgentLibrary* agent,
       if (library == NULL) {
         const char *sub_msg = " in absolute path, with error: ";
         size_t len = strlen(msg) + strlen(name) + strlen(sub_msg) + strlen(ebuf) + 1;
+        // candidate: temp
         char *buf = NEW_C_HEAP_ARRAY(char, len, mtThread);
         jio_snprintf(buf, len, "%s%s%s%s", msg, name, sub_msg, ebuf);
         // If we can't find the agent, exit.
@@ -856,6 +858,7 @@ static OnLoadEntry_t lookup_on_load(AgentLibrary* agent,
 
           size_t len = strlen(msg) + strlen(name) + strlen(sub_msg) +
                        strlen(ebuf) + strlen(sub_msg2) + 1;
+          // candidate: temp
           char *buf = NEW_C_HEAP_ARRAY(char, len, mtThread);
           if (!agent->is_instrument_lib()) {
             jio_snprintf(buf, len, "%s%s%s%s", msg, name, sub_msg, ebuf);

@@ -112,6 +112,7 @@ Deoptimization::UnrollBlock::UnrollBlock(int  size_of_deoptimized_frame,
   _number_of_frames          = number_of_frames;
   _frame_sizes               = frame_sizes;
   _frame_pcs                 = frame_pcs;
+  // candidate: c-d
   _register_block            = NEW_C_HEAP_ARRAY(intptr_t, RegisterMap::reg_count * 2, mtCompiler);
   _return_type               = return_type;
   _initial_info              = 0;

@@ -130,6 +130,7 @@ OopStorage::ActiveArray* OopStorage::ActiveArray::create(size_t size,
                                                          MEMFLAGS memflags,
                                                          AllocFailType alloc_fail) {
   size_t size_in_bytes = blocks_offset() + sizeof(Block*) * size;
+  // candidate: manual
   void* mem = NEW_C_HEAP_ARRAY3(char, size_in_bytes, memflags, CURRENT_PC, alloc_fail);
   if (mem == NULL) return NULL;
   return new (mem) ActiveArray(size);
@@ -343,6 +344,7 @@ OopStorage::Block* OopStorage::Block::new_block(const OopStorage* owner) {
   // _data must be first member: aligning block => aligning _data.
   STATIC_ASSERT(_data_pos == 0);
   size_t size_needed = allocation_size();
+  // candidate: manual
   void* memory = NEW_C_HEAP_ARRAY_RETURN_NULL(char, size_needed, owner->memflags());
   if (memory == NULL) {
     return NULL;

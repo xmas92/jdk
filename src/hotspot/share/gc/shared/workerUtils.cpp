@@ -81,6 +81,7 @@ void WorkerThreadsBarrierSync::abort() {
 
 SubTasksDone::SubTasksDone(uint n) :
   _tasks(NULL), _n_tasks(n) {
+  // candidate: c-d
   _tasks = NEW_C_HEAP_ARRAY(bool, n, mtInternal);
   for (uint i = 0; i < _n_tasks; i++) {
     _tasks[i] = false;

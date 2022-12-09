@@ -343,6 +343,7 @@ void stringStream::grow(size_t new_capacity) {
   assert(new_capacity > _capacity, "Sanity");
   assert(new_capacity > sizeof(_small_buffer), "Sanity");
   if (_buffer == _small_buffer) {
+    // candidate: mixed
     _buffer = NEW_C_HEAP_ARRAY(char, new_capacity, mtInternal);
     _capacity = new_capacity;
     if (_written > 0) {
@@ -490,6 +491,7 @@ static const char* make_log_name_internal(const char* log_name, const char* forc
   }
 
   // Create big enough buffer.
+  // candidate: temp
   char *buf = NEW_C_HEAP_ARRAY(char, buffer_length, mtInternal);
 
   strcpy(buf, "");
@@ -998,6 +1000,7 @@ void ostream_abort() {
 
 bufferedStream::bufferedStream(size_t initial_size, size_t bufmax) : outputStream() {
   buffer_length = initial_size;
+  // candidate: manual
   buffer        = NEW_C_HEAP_ARRAY(char, buffer_length, mtInternal);
   buffer_pos    = 0;
   buffer_fixed  = false;

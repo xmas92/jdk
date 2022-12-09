@@ -211,6 +211,7 @@ void ShenandoahFullGC::do_it(GCCause::Cause gc_cause) {
   OrderAccess::fence();
 
   // Initialize worker slices
+  // candidate: temp
   ShenandoahHeapRegionSet** worker_slices = NEW_C_HEAP_ARRAY(ShenandoahHeapRegionSet*, heap->max_workers(), mtGC);
   for (uint i = 0; i < heap->max_workers(); i++) {
     worker_slices[i] = new ShenandoahHeapRegionSet();
@@ -609,6 +610,7 @@ void ShenandoahFullGC::distribute_slices(ShenandoahHeapRegionSet** worker_slices
   // subset of dense prefix.
   size_t prefix_idx = 0;
 
+  // candidate: temp
   size_t* live = NEW_C_HEAP_ARRAY(size_t, n_workers, mtGC);
 
   for (size_t wid = 0; wid < n_workers; wid++) {

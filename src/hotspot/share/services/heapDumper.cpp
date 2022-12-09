@@ -2317,6 +2317,7 @@ void VM_HeapDumper::dump_stack_traces() {
   writer()->write_u4(0);                    // thread number
   writer()->write_u4(0);                    // frame count
 
+  // candidate: i-d
   _stack_traces = NEW_C_HEAP_ARRAY(ThreadStackTrace*, Threads::number_of_threads(), mtInternal);
   int frame_serial_num = 0;
   for (JavaThreadIteratorWithHandle jtiwh; JavaThread *thread = jtiwh.next(); ) {

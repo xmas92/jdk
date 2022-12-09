@@ -98,6 +98,7 @@ void GrowableCache::recache() {
   int len = _elements->length();
 
   FREE_C_HEAP_ARRAY(address, _cache);
+  // candidate: c-d, manual
   _cache = NEW_C_HEAP_ARRAY(address,len+1, mtInternal);
 
   for (int i=0; i<len; i++) {

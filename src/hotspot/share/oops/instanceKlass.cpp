@@ -2179,6 +2179,7 @@ jmethodID InstanceKlass::get_jmethod_id(const methodHandle& method_h) {
     if (length <= idnum) {
       // allocate a new cache that might be used
       size_t size = MAX2(idnum+1, (size_t)idnum_allocated_count());
+      // candidate: manual
       new_jmeths = NEW_C_HEAP_ARRAY(jmethodID, size+1, mtClass);
       memset(new_jmeths, 0, (size+1)*sizeof(jmethodID));
       // cache size is stored in element[0], other elements offset by one
@@ -2724,6 +2725,7 @@ void InstanceKlass::set_source_debug_extension(const char* array, int length) {
     // already coded with an u4 in the classfile, but in practice, it's
     // unlikely to happen.
     assert((length+1) > length, "Overflow checking");
+    // candidate: manual
     char* sde = NEW_C_HEAP_ARRAY(char, (length + 1), mtClass);
     for (int i = 0; i < length; i++) {
       sde[i] = array[i];

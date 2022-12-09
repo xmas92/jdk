@@ -461,6 +461,7 @@ RootChunkAreaLUT::RootChunkAreaLUT(const MetaWord* base, size_t word_size) :
   _arr(NULL)
 {
   assert_is_aligned(word_size, chunklevel::MAX_CHUNK_WORD_SIZE);
+  // candidate: c-d
   _arr = NEW_C_HEAP_ARRAY(RootChunkArea, _num, mtClass);
   const MetaWord* this_base = _base;
   for (int i = 0; i < _num; i++) {

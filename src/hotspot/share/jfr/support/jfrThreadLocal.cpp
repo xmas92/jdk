@@ -235,6 +235,7 @@ JfrBuffer* JfrThreadLocal::install_java_buffer() const {
 
 JfrStackFrame* JfrThreadLocal::install_stackframes() const {
   assert(_stackframes == NULL, "invariant");
+  // candidate: s-d
   _stackframes = NEW_C_HEAP_ARRAY(JfrStackFrame, stackdepth(), mtTracing);
   return _stackframes;
 }

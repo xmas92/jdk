@@ -45,6 +45,7 @@
 // Hashtable entry allocates in the C heap directly.
 
 template <MEMFLAGS F> BasicHashtableEntry<F>* BasicHashtable<F>::new_entry(unsigned int hashValue) {
+  // candidate: manual
   BasicHashtableEntry<F>* entry = ::new (NEW_C_HEAP_ARRAY(char, this->entry_size(), F))
                                         BasicHashtableEntry<F>(hashValue);
   return entry;
@@ -52,6 +53,7 @@ template <MEMFLAGS F> BasicHashtableEntry<F>* BasicHashtable<F>::new_entry(unsig
 
 
 template <class T, MEMFLAGS F> HashtableEntry<T, F>* Hashtable<T, F>::new_entry(unsigned int hashValue, T obj) {
+  // candidate: manual
   HashtableEntry<T, F>* entry = ::new (NEW_C_HEAP_ARRAY(char, this->entry_size(), F))
                                       HashtableEntry<T, F>(hashValue, obj);
   return entry;
@@ -120,6 +122,7 @@ template <MEMFLAGS F> int BasicHashtable<F>::calculate_resize(bool use_large_tab
 template <MEMFLAGS F> bool BasicHashtable<F>::resize(int new_size) {
 
   // Allocate new buckets
+  // candidate: temp
   HashtableBucket<F>* buckets_new = NEW_C_HEAP_ARRAY2_RETURN_NULL(HashtableBucket<F>, new_size, F, CURRENT_PC);
   if (buckets_new == NULL) {
     return false;

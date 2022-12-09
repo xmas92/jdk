@@ -39,6 +39,7 @@
 
 template <MEMFLAGS F> inline BasicHashtable<F>::BasicHashtable(int table_size, int entry_size) {
   // Called on startup, no locking needed
+  // candidate: manual
   initialize(table_size, entry_size, 0);
   _buckets = NEW_C_HEAP_ARRAY2(HashtableBucket<F>, table_size, F, CURRENT_PC);
   for (int index = 0; index < _table_size; index++) {

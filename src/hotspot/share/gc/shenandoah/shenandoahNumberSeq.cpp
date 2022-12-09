@@ -28,6 +28,7 @@
 #include "runtime/atomic.hpp"
 
 HdrSeq::HdrSeq() {
+  // candidate: c-d, nested
   _hdr = NEW_C_HEAP_ARRAY(int*, MagBuckets, mtInternal);
   for (int c = 0; c < MagBuckets; c++) {
     _hdr[c] = NULL;
@@ -121,6 +122,7 @@ double HdrSeq::percentile(double level) const {
 }
 
 BinaryMagnitudeSeq::BinaryMagnitudeSeq() {
+  // candidate: c-d
   _mags = NEW_C_HEAP_ARRAY(size_t, BitsPerSize_t, mtInternal);
   clear();
 }

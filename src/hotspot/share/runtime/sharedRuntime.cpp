@@ -2553,6 +2553,7 @@ class AdapterFingerPrint : public CHeapObj<mtCode> {
       ptr = _value._compact;
     } else {
       _length = len;
+      // candidate: c-d
       _value._fingerprint = NEW_C_HEAP_ARRAY(int, _length, mtCode);
       ptr = _value._fingerprint;
     }
@@ -3059,6 +3060,7 @@ AdapterHandlerEntry::~AdapterHandlerEntry() {
 // against other versions.  If the code is captured after relocation
 // then relative instructions won't be equivalent.
 void AdapterHandlerEntry::save_code(unsigned char* buffer, int length) {
+  // candidate: i-d
   _saved_code = NEW_C_HEAP_ARRAY(unsigned char, length, mtCode);
   _saved_code_length = length;
   memcpy(_saved_code, buffer, length);
@@ -3296,6 +3298,7 @@ JRT_LEAF(intptr_t*, SharedRuntime::OSR_migration_begin( JavaThread *current) )
   int max_locals = moop->max_locals();
   // Allocate temp buffer, 1 word per local & 2 per active monitor
   int buf_size_words = max_locals + active_monitor_count * BasicObjectLock::size();
+  // candidate: manual
   intptr_t *buf = NEW_C_HEAP_ARRAY(intptr_t,buf_size_words, mtCode);
 
   // Copy the locals.  Order is preserved so that loading of longs works.

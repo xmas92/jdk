@@ -1113,6 +1113,7 @@ class JvmtiCompiledMethodLoadEventMark : public JvmtiMethodEventMark {
     _code_data = nm->code_begin();
     _code_size = nm->code_size();
     _compile_info = compile_info_ptr; // Set void pointer of compiledMethodLoad Event. Default value is NULL.
+    // candidate: c-d
     JvmtiCodeBlobEvents::build_jvmti_addr_location_map(nm, &_map, &_map_length);
   }
   ~JvmtiCompiledMethodLoadEventMark() {

@@ -221,6 +221,7 @@ void LogOutput::update_config_string(const size_t on_level[LogLevel::Count]) {
 
   size_t n_selections = 0;
   size_t selections_cap = 4 * MaxSubsets; // Start with some reasonably large initial capacity
+  // candidate: temp
   LogSelection* selections = NEW_C_HEAP_ARRAY(LogSelection, selections_cap, mtLogging);
 
   size_t n_deviates = 0;

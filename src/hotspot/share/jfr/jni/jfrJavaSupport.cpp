@@ -510,6 +510,7 @@ Klass* JfrJavaSupport::klass(const jobject handle) {
 }
 
 static char* allocate_string(bool c_heap, int length, Thread* thread) {
+  // candidate: unused? leaked
   return c_heap ? NEW_C_HEAP_ARRAY(char, length, mtTracing) :
                   NEW_RESOURCE_ARRAY_IN_THREAD(thread, char, length);
 }

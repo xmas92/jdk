@@ -134,6 +134,7 @@ NamedThread::~NamedThread() {
 
 void NamedThread::set_name(const char* format, ...) {
   guarantee(_name == NULL, "Only get to set name once.");
+  // candidate: i-d
   _name = NEW_C_HEAP_ARRAY(char, max_name_len, mtThread);
   va_list ap;
   va_start(ap, format);

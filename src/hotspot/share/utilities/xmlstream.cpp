@@ -51,6 +51,7 @@ void xmlStream::initialize(outputStream* out) {
 #ifdef ASSERT
   _element_depth = 0;
   int   init_len = 100;
+  // candidate: c-d, manual
   char* init_buf = NEW_C_HEAP_ARRAY(char, init_len, mtInternal);
   _element_close_stack_low  = init_buf;
   _element_close_stack_high = init_buf + init_len;

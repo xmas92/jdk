@@ -83,7 +83,7 @@ PerfData::PerfData(CounterNS ns, const char* name, Units u, Variability v)
                   : _name(NULL), _v(v), _u(u), _on_c_heap(false), _valuep(NULL) {
 
   const char* prefix = PerfDataManager::ns_to_string(ns);
-
+  // candidate: c-d
   const size_t _name_size = strlen(name) + strlen(prefix) + 2;
   _name = NEW_C_HEAP_ARRAY(char, _name_size, mtInternal);
   assert(strlen(name) != 0, "invalid name");
@@ -139,6 +139,7 @@ void PerfData::create_entry(BasicType dtype, size_t dsize, size_t vlen) {
   if (psmp == NULL) {
     // out of PerfMemory memory resources. allocate on the C heap
     // to avoid vm termination.
+    // candidate: mixed
     psmp = NEW_C_HEAP_ARRAY(char, size, mtInternal);
     _on_c_heap = true;
   }

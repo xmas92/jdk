@@ -66,6 +66,7 @@ static InterfaceEntry& new_entry(const NetworkInterface* iface, GrowableArray<In
 
   InterfaceEntry entry;
   const size_t length = strlen(name);
+  // candidate: manual
   entry.name = NEW_C_HEAP_ARRAY(char, length + 1, mtInternal);
   strncpy(entry.name, name, length + 1);
   entry.id = ++interface_id;

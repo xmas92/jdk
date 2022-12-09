@@ -628,6 +628,7 @@ static JavaThread* const* make_threads_list_data(int entries) {
   if (entries == 0) {
     return empty_threads_list_data;
   }
+  // candidate: c-d
   JavaThread** data = NEW_C_HEAP_ARRAY(JavaThread*, entries + 1, mtThread);
   data[entries] = nullptr;         // Make sure the final entry is null.
   return data;

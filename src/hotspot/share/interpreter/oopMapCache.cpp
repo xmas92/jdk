@@ -305,6 +305,7 @@ bool OopMapCacheEntry::verify_mask(CellTypeState* vars, CellTypeState* stack, in
 void OopMapCacheEntry::allocate_bit_mask() {
   if (mask_size() > small_mask_limit) {
     assert(_bit_mask[0] == 0, "bit mask should be new or just flushed");
+    // candidate: manual
     _bit_mask[0] = (intptr_t)
       NEW_C_HEAP_ARRAY(uintptr_t, mask_word_size(), mtClass);
   }
@@ -448,6 +449,7 @@ inline unsigned int OopMapCache::hash_value_for(const methodHandle& method, int 
 OopMapCacheEntry* volatile OopMapCache::_old_entries = nullptr;
 
 OopMapCache::OopMapCache() {
+  // candidate: c-d
   _array  = NEW_C_HEAP_ARRAY(OopMapCacheEntry*, _size, mtClass);
   for(int i = 0; i < _size; i++) _array[i] = nullptr;
 }

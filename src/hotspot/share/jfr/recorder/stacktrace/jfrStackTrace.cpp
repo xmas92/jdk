@@ -41,6 +41,7 @@ static void copy_frames(JfrStackFrame** lhs_frames, u4 length, const JfrStackFra
   assert(lhs_frames != nullptr, "invariant");
   assert(rhs_frames != nullptr, "invariant");
   if (length > 0) {
+    // candidate: c-d
     *lhs_frames = NEW_C_HEAP_ARRAY(JfrStackFrame, length, mtTracing);
     memcpy(*lhs_frames, rhs_frames, length * sizeof(JfrStackFrame));
   }

@@ -352,6 +352,7 @@ jint ShenandoahHeap::initialize() {
                                             cset_rs.size(), cset_rs.page_size());
   }
 
+  // candidate: leaked
   _regions = NEW_C_HEAP_ARRAY(ShenandoahHeapRegion*, _num_regions, mtGC);
   _free_set = new ShenandoahFreeSet(this, _num_regions);
 
@@ -410,6 +411,7 @@ jint ShenandoahHeap::initialize() {
   // Initialize the rest of GC subsystems
   //
 
+  // candidate: leaked
   _liveness_cache = NEW_C_HEAP_ARRAY(ShenandoahLiveData*, _max_workers, mtGC);
   for (uint worker = 0; worker < _max_workers; worker++) {
     _liveness_cache[worker] = NEW_C_HEAP_ARRAY(ShenandoahLiveData, _num_regions, mtGC);

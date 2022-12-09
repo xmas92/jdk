@@ -713,6 +713,7 @@ void ShenandoahVerifier::verify_at_safepoint(const char *label,
   _verification_bit_map->clear();
 
   // Allocate temporary array for storing liveness data
+  // candidate: temp
   ShenandoahLivenessData* ld = NEW_C_HEAP_ARRAY(ShenandoahLivenessData, _heap->num_regions(), mtGC);
   Copy::fill_to_bytes((void*)ld, _heap->num_regions()*sizeof(ShenandoahLivenessData), 0);
 

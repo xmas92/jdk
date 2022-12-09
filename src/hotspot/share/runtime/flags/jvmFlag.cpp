@@ -644,6 +644,7 @@ void JVMFlag::printSetFlags(outputStream* out) {
   const size_t length = JVMFlag::numFlags - 1;
 
   // Sort
+  // candidate: temp
   JVMFlag** array = NEW_C_HEAP_ARRAY(JVMFlag*, length, mtArguments);
   for (size_t i = 0; i < length; i++) {
     array[i] = &flagTable[i];
@@ -713,6 +714,7 @@ void JVMFlag::printFlags(outputStream* out, bool withComments, bool printRanges,
   }
 
   // Sort
+  // candidate: temp
   JVMFlag** array = NEW_C_HEAP_ARRAY_RETURN_NULL(JVMFlag*, length, mtArguments);
   if (array != nullptr) {
     for (size_t i = 0; i < length; i++) {

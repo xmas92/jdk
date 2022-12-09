@@ -66,6 +66,7 @@ JvmtiRawMonitor::JvmtiRawMonitor(const char* name) : _owner(nullptr),
                                                      _magic(JVMTI_RM_MAGIC),
                                                      _name(nullptr) {
 #ifdef ASSERT
+  // candidate: c-d
   _name = strcpy(NEW_C_HEAP_ARRAY(char, strlen(name) + 1, mtInternal), name);
 #endif
 }

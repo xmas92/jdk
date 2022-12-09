@@ -85,6 +85,7 @@ WorkerThreads::WorkerThreads(const char* name, uint max_workers) :
     _created_workers(0),
     _active_workers(0),
     _dispatcher() {}
+    // candidate: leaked
 
 void WorkerThreads::initialize_workers() {
   const uint initial_active_workers = UseDynamicNumberOfGCThreads ? 1 : _max_workers;

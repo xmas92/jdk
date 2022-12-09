@@ -193,6 +193,7 @@ static int qsort_strcmp(const void* a, const void* b) {
 }
 
 void LogTagSet::list_all_tagsets(outputStream* out) {
+  // candidate: temp
   char** tagset_labels = NEW_C_HEAP_ARRAY(char*, _ntagsets, mtLogging);
 
   // Generate the list of tagset labels

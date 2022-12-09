@@ -113,6 +113,7 @@ class AsyncLogWriter : public NonJavaThread {
 
    public:
     Buffer(size_t capacity) :  _pos(0), _capacity(capacity) {
+      // candidate: c-d
       _buf = NEW_C_HEAP_ARRAY(char, capacity, mtLogging);
       assert(capacity >= Message::calc_size(0), "capcity must be great a token size");
     }

@@ -36,6 +36,7 @@ ShenandoahNMethod::ShenandoahNMethod(nmethod* nm, GrowableArray<oop*>& oops, boo
 
   if (!oops.is_empty()) {
     _oops_count = oops.length();
+    // candidate: manual
     _oops = NEW_C_HEAP_ARRAY(oop*, _oops_count, mtGC);
     for (int c = 0; c < _oops_count; c++) {
       _oops[c] = oops.at(c);
@@ -425,6 +426,7 @@ void ShenandoahNMethodTable::assert_nmethods_correct() {
 
 ShenandoahNMethodList::ShenandoahNMethodList(int size) :
   _size(size), _ref_count(1) {
+    // candidate: c-d
   _list = NEW_C_HEAP_ARRAY(ShenandoahNMethod*, size, mtGC);
 }
 

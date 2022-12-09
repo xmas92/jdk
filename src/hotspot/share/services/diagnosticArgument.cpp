@@ -44,6 +44,7 @@ StringArrayArgument::~StringArrayArgument() {
 
 void StringArrayArgument::add(const char* str, size_t len) {
   if (str != nullptr) {
+    // candidate: i-d
     char* ptr = NEW_C_HEAP_ARRAY(char, len+1, mtInternal);
     strncpy(ptr, str, len);
     ptr[len] = 0;
@@ -188,6 +189,7 @@ template <> void DCmdArgument<char*>::parse_value(const char* str,
   if (str == nullptr) {
     destroy_value();
   } else {
+    // candidate: manual
     // Use realloc as we may have a default set.
     _value = REALLOC_C_HEAP_ARRAY(char, _value, len + 1, mtInternal);
     int n = os::snprintf(_value, len + 1, "%.*s", (int)len, str);

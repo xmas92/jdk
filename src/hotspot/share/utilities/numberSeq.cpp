@@ -140,6 +140,7 @@ void NumberSeq::add(double val) {
 
 TruncatedSeq::TruncatedSeq(int length, double alpha):
   AbsSeq(alpha), _length(length), _next(0) {
+  // candidate: c-d
   _sequence = NEW_C_HEAP_ARRAY(double, _length, mtInternal);
   for (int i = 0; i < _length; ++i)
     _sequence[i] = 0.0;

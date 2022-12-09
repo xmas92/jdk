@@ -39,6 +39,7 @@ ShenandoahHeapRegionSet::ShenandoahHeapRegionSet() :
   _set_map(NEW_C_HEAP_ARRAY(jbyte, _map_size, mtGC)),
   _region_count(0)
 {
+  // candidate: c-d
   // Use 1-byte data type
   STATIC_ASSERT(sizeof(jbyte) == 1);
 

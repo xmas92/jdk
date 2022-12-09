@@ -139,6 +139,7 @@ E* Stack<E, F>::set_link(E* new_seg, E* old_seg)
 template <class E, MEMFLAGS F>
 E* Stack<E, F>::alloc(size_t bytes)
 {
+  // candidate: manual
   return (E*) NEW_C_HEAP_ARRAY(char, bytes, F);
 }
 

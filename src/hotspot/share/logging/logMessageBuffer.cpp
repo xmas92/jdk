@@ -62,6 +62,7 @@ void LogMessageBuffer::reset() {
 void LogMessageBuffer::initialize_buffers() {
   assert(!_allocated, "buffer already initialized/allocated");
   _allocated = true;
+  // candidate: i-d
   _message_buffer = NEW_C_HEAP_ARRAY(char, InitialMessageBufferCapacity, mtLogging);
   _lines = NEW_C_HEAP_ARRAY(LogLine, InitialLineCapacity, mtLogging);
   _message_buffer_capacity = InitialMessageBufferCapacity;

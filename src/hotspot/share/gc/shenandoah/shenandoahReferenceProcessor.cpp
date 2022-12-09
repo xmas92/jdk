@@ -192,6 +192,7 @@ ShenandoahReferenceProcessor::ShenandoahReferenceProcessor(uint max_workers) :
   _pending_list_tail(&_pending_list),
   _iterate_discovered_list_id(0U),
   _stats() {
+  // candidate: leaked
   for (size_t i = 0; i < max_workers; i++) {
     _ref_proc_thread_locals[i].reset();
   }

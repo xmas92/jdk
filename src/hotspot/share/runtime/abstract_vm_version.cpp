@@ -357,6 +357,7 @@ int Abstract_VM_Version::number_of_sockets(void) {
 
 const char* Abstract_VM_Version::cpu_name(void) {
   assert(_initialized, "should be initialized");
+  // candidate: leaked
   char* tmp = NEW_C_HEAP_ARRAY_RETURN_NULL(char, CPU_TYPE_DESC_BUF_SIZE, mtTracing);
   if (nullptr == tmp) {
     return nullptr;
@@ -367,6 +368,7 @@ const char* Abstract_VM_Version::cpu_name(void) {
 
 const char* Abstract_VM_Version::cpu_description(void) {
   assert(_initialized, "should be initialized");
+  // candidate: leaked
   char* tmp = NEW_C_HEAP_ARRAY_RETURN_NULL(char, CPU_DETAILED_DESC_BUF_SIZE, mtTracing);
   if (nullptr == tmp) {
     return nullptr;

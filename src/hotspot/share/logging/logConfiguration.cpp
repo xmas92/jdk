@@ -109,6 +109,7 @@ void LogConfiguration::initialize(jlong vm_start_time) {
   StderrLog = new LogStderrOutput();
   LogFileOutput::set_file_name_parameters(vm_start_time);
   assert(_outputs == nullptr, "Should not initialize _outputs before this function, initialize called twice?");
+  // candidate: manual
   _outputs = NEW_C_HEAP_ARRAY(LogOutput*, 2, mtLogging);
   _outputs[0] = StdoutLog;
   _outputs[1] = StderrLog;
@@ -508,6 +509,7 @@ bool LogConfiguration::parse_log_arguments(const char* outputstr,
   } else { // Output specified using name
     // Normalize the name, stripping quotes and ensures it includes type prefix
     size_t len = strlen(outputstr) + strlen(implicit_output_prefix) + 1;
+    // candidate: temp
     char* normalized = NEW_C_HEAP_ARRAY(char, len, mtLogging);
     if (!normalize_output_name(outputstr, normalized, len, errstream)) {
       return false;

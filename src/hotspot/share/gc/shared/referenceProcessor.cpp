@@ -106,6 +106,7 @@ ReferenceProcessor::ReferenceProcessor(BoolObjectClosure* is_subject_to_discover
   _discoveredPhantomRefs = &_discoveredFinalRefs[_max_num_queues];
 
   // Initialize all entries to null
+  // candidate: leaked
   for (uint i = 0; i < _max_num_queues * number_of_subclasses_of_ref(); i++) {
     _discovered_refs[i].clear();
   }

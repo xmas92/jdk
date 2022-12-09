@@ -46,6 +46,7 @@ static const char* allocate(oop string) {
   const typeArrayOop value = java_lang_String::value(string);
   if (value != nullptr) {
     const int length = java_lang_String::utf8_length(string, value);
+    // candidate: i-d
     str = NEW_C_HEAP_ARRAY(char, length + 1, mtServiceability);
     java_lang_String::as_utf8_string(string, value, str, length + 1);
   }

@@ -52,6 +52,7 @@ protected:
   Node** alloc_table(unsigned table_size) {
     Node** table;
     if (ALLOC_TYPE == C_HEAP) {
+      // candidate: mixed
       table = NEW_C_HEAP_ARRAY(Node*, table_size, MEM_TYPE);
     } else {
       table = NEW_RESOURCE_ARRAY(Node*, table_size);

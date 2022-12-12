@@ -31,6 +31,7 @@
 #include "runtime/globals.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/stackValue.hpp"
+#include "runtime/stackWatermarkSet.hpp"
 #if INCLUDE_ZGC
 #include "gc/z/zBarrier.inline.hpp"
 #endif
@@ -46,10 +47,10 @@ template StackValue* StackValue::create_stack_value(const frame* fr, const Small
 
 template<typename RegisterMapT>
 StackValue* StackValue::create_stack_value(const frame* fr, const RegisterMapT* reg_map, ScopeValue* sv) {
-  return create_stack_value(sv, stack_value_address(fr, reg_map, sv), reg_map);
+  return create_stack_value(fr, sv, stack_value_address(fr, reg_map, sv), reg_map);
 }
 
-static oop oop_from_oop_location(stackChunkOop chunk, void* addr) {
+static oop oop_from_oop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr) {
   if (addr == nullptr) {
     return nullptr;
   }
@@ -80,10 +81,11 @@ static oop oop_from_oop_location(stackChunkOop chunk, void* addr) {
   }
 
   // Load oop from stack
+  assert(StackWatermarkSet::is_proccessed(jt, *fr), "frame must be processed");
   return *(oop*)addr;
 }
 
-static oop oop_from_narrowOop_location(stackChunkOop chunk, void* addr, bool is_register) {
+static oop oop_from_narrowOop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr, bool is_register) {
   assert(UseCompressedOops, "Narrow oops should not exist");
   assert(addr != nullptr, "Not expecting null address");
   narrowOop* narrow_addr;
@@ -105,19 +107,20 @@ static oop oop_from_narrowOop_location(stackChunkOop chunk, void* addr, bool is_
   }
 
   // Load oop from stack
+  assert(StackWatermarkSet::is_proccessed(jt, *fr), "frame must be processed");
   return CompressedOops::decode(*narrow_addr);
 }
 
-StackValue* StackValue::create_stack_value_from_oop_location(stackChunkOop chunk, void* addr) {
-  oop val = oop_from_oop_location(chunk, addr);
+StackValue* StackValue::create_stack_value_from_oop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr) {
+  oop val = oop_from_oop_location(jt, fr, chunk, addr);
   assert(oopDesc::is_oop_or_null(val), "bad oop found at " INTPTR_FORMAT " in_cont: %d compressed: %d",
          p2i(addr), chunk != NULL, chunk != NULL && chunk->has_bitmap() && UseCompressedOops);
   Handle h(Thread::current(), val); // Wrap a handle around the oop
   return new StackValue(h);
 }
 
-StackValue* StackValue::create_stack_value_from_narrowOop_location(stackChunkOop chunk, void* addr, bool is_register) {
-  oop val = oop_from_narrowOop_location(chunk, addr, is_register);
+StackValue* StackValue::create_stack_value_from_narrowOop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr, bool is_register) {
+  oop val = oop_from_narrowOop_location(jt, fr, chunk, addr, is_register);
   assert(oopDesc::is_oop_or_null(val), "bad oop found at " INTPTR_FORMAT " in_cont: %d compressed: %d",
          p2i(addr), chunk != NULL, chunk != NULL && chunk->has_bitmap() && UseCompressedOops);
   Handle h(Thread::current(), val); // Wrap a handle around the oop
@@ -125,8 +128,7 @@ StackValue* StackValue::create_stack_value_from_narrowOop_location(stackChunkOop
 }
 
 template<typename RegisterMapT>
-StackValue* StackValue::create_stack_value(ScopeValue* sv, address value_addr, const RegisterMapT* reg_map) {
-  stackChunkOop chunk = reg_map->stack_chunk()();
+StackValue* StackValue::create_stack_value(const frame* fr, ScopeValue* sv, address value_addr, const RegisterMapT* reg_map) {
   if (sv->is_location()) {
     // Stack or register value
     Location loc = ((LocationValue *)sv)->location();
@@ -173,10 +175,10 @@ StackValue* StackValue::create_stack_value(ScopeValue* sv, address value_addr, c
       // Long   value in an aligned adjacent pair
       return new StackValue(*(intptr_t*)value_addr);
     case Location::narrowoop:
-      return create_stack_value_from_narrowOop_location(reg_map->stack_chunk()(), (void*)value_addr, loc.is_register());
+      return create_stack_value_from_narrowOop_location(reg_map->thread(), fr, reg_map->stack_chunk()(), (void*)value_addr, loc.is_register());
 #endif
     case Location::oop:
-      return create_stack_value_from_oop_location(reg_map->stack_chunk()(), (void*)value_addr);
+      return create_stack_value_from_oop_location(reg_map->thread(), fr, reg_map->stack_chunk()(), (void*)value_addr);
     case Location::addr: {
       loc.print_on(tty);
       ShouldNotReachHere(); // both C1 and C2 now inline jsrs

@@ -80,10 +80,10 @@ RegisterMap::RegisterMap(JavaThread *thread, UpdateMap update_map, ProcessFrames
 #endif /* PRODUCT */
 }
 
-RegisterMap::RegisterMap(oop continuation, UpdateMap update_map) {
+RegisterMap::RegisterMap(oop continuation, UpdateMap update_map, ProcessFrames process_frames) {
   _thread         = NULL;
   _update_map     = update_map == UpdateMap::include;
-  _process_frames = false;
+  _process_frames = process_frames == ProcessFrames::include;
   _walk_cont      = true;
   clear();
   DEBUG_ONLY (_update_for_id = NULL;)

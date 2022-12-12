@@ -88,6 +88,9 @@ public:
   // The lowest watermark among the watermarks in the set (the first encountered
   // watermark in the set as you unwind frames)
   static uintptr_t lowest_watermark(JavaThread* jt);
+
+  // Returns true if all StackWatermarks have proccessed frame fr
+  static bool is_proccessed(JavaThread* jt, const frame& fr);
 };
 
 #endif // SHARE_RUNTIME_STACKWATERMARKSET_HPP

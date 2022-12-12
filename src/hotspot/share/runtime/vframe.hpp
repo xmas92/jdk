@@ -318,12 +318,14 @@ class vframeStreamCommon : StackObj {
 
 class vframeStream : public vframeStreamCommon {
  public:
+  enum class ProcessFrames { no, yes };
+
   // Constructors
   vframeStream(JavaThread* thread, bool stop_at_java_call_stub = false, bool process_frames = true, bool vthread_carrier = false);
 
   vframeStream(JavaThread* thread, Handle continuation_scope, bool stop_at_java_call_stub = false);
 
-  vframeStream(oop continuation, Handle continuation_scope = Handle());
+  vframeStream(oop continuation, Handle continuation_scope = Handle(), ProcessFrames process_frames = ProcessFrames::yes);
 };
 
 #endif // SHARE_RUNTIME_VFRAME_HPP

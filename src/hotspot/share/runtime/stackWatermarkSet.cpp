@@ -158,3 +158,12 @@ uintptr_t StackWatermarkSet::lowest_watermark(JavaThread* jt) {
     return watermark;
   }
 }
+
+bool StackWatermarkSet::is_proccessed(JavaThread* jt, const frame& fr) {
+  for (StackWatermark* current = head(jt); current != NULL; current = current->next()) {
+    if (!current->is_proccessed(fr)) {
+      return false;
+    }
+  }
+  return true;
+}

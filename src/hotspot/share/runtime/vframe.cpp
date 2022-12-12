@@ -47,6 +47,7 @@
 #include "runtime/objectMonitor.hpp"
 #include "runtime/objectMonitor.inline.hpp"
 #include "runtime/osThread.hpp"
+#include "runtime/registerMap.hpp"
 #include "runtime/signature.hpp"
 #include "runtime/stackFrameStream.inline.hpp"
 #include "runtime/stubRoutines.hpp"
@@ -298,13 +299,15 @@ Method* interpretedVFrame::method() const {
 static StackValue* create_stack_value_from_oop_map(const InterpreterOopMap& oop_mask,
                                                    int index,
                                                    const intptr_t* const addr,
-                                                   stackChunkOop chunk) {
+                                                   stackChunkOop chunk,
+                                                   JavaThread* jt,
+                                                   const frame& fr) {
 
   assert(index >= 0 && index < oop_mask.number_of_entries(), "invariant");
 
   // categorize using oop_mask
   if (oop_mask.is_oop(index)) {
-    return StackValue::create_stack_value_from_oop_location(chunk, (void*)addr);
+    return StackValue::create_stack_value_from_oop_location(jt, &fr, chunk, (void*)addr);
   }
   // value (integer) "v"
   return new StackValue(addr != NULL ? *addr : 0);
@@ -327,7 +330,8 @@ static void stack_locals(StackValueCollection* result,
                          int length,
                          const InterpreterOopMap& oop_mask,
                          const frame& fr,
-                         const stackChunkOop chunk) {
+                         const stackChunkOop chunk,
+                         JavaThread* jt) {
 
   assert(result != NULL, "invariant");
 
@@ -341,7 +345,7 @@ static void stack_locals(StackValueCollection* result,
     }
     assert(addr != NULL, "invariant");
 
-    StackValue* const sv = create_stack_value_from_oop_map(oop_mask, i, addr, chunk);
+    StackValue* const sv = create_stack_value_from_oop_map(oop_mask, i, addr, chunk, jt, fr);
     assert(sv != NULL, "sanity check");
 
     result->add(sv);
@@ -353,7 +357,8 @@ static void stack_expressions(StackValueCollection* result,
                               int max_locals,
                               const InterpreterOopMap& oop_mask,
                               const frame& fr,
-                              const stackChunkOop chunk) {
+                              const stackChunkOop chunk,
+                              JavaThread* jt) {
 
   assert(result != NULL, "invariant");
 
@@ -373,7 +378,9 @@ static void stack_expressions(StackValueCollection* result,
     StackValue* const sv = create_stack_value_from_oop_map(oop_mask,
                                                            i + max_locals,
                                                            addr,
-                                                           chunk);
+                                                           chunk,
+                                                           jt,
+                                                           fr);
     assert(sv != NULL, "sanity check");
 
     result->add(sv);
@@ -422,9 +429,9 @@ StackValueCollection* interpretedVFrame::stack_data(bool expressions) const {
   }
 
   if (expressions) {
-    stack_expressions(result, length, max_locals, oop_mask, fr(), stack_chunk());
+    stack_expressions(result, length, max_locals, oop_mask, fr(), stack_chunk(), thread());
   } else {
-    stack_locals(result, length, oop_mask, fr(), stack_chunk());
+    stack_locals(result, length, oop_mask, fr(), stack_chunk(), thread());
   }
 
   assert(length == result->size(), "invariant");
@@ -509,8 +516,12 @@ vframeStream::vframeStream(JavaThread* thread, Handle continuation_scope, bool s
   }
 }
 
-vframeStream::vframeStream(oop continuation, Handle continuation_scope)
- : vframeStreamCommon(RegisterMap(continuation, RegisterMap::UpdateMap::include)) {
+vframeStream::vframeStream(oop continuation, Handle continuation_scope, ProcessFrames process_frames)
+ : vframeStreamCommon(RegisterMap(continuation,
+                                  RegisterMap::UpdateMap::include,
+                                  process_frames == ProcessFrames::yes ?
+                                      RegisterMap::ProcessFrames::include :
+                                      RegisterMap::ProcessFrames::skip)) {
 
   _stop_at_java_call_stub = false;
   _continuation_scope = continuation_scope;

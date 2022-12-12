@@ -34,6 +34,7 @@
 #include "runtime/frame.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/threads.hpp"
+#include "runtime/vframe.hpp"
 #include "runtime/vmOperation.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/macros.hpp"
@@ -362,7 +363,7 @@ class JvmtiEnvBase : public CHeapObj<mtInternal> {
   static JavaThread* get_JavaThread_or_null(oop vthread);
 
   // get virtual thread last java vframe
-  static javaVFrame* get_vthread_jvf(oop vthread);
+  static javaVFrame* get_vthread_jvf(oop vthread, vframeStream::ProcessFrames process_frames);
 
   // get carrier thread last java vframe
   static javaVFrame* get_cthread_last_java_vframe(JavaThread* jt, RegisterMap* reg_map);

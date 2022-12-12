@@ -288,6 +288,11 @@ bool StackWatermark::processing_completed_acquire() const {
   return processing_completed(Atomic::load_acquire(&_state));
 }
 
+bool StackWatermark::is_proccessed(const frame& f) {
+  MutexLocker ml(&_lock, Mutex::_no_safepoint_check_flag);
+  return is_frame_safe(f);
+}
+
 void StackWatermark::on_safepoint() {
   start_processing();
   StackWatermark* linked_watermark = _linked_watermark;

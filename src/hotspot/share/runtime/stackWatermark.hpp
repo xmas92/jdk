@@ -139,6 +139,8 @@ public:
   bool processing_completed() const;
   bool processing_completed_acquire() const;
 
+  bool is_proccessed(const frame& f);
+
   void before_unwind();
   void after_unwind();
 

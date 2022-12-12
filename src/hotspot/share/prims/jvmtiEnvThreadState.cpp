@@ -285,7 +285,7 @@ class VM_VirtualThreadGetCurrentLocation : public VM_Operation {
       return; // _completed remains false.
     }
     ResourceMark rm;
-    javaVFrame* jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h());
+    javaVFrame* jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h(), vframeStream::ProcessFrames::no);
 
     if (jvf != NULL) {
       // jvf can be NULL, when the native enterSpecial frame is on the top.

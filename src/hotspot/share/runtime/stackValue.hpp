@@ -108,8 +108,8 @@ class StackValue : public ResourceObj {
     }
   }
 
-  static StackValue* create_stack_value_from_oop_location(stackChunkOop chunk, void* addr);
-  static StackValue* create_stack_value_from_narrowOop_location(stackChunkOop chunk, void* addr, bool is_register);
+  static StackValue* create_stack_value_from_oop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr);
+  static StackValue* create_stack_value_from_narrowOop_location(JavaThread* jt, const frame* fr, stackChunkOop chunk, void* addr, bool is_register);
 
   static BasicLock*  resolve_monitor_lock(const frame* fr, Location location);
 
@@ -127,7 +127,7 @@ class StackValue : public ResourceObj {
 
  private:
    template<typename RegisterMapT>
-   static StackValue* create_stack_value(ScopeValue* sv, address value_addr, const RegisterMapT* reg_map);
+   static StackValue* create_stack_value(const frame* fr, ScopeValue* sv, address value_addr, const RegisterMapT* reg_map);
 };
 
 #endif // SHARE_RUNTIME_STACKVALUE_HPP

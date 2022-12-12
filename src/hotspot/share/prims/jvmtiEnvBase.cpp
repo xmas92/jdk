@@ -685,7 +685,7 @@ JvmtiEnvBase::check_and_skip_hidden_frames(oop vthread, javaVFrame* jvf) {
 }
 
 javaVFrame*
-JvmtiEnvBase::get_vthread_jvf(oop vthread) {
+JvmtiEnvBase::get_vthread_jvf(oop vthread, vframeStream::ProcessFrames process_frames) {
   assert(java_lang_VirtualThread::state(vthread) != java_lang_VirtualThread::NEW, "sanity check");
   assert(java_lang_VirtualThread::state(vthread) != java_lang_VirtualThread::TERMINATED, "sanity check");
 
@@ -701,11 +701,11 @@ JvmtiEnvBase::get_vthread_jvf(oop vthread) {
       // by the JVMTI functions such as GetStackTrace.
       return NULL;
     }
-    vframeStream vfs(java_thread);
+    vframeStream vfs(java_thread, false, process_frames == vframeStream::ProcessFrames::yes);
     jvf = vfs.at_end() ? NULL : vfs.asJavaVFrame();
     jvf = check_and_skip_hidden_frames(java_thread, jvf);
   } else {
-    vframeStream vfs(cont);
+    vframeStream vfs(cont, Handle{}, process_frames);
     jvf = vfs.at_end() ? NULL : vfs.asJavaVFrame();
     jvf = check_and_skip_hidden_frames(vthread, jvf);
   }
@@ -1220,7 +1220,7 @@ JvmtiEnvBase::get_frame_count(oop vthread_oop, jint *count_ptr) {
   }
   Thread *current_thread = Thread::current();
   ResourceMark rm(current_thread);
-  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(vthread_oop);
+  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(vthread_oop, vframeStream::ProcessFrames::no);
 
   *count_ptr = get_frame_count(jvf);
   return JVMTI_ERROR_NONE;
@@ -1278,7 +1278,7 @@ JvmtiEnvBase::get_frame_location(oop vthread_oop, jint depth,
   Thread* current = Thread::current();
   ResourceMark rm(current);
   HandleMark hm(current);
-  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(vthread_oop);
+  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(vthread_oop, vframeStream::ProcessFrames::no);
 
   return get_frame_location(jvf, depth, method_ptr, location_ptr);
 }
@@ -1728,7 +1728,7 @@ MultipleStackTracesCollector::fill_frames(jthread jt, JavaThread *thr, oop threa
     state = JvmtiEnvBase::get_vthread_state(thread_oop, thr);
 
     if ((state & JVMTI_THREAD_STATE_ALIVE) != 0) {
-      javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(thread_oop);
+      javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(thread_oop, vframeStream::ProcessFrames::no);
       infop->frame_buffer = NEW_RESOURCE_ARRAY(jvmtiFrameInfo, max_frame_count());
       _result = env()->get_stack_trace(jvf, 0, max_frame_count(),
                                        infop->frame_buffer, &(infop->frame_count));
@@ -2230,7 +2230,7 @@ VM_VirtualThreadGetStackTrace::doit() {
     return;
   }
   ResourceMark rm;
-  javaVFrame* jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h());
+  javaVFrame* jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h(), vframeStream::ProcessFrames::no);
 
   _result = ((JvmtiEnvBase *)_env)->get_stack_trace(jvf,
                                                     _start_depth, _max_count,
@@ -2330,7 +2330,7 @@ VirtualThreadGetOwnedMonitorInfoClosure::do_thread(Thread *target) {
   ResourceMark rm(cur_thread);
   HandleMark hm(cur_thread);
 
-  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h());
+  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h(), vframeStream::ProcessFrames::yes);
 
   if (!java_thread->is_exiting() && java_thread->threadObj() != NULL) {
     _result = ((JvmtiEnvBase *)_env)->get_owned_monitors((JavaThread*)target,
@@ -2359,7 +2359,7 @@ VirtualThreadGetStackTraceClosure::do_thread(Thread *target) {
   ResourceMark rm(cur_thread);
   HandleMark hm(cur_thread);
 
-  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h());
+  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h(), vframeStream::ProcessFrames::no);
   _result = ((JvmtiEnvBase *)_env)->get_stack_trace(jvf,
                                                     _start_depth, _max_count,
                                                     _frame_buffer, _count_ptr);
@@ -2412,6 +2412,6 @@ VirtualThreadSetFramePopClosure::doit(Thread *target, bool self) {
     return;
   }
   ResourceMark rm;
-  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h());
+  javaVFrame *jvf = JvmtiEnvBase::get_vthread_jvf(_vthread_h(), vframeStream::ProcessFrames::no);
   _result = ((JvmtiEnvBase*)_env)->set_frame_pop(_state, jvf, _depth);
 }

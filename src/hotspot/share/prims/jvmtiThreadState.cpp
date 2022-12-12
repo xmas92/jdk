@@ -566,7 +566,7 @@ int JvmtiThreadState::count_frames() {
   ResourceMark rm;
   if (thread == NULL) {
     oop thread_obj = get_thread_oop();
-    jvf = JvmtiEnvBase::get_vthread_jvf(thread_obj);
+    jvf = JvmtiEnvBase::get_vthread_jvf(thread_obj, vframeStream::ProcessFrames::no);
   } else {
 #ifdef ASSERT
     Thread *current_thread = Thread::current();

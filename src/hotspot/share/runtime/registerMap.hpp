@@ -98,7 +98,7 @@ class RegisterMap : public StackObj {
  public:
   DEBUG_ONLY(intptr_t* _update_for_id;) // Assert that RegisterMap is not updated twice for same frame
   RegisterMap(JavaThread *thread, UpdateMap update_map, ProcessFrames process_frames, WalkContinuation walk_cont);
-  RegisterMap(oop continuation, UpdateMap update_map);
+  RegisterMap(oop continuation, UpdateMap update_map, ProcessFrames process_frames);
   RegisterMap(const RegisterMap* map);
 
   address location(VMReg reg, intptr_t* sp) const {

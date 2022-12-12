@@ -434,7 +434,9 @@ oop StackWalk::walk(Handle stackStream, jlong mode, int skip_frames, Handle cont
                                                       RegisterMap::UpdateMap::include,
                                                       RegisterMap::ProcessFrames::include,
                                                       RegisterMap::WalkContinuation::include)
-                                        : RegisterMap(cont(), RegisterMap::UpdateMap::include);
+                                        : RegisterMap(cont(),
+                                                      RegisterMap::UpdateMap::include,
+                                                      RegisterMap::ProcessFrames::include);
     LiveFrameStream stream(jt, &regMap, cont_scope, cont);
     return fetchFirstBatch(stream, stackStream, mode, skip_frames, frame_count,
                            start_index, frames_array, THREAD);

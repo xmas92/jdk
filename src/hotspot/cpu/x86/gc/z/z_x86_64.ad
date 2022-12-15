@@ -166,7 +166,7 @@ instruct zStorePNull(memory mem, immP0 zero, rRegP tmp, rFlagsReg cr)
   ins_pipe(ialu_mem_reg);
 %}
 
-instruct zCompareAndExchangeP(memory mem, rRegP newval, rRegP tmp, rax_RegP oldval, rFlagsReg cr) %{
+instruct zCompareAndExchangeP(indirect mem, rRegP newval, rRegP tmp, rax_RegP oldval, rFlagsReg cr) %{
   match(Set oldval (CompareAndExchangeP mem (Binary oldval newval)));
   predicate(UseZGC && n->as_LoadStore()->barrier_data() != 0);
   effect(TEMP tmp, KILL cr);
@@ -175,17 +175,18 @@ instruct zCompareAndExchangeP(memory mem, rRegP newval, rRegP tmp, rax_RegP oldv
             "cmpxchgq $newval, $mem" %}
 
   ins_encode %{
+    assert_different_registers($oldval$$Register, $mem$$Register);
+    z_store_barrier(_masm, this, Address($mem$$Register, 0), $newval$$Register, $tmp$$Register, true /* is_atomic */);
     z_color(_masm, this, $oldval$$Register);
-    z_store_barrier(_masm, this, $mem$$Address, $newval$$Register, $tmp$$Register, true /* is_atomic */);
     __ lock();
-    __ cmpxchgptr($tmp$$Register, $mem$$Address);
+    __ cmpxchgptr($tmp$$Register, Address($mem$$Register, 0));
     z_uncolor(_masm, this, $oldval$$Register);
   %}
 
   ins_pipe(pipe_cmpxchg);
 %}
 
-instruct zCompareAndSwapP(rRegI res, memory mem, rRegP newval, rRegP tmp, rax_RegP oldval, rFlagsReg cr) %{
+instruct zCompareAndSwapP(rRegI res, indirect mem, rRegP newval, rRegP tmp, rax_RegP oldval, rFlagsReg cr) %{
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   match(Set res (WeakCompareAndSwapP mem (Binary oldval newval)));
   predicate(UseZGC && n->as_LoadStore()->barrier_data() != 0);
@@ -197,10 +198,11 @@ instruct zCompareAndSwapP(rRegI res, memory mem, rRegP newval, rRegP tmp, rax_Re
             "movzbl   $res, $res" %}
 
   ins_encode %{
+    assert_different_registers($oldval$$Register, $mem$$Register);
+    z_store_barrier(_masm, this, Address($mem$$Register, 0), $newval$$Register, $tmp$$Register, true /* is_atomic */);
     z_color(_masm, this, $oldval$$Register);
-    z_store_barrier(_masm, this, $mem$$Address, $newval$$Register, $tmp$$Register, true /* is_atomic */);
     __ lock();
-    __ cmpxchgptr($tmp$$Register, $mem$$Address);
+    __ cmpxchgptr($tmp$$Register, Address($mem$$Register, 0));
     __ setb(Assembler::equal, $res$$Register);
     __ movzbl($res$$Register, $res$$Register);
   %}

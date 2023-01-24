@@ -98,13 +98,6 @@ public:
   void verify() const;
 };
 
-// Store the instruction bitmask, bits and name for checking the barrier.
-struct CheckInsn {
-  uint32_t mask;
-  uint32_t bits;
-  const char *name;
-};
-
 // The first instruction of the nmethod entry barrier is an ldr (literal)
 // instruction. Verify that it's really there, so the offsets are not skewed.
 void NativeNMethodBarrier::verify() const {

@@ -110,10 +110,11 @@ struct CheckInsn {
 void NativeNMethodBarrier::verify() const {
   uint32_t* addr = (uint32_t*) instruction_address();
   uint32_t inst = *addr;
-  if ((inst & 0xff000000) != 0x18000000) {
-    tty->print_cr("Addr: " INTPTR_FORMAT " Code: 0x%x", (intptr_t)addr, inst);
-    fatal("not an ldr (literal) instruction.");
-  }
+  // Check if the barrier starts with a ldr (literal) as expected.
+  guarantee((inst & 0xff000000) == 0x18000000,
+            "Nmethod entry barrier did not start with ldr (literal) as expected. "
+            "Addr: " PTR_FORMAT " Code: " UINT32_FORMAT,
+            p2i(addr), inst);
 }
 
 

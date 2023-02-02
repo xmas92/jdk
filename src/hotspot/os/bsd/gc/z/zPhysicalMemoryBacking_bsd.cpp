@@ -179,3 +179,7 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
     fatal("Failed to map memory (%s)", err.to_string());
   }
 }
+
+void ZPhysicalMemoryBacking::collapse(zaddress_unsafe addr, size_t size) const {
+  ShouldNotReachHere();
+}

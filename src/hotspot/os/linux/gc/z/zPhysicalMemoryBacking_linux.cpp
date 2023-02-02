@@ -22,6 +22,7 @@
  */
 
 #include "gc/shared/gcLogPrecious.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zErrno.hpp"
@@ -35,6 +36,8 @@
 #include "hugepages.hpp"
 #include "logging/log.hpp"
 #include "os_linux.hpp"
+#include "runtime/globals.hpp"
+#include "runtime/globals_extension.hpp"
 #include "runtime/init.hpp"
 #include "runtime/os.hpp"
 #include "runtime/safefetch.hpp"
@@ -367,6 +370,10 @@ void ZPhysicalMemoryBacking::warn_max_map_count(size_t max_capacity) const {
 }
 
 void ZPhysicalMemoryBacking::warn_commit_limits(size_t max_capacity) const {
+  if (!ZAdaptiveHeap::explicit_max_capacity()) {
+    return;
+  }
+
   // Warn if available space is too low
   warn_available_space(max_capacity);
 
@@ -516,7 +523,7 @@ ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zoffset offset, size_t length
   // some point touch these segments, otherwise we can not punch hole in them.
   // Also note that we need to use compat mode when using transparent huge pages,
   // since we need to use madvise(2) on the mapping before the page is allocated.
-  if (z_fallocate_supported && !ZLargePages::is_enabled()) {
+  if (z_fallocate_supported && !ZLargePages::is_explicit()) {
      const ZErrno err = fallocate_fill_hole_syscall(offset, length);
      if (!err) {
        // Success
@@ -726,4 +733,8 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
+}
+
+void ZPhysicalMemoryBacking::collapse(zaddress_unsafe addr, size_t size) const {
+  os::Linux::madvise_collapse_transparent_huge_pages((void*)untype(addr), size);
 }

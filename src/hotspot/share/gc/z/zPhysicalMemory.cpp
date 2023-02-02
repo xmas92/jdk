@@ -384,3 +384,9 @@ void ZPhysicalMemoryManager::unmap(zoffset offset, size_t size) const {
 
   _backing.unmap(addr, size);
 }
+
+void ZPhysicalMemoryManager::collapse(zoffset offset, size_t size) const {
+   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
+
+   _backing.collapse(addr, size);
+}

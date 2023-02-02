@@ -22,6 +22,7 @@
  */
 
 #include "gc/shared/gc_globals.hpp"
+#include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zStat.hpp"
@@ -67,7 +68,9 @@ void ZUncommitter::run_thread() {
 
     while (should_continue()) {
       // Uncommit chunk
-      const size_t flushed = _page_allocator->uncommit(&timeout);
+      const size_t heuristic_max = ZHeap::heap()->heuristic_max_capacity();
+      const size_t uncommit_request = MIN2(align_up(heuristic_max >> 7, ZGranuleSize), 256 * M);
+      const size_t flushed = _page_allocator->uncommit(&timeout, uncommit_request);
       if (flushed == 0) {
         // Done
         break;
@@ -80,7 +83,7 @@ void ZUncommitter::run_thread() {
       // Update statistics
       ZStatInc(ZCounterUncommit, uncommitted);
       log_info(gc, heap)("Uncommitted: %zuM(%.0f%%)",
-                         uncommitted / M, percent_of(uncommitted, ZHeap::heap()->max_capacity()));
+                         uncommitted / M, percent_of(uncommitted, ZHeap::heap()->dynamic_max_capacity()));
 
       // Send event
       event.commit(uncommitted);
@@ -91,5 +94,10 @@ void ZUncommitter::run_thread() {
 void ZUncommitter::terminate() {
   ZLocker<ZConditionLock> locker(&_lock);
   _stop = true;
+  _lock.notify_all();
+}
+
+void ZUncommitter::wake_up() {
+  ZLocker<ZConditionLock> locker(&_lock);
   _lock.notify_all();
 }

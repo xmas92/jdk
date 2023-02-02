@@ -250,3 +250,7 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
 
   _impl->unmap(addr, size);
 }
+
+void ZPhysicalMemoryBacking::collapse(zaddress_unsafe addr, size_t size) const {
+  ShouldNotReachHere();
+}

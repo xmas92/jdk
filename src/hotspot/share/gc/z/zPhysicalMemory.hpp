@@ -100,6 +100,8 @@ public:
 
   void map(zoffset offset, const ZPhysicalMemory& pmem) const;
   void unmap(zoffset offset, size_t size) const;
+
+  void collapse(zoffset offset, size_t size) const;
 };
 
 #endif // SHARE_GC_Z_ZPHYSICALMEMORY_HPP

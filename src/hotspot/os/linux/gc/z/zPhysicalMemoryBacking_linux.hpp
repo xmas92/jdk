@@ -74,6 +74,8 @@ public:
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;
   void unmap(zaddress_unsafe addr, size_t size) const;
+
+  void collapse(zaddress_unsafe addr, size_t size) const;
 };
 
 #endif // OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP

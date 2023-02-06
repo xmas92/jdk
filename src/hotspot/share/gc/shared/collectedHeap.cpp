@@ -214,7 +214,7 @@ bool CollectedHeap::supports_concurrent_gc_breakpoints() const {
   return false;
 }
 
-bool CollectedHeap::is_oop(oop object) const {
+bool CollectedHeap::is_oop(poop object) const {
   if (!is_object_aligned(object)) {
     return false;
   }

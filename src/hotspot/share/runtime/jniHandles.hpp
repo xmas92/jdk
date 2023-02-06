@@ -52,10 +52,10 @@ class JNIHandles : AllStatic {
   inline static oop* global_ptr(jobject handle);
   inline static oop* weak_global_ptr(jweak handle);
 
-  template <DecoratorSet decorators, bool external_guard> inline static oop resolve_impl(jobject handle);
+  template <DecoratorSet decorators, bool external_guard> inline static OopT<decorators> resolve_impl(jobject handle);
 
   // Resolve handle into oop, without keeping the object alive
-  inline static oop resolve_no_keepalive(jobject handle);
+  inline static poop resolve_no_keepalive(jobject handle);
 
   // This method is not inlined in order to avoid circular includes between
   // this header file and thread.hpp.

@@ -31,17 +31,14 @@
 #include "prims/jvmtiTagMapTable.hpp"
 
 
-JvmtiTagMapKey::JvmtiTagMapKey(oop obj) : _obj(obj) {}
+JvmtiTagMapKey::JvmtiTagMapKey(poop obj) : _obj(obj) {}
 
 JvmtiTagMapKey::JvmtiTagMapKey(const JvmtiTagMapKey& src) {
   // move object into WeakHandle when copying into the table
   assert(src._obj != nullptr, "must be set");
+  oop obj = Universe::heap()->keep_alive(src._obj);
 
-  // obj was read with AS_NO_KEEPALIVE, or equivalent, like during
-  // a heap walk.  The object needs to be kept alive when it is published.
-  Universe::heap()->keep_alive(src._obj);
-
-  _wh = WeakHandle(JvmtiExport::weak_tag_storage(), src._obj);
+  _wh = WeakHandle(JvmtiExport::weak_tag_storage(), obj);
   _obj = nullptr;
 }
 
@@ -61,7 +58,7 @@ oop JvmtiTagMapKey::object() const {
   return _wh.resolve();
 }
 
-oop JvmtiTagMapKey::object_no_keepalive() const {
+poop JvmtiTagMapKey::object_no_keepalive() const {
   assert(_obj == nullptr, "Must have a handle and not object");
   return _wh.peek();
 }
@@ -87,7 +84,7 @@ JvmtiTagMapTable::~JvmtiTagMapTable() {
   clear();
 }
 
-jlong JvmtiTagMapTable::find(oop obj) {
+jlong JvmtiTagMapTable::find(poop obj) {
   if (is_empty()) {
     return 0;
   }
@@ -102,20 +99,20 @@ jlong JvmtiTagMapTable::find(oop obj) {
   return found == nullptr ? 0 : *found;
 }
 
-void JvmtiTagMapTable::add(oop obj, jlong tag) {
+void JvmtiTagMapTable::add(poop obj, jlong tag) {
   JvmtiTagMapKey new_entry(obj);
   bool is_added = false;
   _table.put_if_absent(new_entry, tag, &is_added);
   assert(is_added, "should be added");
 }
 
-void JvmtiTagMapTable::update(oop obj, jlong tag) {
+void JvmtiTagMapTable::update(poop obj, jlong tag) {
   JvmtiTagMapKey new_entry(obj);
   bool is_updated = _table.put(new_entry, tag) == false;
   assert(is_updated, "should be updated and not added");
 }
 
-void JvmtiTagMapTable::remove(oop obj) {
+void JvmtiTagMapTable::remove(poop obj) {
   JvmtiTagMapKey jtme(obj);
   bool is_removed = _table.remove(jtme);
   assert(is_removed, "remove not succesfull.");

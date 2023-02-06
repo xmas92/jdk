@@ -1232,7 +1232,7 @@ namespace AccessInternal {
   public:
     explicit OopLoadProxy(P* addr) : _addr(addr) {}
 
-    inline operator oop() {
+    inline operator OopT<decorators>() {
       return load<decorators | INTERNAL_VALUE_IS_OOP, P, oop>(_addr);
     }
 
@@ -1289,7 +1289,7 @@ namespace AccessInternal {
   public:
     OopLoadAtProxy(oop base, ptrdiff_t offset) : _base(base), _offset(offset) {}
 
-    inline operator oop() const {
+    inline operator OopT<decorators>() const {
       return load_at<decorators | INTERNAL_VALUE_IS_OOP, oop>(_base, _offset);
     }
 

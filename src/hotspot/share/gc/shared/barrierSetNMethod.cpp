@@ -88,7 +88,7 @@ bool BarrierSetNMethod::nmethod_entry_barrier(nmethod* nm) {
       // or else keep alive load barrier will never be called. It's the LoadOopProxy-to-oop
       // conversion that performs the load barriers. This is too subtle, so we instead
       // perform an explicit keep alive call.
-      oop obj = NativeAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(p);
+      poop obj = NativeAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(p);
       if (obj != nullptr) {
         Universe::heap()->keep_alive(obj);
       }

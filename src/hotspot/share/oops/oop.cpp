@@ -103,7 +103,7 @@ intptr_t oopDesc::slow_identity_hash() {
 }
 
 // used only for asserts and guarantees
-bool oopDesc::is_oop(oop obj, bool ignore_mark_word) {
+bool oopDesc::is_oop(poop obj, bool ignore_mark_word) {
   if (!Universe::heap()->is_oop(obj)) {
     return false;
   }
@@ -122,7 +122,7 @@ bool oopDesc::is_oop(oop obj, bool ignore_mark_word) {
 }
 
 // used only for asserts and guarantees
-bool oopDesc::is_oop_or_null(oop obj, bool ignore_mark_word) {
+bool oopDesc::is_oop_or_null(poop obj, bool ignore_mark_word) {
   return obj == nullptr ? true : is_oop(obj, ignore_mark_word);
 }
 

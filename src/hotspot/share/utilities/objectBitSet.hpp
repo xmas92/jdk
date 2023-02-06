@@ -70,14 +70,14 @@ class ObjectBitSet : public CHeapObj<F> {
 
   void mark_obj(uintptr_t addr);
 
-  void mark_obj(oop obj) {
-    return mark_obj(cast_from_oop<uintptr_t>(obj));
+  void mark_obj(poop obj) {
+    return mark_obj(cast_from_poop<uintptr_t>(obj));
   }
 
   bool is_marked(uintptr_t addr);
 
-  bool is_marked(oop obj) {
-    return is_marked(cast_from_oop<uintptr_t>(obj));
+  bool is_marked(poop obj) {
+    return is_marked(cast_from_poop<uintptr_t>(obj));
   }
 };
 

@@ -423,7 +423,7 @@ class Dependencies: public ResourceObj {
   static Klass* check_unique_concrete_method(InstanceKlass* ctxk, Method* uniqm, NewKlassDepChange* changes = nullptr);
   static Klass* check_unique_concrete_method(InstanceKlass* ctxk, Method* uniqm, Klass* resolved_klass, Method* resolved_method, KlassDepChange* changes = nullptr);
   static Klass* check_has_no_finalizable_subclasses(InstanceKlass* ctxk, NewKlassDepChange* changes = nullptr);
-  static Klass* check_call_site_target_value(oop call_site, oop method_handle, CallSiteDepChange* changes = nullptr);
+  static Klass* check_call_site_target_value(poop call_site, poop method_handle, CallSiteDepChange* changes = nullptr);
   // A returned Klass* is nullptr if the dependency assertion is still
   // valid.  A non-nullptr Klass* is a 'witness' to the assertion
   // failure, a point in the class hierarchy where the assertion has
@@ -511,7 +511,7 @@ class Dependencies: public ResourceObj {
     void* _value;
    public:
     DepArgument() : _is_oop(false), _valid(false), _value(nullptr) {}
-    DepArgument(oop v): _is_oop(true), _valid(true), _value(v) {}
+    DepArgument(poop v): _is_oop(true), _valid(true), _value(v) {}
     DepArgument(Metadata* v): _is_oop(false), _valid(true), _value(v) {}
 
     bool is_null() const               { return _value == nullptr; }
@@ -574,7 +574,7 @@ class Dependencies: public ResourceObj {
     void initial_asserts(size_t byte_limit) NOT_DEBUG({});
 
     inline Metadata* recorded_metadata_at(int i);
-    inline oop recorded_oop_at(int i);
+    inline poop recorded_oop_at(int i);
 
     Klass* check_klass_dependency(KlassDepChange* changes);
     Klass* check_new_klass_dependency(NewKlassDepChange* changes);
@@ -609,7 +609,7 @@ class Dependencies: public ResourceObj {
     int argument_index(int i)    { assert(0 <= i && i < argument_count(), "oob");
                                    return _xi[i]; }
     Metadata* argument(int i);     // => recorded_oop_at(argument_index(i))
-    oop argument_oop(int i);         // => recorded_oop_at(argument_index(i))
+    poop argument_oop(int i);         // => recorded_oop_at(argument_index(i))
     InstanceKlass* context_type();
 
     bool is_klass_type()         { return Dependencies::is_klass_type(type()); }

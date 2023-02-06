@@ -1763,7 +1763,7 @@ void ObjectSynchronizer::chk_in_use_entry(ObjectMonitor* n, outputStream* out,
                   "have non-null _header field.", p2i(n));
     *error_cnt_p = *error_cnt_p + 1;
   }
-  const oop obj = n->object_peek();
+  const poop obj = n->object_peek();
   if (obj != nullptr) {
     const markWord mark = obj->mark();
     if (!mark.has_monitor()) {
@@ -1798,7 +1798,7 @@ void ObjectSynchronizer::log_in_use_monitor_details(outputStream* out) {
     MonitorList::Iterator iter = _in_use_list.iterator();
     while (iter.has_next()) {
       ObjectMonitor* mid = iter.next();
-      const oop obj = mid->object_peek();
+      const poop obj = mid->object_peek();
       const markWord mark = mid->header();
       ResourceMark rm;
       out->print(INTPTR_FORMAT "  %d%d%d  " INTPTR_FORMAT "  %s", p2i(mid),

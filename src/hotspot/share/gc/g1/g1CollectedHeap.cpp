@@ -2158,8 +2158,10 @@ void G1CollectedHeap::object_iterate_parallel(ObjectClosure* cl, uint worker_id,
   heap_region_par_iterate_from_worker_offset(&blk, claimer, worker_id);
 }
 
-void G1CollectedHeap::keep_alive(oop obj) {
-  G1BarrierSet::enqueue_preloaded(obj);
+oop G1CollectedHeap::keep_alive(poop obj) {
+  oop o = cast_to_oop(obj);
+  G1BarrierSet::enqueue_preloaded(o);
+  return o;
 }
 
 void G1CollectedHeap::heap_region_iterate(HeapRegionClosure* cl) const {

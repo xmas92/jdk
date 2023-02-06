@@ -55,7 +55,7 @@ void InstanceRefKlass::do_discovered(oop obj, OopClosureType* closure, Contains&
   }
 }
 
-static inline oop load_referent(oop obj, ReferenceType type) {
+static inline poop load_referent(oop obj, ReferenceType type) {
   if (type == REF_PHANTOM) {
     return HeapAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(java_lang_ref_Reference::referent_addr_raw(obj));
   } else {
@@ -67,7 +67,7 @@ template <typename T, class OopClosureType>
 bool InstanceRefKlass::try_discover(oop obj, ReferenceType type, OopClosureType* closure) {
   ReferenceDiscoverer* rd = closure->ref_discoverer();
   if (rd != nullptr) {
-    oop referent = load_referent(obj, type);
+    poop referent = load_referent(obj, type);
     if (referent != nullptr) {
       if (!referent->is_gc_marked()) {
         // Only try to discover if not yet marked.

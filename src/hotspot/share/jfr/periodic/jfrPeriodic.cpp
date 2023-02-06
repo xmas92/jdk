@@ -503,7 +503,7 @@ class JfrClassLoaderStatsClosure : public ClassLoaderStatsClosure {
 public:
   JfrClassLoaderStatsClosure() : ClassLoaderStatsClosure(NULL) {}
 
-  bool do_entry(oop const& key, ClassLoaderStats const& cls) {
+  bool do_entry(poop const& key, ClassLoaderStats const& cls) {
     const ClassLoaderData* this_cld = cls._class_loader != NULL ?
       java_lang_ClassLoader::loader_data_acquire(cls._class_loader) : NULL;
     const ClassLoaderData* parent_cld = cls._parent != NULL ?

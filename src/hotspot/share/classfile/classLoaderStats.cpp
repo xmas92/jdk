@@ -49,7 +49,7 @@ void ClassLoaderStatsClosure::do_cld(ClassLoaderData* cld) {
   // Class loaders are not kept alive so this closure must only be
   // used during a safepoint.
   assert_at_safepoint();
-  oop cl = cld->class_loader_no_keepalive();
+  poop cl = cld->class_loader_no_keepalive();
 
   // The hashtable key is the ClassLoader oop since we want to account
   // for "real" classes and hidden classes together
@@ -108,7 +108,7 @@ void ClassLoaderStatsClosure::do_cld(ClassLoaderData* cld) {
 #endif
 
 
-bool ClassLoaderStatsClosure::do_entry(oop const& key, ClassLoaderStats const& cls) {
+bool ClassLoaderStatsClosure::do_entry(poop const& key, ClassLoaderStats const& cls) {
   Klass* class_loader_klass = (cls._class_loader == nullptr ? nullptr : cls._class_loader->klass());
   Klass* parent_klass = (cls._parent == nullptr ? nullptr : cls._parent->klass());
 
@@ -146,7 +146,7 @@ void ClassLoaderStatsClosure::print() {
 }
 
 
-void ClassLoaderStatsClosure::addEmptyParents(oop cl) {
+void ClassLoaderStatsClosure::addEmptyParents(poop cl) {
   while (cl != nullptr && java_lang_ClassLoader::loader_data_acquire(cl) == nullptr) {
     // This classloader has not loaded any classes
     bool added = false;

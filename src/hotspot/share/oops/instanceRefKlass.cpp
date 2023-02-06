@@ -111,7 +111,7 @@ void InstanceRefKlass::update_nonstatic_oop_maps(Klass* k) {
 void InstanceRefKlass::oop_verify_on(oop obj, outputStream* st) {
   InstanceKlass::oop_verify_on(obj, st);
   // Verify referent field
-  oop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
+  poop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
   if (referent != nullptr) {
     guarantee(oopDesc::is_oop(referent), "referent field heap failed");
   }

@@ -98,7 +98,7 @@ public:
   void object_iterate(ObjectClosure* cl) override;
   ParallelObjectIteratorImpl* parallel_object_iterator(uint nworkers) override;
 
-  void keep_alive(oop obj) override;
+  oop keep_alive(poop obj) override;
 
   void register_nmethod(nmethod* nm) override;
   void unregister_nmethod(nmethod* nm) override;
@@ -124,7 +124,7 @@ public:
 
   void prepare_for_verify() override;
   void verify(VerifyOption option /* ignored */) override;
-  bool is_oop(oop object) const override;
+  bool is_oop(poop object) const override;
   bool supports_concurrent_gc_breakpoints() const override;
 };
 

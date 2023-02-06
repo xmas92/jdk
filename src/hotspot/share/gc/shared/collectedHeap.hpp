@@ -419,7 +419,9 @@ class CollectedHeap : public CHeapObj<mtGC> {
 
  public:
   // Keep alive an object that was loaded with AS_NO_KEEPALIVE.
-  virtual void keep_alive(oop obj) {}
+  virtual oop keep_alive(poop obj) {
+    return cast_to_oop(obj);
+  }
 
   // Perform any cleanup actions necessary before allowing a verification.
   virtual void prepare_for_verify() = 0;
@@ -516,7 +518,7 @@ class CollectedHeap : public CHeapObj<mtGC> {
   virtual HeapWord* allocate_loaded_archive_space(size_t size) { return nullptr; }
   virtual void complete_loaded_archive_space(MemRegion archive_space) { }
 
-  virtual bool is_oop(oop object) const;
+  virtual bool is_oop(poop object) const;
   // Non product verification and debugging.
 #ifndef PRODUCT
   // Support for PromotionFailureALot.  Return true if it's time to cause a

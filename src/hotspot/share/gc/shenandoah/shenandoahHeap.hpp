@@ -489,7 +489,7 @@ public:
   ParallelObjectIteratorImpl* parallel_object_iterator(uint workers) override;
 
   // Keep alive an object that was loaded with AS_NO_KEEPALIVE.
-  void keep_alive(oop obj) override;
+  oop keep_alive(poop obj) override;
 
 // ---------- Safepoint interface hooks
 //

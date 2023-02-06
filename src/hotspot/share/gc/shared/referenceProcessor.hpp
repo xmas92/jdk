@@ -94,7 +94,7 @@ class DiscoveredListIterator {
   HeapWord*          _current_discovered_addr;
   oop                _next_discovered;
 
-  oop                _referent;
+  poop               _referent;
 
   OopClosure*        _keep_alive;
   BoolObjectClosure* _is_alive;
@@ -120,11 +120,12 @@ public:
   inline oop obj() const { return _current_discovered; }
 
   // Get oop to the referent object.
-  inline oop referent() const { return _referent; }
+  inline poop referent() const { return _referent; }
 
   // Returns true if referent is alive.
   inline bool is_referent_alive() const {
-    return _is_alive->do_object_b(_referent);
+    // TODO[AXEL]: Closure
+    return _is_alive->do_object_b(cast_to_oop(_referent));
   }
 
   // Loads data for the current reference.
@@ -368,7 +369,7 @@ private:
   // Update (advance) the soft ref master clock field.
   void update_soft_ref_master_clock();
 
-  bool is_subject_to_discovery(oop const obj) const;
+  bool is_subject_to_discovery(poop const obj) const;
 
 public:
   // Default parameters give you a vanilla reference processor.

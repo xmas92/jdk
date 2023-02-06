@@ -787,7 +787,8 @@ oop JVMCINMethodData::get_nmethod_mirror(nmethod* nm, bool phantom_ref) {
   if (phantom_ref) {
     return nm->oop_at_phantom(_nmethod_mirror_index);
   } else {
-    return nm->oop_at(_nmethod_mirror_index);
+    // TODO[AXEL]: JVMCI
+    return cast_to_oop(nm->oop_at_no_keepalive(_nmethod_mirror_index));
   }
 }
 

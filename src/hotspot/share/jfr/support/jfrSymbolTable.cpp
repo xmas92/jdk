@@ -246,7 +246,7 @@ traceid JfrSymbolTable::mark(uintptr_t hash, const char* str, bool leakp) {
 uintptr_t JfrSymbolTable::hidden_klass_name_hash(const InstanceKlass* ik) {
   assert(ik != NULL, "invariant");
   assert(ik->is_hidden(), "invariant");
-  const oop mirror = ik->java_mirror_no_keepalive();
+  const poop mirror = ik->java_mirror_no_keepalive();
   assert(mirror != NULL, "invariant");
   return (uintptr_t)mirror->identity_hash();
 }
@@ -256,7 +256,7 @@ static const char* create_hidden_klass_symbol(const InstanceKlass* ik, uintptr_t
   assert(ik->is_hidden(), "invariant");
   assert(hash != 0, "invariant");
   char* hidden_symbol = NULL;
-  const oop mirror = ik->java_mirror_no_keepalive();
+  const poop mirror = ik->java_mirror_no_keepalive();
   assert(mirror != NULL, "invariant");
   char hash_buf[40];
   os::snprintf_checked(hash_buf, sizeof(hash_buf), "/" UINTX_FORMAT, hash);

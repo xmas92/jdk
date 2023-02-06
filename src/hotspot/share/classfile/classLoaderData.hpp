@@ -174,7 +174,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   void record_modified_oops()            { _modified_oops = true; }
   bool has_modified_oops()               { return _modified_oops; }
 
-  oop holder_no_keepalive() const;
+  poop holder_no_keepalive() const;
   oop holder() const;
 
  private:
@@ -259,7 +259,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   ClassLoaderMetaspace* metaspace_non_null();
 
   inline oop class_loader() const;
-  inline oop class_loader_no_keepalive() const;
+  inline poop class_loader_no_keepalive() const;
 
   // Returns true if this class loader data is for a loader going away.
   // Note that this is only safe after the GC has computed if the CLD is

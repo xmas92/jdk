@@ -83,7 +83,7 @@ public:
     } else {
       // Don't know the state of the oop.
       oop obj = *p;
-      obj = NativeAccess<AS_NO_KEEPALIVE>::oop_load(&obj);
+      obj = cast_to_oop((poop)NativeAccess<AS_NO_KEEPALIVE>::oop_load(&obj));
       z_verify_oop(&obj);
     }
   }

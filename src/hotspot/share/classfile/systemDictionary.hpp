@@ -352,7 +352,7 @@ protected:
                                                       Handle class_loader,
                                                       InstanceKlass* k, TRAPS);
 public:
-  static bool is_system_class_loader(oop class_loader);
+  static bool is_system_class_loader(poop class_loader);
   static bool is_platform_class_loader(oop class_loader);
   static bool is_boot_class_loader(oop class_loader) { return class_loader == nullptr; }
   static bool is_builtin_class_loader(oop class_loader) {

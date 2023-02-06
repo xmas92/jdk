@@ -68,6 +68,6 @@ class ProtectionDomainEntry :public CHeapObj<mtClass> {
 
   ProtectionDomainEntry* next_acquire() { return Atomic::load_acquire(&_next); }
   void release_set_next(ProtectionDomainEntry* entry) { Atomic::release_store(&_next, entry); }
-  oop object_no_keepalive();
+  poop object_no_keepalive();
 };
 #endif // SHARE_CLASSFILE_PROTECTIONDOMAINCACHE_HPP

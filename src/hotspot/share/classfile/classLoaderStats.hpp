@@ -70,8 +70,8 @@ public:
 class ClassLoaderStats : public ResourceObj {
 public:
   ClassLoaderData*  _cld;
-  oop               _class_loader;
-  oop               _parent;
+  poop              _class_loader;
+  poop              _parent;
 
   size_t            _chunk_sz;
   size_t            _block_sz;
@@ -97,10 +97,10 @@ public:
 
 class ClassLoaderStatsClosure : public CLDClosure {
 protected:
-  static unsigned oop_hash(oop const& s1) {
+  static unsigned oop_hash(poop const& s1) {
     // Robert Jenkins 1996 & Thomas Wang 1997
     // http://web.archive.org/web/20071223173210/http://www.concentric.net/~Ttwang/tech/inthash.htm
-    uintptr_t tmp = cast_from_oop<uintptr_t>(s1);
+    uintptr_t tmp = cast_from_poop<uintptr_t>(s1);
     unsigned hash = (unsigned)tmp;
     hash = ~hash + (hash << 15);
     hash = hash ^ (hash >> 12);
@@ -111,7 +111,7 @@ protected:
     return hash;
   }
 
-  typedef ResourceHashtable<oop, ClassLoaderStats,
+  typedef ResourceHashtable<poop, ClassLoaderStats,
                             256, AnyObj::C_HEAP, mtStatistics,
                             ClassLoaderStatsClosure::oop_hash> StatsTable;
 
@@ -137,11 +137,11 @@ public:
   }
 
   virtual void do_cld(ClassLoaderData* cld);
-  virtual bool do_entry(oop const& key, ClassLoaderStats const& cls);
+  virtual bool do_entry(poop const& key, ClassLoaderStats const& cls);
   void print();
 
 private:
-  void addEmptyParents(oop cl);
+  void addEmptyParents(poop cl);
 };
 
 

@@ -34,7 +34,7 @@ inline oop WeakHandle::resolve() const {
   return NativeAccess<ON_PHANTOM_OOP_REF>::oop_load(_obj);
 }
 
-inline oop WeakHandle::peek() const {
+inline poop WeakHandle::peek() const {
   assert(!is_null(), "Must be created");
   return NativeAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(_obj);
 }

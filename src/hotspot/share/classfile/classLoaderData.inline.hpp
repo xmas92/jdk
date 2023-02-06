@@ -39,7 +39,7 @@ inline oop ClassLoaderData::class_loader() const {
   return _class_loader.resolve();
 }
 
-inline oop ClassLoaderData::class_loader_no_keepalive() const {
+inline poop ClassLoaderData::class_loader_no_keepalive() const {
   assert(!_unloading, "This oop is not available to unloading class loader data");
   assert(_holder.is_null() || holder_no_keepalive() != nullptr , "This class loader data holder must be alive");
   return _class_loader.peek();

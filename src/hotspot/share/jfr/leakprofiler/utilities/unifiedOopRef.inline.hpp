@@ -124,16 +124,16 @@ inline oop UnifiedOopRef::dereference() const {
   } else if (is_native()) {
     if (is_narrow()) {
       NOT_LP64(ShouldNotReachHere());
-      return NativeAccess<AS_NO_KEEPALIVE>::oop_load(addr<narrowOop*>());
+      return cast_to_oop((poop)NativeAccess<AS_NO_KEEPALIVE>::oop_load(addr<narrowOop*>()));
     } else {
-      return NativeAccess<AS_NO_KEEPALIVE>::oop_load(addr<oop*>());
+      return cast_to_oop((poop)NativeAccess<AS_NO_KEEPALIVE>::oop_load(addr<oop*>()));
     }
   } else {
     if (is_narrow()) {
       NOT_LP64(ShouldNotReachHere());
-      return HeapAccess<AS_NO_KEEPALIVE>::oop_load(addr<narrowOop*>());
+      return cast_to_oop((poop)HeapAccess<AS_NO_KEEPALIVE>::oop_load(addr<narrowOop*>()));
     } else {
-      return HeapAccess<AS_NO_KEEPALIVE>::oop_load(addr<oop*>());
+      return cast_to_oop((poop)HeapAccess<AS_NO_KEEPALIVE>::oop_load(addr<oop*>()));
     }
   }
 }

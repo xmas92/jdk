@@ -50,6 +50,12 @@ typedef class     stackChunkOopDesc*          stackChunkOop;
 typedef class   arrayOopDesc*               arrayOop;
 typedef class     objArrayOopDesc*            objArrayOop;
 typedef class     typeArrayOopDesc*           typeArrayOop;
+typedef class oopDesc*                    poop;
+typedef class   instanceOopDesc*            instancePOop;
+typedef class     stackChunkOopDesc*          stackChunkPOop;
+typedef class   arrayOopDesc*               arrayPOop;
+typedef class     objArrayOopDesc*            objArrayPOop;
+typedef class     typeArrayOopDesc*           typeArrayPOop;
 
 #else
 
@@ -117,6 +123,27 @@ struct PrimitiveConversions::Translate<oop> : public std::true_type {
   static Value recover(Decayed x) { return oop(x); }
 };
 
+class poop : protected oop {
+  public:
+    poop() = default;
+    poop(const poop& o) = default;
+    poop(const oop& o) : oop(o) {}
+    poop(oopDesc* o) : oop(o) {}
+
+    using oop::operator->;
+    using oop::operator oopDesc*;
+    using oop::operator==;
+    using oop::operator!=;
+
+  bool operator==(const poop& o) const { return oop::operator==(o); }
+  bool operator!=(const poop& o) const { return oop::operator!=(o); }
+  poop& operator=(const poop& o) {
+    oop::operator=(o);
+    return *this;
+  }
+};
+
+
 #define DEF_OOP(type)                                                          \
    class type##OopDesc;                                                        \
    class type##Oop : public oop {                                              \
@@ -142,6 +169,17 @@ struct PrimitiveConversions::Translate<oop> : public std::true_type {
                                                                                \
      static Decayed decay(Value x) { return (type##OopDesc*)x.obj(); }         \
      static Value recover(Decayed x) { return type##Oop(x); }                  \
+   };                                                                          \
+   class type##POop : public poop {                                            \
+     public:                                                                   \
+       type##POop() : poop() {}                                                \
+       type##POop(const type##POop& o) : poop(o) {}                            \
+       type##POop(const poop& o) : poop(o) {}                                  \
+       type##POop(const oop& o) : poop(o) {}                                   \
+       operator type##OopDesc* () const { return (type##OopDesc*)obj(); }      \
+       type##OopDesc* operator->() const {                                     \
+            return (type##OopDesc*)obj();                                      \
+       }                                                                       \
    };
 
 DEF_OOP(instance);
@@ -157,6 +195,9 @@ template <typename T> inline oop cast_to_oop(T value) {
   return (oopDesc*)value;
 }
 template <typename T> inline T cast_from_oop(oop o) {
+  return (T)(CHECK_UNHANDLED_OOPS_ONLY((oopDesc*))o);
+}
+template <typename T> inline T cast_from_poop(poop o) {
   return (T)(CHECK_UNHANDLED_OOPS_ONLY((oopDesc*))o);
 }
 

@@ -168,7 +168,7 @@ StringDedup::Table::Bucket::find(typeArrayOop obj, uint hash_code) const {
   int index = 0;
   for (uint cur_hash : _hashes) {
     if (cur_hash == hash_code) {
-      typeArrayOop value = cast_from_oop<typeArrayOop>(_values.at(index).peek());
+      typeArrayPOop value = typeArrayPOop(_values.at(index).peek());
       if ((value != nullptr) &&
           java_lang_String::value_equals(obj, value)) {
         return _values.at(index);

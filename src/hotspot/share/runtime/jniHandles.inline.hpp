@@ -68,10 +68,10 @@ inline oop* JNIHandles::weak_global_ptr(jweak handle) {
 
 // external_guard is true if called from resolve_external_guard.
 template <DecoratorSet decorators, bool external_guard>
-inline oop JNIHandles::resolve_impl(jobject handle) {
+inline OopT<decorators> JNIHandles::resolve_impl(jobject handle) {
   assert(handle != nullptr, "precondition");
   assert(!current_thread_in_native(), "must not be in native");
-  oop result;
+  OopT<decorators> result;
   if (is_weak_global_tagged(handle)) {       // Unlikely
     result = NativeAccess<ON_PHANTOM_OOP_REF|decorators>::oop_load(weak_global_ptr(handle));
   } else if (is_global_tagged(handle)) {
@@ -96,8 +96,8 @@ inline oop JNIHandles::resolve(jobject handle) {
   return result;
 }
 
-inline oop JNIHandles::resolve_no_keepalive(jobject handle) {
-  oop result = nullptr;
+inline poop JNIHandles::resolve_no_keepalive(jobject handle) {
+  poop result = nullptr;
   if (handle != nullptr) {
     result = resolve_impl<AS_NO_KEEPALIVE, false /* external_guard */>(handle);
   }
@@ -105,8 +105,8 @@ inline oop JNIHandles::resolve_no_keepalive(jobject handle) {
 }
 
 inline bool JNIHandles::is_same_object(jobject handle1, jobject handle2) {
-  oop obj1 = resolve_no_keepalive(handle1);
-  oop obj2 = resolve_no_keepalive(handle2);
+  poop obj1 = resolve_no_keepalive(handle1);
+  poop obj2 = resolve_no_keepalive(handle2);
   return obj1 == obj2;
 }
 

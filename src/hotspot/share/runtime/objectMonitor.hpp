@@ -283,7 +283,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
   ~ObjectMonitor();
 
   oop       object() const;
-  oop       object_peek() const;
+  poop       object_peek() const;
 
   // Returns true if the specified thread owns the ObjectMonitor. Otherwise
   // returns false and throws IllegalMonitorStateException (IMSE).
@@ -338,7 +338,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
 
   // Deflation support
   bool      deflate_monitor();
-  void      install_displaced_markword_in_object(const oop obj);
+  void      install_displaced_markword_in_object(const poop obj);
 };
 
 #endif // SHARE_RUNTIME_OBJECTMONITOR_HPP

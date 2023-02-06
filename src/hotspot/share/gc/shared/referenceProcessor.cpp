@@ -911,7 +911,7 @@ inline bool ReferenceProcessor::set_discovered_link_mt(HeapWord* discovered_addr
 // referents, being those cleared concurrently by mutators during (or after) discovery.
 void ReferenceProcessor::verify_referent(oop obj) {
   bool concurrent = discovery_is_concurrent();
-  oop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
+  poop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
   assert(concurrent ? oopDesc::is_oop_or_null(referent) : oopDesc::is_oop(referent),
          "Bad referent " PTR_FORMAT " found in Reference "
          PTR_FORMAT " during %sconcurrent discovery ",
@@ -919,8 +919,8 @@ void ReferenceProcessor::verify_referent(oop obj) {
 }
 #endif
 
-bool ReferenceProcessor::is_subject_to_discovery(oop const obj) const {
-  return _is_subject_to_discovery->do_object_b(obj);
+bool ReferenceProcessor::is_subject_to_discovery(poop const obj) const {
+  return _is_subject_to_discovery->do_object_b(cast_to_oop(obj));
 }
 
 // We mention two of several possible choices here:
@@ -972,8 +972,9 @@ bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
   // known to be strongly reachable.
   if (is_alive_non_header() != nullptr) {
     verify_referent(obj);
-    oop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
-    if (is_alive_non_header()->do_object_b(referent)) {
+    poop referent = java_lang_ref_Reference::unknown_referent_no_keepalive(obj);
+    // TODO[AXEL]: Closure
+    if (is_alive_non_header()->do_object_b(cast_to_oop(referent))) {
       return false;  // referent is reachable
     }
   }

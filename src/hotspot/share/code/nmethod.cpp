@@ -22,6 +22,7 @@
  *
  */
 
+#include "oops/accessDecorators.hpp"
 #include "precompiled.hpp"
 #include "asm/assembler.inline.hpp"
 #include "code/codeCache.hpp"
@@ -610,7 +611,7 @@ nmethod* nmethod::new_nmethod(const methodHandle& method,
       for (Dependencies::DepStream deps(nm); deps.next(); ) {
         if (deps.type() == Dependencies::call_site_target_value) {
           // CallSite dependencies are managed on per-CallSite instance basis.
-          oop call_site = deps.argument_oop(0);
+          poop call_site = deps.argument_oop(0);
           MethodHandles::add_dependent_nmethod(call_site, nm);
         } else {
           Klass* klass = deps.context_type();
@@ -1461,18 +1462,27 @@ void nmethod::flush() {
   CodeCache::free(this);
 }
 
-oop nmethod::oop_at(int index) const {
+template<DecoratorSet decorators>
+OopT<decorators> nmethod::oop_at_impl(int index) const {
   if (index == 0) {
     return nullptr;
   }
-  return NMethodAccess<AS_NO_KEEPALIVE>::oop_load(oop_addr_at(index));
+  return NMethodAccess<decorators>::oop_load(oop_addr_at(index));
+}
+
+oop nmethod::oop_at(int index) const {
+  // TODO[AXEL]: Fix const_cast
+  precond(BarrierSet::barrier_set()->barrier_set_nmethod() == nullptr ||
+         !BarrierSet::barrier_set()->barrier_set_nmethod()->is_armed(const_cast<nmethod*>(this)));
+  return oop_at_impl<DECORATORS_NONE>(index);
+}
+
+poop nmethod::oop_at_no_keepalive(int index) const {
+  return oop_at_impl<AS_NO_KEEPALIVE>(index);
 }
 
 oop nmethod::oop_at_phantom(int index) const {
-  if (index == 0) {
-    return nullptr;
-  }
-  return NMethodAccess<ON_PHANTOM_OOP_REF>::oop_load(oop_addr_at(index));
+  return oop_at_impl<ON_PHANTOM_OOP_REF>(index);
 }
 
 //
@@ -1485,7 +1495,7 @@ void nmethod::flush_dependencies() {
     for (Dependencies::DepStream deps(this); deps.next(); ) {
       if (deps.type() == Dependencies::call_site_target_value) {
         // CallSite dependencies are managed on per-CallSite instance basis.
-        oop call_site = deps.argument_oop(0);
+        poop call_site = deps.argument_oop(0);
         MethodHandles::clean_dependency_context(call_site);
       } else {
         Klass* klass = deps.context_type();
@@ -2600,7 +2610,7 @@ void nmethod::print_recorded_oop(int log_n, int i) {
     if (Universe::contains_non_oop_word(oop_addr_at(i))) {
       value = Universe::non_oop_word();
     } else {
-      value = oop_at(i);
+      value = oop_at_no_keepalive(i);
     }
   }
 
@@ -2612,7 +2622,7 @@ void nmethod::print_recorded_oop(int log_n, int i) {
     if (value == 0) {
       tty->print("nullptr-oop");
     } else {
-      oop_at(i)->print_value_on(tty);
+      oop_at_no_keepalive(i)->print_value_on(tty);
     }
   }
 

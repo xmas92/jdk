@@ -142,7 +142,7 @@ void ProtectionDomainCacheTable::unlink() {
     Deleter() : _oops_removed(0) {}
 
     bool do_entry(WeakHandle& key, WeakHandle& value) {
-      oop pd = value.peek();
+      poop pd = value.peek();
       if (value.peek() == nullptr) {
         _oops_removed++;
         LogTarget(Debug, protectiondomain, table) lt;
@@ -184,7 +184,7 @@ void ProtectionDomainCacheTable::verify() {
 
 // The object_no_keepalive() call peeks at the phantomly reachable oop without
 // keeping it alive.  This is used for traversing DictionaryEntry pd_set.
-oop ProtectionDomainEntry::object_no_keepalive() {
+poop ProtectionDomainEntry::object_no_keepalive() {
   return _object.peek();
 }
 

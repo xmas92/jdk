@@ -140,7 +140,7 @@ oop JNIHandles::resolve_external_guard(jobject handle) {
 bool JNIHandles::is_weak_global_cleared(jweak handle) {
   assert(handle != nullptr, "precondition");
   oop* oop_ptr = weak_global_ptr(handle);
-  oop value = NativeAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(oop_ptr);
+  poop value = NativeAccess<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>::oop_load(oop_ptr);
   return value == nullptr;
 }
 
@@ -267,7 +267,7 @@ void JNIHandles::print() { print_on(tty); }
 class VerifyJNIHandles: public OopClosure {
 public:
   virtual void do_oop(oop* root) {
-    guarantee(oopDesc::is_oop_or_null(RawAccess<>::oop_load(root)), "Invalid oop");
+    guarantee(oopDesc::is_oop_or_null(*root), "Invalid oop");
   }
   virtual void do_oop(narrowOop* root) { ShouldNotReachHere(); }
 };

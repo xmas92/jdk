@@ -226,7 +226,7 @@ bool is_parallelDefine(Handle class_loader) {
 // Returns true if the passed class loader is the builtin application class loader
 // or a custom system class loader. A customer system class loader can be
 // specified via -Djava.system.class.loader.
-bool SystemDictionary::is_system_class_loader(oop class_loader) {
+bool SystemDictionary::is_system_class_loader(poop class_loader) {
   if (class_loader == nullptr) {
     return false;
   }

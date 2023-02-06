@@ -287,7 +287,7 @@ oop ObjectMonitor::object() const {
   return _object.resolve();
 }
 
-oop ObjectMonitor::object_peek() const {
+poop ObjectMonitor::object_peek() const {
   if (_object.is_null()) {
     return nullptr;
   }
@@ -525,7 +525,7 @@ bool ObjectMonitor::deflate_monitor() {
     return false;
   }
 
-  const oop obj = object_peek();
+  const poop obj = object_peek();
 
   if (obj == nullptr) {
     // If the object died, we can recycle the monitor without racing with
@@ -605,7 +605,7 @@ bool ObjectMonitor::deflate_monitor() {
 // idempotent method is called by a thread that is deflating a
 // monitor and by other threads that have detected a race with the
 // deflation process.
-void ObjectMonitor::install_displaced_markword_in_object(const oop obj) {
+void ObjectMonitor::install_displaced_markword_in_object(const poop obj) {
   // This function must only be called when (owner == DEFLATER_MARKER
   // && contentions <= 0), but we can't guarantee that here because
   // those values could change when the ObjectMonitor gets moved from
@@ -620,7 +620,7 @@ void ObjectMonitor::install_displaced_markword_in_object(const oop obj) {
   // Make sure to observe them in the same order when having several observers.
   OrderAccess::loadload_for_IRIW();
 
-  const oop l_object = object_peek();
+  const poop l_object = object_peek();
   if (l_object == nullptr) {
     // ObjectMonitor's object ref has already been cleared by async
     // deflation or GC so we're done here.

@@ -169,7 +169,7 @@ void JvmtiTagMap::check_hashmaps_for_heapwalk(GrowableArray<jlong>* objects) {
 // Return the tag value for an object, or 0 if the object is
 // not tagged
 //
-static inline jlong tag_for(JvmtiTagMap* tag_map, oop o) {
+static inline jlong tag_for(JvmtiTagMap* tag_map, poop o) {
   return tag_map->hashmap()->find(o);
 }
 
@@ -192,7 +192,7 @@ class CallbackWrapper : public StackObj {
  private:
   JvmtiTagMap* _tag_map;
   JvmtiTagMapTable* _hashmap;
-  oop _o;
+  poop _o;
   jlong _obj_size;
   jlong _obj_tag;
   jlong _klass_tag;
@@ -201,10 +201,10 @@ class CallbackWrapper : public StackObj {
   JvmtiTagMap* tag_map() const { return _tag_map; }
 
   // invoked post-callback to tag, untag, or update the tag of an object
-  void inline post_callback_tag_update(oop o, JvmtiTagMapTable* hashmap,
+  void inline post_callback_tag_update(poop o, JvmtiTagMapTable* hashmap,
                                        jlong obj_tag);
  public:
-  CallbackWrapper(JvmtiTagMap* tag_map, oop o) {
+  CallbackWrapper(JvmtiTagMap* tag_map, poop o) {
     assert(Thread::current()->is_VM_thread() || tag_map->is_locked(),
            "MT unsafe or must be VM thread");
 
@@ -238,7 +238,7 @@ class CallbackWrapper : public StackObj {
 };
 
 // callback post-callback to tag, untag, or update the tag of an object
-void inline CallbackWrapper::post_callback_tag_update(oop o,
+void inline CallbackWrapper::post_callback_tag_update(poop o,
                                                       JvmtiTagMapTable* hashmap,
                                                       jlong obj_tag) {
   jlong current_tag = hashmap->find(o);
@@ -281,7 +281,7 @@ class TwoOopCallbackWrapper : public CallbackWrapper {
  private:
   bool _is_reference_to_self;
   JvmtiTagMapTable* _referrer_hashmap;
-  oop _referrer;
+  poop _referrer;
   jlong _referrer_obj_tag;
   jlong _referrer_klass_tag;
   jlong* _referrer_tag_p;
@@ -289,11 +289,11 @@ class TwoOopCallbackWrapper : public CallbackWrapper {
   bool is_reference_to_self() const             { return _is_reference_to_self; }
 
  public:
-  TwoOopCallbackWrapper(JvmtiTagMap* tag_map, oop referrer, oop o) :
+  TwoOopCallbackWrapper(JvmtiTagMap* tag_map, poop referrer, poop o) :
     CallbackWrapper(tag_map, o)
   {
     // self reference needs to be handled in a special way
-    _is_reference_to_self = (referrer == o);
+    _is_reference_to_self = (o == referrer);
 
     if (_is_reference_to_self) {
       _referrer_klass_tag = klass_tag();
@@ -426,7 +426,7 @@ class ClassFieldMap: public CHeapObj<mtInternal> {
 
   // functions to create maps of static or instance fields
   static ClassFieldMap* create_map_of_static_fields(Klass* k);
-  static ClassFieldMap* create_map_of_instance_fields(oop obj);
+  static ClassFieldMap* create_map_of_instance_fields(poop obj);
 };
 
 ClassFieldMap::ClassFieldMap() {
@@ -473,7 +473,7 @@ ClassFieldMap* ClassFieldMap::create_map_of_static_fields(Klass* k) {
 // of the given class. All instance fields are included (this means public
 // and private fields declared in superclasses and superinterfaces too).
 //
-ClassFieldMap* ClassFieldMap::create_map_of_instance_fields(oop obj) {
+ClassFieldMap* ClassFieldMap::create_map_of_instance_fields(poop obj) {
   InstanceKlass* ik = InstanceKlass::cast(obj->klass());
 
   // create the field map
@@ -518,7 +518,7 @@ class JvmtiCachedClassFieldMap : public CHeapObj<mtInternal> {
  public:
   // returns the field map for a given object (returning map cached
   // by InstanceKlass if possible
-  static ClassFieldMap* get_map_of_instance_fields(oop obj);
+  static ClassFieldMap* get_map_of_instance_fields(poop obj);
 
   // removes the field map from all instanceKlasses - should be
   // called before VM operation completes
@@ -572,7 +572,7 @@ void JvmtiCachedClassFieldMap::add_to_class_list(InstanceKlass* ik) {
 
 // returns the instance field map for the given object
 // (returns field map cached by the InstanceKlass if possible)
-ClassFieldMap* JvmtiCachedClassFieldMap::get_map_of_instance_fields(oop obj) {
+ClassFieldMap* JvmtiCachedClassFieldMap::get_map_of_instance_fields(poop obj) {
   assert(Thread::current()->is_VM_thread(), "must be VMThread");
   assert(ClassFieldMapCacheMark::is_active(), "ClassFieldMapCacheMark not active");
 
@@ -637,7 +637,7 @@ static inline bool is_filtered_by_heap_filter(jlong obj_tag,
 }
 
 // helper function to indicate if an object is filtered by a klass filter
-static inline bool is_filtered_by_klass_filter(oop obj, Klass* klass_filter) {
+static inline bool is_filtered_by_klass_filter(poop obj, Klass* klass_filter) {
   if (klass_filter != nullptr) {
     if (obj->klass() != klass_filter) {
       return true;
@@ -670,7 +670,7 @@ static inline void copy_to_jvalue(jvalue *v, address addr, jvmtiPrimitiveType va
 // returns visit control flags
 static jint invoke_string_value_callback(jvmtiStringPrimitiveValueCallback cb,
                                          CallbackWrapper* wrapper,
-                                         oop str,
+                                         poop str,
                                          void* user_data)
 {
   assert(str->klass() == vmClasses::String_klass(), "not a string");
@@ -721,13 +721,13 @@ static jint invoke_string_value_callback(jvmtiStringPrimitiveValueCallback cb,
 // returns visit control flags
 static jint invoke_array_primitive_value_callback(jvmtiArrayPrimitiveValueCallback cb,
                                                   CallbackWrapper* wrapper,
-                                                  oop obj,
+                                                  poop obj,
                                                   void* user_data)
 {
   assert(obj->is_typeArray(), "not a primitive array");
 
   // get base address of first element
-  typeArrayOop array = typeArrayOop(obj);
+  typeArrayPOop array = typeArrayPOop(obj);
   BasicType type = TypeArrayKlass::cast(array->klass())->element_type();
   void* elements = array->base(type);
 
@@ -1371,7 +1371,7 @@ class BasicHeapWalkContext: public HeapWalkContext {
   jvmtiObjectReferenceCallback _object_ref_callback;
 
   // used for caching
-  oop _last_referrer;
+  poop _last_referrer;
   jlong _last_referrer_tag;
 
  public:
@@ -1393,8 +1393,8 @@ class BasicHeapWalkContext: public HeapWalkContext {
   jvmtiStackReferenceCallback stack_ref_callback() const   { return _stack_ref_callback; }
   jvmtiObjectReferenceCallback object_ref_callback() const { return _object_ref_callback;  }
 
-  oop last_referrer() const               { return _last_referrer; }
-  void set_last_referrer(oop referrer)    { _last_referrer = referrer; }
+  poop last_referrer() const               { return _last_referrer; }
+  void set_last_referrer(poop referrer)    { _last_referrer = referrer; }
   jlong last_referrer_tag() const         { return _last_referrer_tag; }
   void set_last_referrer_tag(jlong value) { _last_referrer_tag = value; }
 };
@@ -1467,79 +1467,79 @@ class CallbackInvoker : AllStatic {
   // context needed for all heap walks
   static JvmtiTagMap* _tag_map;
   static const void* _user_data;
-  static GrowableArray<oop>* _visit_stack;
+  static GrowableArray<poop>* _visit_stack;
   static JVMTIBitSet* _bitset;
 
   // accessors
   static JvmtiTagMap* tag_map()                        { return _tag_map; }
   static const void* user_data()                       { return _user_data; }
-  static GrowableArray<oop>* visit_stack()             { return _visit_stack; }
+  static GrowableArray<poop>* visit_stack()            { return _visit_stack; }
 
   // if the object hasn't been visited then push it onto the visit stack
   // so that it will be visited later
-  static inline bool check_for_visit(oop obj) {
+  static inline bool check_for_visit(poop obj) {
     if (!_bitset->is_marked(obj)) visit_stack()->push(obj);
     return true;
   }
 
   // invoke basic style callbacks
   static inline bool invoke_basic_heap_root_callback
-    (jvmtiHeapRootKind root_kind, oop obj);
+    (jvmtiHeapRootKind root_kind, poop obj);
   static inline bool invoke_basic_stack_ref_callback
     (jvmtiHeapRootKind root_kind, jlong thread_tag, jint depth, jmethodID method,
      int slot, oop obj);
   static inline bool invoke_basic_object_reference_callback
-    (jvmtiObjectReferenceKind ref_kind, oop referrer, oop referree, jint index);
+    (jvmtiObjectReferenceKind ref_kind, poop referrer, poop referree, jint index);
 
   // invoke advanced style callbacks
   static inline bool invoke_advanced_heap_root_callback
-    (jvmtiHeapReferenceKind ref_kind, oop obj);
+    (jvmtiHeapReferenceKind ref_kind, poop obj);
   static inline bool invoke_advanced_stack_ref_callback
     (jvmtiHeapReferenceKind ref_kind, jlong thread_tag, jlong tid, int depth,
      jmethodID method, jlocation bci, jint slot, oop obj);
   static inline bool invoke_advanced_object_reference_callback
-    (jvmtiHeapReferenceKind ref_kind, oop referrer, oop referree, jint index);
+    (jvmtiHeapReferenceKind ref_kind, poop referrer, poop referree, jint index);
 
   // used to report the value of primitive fields
   static inline bool report_primitive_field
-    (jvmtiHeapReferenceKind ref_kind, oop obj, jint index, address addr, char type);
+    (jvmtiHeapReferenceKind ref_kind, poop obj, jint index, address addr, char type);
 
  public:
   // initialize for basic mode
   static void initialize_for_basic_heap_walk(JvmtiTagMap* tag_map,
-                                             GrowableArray<oop>* visit_stack,
+                                             GrowableArray<poop>* visit_stack,
                                              const void* user_data,
                                              BasicHeapWalkContext context,
                                              JVMTIBitSet* bitset);
 
   // initialize for advanced mode
   static void initialize_for_advanced_heap_walk(JvmtiTagMap* tag_map,
-                                                GrowableArray<oop>* visit_stack,
+                                                GrowableArray<poop>* visit_stack,
                                                 const void* user_data,
                                                 AdvancedHeapWalkContext context,
                                                 JVMTIBitSet* bitset);
 
    // functions to report roots
-  static inline bool report_simple_root(jvmtiHeapReferenceKind kind, oop o);
+  static inline bool report_simple_root(jvmtiHeapReferenceKind kind, poop o);
   static inline bool report_jni_local_root(jlong thread_tag, jlong tid, jint depth,
     jmethodID m, oop o);
   static inline bool report_stack_ref_root(jlong thread_tag, jlong tid, jint depth,
     jmethodID method, jlocation bci, jint slot, oop o);
 
   // functions to report references
-  static inline bool report_array_element_reference(oop referrer, oop referree, jint index);
-  static inline bool report_class_reference(oop referrer, oop referree);
-  static inline bool report_class_loader_reference(oop referrer, oop referree);
-  static inline bool report_signers_reference(oop referrer, oop referree);
-  static inline bool report_protection_domain_reference(oop referrer, oop referree);
-  static inline bool report_superclass_reference(oop referrer, oop referree);
-  static inline bool report_interface_reference(oop referrer, oop referree);
-  static inline bool report_static_field_reference(oop referrer, oop referree, jint slot);
-  static inline bool report_field_reference(oop referrer, oop referree, jint slot);
-  static inline bool report_constant_pool_reference(oop referrer, oop referree, jint index);
-  static inline bool report_primitive_array_values(oop array);
-  static inline bool report_string_value(oop str);
-  static inline bool report_primitive_instance_field(oop o, jint index, address value, char type);
+  static inline bool report_array_element_reference(poop referrer, poop referree, jint index);
+  static inline bool report_class_reference(poop referrer, poop referree);
+  static inline bool report_class_loader_reference(oop referrer, poop referree);
+  static inline bool report_signers_reference(oop referrer, poop referree);
+  static inline bool report_protection_domain_reference(oop referrer, poop referree);
+  static inline bool report_superclass_reference(oop referrer, poop referree);
+  static inline bool report_interface_reference(oop referrer, poop referree);
+  static inline bool report_static_field_reference(oop referrer, poop referree, jint slot);
+  static inline bool report_field_reference(poop referrer, poop referree, jint slot);
+  static inline bool report_constant_pool_reference(oop referrer, poop referree, jint index);
+  static inline bool report_primitive_array_values(poop array);
+  static inline bool report_string_value(poop str);
+  static inline bool report_primitive_instance_field(poop o, jint index, address value, char type);
   static inline bool report_primitive_static_field(oop o, jint index, address value, char type);
 };
 
@@ -1549,12 +1549,12 @@ BasicHeapWalkContext CallbackInvoker::_basic_context;
 AdvancedHeapWalkContext CallbackInvoker::_advanced_context;
 JvmtiTagMap* CallbackInvoker::_tag_map;
 const void* CallbackInvoker::_user_data;
-GrowableArray<oop>* CallbackInvoker::_visit_stack;
+GrowableArray<poop>* CallbackInvoker::_visit_stack;
 JVMTIBitSet* CallbackInvoker::_bitset;
 
 // initialize for basic heap walk (IterateOverReachableObjects et al)
 void CallbackInvoker::initialize_for_basic_heap_walk(JvmtiTagMap* tag_map,
-                                                     GrowableArray<oop>* visit_stack,
+                                                     GrowableArray<poop>* visit_stack,
                                                      const void* user_data,
                                                      BasicHeapWalkContext context,
                                                      JVMTIBitSet* bitset) {
@@ -1569,7 +1569,7 @@ void CallbackInvoker::initialize_for_basic_heap_walk(JvmtiTagMap* tag_map,
 
 // initialize for advanced heap walk (FollowReferences)
 void CallbackInvoker::initialize_for_advanced_heap_walk(JvmtiTagMap* tag_map,
-                                                        GrowableArray<oop>* visit_stack,
+                                                        GrowableArray<poop>* visit_stack,
                                                         const void* user_data,
                                                         AdvancedHeapWalkContext context,
                                                         JVMTIBitSet* bitset) {
@@ -1584,7 +1584,7 @@ void CallbackInvoker::initialize_for_advanced_heap_walk(JvmtiTagMap* tag_map,
 
 
 // invoke basic style heap root callback
-inline bool CallbackInvoker::invoke_basic_heap_root_callback(jvmtiHeapRootKind root_kind, oop obj) {
+inline bool CallbackInvoker::invoke_basic_heap_root_callback(jvmtiHeapRootKind root_kind, poop obj) {
   // if we heap roots should be reported
   jvmtiHeapRootCallback cb = basic_context()->heap_root_callback();
   if (cb == nullptr) {
@@ -1638,8 +1638,8 @@ inline bool CallbackInvoker::invoke_basic_stack_ref_callback(jvmtiHeapRootKind r
 
 // invoke basic style object reference callback
 inline bool CallbackInvoker::invoke_basic_object_reference_callback(jvmtiObjectReferenceKind ref_kind,
-                                                                    oop referrer,
-                                                                    oop referree,
+                                                                    poop referrer,
+                                                                    poop referree,
                                                                     jint index) {
 
   BasicHeapWalkContext* context = basic_context();
@@ -1667,7 +1667,7 @@ inline bool CallbackInvoker::invoke_basic_object_reference_callback(jvmtiObjectR
   // record referrer and referrer tag. For self-references record the
   // tag value from the callback as this might differ from referrer_tag.
   context->set_last_referrer(referrer);
-  if (referrer == referree) {
+  if (referree == referrer) {
     context->set_last_referrer_tag(*wrapper.obj_tag_p());
   } else {
     context->set_last_referrer_tag(referrer_tag);
@@ -1682,7 +1682,7 @@ inline bool CallbackInvoker::invoke_basic_object_reference_callback(jvmtiObjectR
 
 // invoke advanced style heap root callback
 inline bool CallbackInvoker::invoke_advanced_heap_root_callback(jvmtiHeapReferenceKind ref_kind,
-                                                                oop obj) {
+                                                                poop obj) {
   AdvancedHeapWalkContext* context = advanced_context();
 
   // check that callback is provided
@@ -1707,7 +1707,7 @@ inline bool CallbackInvoker::invoke_advanced_heap_root_callback(jvmtiHeapReferen
   }
 
   // for arrays we need the length, otherwise -1
-  jint len = (jint)(obj->is_array() ? arrayOop(obj)->length() : -1);
+  jint len = (jint)(obj->is_array() ? arrayPOop(obj)->length() : -1);
 
   // invoke the callback
   jint res  = (*cb)(ref_kind,
@@ -1803,8 +1803,8 @@ inline bool CallbackInvoker::invoke_advanced_stack_ref_callback(jvmtiHeapReferen
 
 // invoke the object reference callback to report a reference
 inline bool CallbackInvoker::invoke_advanced_object_reference_callback(jvmtiHeapReferenceKind ref_kind,
-                                                                       oop referrer,
-                                                                       oop obj,
+                                                                       poop referrer,
+                                                                       poop obj,
                                                                        jint index)
 {
   // field index is only valid field in reference_info
@@ -1837,7 +1837,7 @@ inline bool CallbackInvoker::invoke_advanced_object_reference_callback(jvmtiHeap
   reference_info.field.index = index;
 
   // for arrays we need the length, otherwise -1
-  jint len = (jint)(obj->is_array() ? arrayOop(obj)->length() : -1);
+  jint len = (jint)(obj->is_array() ? arrayPOop(obj)->length() : -1);
 
   // invoke the callback
   int res = (*cb)(ref_kind,
@@ -1860,7 +1860,7 @@ inline bool CallbackInvoker::invoke_advanced_object_reference_callback(jvmtiHeap
 }
 
 // report a "simple root"
-inline bool CallbackInvoker::report_simple_root(jvmtiHeapReferenceKind kind, oop obj) {
+inline bool CallbackInvoker::report_simple_root(jvmtiHeapReferenceKind kind, poop obj) {
   assert(kind != JVMTI_HEAP_REFERENCE_STACK_LOCAL &&
          kind != JVMTI_HEAP_REFERENCE_JNI_LOCAL, "not a simple root");
 
@@ -1876,7 +1876,7 @@ inline bool CallbackInvoker::report_simple_root(jvmtiHeapReferenceKind kind, oop
 
 
 // invoke the primitive array values
-inline bool CallbackInvoker::report_primitive_array_values(oop obj) {
+inline bool CallbackInvoker::report_primitive_array_values(poop obj) {
   assert(obj->is_typeArray(), "not a primitive array");
 
   AdvancedHeapWalkContext* context = advanced_context();
@@ -1905,7 +1905,7 @@ inline bool CallbackInvoker::report_primitive_array_values(oop obj) {
 }
 
 // invoke the string value callback
-inline bool CallbackInvoker::report_string_value(oop str) {
+inline bool CallbackInvoker::report_string_value(poop str) {
   assert(str->klass() == vmClasses::String_klass(), "not a string");
 
   AdvancedHeapWalkContext* context = advanced_context();
@@ -1935,7 +1935,7 @@ inline bool CallbackInvoker::report_string_value(oop str) {
 
 // invoke the primitive field callback
 inline bool CallbackInvoker::report_primitive_field(jvmtiHeapReferenceKind ref_kind,
-                                                    oop obj,
+                                                    poop obj,
                                                     jint index,
                                                     address addr,
                                                     char type)
@@ -1983,7 +1983,7 @@ inline bool CallbackInvoker::report_primitive_field(jvmtiHeapReferenceKind ref_k
 
 
 // instance field
-inline bool CallbackInvoker::report_primitive_instance_field(oop obj,
+inline bool CallbackInvoker::report_primitive_instance_field(poop obj,
                                                              jint index,
                                                              address value,
                                                              char type) {
@@ -2055,7 +2055,7 @@ inline bool CallbackInvoker::report_stack_ref_root(jlong thread_tag,
 }
 
 // report an object referencing a class.
-inline bool CallbackInvoker::report_class_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_class_reference(poop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_CLASS, referrer, referree, -1);
   } else {
@@ -2064,7 +2064,7 @@ inline bool CallbackInvoker::report_class_reference(oop referrer, oop referree) 
 }
 
 // report a class referencing its class loader.
-inline bool CallbackInvoker::report_class_loader_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_class_loader_reference(oop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_CLASS_LOADER, referrer, referree, -1);
   } else {
@@ -2073,7 +2073,7 @@ inline bool CallbackInvoker::report_class_loader_reference(oop referrer, oop ref
 }
 
 // report a class referencing its signers.
-inline bool CallbackInvoker::report_signers_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_signers_reference(oop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_SIGNERS, referrer, referree, -1);
   } else {
@@ -2082,7 +2082,7 @@ inline bool CallbackInvoker::report_signers_reference(oop referrer, oop referree
 }
 
 // report a class referencing its protection domain..
-inline bool CallbackInvoker::report_protection_domain_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_protection_domain_reference(oop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_PROTECTION_DOMAIN, referrer, referree, -1);
   } else {
@@ -2091,7 +2091,7 @@ inline bool CallbackInvoker::report_protection_domain_reference(oop referrer, oo
 }
 
 // report a class referencing its superclass.
-inline bool CallbackInvoker::report_superclass_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_superclass_reference(oop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     // Send this to be consistent with past implementation
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_CLASS, referrer, referree, -1);
@@ -2101,7 +2101,7 @@ inline bool CallbackInvoker::report_superclass_reference(oop referrer, oop refer
 }
 
 // report a class referencing one of its interfaces.
-inline bool CallbackInvoker::report_interface_reference(oop referrer, oop referree) {
+inline bool CallbackInvoker::report_interface_reference(oop referrer, poop referree) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_INTERFACE, referrer, referree, -1);
   } else {
@@ -2110,7 +2110,7 @@ inline bool CallbackInvoker::report_interface_reference(oop referrer, oop referr
 }
 
 // report a class referencing one of its static fields.
-inline bool CallbackInvoker::report_static_field_reference(oop referrer, oop referree, jint slot) {
+inline bool CallbackInvoker::report_static_field_reference(oop referrer, poop referree, jint slot) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_STATIC_FIELD, referrer, referree, slot);
   } else {
@@ -2119,7 +2119,7 @@ inline bool CallbackInvoker::report_static_field_reference(oop referrer, oop ref
 }
 
 // report an array referencing an element object
-inline bool CallbackInvoker::report_array_element_reference(oop referrer, oop referree, jint index) {
+inline bool CallbackInvoker::report_array_element_reference(poop referrer, poop referree, jint index) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_ARRAY_ELEMENT, referrer, referree, index);
   } else {
@@ -2128,7 +2128,7 @@ inline bool CallbackInvoker::report_array_element_reference(oop referrer, oop re
 }
 
 // report an object referencing an instance field object
-inline bool CallbackInvoker::report_field_reference(oop referrer, oop referree, jint slot) {
+inline bool CallbackInvoker::report_field_reference(poop referrer, poop referree, jint slot) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_FIELD, referrer, referree, slot);
   } else {
@@ -2137,7 +2137,7 @@ inline bool CallbackInvoker::report_field_reference(oop referrer, oop referree, 
 }
 
 // report an array referencing an element object
-inline bool CallbackInvoker::report_constant_pool_reference(oop referrer, oop referree, jint index) {
+inline bool CallbackInvoker::report_constant_pool_reference(oop referrer, poop referree, jint index) {
   if (is_basic_heap_walk()) {
     return invoke_basic_object_reference_callback(JVMTI_REFERENCE_CONSTANT_POOL, referrer, referree, index);
   } else {
@@ -2169,7 +2169,7 @@ class SimpleRootsClosure : public OopClosure {
       return;
     }
 
-    oop o = NativeAccess<AS_NO_KEEPALIVE>::oop_load(obj_p);
+    poop o = NativeAccess<AS_NO_KEEPALIVE>::oop_load(obj_p);
     // ignore null
     if (o == nullptr) {
       return;
@@ -2249,7 +2249,7 @@ class VM_HeapWalkOperation: public VM_Operation {
   bool _is_advanced_heap_walk;                      // indicates FollowReferences
   JvmtiTagMap* _tag_map;
   Handle _initial_object;
-  GrowableArray<oop>* _visit_stack;                 // the visit stack
+  GrowableArray<poop>* _visit_stack;                // the visit stack
 
   JVMTIBitSet _bitset;
 
@@ -2262,8 +2262,8 @@ class VM_HeapWalkOperation: public VM_Operation {
   bool _reporting_primitive_array_values;
   bool _reporting_string_values;
 
-  GrowableArray<oop>* create_visit_stack() {
-    return new (mtServiceability) GrowableArray<oop>(initial_visit_stack_size, mtServiceability);
+  GrowableArray<poop>* create_visit_stack() {
+    return new (mtServiceability) GrowableArray<poop>(initial_visit_stack_size, mtServiceability);
   }
 
   // accessors
@@ -2277,13 +2277,13 @@ class VM_HeapWalkOperation: public VM_Operation {
   bool is_reporting_primitive_array_values() const { return _reporting_primitive_array_values; }
   bool is_reporting_string_values() const          { return _reporting_string_values; }
 
-  GrowableArray<oop>* visit_stack() const          { return _visit_stack; }
+  GrowableArray<poop>* visit_stack() const         { return _visit_stack; }
 
   // iterate over the various object types
-  inline bool iterate_over_array(oop o);
-  inline bool iterate_over_type_array(oop o);
-  inline bool iterate_over_class(oop o);
-  inline bool iterate_over_object(oop o);
+  inline bool iterate_over_array(poop o);
+  inline bool iterate_over_type_array(poop o);
+  inline bool iterate_over_class(poop o);
+  inline bool iterate_over_object(poop o);
 
   // root collection
   inline bool collect_simple_roots();
@@ -2291,7 +2291,7 @@ class VM_HeapWalkOperation: public VM_Operation {
   inline bool collect_stack_roots(JavaThread* java_thread, JNILocalRootsClosure* blk);
 
   // visit an object
-  inline bool visit(oop o);
+  inline bool visit(poop o);
 
  public:
   VM_HeapWalkOperation(JvmtiTagMap* tag_map,
@@ -2358,8 +2358,8 @@ VM_HeapWalkOperation::~VM_HeapWalkOperation() {
 
 // an array references its class and has a reference to
 // each element in the array
-inline bool VM_HeapWalkOperation::iterate_over_array(oop o) {
-  objArrayOop array = objArrayOop(o);
+inline bool VM_HeapWalkOperation::iterate_over_array(poop o) {
+  objArrayPOop array = objArrayPOop(o);
 
   // array reference to its class
   oop mirror = ObjArrayKlass::cast(array->klass())->java_mirror();
@@ -2384,7 +2384,7 @@ inline bool VM_HeapWalkOperation::iterate_over_array(oop o) {
 }
 
 // a type array references its class
-inline bool VM_HeapWalkOperation::iterate_over_type_array(oop o) {
+inline bool VM_HeapWalkOperation::iterate_over_type_array(poop o) {
   Klass* k = o->klass();
   oop mirror = k->java_mirror();
   if (!CallbackInvoker::report_class_reference(o, mirror)) {
@@ -2419,7 +2419,7 @@ static inline bool verify_static_oop(InstanceKlass* ik,
 
 // a class references its super class, interfaces, class loader, ...
 // and finally its static fields
-inline bool VM_HeapWalkOperation::iterate_over_class(oop java_class) {
+inline bool VM_HeapWalkOperation::iterate_over_class(poop java_class) {
   int i;
   Klass* klass = java_lang_Class::as_Klass(java_class);
 
@@ -2552,7 +2552,7 @@ inline bool VM_HeapWalkOperation::iterate_over_class(oop java_class) {
 // an object references a class and its instance fields
 // (static fields are ignored here as we report these as
 // references from the class).
-inline bool VM_HeapWalkOperation::iterate_over_object(oop o) {
+inline bool VM_HeapWalkOperation::iterate_over_object(poop o) {
   // reference to the class
   if (!CallbackInvoker::report_class_reference(o, o->klass()->java_mirror())) {
     return false;
@@ -2564,7 +2564,7 @@ inline bool VM_HeapWalkOperation::iterate_over_object(oop o) {
     ClassFieldDescriptor* field = field_map->field_at(i);
     char type = field->field_type();
     if (!is_primitive_field_type(type)) {
-      oop fld_o = o->obj_field_access<AS_NO_KEEPALIVE | ON_UNKNOWN_OOP_REF>(field->field_offset());
+      poop fld_o = o->obj_field_access<AS_NO_KEEPALIVE | ON_UNKNOWN_OOP_REF>(field->field_offset());
       // ignore any objects that aren't visible to profiler
       if (fld_o != nullptr) {
         assert(Universe::heap()->is_in(fld_o), "unsafe code should not "
@@ -2577,7 +2577,7 @@ inline bool VM_HeapWalkOperation::iterate_over_object(oop o) {
     } else {
       if (is_reporting_primitive_fields()) {
         // primitive instance field
-        address addr = cast_from_oop<address>(o) + field->field_offset();
+        address addr = cast_from_poop<address>(o) + field->field_offset();
         int slot = field->field_index();
         if (!CallbackInvoker::report_primitive_instance_field(o, slot, addr, type)) {
           return false;
@@ -2782,7 +2782,7 @@ inline bool VM_HeapWalkOperation::collect_stack_roots() {
 // second get all the outbound references from this object (in other words, all
 // the objects referenced by this object).
 //
-bool VM_HeapWalkOperation::visit(oop o) {
+bool VM_HeapWalkOperation::visit(poop o) {
   // mark object as visited
   assert(!_bitset.is_marked(o), "can't visit same object more than once");
   _bitset.mark_obj(o);
@@ -2837,7 +2837,7 @@ void VM_HeapWalkOperation::doit() {
     // visit each object until all reachable objects have been
     // visited or the callback asked to terminate the iteration.
     while (!visit_stack()->is_empty()) {
-      oop o = visit_stack()->pop();
+      poop o = visit_stack()->pop();
       if (!_bitset.is_marked(o)) {
         if (!visit(o)) {
           break;

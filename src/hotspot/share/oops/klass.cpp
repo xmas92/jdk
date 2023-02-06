@@ -61,7 +61,7 @@ void Klass::set_java_mirror(Handle m) {
   _java_mirror = class_loader_data()->add_handle(m);
 }
 
-oop Klass::java_mirror_no_keepalive() const {
+poop Klass::java_mirror_no_keepalive() const {
   return _java_mirror.peek();
 }
 

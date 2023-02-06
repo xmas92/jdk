@@ -101,7 +101,7 @@ class ZHeapIteratorRootOopClosure : public OopClosure {
 private:
   const ZHeapIteratorContext& _context;
 
-  oop load_oop(oop* p) {
+  poop load_oop(oop* p) {
     if (Weak) {
       return NativeAccess<AS_NO_KEEPALIVE | ON_PHANTOM_OOP_REF>::oop_load(p);
     }
@@ -114,7 +114,7 @@ public:
       _context(context) {}
 
   virtual void do_oop(oop* p) {
-    const oop obj = load_oop(p);
+    const oop obj = cast_to_oop(load_oop(p));
     _context.mark_and_push(obj);
   }
 
@@ -129,7 +129,7 @@ private:
   const ZHeapIteratorContext& _context;
   const oop                   _base;
 
-  oop load_oop(oop* p) {
+  poop load_oop(oop* p) {
     assert(ZCollectedHeap::heap()->is_in(p), "Should be in heap");
 
     if (VisitReferents) {
@@ -150,7 +150,7 @@ public:
   }
 
   virtual void do_oop(oop* p) {
-    const oop obj = load_oop(p);
+    const oop obj = cast_to_oop(load_oop(p));
     _context.mark_and_push(obj);
   }
 
@@ -178,7 +178,7 @@ public:
 
       virtual void do_oop(oop* p) {
         assert(!ZCollectedHeap::heap()->is_in(p), "Should not be in heap");
-        const oop obj = NativeAccess<AS_NO_KEEPALIVE>::oop_load(p);
+        const oop obj = cast_to_oop((poop)NativeAccess<AS_NO_KEEPALIVE>::oop_load(p));
         _context.mark_and_push(obj);
       }
 

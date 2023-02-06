@@ -42,9 +42,9 @@ class JvmtiTagMapKeyClosure;
 // value of a Key and comparing two Keys, respectively.
 class JvmtiTagMapKey : public CHeapObj<mtServiceability> {
   WeakHandle _wh;
-  oop _obj; // temporarily hold obj while searching
+  poop _obj; // temporarily hold obj while searching
  public:
-  JvmtiTagMapKey(oop obj);
+  JvmtiTagMapKey(poop obj);
   JvmtiTagMapKey(const JvmtiTagMapKey& src);
   JvmtiTagMapKey& operator=(const JvmtiTagMapKey&) = delete;
 
@@ -52,7 +52,7 @@ class JvmtiTagMapKey : public CHeapObj<mtServiceability> {
 
   void resolve();
   oop object() const;
-  oop object_no_keepalive() const;
+  poop object_no_keepalive() const;
 
   static unsigned get_hash(const JvmtiTagMapKey& entry) {
     assert(entry._obj != nullptr, "must lookup obj to hash");
@@ -60,8 +60,8 @@ class JvmtiTagMapKey : public CHeapObj<mtServiceability> {
   }
 
   static bool equals(const JvmtiTagMapKey& lhs, const JvmtiTagMapKey& rhs) {
-    oop lhs_obj = lhs._obj != nullptr ? lhs._obj : lhs.object_no_keepalive();
-    oop rhs_obj = rhs._obj != nullptr ? rhs._obj : rhs.object_no_keepalive();
+    poop lhs_obj = lhs._obj != nullptr ? lhs._obj : lhs.object_no_keepalive();
+    poop rhs_obj = rhs._obj != nullptr ? rhs._obj : rhs.object_no_keepalive();
     return lhs_obj == rhs_obj;
   }
 };
@@ -85,11 +85,11 @@ class JvmtiTagMapTable : public CHeapObj<mtServiceability> {
   JvmtiTagMapTable();
   ~JvmtiTagMapTable();
 
-  jlong find(oop obj);
-  void add(oop obj, jlong tag);
-  void update(oop obj, jlong tag);
+  jlong find(poop obj);
+  void add(poop obj, jlong tag);
+  void update(poop obj, jlong tag);
 
-  void remove(oop obj);
+  void remove(poop obj);
 
   // iterate over all entries in the hashmap
   void entry_iterate(JvmtiTagMapKeyClosure* closure);

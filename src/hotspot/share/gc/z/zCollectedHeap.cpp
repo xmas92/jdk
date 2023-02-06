@@ -250,8 +250,10 @@ ParallelObjectIteratorImpl* ZCollectedHeap::parallel_object_iterator(uint nworke
   return _heap.parallel_object_iterator(nworkers, true /* visit_weaks */);
 }
 
-void ZCollectedHeap::keep_alive(oop obj) {
-  _heap.keep_alive(obj);
+oop ZCollectedHeap::keep_alive(poop obj) {
+  oop o = cast_to_oop(obj);
+  _heap.keep_alive(o);
+  return o;
 }
 
 void ZCollectedHeap::register_nmethod(nmethod* nm) {
@@ -343,7 +345,7 @@ void ZCollectedHeap::verify(VerifyOption option /* ignored */) {
   _heap.verify();
 }
 
-bool ZCollectedHeap::is_oop(oop object) const {
+bool ZCollectedHeap::is_oop(poop object) const {
   return _heap.is_oop(ZOop::to_address(object));
 }
 

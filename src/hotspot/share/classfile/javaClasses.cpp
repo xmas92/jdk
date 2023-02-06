@@ -477,7 +477,7 @@ jchar* java_lang_String::as_unicode_string(oop java_string, int& length, TRAPS) 
   return result;
 }
 
-jchar* java_lang_String::as_unicode_string_or_null(oop java_string, int& length) {
+jchar* java_lang_String::as_unicode_string_or_null(poop java_string, int& length) {
   typeArrayOop value  = java_lang_String::value(java_string);
                length = java_lang_String::length(java_string, value);
   bool      is_latin1 = java_lang_String::is_latin1(java_string);
@@ -706,10 +706,10 @@ char* java_lang_String::as_utf8_string(oop java_string, typeArrayOop value, int 
   }
 }
 
-bool java_lang_String::equals(oop java_string, const jchar* chars, int len) {
+bool java_lang_String::equals(poop java_string, const jchar* chars, int len) {
   assert(java_string->klass() == vmClasses::String_klass(),
          "must be java_string");
-  typeArrayOop value = java_lang_String::value_no_keepalive(java_string);
+  typeArrayPOop value = java_lang_String::value_no_keepalive(java_string);
   int length = java_lang_String::length(java_string, value);
   if (length != len) {
     return false;
@@ -731,15 +731,15 @@ bool java_lang_String::equals(oop java_string, const jchar* chars, int len) {
   return true;
 }
 
-bool java_lang_String::equals(oop str1, oop str2) {
+bool java_lang_String::equals(poop str1, poop str2) {
   assert(str1->klass() == vmClasses::String_klass(),
          "must be java String");
   assert(str2->klass() == vmClasses::String_klass(),
          "must be java String");
-  typeArrayOop value1    = java_lang_String::value_no_keepalive(str1);
-  bool         is_latin1 = java_lang_String::is_latin1(str1);
-  typeArrayOop value2    = java_lang_String::value_no_keepalive(str2);
-  bool         is_latin2 = java_lang_String::is_latin1(str2);
+  typeArrayPOop value1    = java_lang_String::value_no_keepalive(str1);
+  bool          is_latin1 = java_lang_String::is_latin1(str1);
+  typeArrayPOop value2    = java_lang_String::value_no_keepalive(str2);
+  bool          is_latin2 = java_lang_String::is_latin1(str2);
 
   if (is_latin1 != is_latin2) {
     // Strings with different coders are never equal.
@@ -750,7 +750,7 @@ bool java_lang_String::equals(oop str1, oop str2) {
 
 void java_lang_String::print(oop java_string, outputStream* st) {
   assert(java_string->klass() == vmClasses::String_klass(), "must be java_string");
-  typeArrayOop value  = java_lang_String::value_no_keepalive(java_string);
+  typeArrayPOop value  = java_lang_String::value_no_keepalive(java_string);
 
   if (value == nullptr) {
     // This can happen if, e.g., printing a String
@@ -1938,7 +1938,7 @@ void java_lang_VirtualThread::init_static_notify_jvmti_events() {
   }
 }
 
-bool java_lang_VirtualThread::is_instance(oop obj) {
+bool java_lang_VirtualThread::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -3958,7 +3958,7 @@ void java_lang_invoke_LambdaForm::serialize_offsets(SerializeClosure* f) {
 }
 #endif
 
-bool java_lang_invoke_LambdaForm::is_instance(oop obj) {
+bool java_lang_invoke_LambdaForm::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -3969,7 +3969,7 @@ int jdk_internal_foreign_abi_NativeEntryPoint::_downcall_stub_address_offset;
   macro(_method_type_offset,           k, "methodType",          java_lang_invoke_MethodType_signature, false); \
   macro(_downcall_stub_address_offset, k, "downcallStubAddress", long_signature, false);
 
-bool jdk_internal_foreign_abi_NativeEntryPoint::is_instance(oop obj) {
+bool jdk_internal_foreign_abi_NativeEntryPoint::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -4009,7 +4009,7 @@ int jdk_internal_foreign_abi_ABIDescriptor::_scratch2_offset;
   macro(_scratch1_offset,        k, "scratch1",        jdk_internal_foreign_abi_VMStorage_signature, false); \
   macro(_scratch2_offset,        k, "scratch2",        jdk_internal_foreign_abi_VMStorage_signature, false);
 
-bool jdk_internal_foreign_abi_ABIDescriptor::is_instance(oop obj) {
+bool jdk_internal_foreign_abi_ABIDescriptor::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -4063,7 +4063,7 @@ int jdk_internal_foreign_abi_VMStorage::_debugName_offset;
   macro(_segmentMaskOrSize_offset, k, "segmentMaskOrSize", short_signature, false); \
   macro(_debugName_offset,         k, "debugName",         string_signature, false); \
 
-bool jdk_internal_foreign_abi_VMStorage::is_instance(oop obj) {
+bool jdk_internal_foreign_abi_VMStorage::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -4101,7 +4101,7 @@ int jdk_internal_foreign_abi_CallConv::_retRegs_offset;
   macro(_argRegs_offset, k, "argRegs", jdk_internal_foreign_abi_VMStorage_array_signature, false); \
   macro(_retRegs_offset, k, "retRegs", jdk_internal_foreign_abi_VMStorage_array_signature, false); \
 
-bool jdk_internal_foreign_abi_CallConv::is_instance(oop obj) {
+bool jdk_internal_foreign_abi_CallConv::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -4213,7 +4213,7 @@ void java_lang_invoke_MemberName::set_vmindex(oop mname, intptr_t index) {
 }
 
 
-Method* java_lang_invoke_ResolvedMethodName::vmtarget(oop resolved_method) {
+Method* java_lang_invoke_ResolvedMethodName::vmtarget(poop resolved_method) {
   assert(is_instance(resolved_method), "wrong type");
   Method* m = (Method*)resolved_method->address_field(_vmtarget_offset);
   assert(m->is_method(), "must be");
@@ -4221,12 +4221,12 @@ Method* java_lang_invoke_ResolvedMethodName::vmtarget(oop resolved_method) {
 }
 
 // Used by redefinition to change Method* to new Method* with same hash (name, signature)
-void java_lang_invoke_ResolvedMethodName::set_vmtarget(oop resolved_method, Method* m) {
+void java_lang_invoke_ResolvedMethodName::set_vmtarget(poop resolved_method, Method* m) {
   assert(is_instance(resolved_method), "wrong type");
   resolved_method->address_field_put(_vmtarget_offset, (address)m);
 }
 
-void java_lang_invoke_ResolvedMethodName::set_vmholder(oop resolved_method, oop holder) {
+void java_lang_invoke_ResolvedMethodName::set_vmholder(poop resolved_method, oop holder) {
   assert(is_instance(resolved_method), "wrong type");
   resolved_method->obj_field_put(_vmholder_offset, holder);
 }
@@ -4399,10 +4399,10 @@ void java_lang_invoke_CallSite::serialize_offsets(SerializeClosure* f) {
 }
 #endif
 
-oop java_lang_invoke_CallSite::context_no_keepalive(oop call_site) {
+poop java_lang_invoke_CallSite::context_no_keepalive(poop call_site) {
   assert(java_lang_invoke_CallSite::is_instance(call_site), "");
 
-  oop dep_oop = call_site->obj_field_access<AS_NO_KEEPALIVE>(_context_offset);
+  poop dep_oop = call_site->obj_field_access<AS_NO_KEEPALIVE>(_context_offset);
   return dep_oop;
 }
 
@@ -4440,7 +4440,7 @@ void java_lang_invoke_MethodHandleNatives_CallSiteContext::serialize_offsets(Ser
 }
 #endif
 
-DependencyContext java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(oop call_site) {
+DependencyContext java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(poop call_site) {
   assert(java_lang_invoke_MethodHandleNatives_CallSiteContext::is_instance(call_site), "");
   nmethodBucket* volatile* vmdeps_addr = call_site->field_addr<nmethodBucket* volatile>(_vmdependencies_offset);
   volatile uint64_t* last_cleanup_addr = call_site->field_addr<volatile uint64_t>(_last_cleanup_offset);
@@ -4498,7 +4498,7 @@ int  java_lang_ClassLoader::_nameAndId_offset;
 int  java_lang_ClassLoader::_unnamedModule_offset;
 int  java_lang_ClassLoader::_parent_offset;
 
-ClassLoaderData* java_lang_ClassLoader::loader_data_acquire(oop loader) {
+ClassLoaderData* java_lang_ClassLoader::loader_data_acquire(poop loader) {
   assert(loader != nullptr, "loader must not be null");
   assert(oopDesc::is_oop(loader), "loader must be oop");
   return Atomic::load_acquire(loader->field_addr<ClassLoaderData*>(_loader_data_offset));
@@ -4542,7 +4542,7 @@ oop java_lang_ClassLoader::parent(oop loader) {
   return loader->obj_field(_parent_offset);
 }
 
-oop java_lang_ClassLoader::parent_no_keepalive(oop loader) {
+poop java_lang_ClassLoader::parent_no_keepalive(poop loader) {
   assert(is_instance(loader), "loader must be oop");
   return loader->obj_field_access<AS_NO_KEEPALIVE>(_parent_offset);
 }
@@ -4581,7 +4581,7 @@ bool java_lang_ClassLoader::isAncestor(oop loader, oop cl) {
   return false;
 }
 
-bool java_lang_ClassLoader::is_instance(oop obj) {
+bool java_lang_ClassLoader::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -4883,7 +4883,7 @@ void vector_VectorPayload::set_payload(oop o, oop val) {
   o->obj_field_put(_payload_offset, val);
 }
 
-bool vector_VectorPayload::is_instance(oop obj) {
+bool vector_VectorPayload::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 

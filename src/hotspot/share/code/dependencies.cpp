@@ -943,10 +943,11 @@ inline Metadata* Dependencies::DepStream::recorded_metadata_at(int i) {
   return o;
 }
 
-inline oop Dependencies::DepStream::recorded_oop_at(int i) {
-  return (_code != nullptr)
-         ? _code->oop_at(i)
-    : JNIHandles::resolve(_deps->oop_recorder()->oop_at(i));
+inline poop Dependencies::DepStream::recorded_oop_at(int i) {
+  if (_code != nullptr) {
+    return _code->oop_at_no_keepalive(i);
+  }
+  return JNIHandles::resolve(_deps->oop_recorder()->oop_at(i));
 }
 
 Metadata* Dependencies::DepStream::argument(int i) {
@@ -974,8 +975,8 @@ uintptr_t Dependencies::DepStream::get_identifier(int i) {
   }
 }
 
-oop Dependencies::DepStream::argument_oop(int i) {
-  oop result = recorded_oop_at(argument_index(i));
+poop Dependencies::DepStream::argument_oop(int i) {
+  poop result = recorded_oop_at(argument_index(i));
   assert(oopDesc::is_oop_or_null(result), "must be");
   return result;
 }
@@ -2039,14 +2040,14 @@ Klass* Dependencies::check_has_no_finalizable_subclasses(InstanceKlass* ctxk, Ne
   return find_finalizable_subclass(search_at);
 }
 
-Klass* Dependencies::check_call_site_target_value(oop call_site, oop method_handle, CallSiteDepChange* changes) {
+Klass* Dependencies::check_call_site_target_value(poop call_site, poop method_handle, CallSiteDepChange* changes) {
   assert(call_site != nullptr, "sanity");
   assert(method_handle != nullptr, "sanity");
   assert(call_site->is_a(vmClasses::CallSite_klass()),     "sanity");
 
   if (changes == nullptr) {
     // Validate all CallSites
-    if (java_lang_invoke_CallSite::target(call_site) != method_handle)
+    if (method_handle != java_lang_invoke_CallSite::target(call_site))
       return call_site->klass();  // assertion failed
   } else {
     // Validate the given CallSite

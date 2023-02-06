@@ -90,7 +90,7 @@ inline oop read_string_from_compact_hashtable(address base_address, u4 offset) {
 }
 
 typedef CompactHashtable<
-  const jchar*, oop,
+  const jchar*, oop, poop,
   read_string_from_compact_hashtable,
   java_lang_String::equals> SharedStringTable;
 
@@ -124,7 +124,7 @@ class StringTableConfig : public StackObj {
   typedef WeakHandle Value;
 
   static uintx get_hash(Value const& value, bool* is_dead) {
-    oop val_oop = value.peek();
+    poop val_oop = value.peek();
     if (val_oop == nullptr) {
       *is_dead = true;
       return 0;
@@ -168,7 +168,7 @@ class StringTableLookupJchar : StackObj {
     return _hash;
   }
   bool equals(WeakHandle* value, bool* is_dead) {
-    oop val_oop = value->peek();
+    poop val_oop = value->peek();
     if (val_oop == nullptr) {
       // dead oop, mark this hash dead for cleaning
       *is_dead = true;
@@ -200,7 +200,7 @@ class StringTableLookupOop : public StackObj {
   }
 
   bool equals(WeakHandle* value, bool* is_dead) {
-    oop val_oop = value->peek();
+    poop val_oop = value->peek();
     if (val_oop == nullptr) {
       // dead oop, mark this hash dead for cleaning
       *is_dead = true;
@@ -424,7 +424,7 @@ struct StringTableDeleteCheck : StackObj {
   StringTableDeleteCheck() : _count(0), _item(0) {}
   bool operator()(WeakHandle* val) {
     ++_item;
-    oop tmp = val->peek();
+    poop tmp = val->peek();
     if (tmp == nullptr) {
       ++_count;
       return true;
@@ -549,7 +549,7 @@ void StringTable::rehash_table() {
 }
 
 // Statistics
-static size_t literal_size(oop obj) {
+static size_t literal_size(poop obj) {
   if (obj == nullptr) {
     return 0;
   }
@@ -566,7 +566,7 @@ static size_t literal_size(oop obj) {
 
 struct SizeFunc : StackObj {
   size_t operator()(WeakHandle* val) {
-    oop s = val->peek();
+    poop s = val->peek();
     if (s == nullptr) {
       // Dead
       return 0;
@@ -596,7 +596,7 @@ void StringTable::print_table_statistics(outputStream* st) {
 class VerifyStrings : StackObj {
  public:
   bool operator()(WeakHandle* val) {
-    oop s = val->peek();
+    poop s = val->peek();
     if (s != nullptr) {
       assert(java_lang_String::length(s) >= 0, "Length on string must work.");
     }
@@ -647,10 +647,10 @@ size_t StringTable::verify_and_compare_entries() {
   return vcs._errors;
 }
 
-static void print_string(Thread* current, outputStream* st, oop s) {
-  typeArrayOop value     = java_lang_String::value_no_keepalive(s);
-  int          length    = java_lang_String::length(s);
-  bool         is_latin1 = java_lang_String::is_latin1(s);
+static void print_string(Thread* current, outputStream* st, poop s) {
+  typeArrayPOop value     = java_lang_String::value_no_keepalive(s);
+  int           length    = java_lang_String::length(s);
+  bool          is_latin1 = java_lang_String::is_latin1(s);
 
   if (length <= 0) {
     st->print("%d: ", length);
@@ -680,7 +680,7 @@ class PrintString : StackObj {
  public:
   PrintString(Thread* thr, outputStream* st) : _thr(thr), _st(st) {}
   bool operator()(WeakHandle* val) {
-    oop s = val->peek();
+    poop s = val->peek();
     if (s == nullptr) {
       return true;
     }

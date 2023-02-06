@@ -27,6 +27,7 @@
 
 #include "gc/shared/barrierSetConfig.hpp"
 #include "memory/allStatic.hpp"
+#include "oops/oopsHierarchy.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 #include <type_traits>
@@ -217,6 +218,9 @@ const DecoratorSet ACCESS_WRITE                   = UCONST64(1) << 30;
 
 // Keep track of the last decorator.
 const DecoratorSet DECORATOR_LAST = UCONST64(1) << 30;
+
+template<DecoratorSet decorators>
+using OopT = std::conditional_t<(decorators & AS_NO_KEEPALIVE) != 0, poop, oop>;
 
 namespace AccessInternal {
   // This class adds implied decorators that follow according to decorator rules.

@@ -52,7 +52,7 @@ bool java_lang_String::hash_is_set(oop java_string) {
 }
 
 // Accessors
-bool java_lang_String::value_equals(typeArrayOop str_value1, typeArrayOop str_value2) {
+bool java_lang_String::value_equals(typeArrayPOop str_value1, typeArrayPOop str_value2) {
   return ((str_value1 == str_value2) ||
           (str_value1->length() == str_value2->length() &&
            (!memcmp(str_value1->base(T_BYTE),
@@ -60,17 +60,17 @@ bool java_lang_String::value_equals(typeArrayOop str_value1, typeArrayOop str_va
                     str_value2->length() * sizeof(jbyte)))));
 }
 
-typeArrayOop java_lang_String::value(oop java_string) {
+typeArrayOop java_lang_String::value(poop java_string) {
   assert(is_instance(java_string), "must be java_string");
   return (typeArrayOop) java_string->obj_field(_value_offset);
 }
 
-typeArrayOop java_lang_String::value_no_keepalive(oop java_string) {
+typeArrayPOop java_lang_String::value_no_keepalive(poop java_string) {
   assert(is_instance(java_string), "must be java_string");
-  return (typeArrayOop) java_string->obj_field_access<AS_NO_KEEPALIVE>(_value_offset);
+  return (typeArrayPOop) java_string->obj_field_access<AS_NO_KEEPALIVE>(_value_offset);
 }
 
-bool java_lang_String::is_latin1(oop java_string) {
+bool java_lang_String::is_latin1(poop java_string) {
   assert(is_instance(java_string), "must be java_string");
   jbyte coder = java_string->byte_field(_coder_offset);
   assert(CompactStrings || coder == CODER_UTF16, "Must be UTF16 without CompactStrings");
@@ -103,7 +103,8 @@ bool java_lang_String::test_and_set_deduplication_requested(oop java_string) {
   return test_and_set_flag(java_string, _deduplication_requested_mask);
 }
 
-int java_lang_String::length(oop java_string, typeArrayOop value) {
+
+int java_lang_String::length(poop java_string, typeArrayPOop value) {
   assert(_initialized, "Must be initialized");
   assert(is_instance(java_string), "must be java_string");
   assert(value_equals(value, java_lang_String::value(java_string)),
@@ -119,20 +120,20 @@ int java_lang_String::length(oop java_string, typeArrayOop value) {
   return arr_length;
 }
 
-int java_lang_String::length(oop java_string) {
+int java_lang_String::length(poop java_string) {
   assert(_initialized, "Must be initialized");
   assert(is_instance(java_string), "must be java_string");
-  typeArrayOop value = java_lang_String::value_no_keepalive(java_string);
+  typeArrayPOop value = java_lang_String::value_no_keepalive(java_string);
   return length(java_string, value);
 }
 
-bool java_lang_String::is_instance(oop obj) {
+bool java_lang_String::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::String_klass();
 }
 
 // Accessors
 
-oop java_lang_ref_Reference::weak_referent_no_keepalive(oop ref) {
+poop java_lang_ref_Reference::weak_referent_no_keepalive(oop ref) {
   assert(java_lang_ref_Reference::is_weak(ref) || java_lang_ref_Reference::is_soft(ref), "must be Weak or Soft Reference");
   return ref->obj_field_access<ON_WEAK_OOP_REF | AS_NO_KEEPALIVE>(_referent_offset);
 }
@@ -142,12 +143,12 @@ oop java_lang_ref_Reference::weak_referent(oop ref) {
   return ref->obj_field_access<ON_WEAK_OOP_REF>(_referent_offset);
 }
 
-oop java_lang_ref_Reference::phantom_referent_no_keepalive(oop ref) {
+poop java_lang_ref_Reference::phantom_referent_no_keepalive(oop ref) {
   assert(java_lang_ref_Reference::is_phantom(ref), "must be Phantom Reference");
   return ref->obj_field_access<ON_PHANTOM_OOP_REF | AS_NO_KEEPALIVE>(_referent_offset);
 }
 
-oop java_lang_ref_Reference::unknown_referent_no_keepalive(oop ref) {
+poop java_lang_ref_Reference::unknown_referent_no_keepalive(oop ref) {
   return ref->obj_field_access<ON_UNKNOWN_OOP_REF | AS_NO_KEEPALIVE>(_referent_offset);
 }
 
@@ -239,7 +240,7 @@ inline void java_lang_invoke_CallSite::set_target_volatile(oop site, oop target)
   site->obj_field_put_volatile(_target_offset, target);
 }
 
-inline oop  java_lang_invoke_CallSite::target(oop site) {
+inline oop  java_lang_invoke_CallSite::target(poop site) {
   return site->obj_field(_target_offset);
 }
 
@@ -247,7 +248,7 @@ inline void java_lang_invoke_CallSite::set_target(oop site, oop target) {
   site->obj_field_put(_target_offset, target);
 }
 
-inline bool java_lang_invoke_CallSite::is_instance(oop obj) {
+inline bool java_lang_invoke_CallSite::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
@@ -255,35 +256,35 @@ inline jboolean java_lang_invoke_ConstantCallSite::is_frozen(oop site) {
   return site->bool_field(_is_frozen_offset);
 }
 
-inline bool java_lang_invoke_ConstantCallSite::is_instance(oop obj) {
+inline bool java_lang_invoke_ConstantCallSite::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
-inline bool java_lang_invoke_MethodHandleNatives_CallSiteContext::is_instance(oop obj) {
+inline bool java_lang_invoke_MethodHandleNatives_CallSiteContext::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
-inline bool java_lang_invoke_MemberName::is_instance(oop obj) {
+inline bool java_lang_invoke_MemberName::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::MemberName_klass();
 }
 
-inline bool java_lang_invoke_ResolvedMethodName::is_instance(oop obj) {
+inline bool java_lang_invoke_ResolvedMethodName::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::ResolvedMethodName_klass();
 }
 
-inline bool java_lang_invoke_MethodType::is_instance(oop obj) {
+inline bool java_lang_invoke_MethodType::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::MethodType_klass();
 }
 
-inline bool java_lang_invoke_MethodHandle::is_instance(oop obj) {
+inline bool java_lang_invoke_MethodHandle::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
-inline bool java_lang_Class::is_instance(oop obj) {
+inline bool java_lang_Class::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::Class_klass();
 }
 
-inline Klass* java_lang_Class::as_Klass(oop java_class) {
+inline Klass* java_lang_Class::as_Klass(poop java_class) {
   //%note memory_2
   assert(java_lang_Class::is_instance(java_class), "must be a Class object");
   Klass* k = ((Klass*)java_class->metadata_field(_klass_offset));
@@ -291,7 +292,7 @@ inline Klass* java_lang_Class::as_Klass(oop java_class) {
   return k;
 }
 
-inline bool java_lang_Class::is_primitive(oop java_class) {
+inline bool java_lang_Class::is_primitive(poop java_class) {
   // should assert:
   //assert(java_lang_Class::is_instance(java_class), "must be a Class object");
   bool is_primitive = (java_class->metadata_field(_klass_offset) == nullptr);
@@ -314,11 +315,11 @@ inline size_t java_lang_Class::oop_size(oop java_class) {
   return size;
 }
 
-inline bool java_lang_invoke_DirectMethodHandle::is_instance(oop obj) {
+inline bool java_lang_invoke_DirectMethodHandle::is_instance(poop obj) {
   return obj != nullptr && is_subclass(obj->klass());
 }
 
-inline bool java_lang_Module::is_instance(oop obj) {
+inline bool java_lang_Module::is_instance(poop obj) {
   return obj != nullptr && obj->klass() == vmClasses::Module_klass();
 }
 

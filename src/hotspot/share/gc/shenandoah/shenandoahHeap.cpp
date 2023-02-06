@@ -1474,10 +1474,12 @@ ParallelObjectIteratorImpl* ShenandoahHeap::parallel_object_iterator(uint worker
 }
 
 // Keep alive an object that was loaded with AS_NO_KEEPALIVE.
-void ShenandoahHeap::keep_alive(oop obj) {
-  if (is_concurrent_mark_in_progress() && (obj != nullptr)) {
-    ShenandoahBarrierSet::barrier_set()->enqueue(obj);
+oop ShenandoahHeap::keep_alive(poop obj) {
+  oop o = cast_to_oop(obj);
+  if (is_concurrent_mark_in_progress() && (o != nullptr)) {
+    ShenandoahBarrierSet::barrier_set()->enqueue(o);
   }
+  return o;
 }
 
 void ShenandoahHeap::heap_region_iterate(ShenandoahHeapRegionClosure* blk) const {

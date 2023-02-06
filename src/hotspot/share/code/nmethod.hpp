@@ -481,7 +481,12 @@ class nmethod : public CompiledMethod {
 
   // Support for oops in scopes and relocs:
   // Note: index 0 is reserved for null.
-  oop   oop_at(int index) const;
+private:
+  template<DecoratorSet decorators>
+  OopT<decorators> oop_at_impl(int index) const;
+public:
+  oop  oop_at(int index) const;
+  poop  oop_at_no_keepalive(int index) const;
   oop   oop_at_phantom(int index) const; // phantom reference
   oop*  oop_addr_at(int index) const {  // for GC
     // relocation indexes are biased by 1 (because 0 is reserved)

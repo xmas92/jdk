@@ -1068,7 +1068,7 @@ public:
   ParallelObjectIteratorImpl* parallel_object_iterator(uint thread_num) override;
 
   // Keep alive an object that was loaded with AS_NO_KEEPALIVE.
-  void keep_alive(oop obj) override;
+  oop keep_alive(poop obj) override;
 
   // Iterate over heap regions, in address order, terminating the
   // iteration early if the "do_heap_region" method returns "true".

@@ -134,7 +134,7 @@ void DFSClosure::add_chain() {
 void DFSClosure::do_oop(oop* ref) {
   assert(ref != NULL, "invariant");
   assert(is_aligned(ref, HeapWordSize), "invariant");
-  const oop pointee = HeapAccess<AS_NO_KEEPALIVE>::oop_load(ref);
+  const oop pointee = cast_to_oop((poop)HeapAccess<AS_NO_KEEPALIVE>::oop_load(ref));
   if (pointee != NULL) {
     closure_impl(UnifiedOopRef::encode_in_heap(ref), pointee);
   }
@@ -143,7 +143,7 @@ void DFSClosure::do_oop(oop* ref) {
 void DFSClosure::do_oop(narrowOop* ref) {
   assert(ref != NULL, "invariant");
   assert(is_aligned(ref, sizeof(narrowOop)), "invariant");
-  const oop pointee = HeapAccess<AS_NO_KEEPALIVE>::oop_load(ref);
+  const oop pointee = cast_to_oop((poop)HeapAccess<AS_NO_KEEPALIVE>::oop_load(ref));
   if (pointee != NULL) {
     closure_impl(UnifiedOopRef::encode_in_heap(ref), pointee);
   }

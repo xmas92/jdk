@@ -30,7 +30,7 @@
 class ZOop : public AllStatic {
 public:
   static oop from_address(uintptr_t addr);
-  static uintptr_t to_address(oop o);
+  static uintptr_t to_address(poop o);
 };
 
 #endif // SHARE_GC_Z_ZOOP_HPP

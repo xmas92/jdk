@@ -70,7 +70,7 @@ class ResolvedMethodTableConfig : public AllStatic {
   typedef WeakHandle Value;
 
   static uintx get_hash(Value const& value, bool* is_dead) {
-    oop val_oop = value.peek();
+    poop val_oop = value.peek();
     if (val_oop == nullptr) {
       *is_dead = true;
       return 0;
@@ -127,7 +127,7 @@ class ResolvedMethodTableLookup : StackObj {
     return _hash;
   }
   bool equals(WeakHandle* value, bool* is_dead) {
-    oop val_oop = value->peek();
+    poop val_oop = value->peek();
     if (val_oop == nullptr) {
       // dead oop, mark this hash dead for cleaning
       *is_dead = true;
@@ -304,7 +304,7 @@ struct ResolvedMethodTableDeleteCheck : StackObj {
   ResolvedMethodTableDeleteCheck() : _count(0), _item(0) {}
   bool operator()(WeakHandle* val) {
     ++_item;
-    oop tmp = val->peek();
+    poop tmp = val->peek();
     if (tmp == nullptr) {
       ++_count;
       return true;
@@ -341,7 +341,7 @@ class AdjustMethodEntries : public StackObj {
 public:
   AdjustMethodEntries(bool* trace_name_printed) : _trace_name_printed(trace_name_printed) {};
   bool operator()(WeakHandle* entry) {
-    oop mem_name = entry->peek();
+    poop mem_name = entry->peek();
     if (mem_name == nullptr) {
       // Removed
       return true;
@@ -383,7 +383,7 @@ void ResolvedMethodTable::adjust_method_entries(bool * trace_name_printed) {
 class VerifyResolvedMethod : StackObj {
  public:
   bool operator()(WeakHandle* val) {
-    oop obj = val->peek();
+    poop obj = val->peek();
     if (obj != nullptr) {
       Method* method = (Method*)java_lang_invoke_ResolvedMethodName::vmtarget(obj);
       guarantee(method->is_method(), "Must be");

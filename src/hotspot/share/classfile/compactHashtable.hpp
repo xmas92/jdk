@@ -29,14 +29,17 @@
 #include "oops/array.hpp"
 #include "oops/symbol.hpp"
 #include "runtime/globals.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
+#include <type_traits>
 
 
 template <
   typename K,
   typename V,
+  typename QUICKFIX,
   V (*DECODE)(address base_address, u4 offset),
-  bool (*EQUALS)(V value, K key, int len)
+  bool (*EQUALS)(QUICKFIX value, K key, int len)
   >
 class CompactHashtable;
 class NumberSeq;
@@ -237,11 +240,13 @@ public:
 template <
   typename K,
   typename V,
+  typename QUICKFIX,
   V (*DECODE)(address base_address, u4 offset),
-  bool (*EQUALS)(V value, K key, int len)
+  bool (*EQUALS)(QUICKFIX value, K key, int len)
   >
 class CompactHashtable : public SimpleCompactHashtable {
   friend class VMStructs;
+  STATIC_ASSERT((std::is_convertible<V, QUICKFIX>::value));
 
   V decode(u4 offset) const {
     return DECODE(_base_address, offset);
@@ -344,7 +349,7 @@ template <
   bool (*EQUALS)(V value, K key, int len)
   >
 class OffsetCompactHashtable : public CompactHashtable<
-    K, V, read_value_from_compact_hashtable<V>, EQUALS> {
+    K, V, V, read_value_from_compact_hashtable<V>, EQUALS> {
 };
 
 

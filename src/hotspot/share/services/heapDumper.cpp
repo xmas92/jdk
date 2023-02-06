@@ -431,7 +431,7 @@ class AbstractDumpWriter : public StackObj {
   void write_u2(u2 x);
   void write_u4(u4 x);
   void write_u8(u8 x);
-  void write_objectID(oop o);
+  void write_objectID(poop o);
   void write_rootID(oop* p);
   void write_symbolID(Symbol* o);
   void write_classID(Klass* k);
@@ -523,8 +523,8 @@ void AbstractDumpWriter::write_address(address a) {
 #endif
 }
 
-void AbstractDumpWriter::write_objectID(oop o) {
-  write_address(cast_from_oop<address>(o));
+void AbstractDumpWriter::write_objectID(poop o) {
+  write_address(cast_from_poop<address>(o));
 }
 
 void AbstractDumpWriter::write_rootID(oop* p) {
@@ -937,7 +937,7 @@ class DumperSupport : AllStatic {
   // fixes up the current dump record and writes HPROF_HEAP_DUMP_END record
   static void end_of_dump(AbstractDumpWriter* writer);
 
-  static oop mask_dormant_archived_object(oop o) {
+  static poop mask_dormant_archived_object(poop o) {
     if (o != nullptr && o->klass()->java_mirror() == nullptr) {
       // Ignore this object since the corresponding java mirror is not loaded.
       // Might be a dormant archive object.
@@ -1032,7 +1032,7 @@ void DumperSupport::dump_field_value(AbstractDumpWriter* writer, char type, oop 
   switch (type) {
     case JVM_SIGNATURE_CLASS :
     case JVM_SIGNATURE_ARRAY : {
-      oop o = obj->obj_field_access<ON_UNKNOWN_OOP_REF | AS_NO_KEEPALIVE>(offset);
+      poop o = obj->obj_field_access<ON_UNKNOWN_OOP_REF | AS_NO_KEEPALIVE>(offset);
       if (o != nullptr && log_is_enabled(Debug, cds, heap) && mask_dormant_archived_object(o) == nullptr) {
         ResourceMark rm;
         log_debug(cds, heap)("skipped dormant archived object " INTPTR_FORMAT " (%s) referenced by " INTPTR_FORMAT " (%s)",
@@ -1369,7 +1369,7 @@ void DumperSupport::dump_object_array(AbstractDumpWriter* writer, objArrayOop ar
 
   // [id]* elements
   for (int index = 0; index < length; index++) {
-    oop o = array->obj_at(index);
+    poop o = array->obj_at(index);
     if (o != nullptr && log_is_enabled(Debug, cds, heap) && mask_dormant_archived_object(o) == nullptr) {
       ResourceMark rm;
       log_debug(cds, heap)("skipped dormant archived object " INTPTR_FORMAT " (%s) referenced by " INTPTR_FORMAT " (%s)",
@@ -1578,7 +1578,7 @@ class JNIGlobalsDumper : public OopClosure {
 };
 
 void JNIGlobalsDumper::do_oop(oop* obj_p) {
-  oop o = NativeAccess<AS_NO_KEEPALIVE>::oop_load(obj_p);
+  poop o = NativeAccess<AS_NO_KEEPALIVE>::oop_load(obj_p);
 
   // ignore these
   if (o == nullptr) return;

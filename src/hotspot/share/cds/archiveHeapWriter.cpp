@@ -110,12 +110,12 @@ void ArchiveHeapWriter::write(GrowableArrayCHeap<oop, mtClassShared>* roots,
   relocate_embedded_oops(roots, closed_bitmaps, open_bitmaps);
 }
 
-bool ArchiveHeapWriter::is_too_large_to_archive(oop o) {
+bool ArchiveHeapWriter::is_too_large_to_archive(poop o) {
   return is_too_large_to_archive(o->size());
 }
 
 bool ArchiveHeapWriter::is_string_too_large_to_archive(oop string) {
-  typeArrayOop value = java_lang_String::value_no_keepalive(string);
+  typeArrayPOop value = java_lang_String::value_no_keepalive(string);
   return is_too_large_to_archive(value);
 }
 

@@ -34,8 +34,8 @@ inline oop OopHandle::resolve() const {
   return (_obj == nullptr) ? (oop)nullptr : NativeAccess<>::oop_load(_obj);
 }
 
-inline oop OopHandle::peek() const {
-  return (_obj == nullptr) ? (oop)nullptr : NativeAccess<AS_NO_KEEPALIVE>::oop_load(_obj);
+inline poop OopHandle::peek() const {
+  return (_obj == nullptr) ? (poop)nullptr : NativeAccess<AS_NO_KEEPALIVE>::oop_load(_obj);
 }
 
 inline OopHandle::OopHandle(OopStorage* storage, oop obj) :

@@ -630,11 +630,11 @@ oop ClassLoaderData::holder() const {
 }
 
 // Let the GC read the holder without keeping it alive.
-oop ClassLoaderData::holder_no_keepalive() const {
+poop ClassLoaderData::holder_no_keepalive() const {
   if (!_holder.is_null()) {  // null class_loader
     return _holder.peek();
   } else {
-    return nullptr;
+    return poop();
   }
 }
 

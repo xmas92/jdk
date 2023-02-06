@@ -931,10 +931,10 @@ void MethodHandles::expand_MemberName(Handle mname, int suppress, TRAPS) {
   THROW_MSG(vmSymbols::java_lang_InternalError(), "unrecognized MemberName format");
 }
 
-void MethodHandles::add_dependent_nmethod(oop call_site, nmethod* nm) {
+void MethodHandles::add_dependent_nmethod(poop call_site, nmethod* nm) {
   assert_locked_or_safepoint(CodeCache_lock);
 
-  oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site);
+  poop context = java_lang_invoke_CallSite::context_no_keepalive(call_site);
   DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
   // Try to purge stale entries on updates.
   // Since GC doesn't clean dependency contexts rooted at CallSiteContext objects,
@@ -944,8 +944,8 @@ void MethodHandles::add_dependent_nmethod(oop call_site, nmethod* nm) {
   deps.add_dependent_nmethod(nm);
 }
 
-void MethodHandles::clean_dependency_context(oop call_site) {
-  oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site);
+void MethodHandles::clean_dependency_context(poop call_site) {
+  poop context = java_lang_invoke_CallSite::context_no_keepalive(call_site);
   DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
   deps.clean_unloading_dependents();
 }
@@ -959,7 +959,7 @@ void MethodHandles::flush_dependent_nmethods(Handle call_site, Handle target) {
     NoSafepointVerifier nsv;
     MutexLocker mu2(CodeCache_lock, Mutex::_no_safepoint_check_flag);
 
-    oop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
+    poop context = java_lang_invoke_CallSite::context_no_keepalive(call_site());
     DependencyContext deps = java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(context);
     marked = deps.mark_dependent_nmethods(changes);
   }

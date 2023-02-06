@@ -121,14 +121,14 @@ class java_lang_String : AllStatic {
   static inline bool test_and_set_deduplication_requested(oop java_string);
 
   // Accessors
-  static inline typeArrayOop value(oop java_string);
-  static inline typeArrayOop value_no_keepalive(oop java_string);
+  static inline typeArrayOop value(poop java_string);
+  static inline typeArrayPOop value_no_keepalive(poop java_string);
   static inline bool hash_is_set(oop string);
-  static inline bool is_latin1(oop java_string);
+  static inline bool is_latin1(poop java_string);
   static inline bool deduplication_forbidden(oop java_string);
   static inline bool deduplication_requested(oop java_string);
-  static inline int length(oop java_string);
-  static inline int length(oop java_string, typeArrayOop string_value);
+  static inline int length(poop java_string);
+  static inline int length(poop java_string, typeArrayPOop string_value);
   static int utf8_length(oop java_string);
   static int utf8_length(oop java_string, typeArrayOop string_value);
 
@@ -142,7 +142,7 @@ class java_lang_String : AllStatic {
   static char*  as_utf8_string(oop java_string, typeArrayOop value, int start, int len, char* buf, int buflen);
   static char*  as_platform_dependent_str(Handle java_string, TRAPS);
   static jchar* as_unicode_string(oop java_string, int& length, TRAPS);
-  static jchar* as_unicode_string_or_null(oop java_string, int& length);
+  static jchar* as_unicode_string_or_null(poop java_string, int& length);
   // produce an ascii string with all other values quoted using \u####
   static char*  as_quoted_ascii(oop java_string);
 
@@ -177,9 +177,9 @@ class java_lang_String : AllStatic {
   static unsigned int hash_code(oop java_string);
   static unsigned int hash_code_noupdate(oop java_string);
 
-  static bool equals(oop java_string, const jchar* chars, int len);
-  static bool equals(oop str1, oop str2);
-  static inline bool value_equals(typeArrayOop str_value1, typeArrayOop str_value2);
+  static bool equals(poop java_string, const jchar* chars, int len);
+  static bool equals(poop str1, poop str2);
+  static inline bool value_equals(typeArrayPOop str_value1, typeArrayPOop str_value2);
 
   // Conversion between '.' and '/' formats, and allocate a String from the result.
   static Handle externalize_classname(Symbol* java_name, TRAPS);
@@ -189,7 +189,7 @@ class java_lang_String : AllStatic {
   static Symbol* as_symbol_or_null(oop java_string);
 
   // Tester
-  static inline bool is_instance(oop obj);
+  static inline bool is_instance(poop obj);
 
   // Debugging
   static void print(oop java_string, outputStream* st);
@@ -266,16 +266,16 @@ class java_lang_Class : AllStatic {
   static void fixup_module_field(Klass* k, Handle module);
 
   // Conversion
-  static Klass* as_Klass(oop java_class);
+  static Klass* as_Klass(poop java_class);
   static void set_klass(oop java_class, Klass* klass);
   static BasicType as_BasicType(oop java_class, Klass** reference_klass = nullptr);
   static Symbol* as_signature(oop java_class, bool intern_if_not_found);
   static void print_signature(oop java_class, outputStream *st);
   static const char* as_external_name(oop java_class);
   // Testing
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
-  static bool is_primitive(oop java_class);
+  static bool is_primitive(poop java_class);
   static BasicType primitive_type(oop java_class);
   static oop primitive_mirror(BasicType t);
   // JVM_NewArray support
@@ -540,7 +540,7 @@ class java_lang_VirtualThread : AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::VirtualThread_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   static oop vthread_scope();
   static oop carrier_thread(oop vthread);
@@ -844,7 +844,7 @@ class java_lang_Module {
     static Handle create(Handle loader, Handle module_name, TRAPS);
 
     // Testers
-    static bool is_instance(oop obj);
+    static bool is_instance(poop obj);
 
     // Accessors
     static oop loader(oop module);
@@ -955,10 +955,10 @@ class java_lang_ref_Reference: AllStatic {
 
  public:
   // Accessors
-  static inline oop weak_referent_no_keepalive(oop ref);
+  static inline poop weak_referent_no_keepalive(oop ref);
   static inline oop weak_referent(oop ref);
-  static inline oop phantom_referent_no_keepalive(oop ref);
-  static inline oop unknown_referent_no_keepalive(oop ref);
+  static inline poop phantom_referent_no_keepalive(oop ref);
+  static inline poop unknown_referent_no_keepalive(oop ref);
   static inline void clear_referent(oop ref);
   static inline void clear_referent_raw(oop ref);
   static inline HeapWord* referent_addr_raw(oop ref);
@@ -1029,7 +1029,7 @@ class java_lang_invoke_MethodHandle: AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::MethodHandle_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   // Accessors for code generation:
   static int type_offset()             { CHECK_INIT(_type_offset); }
@@ -1056,7 +1056,7 @@ class java_lang_invoke_DirectMethodHandle: AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::DirectMethodHandle_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   // Accessors for code generation:
   static int member_offset()           { CHECK_INIT(_member_offset); }
@@ -1084,7 +1084,7 @@ class java_lang_invoke_LambdaForm: AllStatic {
     return vmClasses::LambdaForm_klass() != nullptr &&
       klass->is_subclass_of(vmClasses::LambdaForm_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   // Accessors for code generation:
   static int vmentry_offset()          { CHECK_INIT(_vmentry_offset); }
@@ -1114,7 +1114,7 @@ class jdk_internal_foreign_abi_NativeEntryPoint: AllStatic {
     return vmClasses::NativeEntryPoint_klass() != nullptr &&
       klass->is_subclass_of(vmClasses::NativeEntryPoint_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   // Accessors for code generation:
   static int method_type_offset_in_bytes()           { return _method_type_offset; }
@@ -1152,7 +1152,7 @@ class jdk_internal_foreign_abi_ABIDescriptor: AllStatic {
     return vmClasses::ABIDescriptor_klass() != nullptr &&
       klass->is_subclass_of(vmClasses::ABIDescriptor_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 class jdk_internal_foreign_abi_VMStorage: AllStatic {
@@ -1180,7 +1180,7 @@ class jdk_internal_foreign_abi_VMStorage: AllStatic {
     return vmClasses::VMStorage_klass() != nullptr &&
       klass->is_subclass_of(vmClasses::VMStorage_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 class jdk_internal_foreign_abi_CallConv: AllStatic {
@@ -1204,7 +1204,7 @@ class jdk_internal_foreign_abi_CallConv: AllStatic {
     return vmClasses::CallConv_klass() != nullptr &&
       klass->is_subclass_of(vmClasses::CallConv_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 // Interface to java.lang.invoke.MemberName objects
@@ -1226,15 +1226,15 @@ class java_lang_invoke_ResolvedMethodName : AllStatic {
 
   static int vmtarget_offset() { CHECK_INIT(_vmtarget_offset); }
 
-  static Method* vmtarget(oop resolved_method);
-  static void set_vmtarget(oop resolved_method, Method* method);
+  static Method* vmtarget(poop resolved_method);
+  static void set_vmtarget(poop resolved_method, Method* method);
 
-  static void set_vmholder(oop resolved_method, oop holder);
+  static void set_vmholder(poop resolved_method, oop holder);
 
   // find or create resolved member name
   static oop find_resolved_method(const methodHandle& m, TRAPS);
 
-  static bool is_instance(oop resolved_method);
+  static bool is_instance(poop resolved_method);
 };
 
 
@@ -1288,7 +1288,7 @@ class java_lang_invoke_MemberName: AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::MemberName_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   static bool is_method(oop obj);
 
@@ -1347,7 +1347,7 @@ class java_lang_invoke_MethodType: AllStatic {
   static Symbol*        as_signature(oop mt, bool intern_if_not_found);
   static void           print_signature(oop mt, outputStream* st);
 
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   static bool equals(oop mt1, oop mt2);
 
@@ -1371,17 +1371,17 @@ private:
 public:
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
   // Accessors
-  static oop              target(          oop site);
+  static oop              target(          poop site);
   static void         set_target(          oop site, oop target);
   static void         set_target_volatile( oop site, oop target);
 
-  static oop context_no_keepalive(oop site);
+  static poop context_no_keepalive(poop site);
 
   // Testers
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::CallSite_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   // Accessors for code generation:
   static int target_offset()  { CHECK_INIT(_target_offset); }
@@ -1407,7 +1407,7 @@ public:
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::ConstantCallSite_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 // Interface to java.lang.invoke.MethodHandleNatives$CallSiteContext objects
@@ -1430,13 +1430,13 @@ private:
 public:
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
   // Accessors
-  static DependencyContext vmdependencies(oop context);
+  static DependencyContext vmdependencies(poop context);
 
   // Testers
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::Context_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 // Interface to java.security.AccessControlContext objects
@@ -1479,12 +1479,12 @@ class java_lang_ClassLoader : AllStatic {
  public:
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
 
-  static ClassLoaderData* loader_data_acquire(oop loader);
+  static ClassLoaderData* loader_data_acquire(poop loader);
   static ClassLoaderData* loader_data(oop loader);
   static void release_set_loader_data(oop loader, ClassLoaderData* new_data);
 
   static oop parent(oop loader);
-  static oop parent_no_keepalive(oop loader);
+  static poop parent_no_keepalive(poop loader);
   static oop name(oop loader);
   static oop nameAndId(oop loader);
   static bool isAncestor(oop loader, oop cl);
@@ -1505,7 +1505,7 @@ class java_lang_ClassLoader : AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::ClassLoader_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 
   static oop unnamedModule(oop loader);
 
@@ -1745,7 +1745,7 @@ class vector_VectorPayload : AllStatic {
   static bool is_subclass(Klass* klass) {
     return klass->is_subclass_of(vmClasses::vector_VectorPayload_klass());
   }
-  static bool is_instance(oop obj);
+  static bool is_instance(poop obj);
 };
 
 class java_lang_Integer : AllStatic {

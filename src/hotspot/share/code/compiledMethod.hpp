@@ -257,6 +257,7 @@ public:
   bool can_be_deoptimized() const { return is_java_method(); }
 
   virtual oop oop_at(int index) const = 0;
+  virtual poop oop_at_no_keepalive(int index) const = 0;
   virtual Metadata* metadata_at(int index) const = 0;
 
   address scopes_data_begin() const { return _scopes_data_begin; }

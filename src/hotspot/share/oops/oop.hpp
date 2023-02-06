@@ -150,7 +150,7 @@ class oopDesc {
 
   // Access to fields in a instanceOop through these methods.
   template<DecoratorSet decorators>
-  oop obj_field_access(int offset) const;
+  OopT<decorators> obj_field_access(int offset) const;
   oop obj_field(int offset) const;
 
   void obj_field_put(int offset, oop value);
@@ -247,8 +247,8 @@ class oopDesc {
   inline bool is_unlocked() const;
 
   // asserts and guarantees
-  static bool is_oop(oop obj, bool ignore_mark_word = false);
-  static bool is_oop_or_null(oop obj, bool ignore_mark_word = false);
+  static bool is_oop(poop obj, bool ignore_mark_word = false);
+  static bool is_oop_or_null(poop obj, bool ignore_mark_word = false);
 
   // garbage collection
   inline bool is_gc_marked() const;

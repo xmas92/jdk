@@ -62,7 +62,7 @@ public:
   }
 
   inline oop resolve() const;
-  inline oop peek() const;
+  inline poop peek() const;
 
   bool is_empty() const { return _obj == nullptr; }
 

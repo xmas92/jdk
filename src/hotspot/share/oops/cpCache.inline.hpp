@@ -102,7 +102,7 @@ inline ConstantPoolCache::ConstantPoolCache(int length,
 }
 
 inline objArrayOop ConstantPoolCache::resolved_references() {
-  oop obj = _resolved_references.resolve();
+  oop obj = _resolved_references.is_null() ? nullptr : _resolved_references.resolve();
   assert(obj == nullptr || obj->is_objArray(), "should be objArray");
   return (objArrayOop)obj;
 }

@@ -219,7 +219,7 @@
   nonstatic_field(ConstantPool,                _major_version,                                u2)                                    \
   nonstatic_field(ConstantPool,                _generic_signature_index,                      u2)                                    \
   nonstatic_field(ConstantPool,                _source_file_name_index,                       u2)                                    \
-  nonstatic_field(ConstantPoolCache,           _resolved_references,                          OopHandle)                             \
+  nonstatic_field(ConstantPoolCache,           _resolved_references,                          WeakHandle)                            \
   nonstatic_field(ConstantPoolCache,           _reference_map,                                Array<u2>*)                            \
   nonstatic_field(ConstantPoolCache,           _length,                                       int)                                   \
   nonstatic_field(ConstantPoolCache,           _constant_pool,                                ConstantPool*)                         \
@@ -1194,6 +1194,7 @@
   declare_oop_type(typeArrayOop)                                          \
                                                                           \
   declare_toplevel_type(OopHandle)                                        \
+  declare_toplevel_type(WeakHandle)                                       \
                                                                           \
   /**********************************/                                    \
   /* Method related data structures */                                    \

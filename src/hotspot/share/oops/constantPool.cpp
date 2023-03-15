@@ -57,7 +57,9 @@
 #include "oops/objArrayKlass.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/oopHandle.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
+#include "oops/weakHandle.inline.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/handles.inline.hpp"
@@ -69,6 +71,8 @@
 #include "runtime/vframe.inline.hpp"
 #include "utilities/checkedCast.hpp"
 #include "utilities/copy.hpp"
+#include "utilities/debug.hpp"
+#include "utilities/exceptions.hpp"
 
 ConstantPool* ConstantPool::allocate(ClassLoaderData* loader_data, int length, TRAPS) {
   Array<u1>* tags = MetadataFactory::new_array<u1>(loader_data, length, 0, CHECK_NULL);
@@ -200,6 +204,9 @@ void ConstantPool::initialize_resolved_references(ClassLoaderData* loader_data,
                                                   const intStack& reference_map,
                                                   int constant_pool_map_length,
                                                   TRAPS) {
+  precond(java_lang_Class::is_instance(_pool_holder->java_mirror()));
+  precond(java_lang_Class::resolved_references(_pool_holder->java_mirror()) == nullptr);
+
   // Initialized the resolved object cache.
   int map_length = reference_map.length();
   if (map_length > 0) {
@@ -223,7 +230,8 @@ void ConstantPool::initialize_resolved_references(ClassLoaderData* loader_data,
     objArrayOop stom = oopFactory::new_objArray(vmClasses::Object_klass(), map_length, CHECK);
     HandleMark hm(THREAD);
     Handle refs_handle (THREAD, stom);  // must handleize.
-    set_resolved_references(loader_data->add_handle(refs_handle));
+    java_lang_Class::set_resolved_references(_pool_holder->java_mirror(), stom);
+    set_resolved_references(WeakHandle(Universe::vm_weak(), refs_handle));
 
     // Create a "scratch" copy of the resolved references array to archive
     if (CDSConfig::is_dumping_heap()) {
@@ -356,6 +364,8 @@ void ConstantPool::restore_unshareable_info(TRAPS) {
 
   if (vmClasses::Object_klass_loaded()) {
     ClassLoaderData* loader_data = pool_holder()->class_loader_data();
+    precond(_pool_holder->java_mirror() == nullptr || java_lang_Class::is_instance(_pool_holder->java_mirror()));
+    precond(_pool_holder->java_mirror() == nullptr || java_lang_Class::resolved_references(_pool_holder->java_mirror()) == nullptr);
 #if INCLUDE_CDS_JAVA_HEAP
     if (ArchiveHeapLoader::is_in_use() &&
         _cache->archived_references() != nullptr) {
@@ -363,7 +373,13 @@ void ConstantPool::restore_unshareable_info(TRAPS) {
       // Create handle for the archived resolved reference array object
       HandleMark hm(THREAD);
       Handle refs_handle(THREAD, archived);
-      set_resolved_references(loader_data->add_handle(refs_handle));
+      if (_pool_holder->java_mirror() == nullptr) {
+        // TODO[Axel]: Handle bootstrapping
+        OopHandle(Universe::vm_global(), archived);
+      } else {
+        java_lang_Class::set_resolved_references(_pool_holder->java_mirror(), archived);
+      }
+      set_resolved_references(WeakHandle(Universe::vm_weak(), refs_handle));
       _cache->clear_archived_references();
     } else
 #endif
@@ -375,7 +391,13 @@ void ConstantPool::restore_unshareable_info(TRAPS) {
         objArrayOop stom = oopFactory::new_objArray(vmClasses::Object_klass(), map_length, CHECK);
         HandleMark hm(THREAD);
         Handle refs_handle(THREAD, stom);  // must handleize.
-        set_resolved_references(loader_data->add_handle(refs_handle));
+        if (_pool_holder->java_mirror() == nullptr) {
+          // TODO[Axel]: Handle bootstrapping
+          OopHandle(Universe::vm_global(), stom);
+        } else {
+          java_lang_Class::set_resolved_references(_pool_holder->java_mirror(), stom);
+        }
+        set_resolved_references(WeakHandle(Universe::vm_weak(), refs_handle));
       }
     }
   }
@@ -393,7 +415,8 @@ void ConstantPool::remove_unshareable_info() {
   if (cache() != nullptr) {
     set_resolved_reference_length(
         resolved_references() != nullptr ? resolved_references()->length() : 0);
-    set_resolved_references(OopHandle());
+    // TODO[AXEL]: WeakHandle leaked. Also understand what this is trying to achieve.
+  cache()->clear_resolved_references();
   }
   remove_unshareable_entries();
 }

@@ -813,6 +813,7 @@ int java_lang_Class::_init_lock_offset;
 int java_lang_Class::_signers_offset;
 int java_lang_Class::_name_offset;
 int java_lang_Class::_source_file_offset;
+int java_lang_Class::_resolved_references_offset;
 int java_lang_Class::_classData_offset;
 int java_lang_Class::_classRedefinedCount_offset;
 
@@ -1289,6 +1290,16 @@ oop java_lang_Class::source_file(oop java_class) {
 void java_lang_Class::set_source_file(oop java_class, oop source_file) {
   assert(_source_file_offset != 0, "must be set");
   java_class->obj_field_put(_source_file_offset, source_file);
+}
+
+oop java_lang_Class::resolved_references(oop java_class) {
+  assert(_resolved_references_offset != 0, "must be set");
+  return java_class->obj_field(_resolved_references_offset);
+}
+
+void java_lang_Class::set_resolved_references(oop java_class, oop resolved_references) {
+  assert(_resolved_references_offset != 0, "must be set");
+  java_class->obj_field_put(_resolved_references_offset, resolved_references);
 }
 
 oop java_lang_Class::create_basic_type_mirror(const char* basic_type_name, BasicType type, TRAPS) {

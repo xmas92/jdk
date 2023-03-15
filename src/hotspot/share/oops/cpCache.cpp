@@ -541,8 +541,8 @@ bool ConstantPoolCache::can_archive_resolved_method(ResolvedMethodEntry* method_
 
 void ConstantPoolCache::deallocate_contents(ClassLoaderData* data) {
   assert(!is_shared(), "shared caches are not deallocated");
-  data->remove_handle(_resolved_references);
-  set_resolved_references(OopHandle());
+  _resolved_references.release(Universe::vm_weak());
+  clear_resolved_references();
   MetadataFactory::free_array<u2>(data, _reference_map);
   set_reference_map(nullptr);
 #if INCLUDE_CDS

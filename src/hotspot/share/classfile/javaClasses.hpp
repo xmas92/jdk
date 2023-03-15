@@ -209,6 +209,7 @@ class java_lang_String : AllStatic {
   macro(java_lang_Class, static_oop_field_count, int_signature,     false) \
   macro(java_lang_Class, protection_domain,      object_signature,  false) \
   macro(java_lang_Class, source_file,            object_signature,  false) \
+  macro(java_lang_Class, resolved_references,    object_signature,  false) \
   macro(java_lang_Class, init_lock,              object_signature,  false)
 
 class java_lang_Class : AllStatic {
@@ -233,6 +234,7 @@ class java_lang_Class : AllStatic {
   static int _component_mirror_offset;
   static int _name_offset;
   static int _source_file_offset;
+  static int _resolved_references_offset;
   static int _classData_offset;
   static int _classRedefinedCount_offset;
 
@@ -313,6 +315,9 @@ class java_lang_Class : AllStatic {
 
   static oop source_file(oop java_class);
   static void set_source_file(oop java_class, oop source_file);
+
+  static oop resolved_references(oop java_class);
+  static void set_resolved_references(oop java_class, oop resolved_references);
 
   static size_t oop_size(oop java_class);
   static void set_oop_size(HeapWord* java_class, size_t size);

@@ -969,13 +969,16 @@ void ClassLoaderData::remove_handle(OopHandle h) {
   }
 }
 
-void ClassLoaderData::init_handle_locked(OopHandle& dest, Handle h) {
-  MutexLocker ml(metaspace_lock(),  Mutex::_no_safepoint_check_flag);
-  if (dest.resolve() != nullptr) {
-    return;
-  } else {
-    record_modified_oops();
-    dest = _handles.add(h());
+void ClassLoaderData::init_handle_locked(WeakHandle& dest, Handle h, TRAPS) {
+  DependencyListEntryHandle dependency_entry = DependencyListEntryHandle::create_dependency_entry_handle(h, CHECK);
+  {
+    MutexLocker ml(metaspace_lock(),  Mutex::_no_safepoint_check_flag);
+    if (!dest.is_null() && dest.resolve() != nullptr) {
+      return;
+    }
+    assert(dest.is_null(), "Should not have resolved to nullptr");
+    record_oop_dependency(dependency_entry);
+    dest = WeakHandle(Universe::vm_weak(), h);
   }
 }
 

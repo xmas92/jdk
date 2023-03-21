@@ -26,9 +26,12 @@
 #define SHARE_CLASSFILE_MODULEENTRY_HPP
 
 #include "jni.h"
+#include "classfile/classLoaderData.hpp"
+#include "memory/universe.hpp"
 #include "oops/oopHandle.hpp"
 #include "oops/symbol.hpp"
 #include "oops/symbolHandle.hpp"
+#include "oops/weakHandle.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/macros.hpp"
@@ -63,8 +66,8 @@ class ModuleClosure;
 // data structure.  This lock must be taken on all accesses to either table.
 class ModuleEntry : public CHeapObj<mtModule> {
 private:
-  OopHandle _module;                   // java.lang.Module
-  OopHandle _shared_pd;                // java.security.ProtectionDomain, cached
+  WeakHandle _module;                  // java.lang.Module
+  WeakHandle _shared_pd;               // java.security.ProtectionDomain, cached
                                        // for shared classes from this module
   Symbol*          _name;              // name of this module
   ClassLoaderData* _loader_data;
@@ -88,7 +91,7 @@ private:
   enum {MODULE_READS_SIZE = 101};      // Initial size of list of modules that the module can read.
 
 public:
-  ModuleEntry(Handle module_handle,
+  ModuleEntry(WeakHandle module_handle,
               bool is_open, Symbol* name,
               Symbol* version, Symbol* location,
               ClassLoaderData* loader_data);
@@ -97,8 +100,8 @@ public:
 
   Symbol*          name() const                        { return _name; }
   oop              module() const;
-  OopHandle        module_handle() const               { return _module; }
-  void             set_module(OopHandle j)             { _module = j; }
+  WeakHandle       module_handle() const               { return _module; }
+  void             set_module(WeakHandle j)            { _module.release(Universe::vm_weak()); _module = j; }
 
   // The shared ProtectionDomain reference is set once the VM loads a shared class
   // originated from the current Module. The referenced ProtectionDomain object is
@@ -106,7 +109,7 @@ public:
   // Module for the first time. This ProtectionDomain object is used for all
   // classes from the Module loaded by the same ClassLoader.
   oop              shared_protection_domain();
-  void             set_shared_protection_domain(ClassLoaderData *loader_data, Handle pd);
+  void             set_shared_protection_domain(ClassLoaderData *loader_data, Handle pd, TRAPS);
 
   ClassLoaderData* loader_data() const                 { return _loader_data; }
   void set_loader_data(ClassLoaderData* cld);
@@ -183,7 +186,7 @@ public:
   // Special handling for unnamed module, one per class loader
   static ModuleEntry* create_unnamed_module(ClassLoaderData* cld);
   static ModuleEntry* create_boot_unnamed_module(ClassLoaderData* cld);
-  static ModuleEntry* new_unnamed_module_entry(Handle module_handle, ClassLoaderData* cld);
+  static ModuleEntry* new_unnamed_module_entry(WeakHandle module_handle, ClassLoaderData* cld);
 
   void print(outputStream* st = tty);
   void verify();
@@ -238,7 +241,7 @@ public:
 
   // Create module in loader's module entry table.  Assume Module_lock
   // has been locked by caller.
-  ModuleEntry* locked_create_entry(Handle module_handle,
+  ModuleEntry* locked_create_entry(WeakHandle module_handle,
                                    bool is_open,
                                    Symbol* module_name,
                                    Symbol* module_version,
@@ -260,7 +263,7 @@ public:
 
   static bool javabase_defined() { return ((_javabase_module != nullptr) &&
                                            (_javabase_module->module() != nullptr)); }
-  static void finalize_javabase(Handle module_handle, Symbol* version, Symbol* location);
+  static void finalize_javabase(ClassLoaderData::DependencyListEntryHandle module_handle, Symbol* version, Symbol* location);
   static void patch_javabase_entries(JavaThread* current, Handle module_handle);
 
   void modules_do(void f(ModuleEntry*));

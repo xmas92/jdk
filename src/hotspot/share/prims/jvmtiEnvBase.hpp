@@ -837,7 +837,7 @@ class JvmtiMonitorClosure: public MonitorClosure {
 // Jvmti module closure to collect all modules loaded to the system.
 class JvmtiModuleClosure : public StackObj {
 private:
-  static GrowableArray<OopHandle> *_tbl; // Protected with Module_lock
+  static GrowableArray<WeakHandle> *_tbl; // Protected with Module_lock
 
   static void do_module(ModuleEntry* entry);
 public:

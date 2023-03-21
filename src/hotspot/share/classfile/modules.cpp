@@ -44,13 +44,17 @@
 #include "jvm.h"
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"
+#include "memory/allocation.inline.hpp"
 #include "memory/resourceArea.hpp"
+#include "memory/universe.hpp"
+#include "oops/weakHandle.inline.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/javaCalls.hpp"
 #include "runtime/jniHandles.inline.hpp"
+#include "utilities/exceptions.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/stringUtils.hpp"
 #include "utilities/utf8.hpp"
@@ -200,6 +204,10 @@ static void define_javabase_module(Handle module_handle, jstring version, jstrin
   // Ensure java.base's ModuleEntry has been created
   assert(ModuleEntryTable::javabase_moduleEntry() != nullptr, "No ModuleEntry for " JAVA_BASE_NAME);
 
+  // TODO[Axel]: HAS_PENDING_EXCEPTION handling probably needed.
+  ClassLoaderData::DependencyListEntryHandle entry =
+      ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(module_handle, CHECK);
+
   bool duplicate_javabase = false;
   {
     MutexLocker m1(THREAD, Module_lock);
@@ -227,7 +235,7 @@ static void define_javabase_module(Handle module_handle, jstring version, jstrin
       }
 
       // Finish defining java.base's ModuleEntry
-      ModuleEntryTable::finalize_javabase(module_handle, version_symbol, location_symbol);
+      ModuleEntryTable::finalize_javabase(entry, version_symbol, location_symbol);
     }
   }
   if (duplicate_javabase) {
@@ -376,6 +384,9 @@ void Modules::define_module(Handle module, jboolean is_open, jstring version,
 
   PackageEntryTable* package_table = nullptr;
   PackageEntry* existing_pkg = nullptr;
+
+  ClassLoaderData::DependencyListEntryHandle module_handle =
+      ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(module, CHECK);
   {
     MutexLocker ml(THREAD, Module_lock);
 
@@ -400,8 +411,10 @@ void Modules::define_module(Handle module, jboolean is_open, jstring version,
     // Add the module and its packages.
     if (!dupl_modules && existing_pkg == nullptr) {
       if (module_table->lookup_only(module_symbol) == nullptr) {
+        loader_data->record_oop_dependency(module_handle);
         // Create the entry for this module in the class loader's module entry table.
-        ModuleEntry* module_entry = module_table->locked_create_entry(module,
+        ModuleEntry* module_entry = module_table->locked_create_entry(
+                                    WeakHandle(Universe::vm_weak(), module_handle.dependency()),
                                     (is_open == JNI_TRUE), module_symbol,
                                     version_symbol, location_symbol, loader_data);
         assert(module_entry != nullptr, "module_entry creation failed");
@@ -676,7 +689,9 @@ void Modules::set_bootloader_unnamed_module(Handle module, TRAPS) {
   ClassLoaderData* boot_loader_data = ClassLoaderData::the_null_class_loader_data();
   ModuleEntry* unnamed_module = boot_loader_data->unnamed_module();
   assert(unnamed_module != nullptr, "boot loader's unnamed ModuleEntry not defined");
-  unnamed_module->set_module(boot_loader_data->add_handle(module));
+  // TODO[Axel]: HAS_PENDING_EXCEPTION
+  boot_loader_data->record_oop_dependency(module, CHECK);
+  unnamed_module->set_module(WeakHandle(Universe::vm_weak(), module));
   // Store pointer to the ModuleEntry in the unnamed module's java.lang.Module object.
   java_lang_Module::set_module_entry(module(), unnamed_module);
 }

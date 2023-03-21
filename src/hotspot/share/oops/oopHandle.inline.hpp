@@ -65,4 +65,14 @@ inline oop OopHandle::xchg(oop new_value) {
   return NativeAccess<MO_SEQ_CST>::oop_atomic_xchg(_obj, new_value);
 }
 
+inline oop OopHandle::cmpxchg(oop compare_value, oop new_value) {
+  assert(_obj != nullptr, "storage must exist");
+  return NativeAccess<MO_SEQ_CST>::oop_atomic_cmpxchg(_obj, compare_value, new_value);
+}
+
+inline oop OopHandle::resolve_relaxed() {
+  assert(_obj != nullptr, "storage must exist");
+  return NativeAccess<MO_RELAXED>::oop_load(_obj);
+}
+
 #endif // SHARE_OOPS_OOPHANDLE_INLINE_HPP

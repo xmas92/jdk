@@ -59,13 +59,13 @@ inline ClassLoaderData* ClassLoaderData::unloading_next() const {
 inline oop ClassLoaderData::class_loader() const {
   assert(!_unloading, "This oop is not available to unloading class loader data");
   assert(_holder.is_null() || holder_no_keepalive() != nullptr , "This class loader data holder must be alive");
-  return _class_loader.resolve();
+  return _class_loader.is_null() ? nullptr : _class_loader.resolve();
 }
 
 inline oop ClassLoaderData::class_loader_no_keepalive() const {
   assert(!_unloading, "This oop is not available to unloading class loader data");
   assert(_holder.is_null() || holder_no_keepalive() != nullptr , "This class loader data holder must be alive");
-  return _class_loader.peek();
+  return _class_loader.is_null() ? nullptr : _class_loader.peek();
 }
 
 inline bool ClassLoaderData::is_boot_class_loader_data() const {
@@ -83,6 +83,26 @@ inline ClassLoaderData* ClassLoaderData::class_loader_data(oop loader) {
   ClassLoaderData* loader_data = class_loader_data_or_null(loader);
   assert(loader_data != nullptr, "Must be");
   return loader_data;
+}
+
+inline ClassLoaderData::DependencyListEntryHandle::DependencyListEntryHandle() :
+     _entry(),
+     _dependency() {}
+
+inline ClassLoaderData::DependencyListEntryHandle::DependencyListEntryHandle(objArrayHandle entry, Handle dependency) :
+     _entry(entry),
+     _dependency(dependency) {}
+
+inline ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::null_handle() {
+  return DependencyListEntryHandle();
+}
+
+inline objArrayHandle ClassLoaderData::DependencyListEntryHandle::entry() {
+  return _entry;
+}
+
+inline Handle ClassLoaderData::DependencyListEntryHandle::dependency() {
+  return _dependency;
 }
 
 #endif // SHARE_CLASSFILE_CLASSLOADERDATA_INLINE_HPP

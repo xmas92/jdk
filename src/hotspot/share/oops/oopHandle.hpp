@@ -72,6 +72,10 @@ public:
 
   inline oop xchg(oop new_value);
 
+  inline oop cmpxchg(oop compare_value, oop new_value);
+
+  inline oop resolve_relaxed();
+
   oop* ptr_raw() const { return _obj; }
 };
 

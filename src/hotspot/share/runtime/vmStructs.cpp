@@ -464,7 +464,7 @@
   /*******************/                                                                                                              \
   /* ClassLoaderData */                                                                                                              \
   /*******************/                                                                                                              \
-  nonstatic_field(ClassLoaderData,             _class_loader,                                 OopHandle)                             \
+  nonstatic_field(ClassLoaderData,             _class_loader,                                 WeakHandle)                            \
   nonstatic_field(ClassLoaderData,             _next,                                         ClassLoaderData*)                      \
   volatile_nonstatic_field(ClassLoaderData,    _klasses,                                      Klass*)                                \
   nonstatic_field(ClassLoaderData,             _has_class_mirror_holder,                      bool)                                  \

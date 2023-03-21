@@ -280,7 +280,7 @@ Handle CDSProtectionDomain::get_shared_protection_domain(Handle class_loader,
 
       Handle pd = get_protection_domain_from_classloader(class_loader, url,
                                                          CHECK_NH);
-      mod->set_shared_protection_domain(loader_data, pd);
+      mod->set_shared_protection_domain(loader_data, pd, CHECK_NH);
     }
   }
 

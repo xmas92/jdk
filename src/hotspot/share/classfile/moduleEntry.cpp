@@ -40,6 +40,7 @@
 #include "memory/universe.hpp"
 #include "oops/oopHandle.inline.hpp"
 #include "oops/symbol.hpp"
+#include "oops/weakHandle.inline.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "utilities/events.hpp"
@@ -50,7 +51,9 @@
 
 ModuleEntry* ModuleEntryTable::_javabase_module = nullptr;
 
-oop ModuleEntry::module() const { return _module.resolve(); }
+oop ModuleEntry::module() const {
+  return _module.is_null() ? nullptr : _module.resolve();
+}
 
 void ModuleEntry::set_location(Symbol* location) {
   // _location symbol's refcounts are managed by ModuleEntry,
@@ -109,15 +112,16 @@ void ModuleEntry::set_version(Symbol* version) {
 
 // Returns the shared ProtectionDomain
 oop ModuleEntry::shared_protection_domain() {
-  return _shared_pd.resolve();
+  return _shared_pd.is_null() ? nullptr : _shared_pd.resolve();
 }
 
 // Set the shared ProtectionDomain atomically
 void ModuleEntry::set_shared_protection_domain(ClassLoaderData *loader_data,
-                                               Handle pd_h) {
+                                               Handle pd_h,
+                                               TRAPS) {
   // Create a handle for the shared ProtectionDomain and save it atomically.
   // init_handle_locked checks if someone beats us setting the _shared_pd cache.
-  loader_data->init_handle_locked(_shared_pd, pd_h);
+  loader_data->init_handle_locked(_shared_pd, pd_h, CHECK);
 }
 
 // Returns true if this module can read module m
@@ -259,7 +263,7 @@ void ModuleEntry::delete_reads() {
   _reads = nullptr;
 }
 
-ModuleEntry::ModuleEntry(Handle module_handle,
+ModuleEntry::ModuleEntry(WeakHandle module_handle,
                          bool is_open, Symbol* name,
                          Symbol* version, Symbol* location,
                          ClassLoaderData* loader_data) :
@@ -284,9 +288,7 @@ ModuleEntry::ModuleEntry(Handle module_handle,
     _name->increment_refcount();
   }
 
-  if (!module_handle.is_null()) {
-    _module = loader_data->add_handle(module_handle);
-  }
+  _module = module_handle;
 
   set_version(version);
 
@@ -307,6 +309,7 @@ ModuleEntry::ModuleEntry(Handle module_handle,
 
 ModuleEntry::~ModuleEntry() {
   // Clean out the C heap allocated reads list first before freeing the entry
+  _module.release(Universe::vm_weak());
   delete_reads();
   Symbol::maybe_decrement_refcount(_name);
   Symbol::maybe_decrement_refcount(_version);
@@ -325,7 +328,7 @@ ModuleEntry* ModuleEntry::create_unnamed_module(ClassLoaderData* cld) {
             "The unnamed module for ClassLoader %s, is null or not an instance of java.lang.Module. The class loader has not been initialized correctly.",
             cld->loader_name_and_id());
 
-  ModuleEntry* unnamed_module = new_unnamed_module_entry(Handle(Thread::current(), module), cld);
+  ModuleEntry* unnamed_module = new_unnamed_module_entry(WeakHandle(Universe::vm_weak(), module), cld);
 
   // Store pointer to the ModuleEntry in the unnamed module's java.lang.Module object.
   java_lang_Module::set_module_entry(module, unnamed_module);
@@ -337,7 +340,7 @@ ModuleEntry* ModuleEntry::create_boot_unnamed_module(ClassLoaderData* cld) {
   // For the boot loader, the java.lang.Module for the unnamed module
   // is not known until a call to JVM_SetBootLoaderUnnamedModule is made. At
   // this point initially create the ModuleEntry for the unnamed module.
-  ModuleEntry* unnamed_module = new_unnamed_module_entry(Handle(), cld);
+  ModuleEntry* unnamed_module = new_unnamed_module_entry(WeakHandle(), cld);
   assert(unnamed_module != nullptr, "boot loader unnamed module should not be null");
   return unnamed_module;
 }
@@ -345,7 +348,7 @@ ModuleEntry* ModuleEntry::create_boot_unnamed_module(ClassLoaderData* cld) {
 // When creating an unnamed module, this is called without holding the Module_lock.
 // This is okay because the unnamed module gets created before the ClassLoaderData
 // is available to other threads.
-ModuleEntry* ModuleEntry::new_unnamed_module_entry(Handle module_handle, ClassLoaderData* cld) {
+ModuleEntry* ModuleEntry::new_unnamed_module_entry(WeakHandle module_handle, ClassLoaderData* cld) {
 
   ModuleEntry* entry = new ModuleEntry(module_handle, /*is_open*/true, /*name*/nullptr,
                                        /*version*/ nullptr, /*location*/ nullptr,
@@ -498,7 +501,7 @@ void ModuleEntry::update_oops_in_archived_module(int root_oop_index) {
 
   assert(shared_protection_domain() == nullptr, "never set during -Xshare:dump");
   // Clear handles and restore at run time. Handles cannot be archived.
-  OopHandle null_handle;
+  WeakHandle null_handle;
   _module = null_handle;
 
   // For verify_archived_module_entries()
@@ -524,7 +527,8 @@ void ModuleEntry::restore_archived_oops(ClassLoaderData* loader_data) {
   assert(CDSConfig::is_using_archive(), "runtime only");
   Handle module_handle(Thread::current(), HeapShared::get_root(_archived_module_index, /*clear=*/true));
   assert(module_handle.not_null(), "huh");
-  set_module(loader_data->add_handle(module_handle));
+  // TODO[Axel]: Need to figure out the lifetime of these module entires.
+  set_module(WeakHandle(Universe::vm_weak(), module_handle));
 
   // This was cleared to zero during dump time -- we didn't save the value
   // because it may be affected by archive relocation.
@@ -608,7 +612,7 @@ void ModuleEntryTable::restore_archived_oops(ClassLoaderData* loader_data, Array
 // Create an entry in the class loader's module_entry_table.  It is the
 // caller's responsibility to ensure that the entry has not already been
 // created.
-ModuleEntry* ModuleEntryTable::locked_create_entry(Handle module_handle,
+ModuleEntry* ModuleEntryTable::locked_create_entry(WeakHandle module_handle,
                                                    bool is_open,
                                                    Symbol* module_name,
                                                    Symbol* module_version,
@@ -642,14 +646,14 @@ void ModuleEntryTable::purge_all_module_reads() {
   _table.iterate_all(purge);
 }
 
-void ModuleEntryTable::finalize_javabase(Handle module_handle, Symbol* version, Symbol* location) {
+void ModuleEntryTable::finalize_javabase(ClassLoaderData::DependencyListEntryHandle module_handle, Symbol* version, Symbol* location) {
   assert(Module_lock->owned_by_self(), "should have the Module_lock");
   ClassLoaderData* boot_loader_data = ClassLoaderData::the_null_class_loader_data();
   ModuleEntryTable* module_table = boot_loader_data->modules();
 
   assert(module_table != nullptr, "boot loader's ModuleEntryTable not defined");
 
-  if (module_handle.is_null()) {
+  if (module_handle.dependency().is_null()) {
     fatal("Unable to finalize module definition for " JAVA_BASE_NAME);
   }
 
@@ -660,10 +664,11 @@ void ModuleEntryTable::finalize_javabase(Handle module_handle, Symbol* version, 
   jb_module->set_location(location);
   // Once java.base's ModuleEntry _module field is set with the known
   // java.lang.Module, java.base is considered "defined" to the VM.
-  jb_module->set_module(boot_loader_data->add_handle(module_handle));
+  boot_loader_data->record_oop_dependency(module_handle);
+  jb_module->set_module(WeakHandle(Universe::vm_weak(), module_handle.dependency()));
 
   // Store pointer to the ModuleEntry for java.base in the java.lang.Module object.
-  java_lang_Module::set_module_entry(module_handle(), jb_module);
+  java_lang_Module::set_module_entry(module_handle.dependency()(), jb_module);
 }
 
 // Within java.lang.Class instances there is a java.lang.Module field that must

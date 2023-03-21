@@ -59,6 +59,7 @@
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/symbol.hpp"
+#include "oops/weakHandle.inline.hpp"
 #include "prims/jvm_misc.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/handles.inline.hpp"
@@ -1567,7 +1568,7 @@ void ClassLoader::create_javabase() {
   {
     MutexLocker ml(current, Module_lock);
     if (ModuleEntryTable::javabase_moduleEntry() == nullptr) {  // may have been inited by CDS.
-      ModuleEntry* jb_module = null_cld_modules->locked_create_entry(Handle(),
+      ModuleEntry* jb_module = null_cld_modules->locked_create_entry(WeakHandle(),
                                false, vmSymbols::java_base(), nullptr, nullptr, null_cld);
       if (jb_module == nullptr) {
         vm_exit_during_initialization("Unable to create ModuleEntry for " JAVA_BASE_NAME);

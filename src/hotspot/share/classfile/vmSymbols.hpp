@@ -479,6 +479,7 @@ class SerializeClosure;
   template(signers_name,                              "signers_name")                             \
   template(source_file_name,                          "source_file")                              \
   template(loader_data_name,                          "loader_data")                              \
+  template(dependency_name,                           "<dependency>")                             \
   template(cont_name,                                 "cont")                                     \
   template(vmdependencies_name,                       "vmdependencies")                           \
   template(last_cleanup_name,                         "last_cleanup")                             \

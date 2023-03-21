@@ -63,6 +63,7 @@
 #include "memory/classLoaderMetaspace.hpp"
 #include "memory/metadataFactory.hpp"
 #include "memory/metaspace.hpp"
+#include "memory/oopFactory.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
 #include "oops/access.inline.hpp"
@@ -73,19 +74,25 @@
 #include "oops/weakHandle.inline.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/globals.hpp"
+#include "runtime/handles.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/mutex.hpp"
 #include "runtime/safepoint.hpp"
+#include "utilities/debug.hpp"
+#include "utilities/exceptions.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/ostream.hpp"
 
 ClassLoaderData * ClassLoaderData::_the_null_class_loader_data = nullptr;
+OopHandle ClassLoaderData::_the_null_class_loader_dependencies = OopHandle();
 
 void ClassLoaderData::init_null_class_loader_data() {
   assert(_the_null_class_loader_data == nullptr, "cannot initialize twice");
   assert(ClassLoaderDataGraph::_head == nullptr, "cannot initialize twice");
 
+  _the_null_class_loader_dependencies = OopHandle(Universe::vm_global(), nullptr);
   _the_null_class_loader_data = new ClassLoaderData(Handle(), false);
   ClassLoaderDataGraph::_head = _the_null_class_loader_data;
   assert(_the_null_class_loader_data->is_the_null_class_loader_data(), "Must be");
@@ -152,9 +159,12 @@ ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_ho
   _class_loader_klass(nullptr), _name(nullptr), _name_and_id(nullptr) {
 
   if (!h_class_loader.is_null()) {
-    _class_loader = _handles.add(h_class_loader());
+    _class_loader = WeakHandle(Universe::vm_weak(), h_class_loader);
     _class_loader_klass = h_class_loader->klass();
     initialize_name(h_class_loader);
+    if (keep_alive()) {
+      _keep_alive_class_loader = OopHandle(Universe::vm_global(), h_class_loader());
+    }
   }
 
   if (!has_class_mirror_holder) {
@@ -365,6 +375,11 @@ void ClassLoaderData::dec_keep_alive_ref_count() {
       demote_strong_roots();
     }
     _keep_alive_ref_count--;
+    if (keep_alive_ref_count() == 0) {
+      assert(class_loader_no_keepalive() == _keep_alive_class_loader.peek(), "Should still be alive");
+      _keep_alive_class_loader.release(Universe::vm_global());
+      _keep_alive_class_loader = OopHandle();
+    }
   }
 }
 
@@ -461,7 +476,135 @@ void ClassLoaderData::packages_do(void f(PackageEntry*)) {
   }
 }
 
-void ClassLoaderData::record_dependency(const Klass* k) {
+// TODO[Axel]: Need to reevaluate the use of this. Maybe it should trace all
+//             dependencies, not only those from record_dependency(cosnt Klass*, TRAPS)
+//               * Check usage and meaning of _dependency_count
+//               * The record_oop_dependency path should not use to_cld. But the
+//                   actual oop.
+void ClassLoaderData::trace_dependency(Handle dependency) {
+  NOT_PRODUCT(Atomic::inc(&_dependency_count));
+  LogTarget(Trace, class, loader, data) lt;
+  if (lt.is_enabled()) {
+    ResourceMark rm;
+    LogStream ls(lt);
+    const ClassLoaderData* to_cld = dependency->klass()->class_loader_data();
+    ls.print("adding dependency from ");
+    print_value_on(&ls);
+    ls.print(" to ");
+    to_cld->print_value_on(&ls);
+    ls.cr();
+  }
+}
+
+template<typename HeadLoad, typename HeadReplaceIfNull>
+void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, TRAPS) {
+  precond(dependency() != nullptr);
+  precond(THREAD != nullptr || entry() != nullptr);
+  // TODO[Axel]: Maybe assert the layout of entry()
+
+  objArrayOop cursor = head_load();
+  objArrayOop list_entry = entry();
+
+  // Store list head if empty
+  if (cursor == nullptr) {
+    if (list_entry == nullptr) {
+      list_entry = oopFactory::new_objectArray(2, CHECK);
+      list_entry->obj_at_put(0, dependency());
+    }
+    do {
+      // TODO[Axel]: Use load to load cursor instead of cmpxchg.
+      cursor = head_replace_if_null(list_entry);
+    } while (cursor == nullptr);
+    if (cursor == list_entry) {
+      // Succeeded
+      return;
+    }
+  }
+
+  assert(Universe::heap()->is_oop(cursor), "must be");
+  // Store dependency at the end of the list if not already contained
+  while (true) {
+    // Find dependency or end of list
+    oop next = cursor;
+    do {
+      if (cursor->obj_at(0) == dependency()) {
+        // Already contained
+        return;
+      }
+      assert(cursor->obj_at(0) != nullptr, "null dependency found");
+      // Advance the cursor
+      cursor = next;
+      next = cursor->obj_at(1);
+    } while (next != nullptr);
+
+    // Allocate list entry
+    if (list_entry == nullptr) {
+      list_entry = oopFactory::new_objectArray(2, CHECK);
+      list_entry->obj_at_put(0, dependency());
+    }
+
+    if (nullptr == cursor->replace_if_null(1, list_entry) &&
+        cursor->obj_at(1) == list_entry) {
+      // TODO[Axel]:
+      trace_dependency(dependency);
+      return;
+    }
+  }
+}
+
+void ClassLoaderData::add_dependency(Handle dependency, objArrayHandle entry, TRAPS) {
+  precond(java_lang_ClassLoader::is_instance(class_loader()));
+
+  add_dependency_impl([&](){ return java_lang_ClassLoader::dependency(this->class_loader()); },
+                      [&](objArrayOop list_entry) { return java_lang_ClassLoader::dependency_replace_if_null(this->class_loader(), list_entry); },
+                      dependency, entry, THREAD);
+}
+
+void ClassLoaderData::add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, TRAPS) {
+  precond(java_lang_Class::is_instance(holder()));
+
+  add_dependency_impl([&](){ return java_lang_Class::dependency(this->holder()); },
+                      [&](objArrayOop list_entry) { return java_lang_Class::dependency_replace_if_null(this->holder(), list_entry); },
+                      dependency, entry, THREAD);
+}
+
+void ClassLoaderData::add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, TRAPS) {
+  precond(is_the_null_class_loader_data());
+
+  add_dependency_impl([](){ return _the_null_class_loader_dependencies.resolve_relaxed(); },
+                      [](objArrayOop list_entry) { return _the_null_class_loader_dependencies.cmpxchg(nullptr, list_entry); },
+                      dependency, entry, THREAD);
+}
+
+ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(Handle dependency, TRAPS) {
+  precond(dependency() != nullptr);
+  objArrayOop entry = oopFactory::new_objectArray(2, CHECK_(DependencyListEntryHandle()));
+  entry->obj_at_put(0, dependency());
+  return DependencyListEntryHandle(objArrayHandle(THREAD, entry), dependency);
+}
+
+void ClassLoaderData::record_oop_dependency(ClassLoaderData::DependencyListEntryHandle dependency_entry) {
+  if (is_the_null_class_loader_data()) {
+    add_dependency_null_class_loader(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+  } else if (has_class_mirror_holder() && class_loader() == nullptr) {
+    add_dependency_no_class_loader(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+  } else {
+    add_dependency(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+  }
+}
+
+void ClassLoaderData::record_oop_dependency(Handle dependency, TRAPS) {
+  precond(dependency() != nullptr);
+  if (is_the_null_class_loader_data()) {
+    add_dependency_null_class_loader(dependency, objArrayHandle(), CHECK);
+  } else if (has_class_mirror_holder() && class_loader() == nullptr) {
+    add_dependency_no_class_loader(dependency, objArrayHandle(), CHECK);
+  } else {
+    add_dependency(dependency, objArrayHandle(), CHECK);
+  }
+}
+
+void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
   assert(k != nullptr, "invariant");
 
   ClassLoaderData * const from_cld = this;
@@ -496,24 +639,8 @@ void ClassLoaderData::record_dependency(const Klass* k) {
     }
   }
 
-  // It's a dependency we won't find through GC, add it.
-  if (!_handles.contains(to)) {
-    NOT_PRODUCT(Atomic::inc(&_dependency_count));
-    LogTarget(Trace, class, loader, data) lt;
-    if (lt.is_enabled()) {
-      ResourceMark rm;
-      LogStream ls(lt);
-      ls.print("adding dependency from ");
-      print_value_on(&ls);
-      ls.print(" to ");
-      to_cld->print_value_on(&ls);
-      ls.cr();
-    }
-    Handle dependency(Thread::current(), to);
-    add_handle(dependency);
-    // Added a potentially young gen oop to the ClassLoaderData
-    record_modified_oops();
-  }
+  Handle dependency(Thread::current(), to);
+  record_oop_dependency(dependency, CHECK);
 }
 
 void ClassLoaderData::add_class(Klass* k, bool publicize /* true */) {

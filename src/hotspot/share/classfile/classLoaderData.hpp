@@ -27,8 +27,10 @@
 
 #include "memory/allocation.hpp"
 #include "oops/oopHandle.hpp"
+#include "oops/oopsHierarchy.hpp"
 #include "oops/weakHandle.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/handles.hpp"
 #include "runtime/mutex.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/macros.hpp"
@@ -108,10 +110,13 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   friend class Method;
 
   static ClassLoaderData * _the_null_class_loader_data;
+  static OopHandle _the_null_class_loader_dependencies;
 
   WeakHandle _holder;       // The oop that determines lifetime of this class loader
-  OopHandle  _class_loader; // The instance of java/lang/ClassLoader associated with
-                            // this ClassLoaderData
+  WeakHandle  _class_loader; // The instance of java/lang/ClassLoader associated with
+                             // this ClassLoaderData
+  OopHandle  _keep_alive_class_loader; // The same instance which is artificially kept alive
+                                       // with the _keep_alive reference counter.
 
   ClassLoaderMetaspace * volatile _metaspace;  // Meta-space where meta-data defined by the
                                     // classes in the class loader are allocated.
@@ -286,7 +291,7 @@ private:
   bool is_builtin_class_loader_data() const;
   bool is_permanent_class_loader_data() const;
 
-  OopHandle class_loader_handle() const { return _class_loader; }
+  WeakHandle class_loader_handle() const { return _class_loader; }
 
   // The Metaspace is created lazily so may be null.  This
   // method will allocate a Metaspace if needed.
@@ -331,7 +336,28 @@ private:
   void add_class(Klass* k, bool publicize = true);
   void remove_class(Klass* k);
   bool contains_klass(Klass* k);
-  void record_dependency(const Klass* to);
+private:
+  void trace_dependency(Handle dependency);
+  template<typename HeadLoad, typename HeadReplaceIfNull>
+  void add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, TRAPS);
+  void add_dependency(Handle dependency, objArrayHandle entry, TRAPS);
+  void add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, TRAPS);
+  void add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, TRAPS);
+public:
+  class DependencyListEntryHandle {
+    objArrayHandle _entry;
+    Handle _dependency;
+    DependencyListEntryHandle();
+    DependencyListEntryHandle(objArrayHandle entry, Handle dependency);
+  public:
+    static DependencyListEntryHandle create_dependency_entry_handle(Handle dependency, TRAPS);
+    static DependencyListEntryHandle null_handle();
+    objArrayHandle entry();
+    Handle dependency();
+  };
+  void record_oop_dependency(DependencyListEntryHandle dependency_entry);
+  void record_oop_dependency(Handle dependency, TRAPS);
+  void record_dependency(const Klass* to, TRAPS);
   PackageEntryTable* packages() { return _packages; }
   ModuleEntry* unnamed_module() { return _unnamed_module; }
   ModuleEntryTable* modules();

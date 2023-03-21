@@ -200,13 +200,13 @@ ClassLoaderData* SystemDictionary::register_loader(Handle class_loader, bool cre
 
 void SystemDictionary::set_system_loader(ClassLoaderData *cld) {
   assert(_java_system_loader.is_empty(), "already set!");
-  _java_system_loader = cld->class_loader_handle();
+  _java_system_loader = OopHandle(Universe::vm_global(), cld->class_loader());
 
 }
 
 void SystemDictionary::set_platform_loader(ClassLoaderData *cld) {
   assert(_java_platform_loader.is_empty(), "already set!");
-  _java_platform_loader = cld->class_loader_handle();
+  _java_platform_loader = OopHandle(Universe::vm_global(), cld->class_loader());
 }
 
 // ----------------------------------------------------------------------------
@@ -1117,7 +1117,7 @@ InstanceKlass* SystemDictionary::load_shared_lambda_proxy_class(InstanceKlass* i
     // as verified in SystemDictionaryShared::add_lambda_proxy_class()
     assert(shared_nest_host->class_loader() == class_loader(), "mismatched class loader");
     assert(shared_nest_host->class_loader_data() == class_loader_data(class_loader), "mismatched class loader data");
-    ik->set_nest_host(shared_nest_host);
+    ik->set_nest_host(shared_nest_host, CHECK_NULL);
   }
 
   return loaded_ik;
@@ -1357,7 +1357,7 @@ InstanceKlass* SystemDictionary::load_instance_class(Symbol* name,
     // from being unloaded while the initiating class loader is loaded
     // even if the reference to the defining class loader is dropped
     // before references to the initiating class loader.
-    loader_data->record_dependency(loaded_class);
+    loader_data->record_dependency(loaded_class, CHECK_NULL);
 
     update_dictionary(THREAD, loaded_class, loader_data);
 
@@ -2045,7 +2045,7 @@ static Method* unpack_method_and_appendix(Handle mname,
       // class_loader containing this method is kept alive.
       methodHandle mh(THREAD, m); // record_dependency can safepoint.
       ClassLoaderData* this_key = accessing_klass->class_loader_data();
-      this_key->record_dependency(m->method_holder());
+      this_key->record_dependency(m->method_holder(), CHECK_NULL);
       return mh();
     }
   }

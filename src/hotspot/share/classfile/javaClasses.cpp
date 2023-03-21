@@ -51,6 +51,7 @@
 #include "memory/oopFactory.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
+#include "oops/accessDecorators.hpp"
 #include "oops/fieldInfo.hpp"
 #include "oops/fieldStreams.inline.hpp"
 #include "oops/instanceKlass.inline.hpp"
@@ -814,6 +815,7 @@ int java_lang_Class::_signers_offset;
 int java_lang_Class::_name_offset;
 int java_lang_Class::_source_file_offset;
 int java_lang_Class::_resolved_references_offset;
+int java_lang_Class::_dependency_offset;
 int java_lang_Class::_classData_offset;
 int java_lang_Class::_classRedefinedCount_offset;
 
@@ -1300,6 +1302,18 @@ oop java_lang_Class::resolved_references(oop java_class) {
 void java_lang_Class::set_resolved_references(oop java_class, oop resolved_references) {
   assert(_resolved_references_offset != 0, "must be set");
   java_class->obj_field_put(_resolved_references_offset, resolved_references);
+}
+
+oop java_lang_Class::dependency(oop java_class) {
+  assert(_dependency_offset != 0, "offsets should have been initialized");
+  assert(is_instance(java_class), "java_class must be oop");
+  return java_class->obj_field_access<MO_RELAXED>(_dependency_offset);
+}
+
+oop  java_lang_Class::dependency_replace_if_null(oop java_class, objArrayOop dependency_entry) {
+  assert(_dependency_offset != 0, "offsets should have been initialized");
+  assert(is_instance(java_class), "java_class must be oop");
+  return HeapAccess<>::oop_atomic_cmpxchg_at(java_class, _dependency_offset, (objArrayOop)nullptr, dependency_entry);
 }
 
 oop java_lang_Class::create_basic_type_mirror(const char* basic_type_name, BasicType type, TRAPS) {
@@ -4643,6 +4657,7 @@ oop java_security_AccessControlContext::create(objArrayHandle context, bool isPr
 // Support for java_lang_ClassLoader
 
 int  java_lang_ClassLoader::_loader_data_offset;
+int  java_lang_ClassLoader::_dependency_offset;
 int  java_lang_ClassLoader::_parallelCapable_offset;
 int  java_lang_ClassLoader::_name_offset;
 int  java_lang_ClassLoader::_nameAndId_offset;
@@ -4783,6 +4798,18 @@ oop java_lang_ClassLoader::non_reflection_class_loader(oop loader) {
 oop java_lang_ClassLoader::unnamedModule(oop loader) {
   assert(is_instance(loader), "loader must be oop");
   return loader->obj_field(_unnamedModule_offset);
+}
+
+oop java_lang_ClassLoader::dependency(oop loader) {
+  assert(_dependency_offset != 0, "offsets should have been initialized");
+  assert(is_instance(loader), "loader must be oop");
+  return loader->obj_field_access<MO_RELAXED>(_dependency_offset);
+}
+
+oop  java_lang_ClassLoader::dependency_replace_if_null(oop loader, objArrayOop dependency_entry) {
+  assert(_dependency_offset != 0, "offsets should have been initialized");
+  assert(is_instance(loader), "loader must be oop");
+  return HeapAccess<>::oop_atomic_cmpxchg_at(loader, _dependency_offset, (objArrayOop)nullptr, dependency_entry);
 }
 
 // Support for java_lang_System

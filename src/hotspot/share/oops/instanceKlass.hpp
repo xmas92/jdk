@@ -417,7 +417,7 @@ class InstanceKlass: public Klass {
   jushort nest_host_index() const { return _nest_host_index; }
   void set_nest_host_index(u2 i)  { _nest_host_index = i; }
   // dynamic nest member support
-  void set_nest_host(InstanceKlass* host);
+  void set_nest_host(InstanceKlass* host, TRAPS);
 
   // record components
   Array<RecordComponent*>* record_components() const { return _record_components; }

@@ -364,7 +364,7 @@ InstanceKlass* InstanceKlass::nest_host(TRAPS) {
 // If it has an explicit _nest_host_index or _nest_members, these will be ignored.
 // We also know the "host" is a valid nest-host in the same package so we can
 // assert some of those facts.
-void InstanceKlass::set_nest_host(InstanceKlass* host) {
+void InstanceKlass::set_nest_host(InstanceKlass* host, TRAPS) {
   assert(is_hidden(), "must be a hidden class");
   assert(host != nullptr, "null nest host specified");
   assert(_nest_host == nullptr, "current class has resolved nest-host");
@@ -394,7 +394,7 @@ void InstanceKlass::set_nest_host(InstanceKlass* host) {
   // Record dependency to keep nest host from being unloaded before this class.
   ClassLoaderData* this_key = class_loader_data();
   assert(this_key != nullptr, "sanity");
-  this_key->record_dependency(host);
+  this_key->record_dependency(host, CHECK);
 }
 
 // check if 'this' and k are nestmates (same nest_host), or k is our nest_host,

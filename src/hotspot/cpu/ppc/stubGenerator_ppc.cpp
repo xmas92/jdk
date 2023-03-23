@@ -48,6 +48,7 @@
 #include "utilities/align.hpp"
 #include "utilities/powerOfTwo.hpp"
 #if INCLUDE_ZGC
+#include "gc/x/xBarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
 #endif
 
@@ -2078,8 +2079,13 @@ class StubGenerator: public StubCodeGenerator {
     } else {
 #if INCLUDE_ZGC
       if (UseZGC) {
-        ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
-        zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
+        if (ZLegacyMode) {
+          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
+          zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
+        } else {
+          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+          zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
+        }
       } else
 #endif
       generate_conjoint_long_copy_core(aligned);
@@ -2121,8 +2127,13 @@ class StubGenerator: public StubCodeGenerator {
     } else {
 #if INCLUDE_ZGC
       if (UseZGC) {
-        ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
-        zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
+        if (ZLegacyMode) {
+          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
+          zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
+        } else {
+          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+          zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
+        }
       } else
 #endif
       generate_disjoint_long_copy_core(aligned);
@@ -2238,7 +2249,7 @@ class StubGenerator: public StubCodeGenerator {
     } else {
       __ bind(store_null);
 #if INCLUDE_ZGC
-      if (UseZGC) {
+      if (UseZGC && !ZLegacyMode) {
         __ store_heap_oop(R10_oop, R8_offset, R4_to, R11_scratch1, R12_tmp, noreg,
                           MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS,
                           dest_uninitialized ? IS_DEST_UNINITIALIZED : 0);
@@ -2254,7 +2265,7 @@ class StubGenerator: public StubCodeGenerator {
     // ======== loop entry is here ========
     __ bind(load_element);
 #if INCLUDE_ZGC
-    if (UseZGC) {
+    if (UseZGC && !ZLegacyMode) {
       __ load_heap_oop(R10_oop, R8_offset, R3_from,
                        R11_scratch1, R12_tmp,
                        MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS,

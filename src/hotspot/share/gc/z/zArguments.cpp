@@ -32,11 +32,6 @@
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
 
-void ZArguments::initialize_alignments() {
-  SpaceAlignment = ZGranuleSize;
-  HeapAlignment = SpaceAlignment;
-}
-
 void ZArguments::select_max_gc_threads() {
   // Select number of parallel threads
   if (FLAG_IS_DEFAULT(ParallelGCThreads)) {
@@ -105,8 +100,6 @@ void ZArguments::select_max_gc_threads() {
 }
 
 void ZArguments::initialize() {
-  GCArguments::initialize();
-
   // Check mark stack size
   const size_t mark_stack_space_limit = ZAddressSpaceLimit::mark_stack();
   if (ZMarkStackSpaceLimit > mark_stack_space_limit) {
@@ -217,14 +210,10 @@ size_t ZArguments::heap_virtual_to_physical_ratio() {
   return ZVirtualToPhysicalRatio;
 }
 
-size_t ZArguments::conservative_max_heap_alignment() {
-  return 0;
-}
-
 CollectedHeap* ZArguments::create_heap() {
   return new ZCollectedHeap();
 }
 
-bool ZArguments::is_supported() const {
+bool ZArguments::is_supported() {
   return is_os_supported();
 }

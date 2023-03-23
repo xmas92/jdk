@@ -111,7 +111,6 @@
 #endif // INCLUDE_PARALLELGC
 #if INCLUDE_ZGC
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zHash.inline.hpp"
 #endif // INCLUDE_ZGC
 #if INCLUDE_JVMCI
 #include "jvmci/jvmciEnv.hpp"
@@ -401,7 +400,11 @@ WB_ENTRY(jboolean, WB_isObjectInOldGen(JNIEnv* env, jobject o, jobject obj))
 #endif
 #if INCLUDE_ZGC
   if (UseZGC) {
-    return ZHeap::heap()->is_old(to_zaddress(p));
+    if (ZLegacyMode) {
+      return Universe::heap()->is_in(p);
+    } else {
+      return ZHeap::heap()->is_old(to_zaddress(p));
+    }
   }
 #endif
 #if INCLUDE_SHENANDOAHGC

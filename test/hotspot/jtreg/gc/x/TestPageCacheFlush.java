@@ -21,14 +21,14 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /*
  * @test TestPageCacheFlush
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
  * @summary Test ZGC page cache flushing
  * @library /test/lib
- * @run driver gc.z.TestPageCacheFlush
+ * @run driver gc.x.TestPageCacheFlush
  */
 
 import java.util.LinkedList;
@@ -70,6 +70,7 @@ public class TestPageCacheFlush {
     public static void main(String[] args) throws Exception {
         ProcessTools.executeProcess(ProcessTools.createJavaProcessBuilder(
                                     "-XX:+UseZGC",
+                                    "-XX:+ZLegacyMode",
                                     "-Xms128M",
                                     "-Xmx128M",
                                     "-Xlog:gc,gc+init,gc+heap=debug",

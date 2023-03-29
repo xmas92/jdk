@@ -21,14 +21,14 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /**
  * @test TestMemoryManagerMXBean
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
  * @summary Test ZGC memory manager MXBean
  * @modules java.management
- * @run main/othervm -XX:+UseZGC -Xmx128M gc.z.TestMemoryManagerMXBean
+ * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode -Xmx128M gc.x.TestMemoryManagerMXBean
  */
 
 import java.lang.management.ManagementFactory;
@@ -52,9 +52,9 @@ public class TestMemoryManagerMXBean {
 
             System.out.println("MemoryManager: " + memoryManagerName);
 
-            if (memoryManagerName.equals("ZGC Minor Cycles") || memoryManagerName.equals("ZGC Major Cycles")) {
+            if (memoryManagerName.equals("ZGC Cycles")) {
                 zgcCyclesMemoryManagers++;
-            } else if (memoryManagerName.equals("ZGC Minor Pauses") || memoryManagerName.equals("ZGC Major Pauses")) {
+            } else if (memoryManagerName.equals("ZGC Pauses")) {
                 zgcPausesMemoryManagers++;
             }
 
@@ -63,29 +63,29 @@ public class TestMemoryManagerMXBean {
 
                 System.out.println("   MemoryPool:   " + memoryPoolName);
 
-                if (memoryPoolName.equals("ZGC Young Generation") || memoryPoolName.equals("ZGC Old Generation")) {
-                    if (memoryManagerName.equals("ZGC Minor Cycles") || memoryManagerName.equals("ZGC Major Cycles")) {
+                if (memoryPoolName.equals("ZHeap")) {
+                    if (memoryManagerName.equals("ZGC Cycles")) {
                         zgcCyclesMemoryPools++;
-                    } else if (memoryManagerName.equals("ZGC Minor Pauses") || memoryManagerName.equals("ZGC Major Pauses")) {
+                    } else if (memoryManagerName.equals("ZGC Pauses")) {
                         zgcPausesMemoryPools++;
                     }
                 }
             }
         }
 
-        if (zgcCyclesMemoryManagers != 2) {
+        if (zgcCyclesMemoryManagers != 1) {
             throw new Exception("Unexpected number of cycle MemoryManagers");
         }
 
-        if (zgcPausesMemoryManagers != 2) {
+        if (zgcPausesMemoryManagers != 1) {
             throw new Exception("Unexpected number of pause MemoryManagers");
         }
 
-        if (zgcCyclesMemoryPools != 4) {
+        if (zgcCyclesMemoryPools != 1) {
             throw new Exception("Unexpected number of cycle MemoryPools");
         }
 
-        if (zgcPausesMemoryPools != 4) {
+        if (zgcPausesMemoryPools != 1) {
             throw new Exception("Unexpected number of pause MemoryPools");
         }
     }

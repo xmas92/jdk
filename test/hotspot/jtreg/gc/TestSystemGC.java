@@ -58,8 +58,17 @@ package gc;
  */
 
 /*
+ * @test id=Z-legacy-mode
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
+ * @comment ZGC will not start when LargePages cannot be allocated, therefore
+ *          we do not run such configuration.
+ * @summary Runs System.gc() with different flags.
+ * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode gc.TestSystemGC
+ */
+
+/*
  * @test id=Z
- * @requires vm.gc.Z
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
  * @comment ZGC will not start when LargePages cannot be allocated, therefore
  *          we do not run such configuration.
  * @summary Runs System.gc() with different flags.

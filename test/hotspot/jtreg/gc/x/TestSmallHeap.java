@@ -21,14 +21,14 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /*
  * @test TestSmallHeap
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
  * @summary Test ZGC with small heaps
  * @library / /test/lib
- * @run driver gc.z.TestSmallHeap 8M 16M 32M 64M 128M 256M 512M 1024M
+ * @run driver gc.x.TestSmallHeap 8M 16M 32M 64M 128M 256M 512M 1024M
  */
 
 import jdk.test.lib.process.ProcessTools;
@@ -55,6 +55,7 @@ public class TestSmallHeap {
         for (var maxCapacity: args) {
             ProcessTools.executeProcess(ProcessTools.createJavaProcessBuilder(
                                         "-XX:+UseZGC",
+                                        "-XX:+ZLegacyMode",
                                         "-Xlog:gc,gc+init,gc+reloc,gc+heap",
                                         "-Xmx" + maxCapacity,
                                         Test.class.getName()))

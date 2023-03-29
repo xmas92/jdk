@@ -21,14 +21,14 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /*
  * @test TestHighUsage
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
  * @summary Test ZGC "High Usage" rule
  * @library /test/lib
- * @run main/othervm gc.z.TestHighUsage
+ * @run main/othervm gc.x.TestHighUsage
  */
 
 import java.util.LinkedList;
@@ -86,6 +86,7 @@ public class TestHighUsage {
 
     public static void main(String[] args) throws Exception {
         ProcessTools.executeTestJvm("-XX:+UseZGC",
+                                    "-XX:+ZLegacyMode",
                                     "-XX:-ZProactive",
                                     "-Xms128M",
                                     "-Xmx128M",
@@ -94,6 +95,7 @@ public class TestHighUsage {
                                     "-Xlog:gc,gc+start",
                                     Test.class.getName())
                     .shouldNotContain("Allocation Stall")
+                    .shouldContain("High Usage")
                     .shouldHaveExitValue(0);
     }
 }

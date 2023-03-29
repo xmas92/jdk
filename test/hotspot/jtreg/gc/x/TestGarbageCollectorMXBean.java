@@ -21,15 +21,15 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /**
  * @test TestGarbageCollectorMXBean
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
  * @summary Test ZGC garbage collector MXBean
  * @modules java.management
- * @run main/othervm -XX:+UseZGC -Xms256M -Xmx512M -Xlog:gc gc.z.TestGarbageCollectorMXBean 256 512
- * @run main/othervm -XX:+UseZGC -Xms512M -Xmx512M -Xlog:gc gc.z.TestGarbageCollectorMXBean 512 512
+ * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode -Xms256M -Xmx512M -Xlog:gc gc.x.TestGarbageCollectorMXBean 256 512
+ * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode -Xms512M -Xmx512M -Xlog:gc gc.x.TestGarbageCollectorMXBean 512 512
  */
 
 import java.lang.management.ManagementFactory;
@@ -74,25 +74,21 @@ public class TestGarbageCollectorMXBean {
             final var startTime = info.getGcInfo().getStartTime();
             final var endTime = info.getGcInfo().getEndTime();
             final var duration = info.getGcInfo().getDuration();
-            final var youngMemoryUsageBeforeGC = info.getGcInfo().getMemoryUsageBeforeGc().get("ZGC Young Generation");
-            final var youngMemoryUsageAfterGC = info.getGcInfo().getMemoryUsageAfterGc().get("ZGC Young Generation");
-            final var oldMemoryUsageBeforeGC = info.getGcInfo().getMemoryUsageBeforeGc().get("ZGC Old Generation");
-            final var oldMemoryUsageAfterGC = info.getGcInfo().getMemoryUsageAfterGc().get("ZGC Old Generation");
+            final var memoryUsageBeforeGC = info.getGcInfo().getMemoryUsageBeforeGc().get("ZHeap");
+            final var memoryUsageAfterGC = info.getGcInfo().getMemoryUsageAfterGc().get("ZHeap");
 
             log(name + " (" + type + ")");
-            log("                        Id: " + id);
-            log("                    Action: " + action);
-            log("                     Cause: " + cause);
-            log("                 StartTime: " + startTime);
-            log("                   EndTime: " + endTime);
-            log("                  Duration: " + duration);
-            log(" Young MemoryUsageBeforeGC: " + youngMemoryUsageBeforeGC);
-            log("  Young MemoryUsageAfterGC: " + youngMemoryUsageAfterGC);
-            log("   Old MemoryUsageBeforeGC: " + oldMemoryUsageBeforeGC);
-            log("    Old MemoryUsageAfterGC: " + oldMemoryUsageAfterGC);
+            log("                  Id: " + id);
+            log("              Action: " + action);
+            log("               Cause: " + cause);
+            log("           StartTime: " + startTime);
+            log("             EndTime: " + endTime);
+            log("            Duration: " + duration);
+            log(" MemoryUsageBeforeGC: " + memoryUsageBeforeGC);
+            log("  MemoryUsageAfterGC: " + memoryUsageAfterGC);
             log("");
 
-            if (name.equals("ZGC Major Cycles")) {
+            if (name.equals("ZGC Cycles")) {
                 cycles.incrementAndGet();
 
                 if (!action.equals("end of GC cycle")) {
@@ -100,26 +96,26 @@ public class TestGarbageCollectorMXBean {
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getInit() != 0) {
-                    log("ERROR: Old MemoryUsageBeforeGC.init");
+                if (memoryUsageBeforeGC.getInit() != initialCapacity) {
+                    log("ERROR: MemoryUsageBeforeGC.init");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getUsed() > initialCapacity) {
-                    log("ERROR: Old MemoryUsageBeforeGC.used");
+                if (memoryUsageBeforeGC.getUsed() > initialCapacity) {
+                    log("ERROR: MemoryUsageBeforeGC.used");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getCommitted() != oldMemoryUsageBeforeGC.getUsed()) {
-                    log("ERROR: Old MemoryUsageBeforeGC.committed");
+                if (memoryUsageBeforeGC.getCommitted() != initialCapacity) {
+                    log("ERROR: MemoryUsageBeforeGC.committed");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getMax() != maxCapacity) {
-                    log("ERROR: Old MemoryUsageBeforeGC.max");
+                if (memoryUsageBeforeGC.getMax() != maxCapacity) {
+                    log("ERROR: MemoryUsageBeforeGC.max");
                     errors.incrementAndGet();
                 }
-            } else if (name.equals("ZGC Major Pauses")) {
+            } else if (name.equals("ZGC Pauses")) {
                 pauses.incrementAndGet();
 
                 if (!action.equals("end of GC pause")) {
@@ -127,77 +123,23 @@ public class TestGarbageCollectorMXBean {
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getInit() != 0) {
-                    log("ERROR: Old MemoryUsageBeforeGC.init");
+                if (memoryUsageBeforeGC.getInit() != 0) {
+                    log("ERROR: MemoryUsageBeforeGC.init");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getUsed() != 0) {
-                    log("ERROR: Old MemoryUsageBeforeGC.used");
+                if (memoryUsageBeforeGC.getUsed() != 0) {
+                    log("ERROR: MemoryUsageBeforeGC.used");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getCommitted() != 0) {
-                    log("ERROR: Old MemoryUsageBeforeGC.committed");
+                if (memoryUsageBeforeGC.getCommitted() != 0) {
+                    log("ERROR: MemoryUsageBeforeGC.committed");
                     errors.incrementAndGet();
                 }
 
-                if (oldMemoryUsageBeforeGC.getMax() != 0) {
-                    log("ERROR: Old MemoryUsageBeforeGC.max");
-                    errors.incrementAndGet();
-                }
-	    } else if (name.equals("ZGC Minor Cycles")) {
-                cycles.incrementAndGet();
-
-                if (!action.equals("end of GC cycle")) {
-                    log("ERROR: Action");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getInit() != initialCapacity) {
-                    log("ERROR: Young MemoryUsageBeforeGC.init");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getUsed() > youngMemoryUsageBeforeGC.getCommitted()) {
-                    log("ERROR: Young MemoryUsageBeforeGC.used");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getCommitted() > initialCapacity) {
-                    log("ERROR: Young MemoryUsageBeforeGC.committed");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getMax() != maxCapacity) {
-                    log("ERROR: Young MemoryUsageBeforeGC.max");
-                    errors.incrementAndGet();
-                }
-            } else if (name.equals("ZGC Minor Pauses")) {
-                pauses.incrementAndGet();
-
-                if (!action.equals("end of GC pause")) {
-                    log("ERROR: Action");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getInit() != 0) {
-                    log("ERROR: Young MemoryUsageBeforeGC.init");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getUsed() != 0) {
-                    log("ERROR: Young MemoryUsageBeforeGC.used");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getCommitted() != 0) {
-                    log("ERROR: Young MemoryUsageBeforeGC.committed");
-                    errors.incrementAndGet();
-                }
-
-                if (youngMemoryUsageBeforeGC.getMax() != 0) {
-                    log("ERROR: Young MemoryUsageBeforeGC.max");
+                if (memoryUsageBeforeGC.getMax() != 0) {
+                    log("ERROR: MemoryUsageBeforeGC.max");
                     errors.incrementAndGet();
                 }
             } else {
@@ -205,10 +147,10 @@ public class TestGarbageCollectorMXBean {
                 errors.incrementAndGet();
             }
 
-            //if (!cause.equals("System.gc()")) {
-            //    log("ERROR: Cause");
-            //    errors.incrementAndGet();
-            //}
+            if (!cause.equals("System.gc()")) {
+                log("ERROR: Cause");
+                errors.incrementAndGet();
+            }
 
             if (startTime > endTime) {
                 log("ERROR: StartTime");

@@ -21,15 +21,15 @@
  * questions.
  */
 
-package gc.z;
+package gc.x;
 
 /*
  * @test TestAllocateHeapAt
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode) & os.family == "linux"
+ * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode) & os.family == "linux"
  * @summary Test ZGC with -XX:AllocateHeapAt
  * @library /test/lib
- * @run main/othervm gc.z.TestAllocateHeapAt . true
- * @run main/othervm gc.z.TestAllocateHeapAt non-existing-directory false
+ * @run main/othervm gc.x.TestAllocateHeapAt . true
+ * @run main/othervm gc.x.TestAllocateHeapAt non-existing-directory false
  */
 
 import jdk.test.lib.process.ProcessTools;
@@ -43,6 +43,7 @@ public class TestAllocateHeapAt {
 
         ProcessTools.executeProcess(ProcessTools.createJavaProcessBuilder(
                 "-XX:+UseZGC",
+                "-XX:+ZLegacyMode",
                 "-Xlog:gc*",
                 "-Xms32M",
                 "-Xmx32M",

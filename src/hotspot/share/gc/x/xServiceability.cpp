@@ -72,7 +72,7 @@ XServiceabilityCounters::XServiceabilityCounters(size_t min_capacity, size_t max
                     max_capacity /* max_capacity */,
                     min_capacity /* init_capacity */),
     // gc.collector.2
-    _collector_counters("X concurrent cycle pauses" /* name */,
+    _collector_counters("Z concurrent cycle pauses" /* name */,
                         2                           /* ordinal */) {}
 
 CollectorCounters* XServiceabilityCounters::collector_counters() {
@@ -93,7 +93,7 @@ void XServiceabilityCounters::update_sizes() {
 }
 
 XServiceabilityMemoryPool::XServiceabilityMemoryPool(size_t min_capacity, size_t max_capacity) :
-    CollectedMemoryPool("XHeap",
+    CollectedMemoryPool("ZHeap",
                         min_capacity,
                         max_capacity,
                         true /* support_usage_threshold */) {}

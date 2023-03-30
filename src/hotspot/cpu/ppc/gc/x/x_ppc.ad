@@ -170,7 +170,7 @@ instruct xCompareAndSwapP(iRegIdst res, iRegPdst mem, iRegPsrc oldval, iRegPsrc 
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   effect(TEMP_DEF res, TEMP tmp_xchg, TEMP tmp_mask, KILL cr0);
 
-  predicate((UseZGC && ZLegacyMode && n->as_LoadStore()->barrier_data() == Legacy::XLoadBarrierStrong)
+  predicate((UseZGC && ZLegacyMode && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong)
             && (((CompareAndSwapNode*)n)->order() != MemNode::acquire && ((CompareAndSwapNode*) n)->order() != MemNode::seqcst));
 
   format %{ "CMPXCHG $res, $mem, $oldval, $newval; as bool; ptr" %}

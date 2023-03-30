@@ -25,7 +25,7 @@ package gc.x;
 
 /*
  * @test TestPageCacheFlush
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
+ * @requires vm.gc.Z & !vm.opt.final.ZGenerational
  * @summary Test ZGC page cache flushing
  * @library /test/lib
  * @run driver gc.x.TestPageCacheFlush

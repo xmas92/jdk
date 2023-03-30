@@ -25,7 +25,7 @@ package gc.x;
 
 /*
  * @test TestAllocateHeapAt
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational) & os.family == "linux"
+ * @requires vm.gc.Z & !vm.opt.final.ZGenerational & os.family == "linux"
  * @summary Test ZGC with -XX:AllocateHeapAt
  * @library /test/lib
  * @run main/othervm gc.x.TestAllocateHeapAt . true

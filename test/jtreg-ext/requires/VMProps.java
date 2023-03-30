@@ -129,6 +129,7 @@ public class VMProps implements Callable<Map<String, String>> {
         vmGC(map); // vm.gc.X = true/false
         vmGCforCDS(map); // may set vm.gc
         vmOptFinalFlags(map);
+        vmZGenerational(map);
 
         dump(map.map);
         log("Leaving call()");
@@ -281,6 +282,17 @@ public class VMProps implements Callable<Map<String, String>> {
     }
 
     /**
+     * Returns the vm.gc.X property value for GC {@code gc}
+     * @param gc - the gc
+     * @return the vm.gc.X property value for GC {@code gc}
+     */
+    private boolean vmGC(GC gc) {
+        return (gc.isSupported()
+            && (!Compiler.isJVMCIEnabled() || gc.isSupportedByJVMCICompiler())
+            && (gc.isSelected() || GC.isSelectedErgonomically()));
+    }
+
+    /**
      * For all existing GC sets vm.gc.X property.
      * Example vm.gc.G1=true means:
      *    VM supports G1
@@ -290,13 +302,21 @@ public class VMProps implements Callable<Map<String, String>> {
      * @param map - property-value pairs
      */
     protected void vmGC(SafeMap map) {
-        var isJVMCIEnabled = Compiler.isJVMCIEnabled();
         for (GC gc: GC.values()) {
-            map.put("vm.gc." + gc.name(),
-                    () -> "" + (gc.isSupported()
-                            && (!isJVMCIEnabled || gc.isSupportedByJVMCICompiler())
-                            && (gc.isSelected() || GC.isSelectedErgonomically())));
+            map.put("vm.gc." + gc.name(), () -> "" + vmGC(gc));
         }
+    }
+
+
+    /**
+     * Sets the property vm.opt.final.ZGenerational
+     *    If vm.gc.Z=false then vm.opt.final.ZGenerational=false
+     *    otherwise vm.opt.final.ZGenerational=WB.getBooleanVMFlag("ZGenerational")
+     * @param map - property-value pairs
+     */
+    protected void vmZGenerational(SafeMap map) {
+        map.put("vm.opt.final.ZGenerational",
+        () -> "" + (vmGC(GC.Z) && WB.getBooleanVMFlag("ZGenerational")));
     }
 
     /**

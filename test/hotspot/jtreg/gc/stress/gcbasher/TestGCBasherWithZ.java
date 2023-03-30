@@ -31,16 +31,16 @@ import java.io.IOException;
  * @test TestGCBasherWithZ
  * @key stress
  * @library /
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | vm.opt.ZGenerational)
+ * @requires vm.gc.Z & vm.opt.final.ZGenerational
  * @requires vm.flavor == "server" & !vm.emulatedClient
  * @summary Stress ZGC
- * @run main/othervm/timeout=200 -Xlog:gc*=info -Xmx384m -server -XX:+UseZGC gc.stress.gcbasher.TestGCBasherWithZ 120000
+ * @run main/othervm/timeout=200 -Xlog:gc*=info -Xmx384m -server -XX:+UseZGC -XX:+ZGenerational  gc.stress.gcbasher.TestGCBasherWithZ 120000
  */
 /*
  * @test TestGCBasherWithZSingleGenMode
  * @key stress
  * @library /
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
+ * @requires vm.gc.Z & !vm.opt.final.ZGenerational
  * @requires vm.flavor == "server" & !vm.emulatedClient
  * @summary Stress ZGC
  * @run main/othervm/timeout=200 -Xlog:gc*=info -Xmx384m -server -XX:+UseZGC -XX:-ZGenerational gc.stress.gcbasher.TestGCBasherWithZ 120000
@@ -50,10 +50,10 @@ import java.io.IOException;
  * @test TestGCBasherDeoptWithZ
  * @key stress
  * @library /
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | vm.opt.ZGenerational)
+ * @requires vm.gc.Z & vm.opt.final.ZGenerational
  * @requires vm.flavor == "server" & !vm.emulatedClient & vm.opt.ClassUnloading != false
  * @summary Stress ZGC with nmethod barrier forced deoptimization enabled.
- * @run main/othervm/timeout=200 -Xlog:gc*=info,nmethod+barrier=trace -Xmx384m -server -XX:+UseZGC
+ * @run main/othervm/timeout=200 -Xlog:gc*=info,nmethod+barrier=trace -Xmx384m -server -XX:+UseZGC -XX:+ZGenerational
  *   -XX:+UnlockDiagnosticVMOptions -XX:+DeoptimizeNMethodBarriersALot -XX:-Inline
  *   gc.stress.gcbasher.TestGCBasherWithZ 120000
  */
@@ -62,11 +62,10 @@ import java.io.IOException;
  * @test TestGCBasherDeoptWithZSingleGenMode
  * @key stress
  * @library /
- * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
+ * @requires vm.gc.Z & !vm.opt.final.ZGenerational
  * @requires vm.flavor == "server" & !vm.emulatedClient & vm.opt.ClassUnloading != false
  * @summary Stress ZGC with nmethod barrier forced deoptimization enabled.
- * @run main/othervm/timeout=200 -Xlog:gc*=info,nmethod+barrier=trace -Xmx384m -server -XX:+UseZGC
- *   -XX:-ZGenerational
+ * @run main/othervm/timeout=200 -Xlog:gc*=info,nmethod+barrier=trace -Xmx384m -server -XX:+UseZGC -XX:-ZGenerational
  *   -XX:+UnlockDiagnosticVMOptions -XX:+DeoptimizeNMethodBarriersALot -XX:-Inline
  *   gc.stress.gcbasher.TestGCBasherWithZ 120000
  */

@@ -2078,14 +2078,9 @@ class StubGenerator: public StubCodeGenerator {
       generate_conjoint_int_copy_core(aligned);
     } else {
 #if INCLUDE_ZGC
-      if (UseZGC) {
-        if (ZGenerational) {
-          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
-          zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
-        } else {
-          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
-          zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
-        }
+      if (UseZGC && ZGenerational) {
+        ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+        zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
       } else
 #endif
       generate_conjoint_long_copy_core(aligned);
@@ -2126,14 +2121,9 @@ class StubGenerator: public StubCodeGenerator {
       generate_disjoint_int_copy_core(aligned);
     } else {
 #if INCLUDE_ZGC
-      if (UseZGC) {
-        if (ZGenerational) {
-          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
-          zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
-        } else {
-          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
-          zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
-        }
+      if (UseZGC && ZGenerational) {
+        ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+        zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
       } else
 #endif
       generate_disjoint_long_copy_core(aligned);

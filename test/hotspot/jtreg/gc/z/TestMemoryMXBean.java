@@ -25,7 +25,7 @@ package gc.z;
 
 /**
  * @test TestMemoryMXBean
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | vm.opt.ZGenerational)
  * @summary Test ZGC heap memory MXBean
  * @modules java.management
  * @run main/othervm -XX:+UseZGC -Xms128M -Xmx256M -Xlog:gc* gc.z.TestMemoryMXBean 128 256

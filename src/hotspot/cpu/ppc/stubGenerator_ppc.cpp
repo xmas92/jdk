@@ -2079,11 +2079,11 @@ class StubGenerator: public StubCodeGenerator {
     } else {
 #if INCLUDE_ZGC
       if (UseZGC) {
-        if (ZLegacyMode) {
-          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
+        if (ZGenerational) {
+          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
           zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
         } else {
-          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
           zbs->generate_conjoint_oop_copy(_masm, dest_uninitialized);
         }
       } else
@@ -2127,11 +2127,11 @@ class StubGenerator: public StubCodeGenerator {
     } else {
 #if INCLUDE_ZGC
       if (UseZGC) {
-        if (ZLegacyMode) {
-          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
+        if (ZGenerational) {
+          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
           zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
         } else {
-          ZBarrierSetAssembler *zbs = (ZBarrierSetAssembler*)bs;
+          XBarrierSetAssembler *zbs = (XBarrierSetAssembler*)bs;
           zbs->generate_disjoint_oop_copy(_masm, dest_uninitialized);
         }
       } else
@@ -2249,7 +2249,7 @@ class StubGenerator: public StubCodeGenerator {
     } else {
       __ bind(store_null);
 #if INCLUDE_ZGC
-      if (UseZGC && !ZLegacyMode) {
+      if (UseZGC && ZGenerational) {
         __ store_heap_oop(R10_oop, R8_offset, R4_to, R11_scratch1, R12_tmp, noreg,
                           MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS,
                           dest_uninitialized ? IS_DEST_UNINITIALIZED : 0);
@@ -2265,7 +2265,7 @@ class StubGenerator: public StubCodeGenerator {
     // ======== loop entry is here ========
     __ bind(load_element);
 #if INCLUDE_ZGC
-    if (UseZGC && !ZLegacyMode) {
+    if (UseZGC && ZGenerational) {
       __ load_heap_oop(R10_oop, R8_offset, R3_from,
                        R11_scratch1, R12_tmp,
                        MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS,

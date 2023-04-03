@@ -25,7 +25,7 @@ package gc.z;
 
 /*
  * @test TestRelocateInPlace
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | vm.opt.ZGenerational)
  * @summary Test ZGC in-place relocateion
  * @run main/othervm -XX:+UseZGC -Xlog:gc*,gc+stats=off -Xmx256M -XX:+UnlockDiagnosticVMOptions -XX:+ZStressRelocateInPlace gc.z.TestRelocateInPlace
  */

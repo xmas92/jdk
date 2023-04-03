@@ -86,7 +86,7 @@ static void x_cmpxchg_common(MacroAssembler& _masm, const MachNode* node, Regist
 // Load Pointer
 instruct xLoadP(rRegP dst, memory mem, rFlagsReg cr)
 %{
-  predicate(UseZGC && ZLegacyMode && n->as_Load()->barrier_data() != 0);
+  predicate(UseZGC && !ZGenerational && n->as_Load()->barrier_data() != 0);
   match(Set dst (LoadP mem));
   effect(KILL cr, TEMP dst);
 
@@ -104,7 +104,7 @@ instruct xLoadP(rRegP dst, memory mem, rFlagsReg cr)
 
 instruct xCompareAndExchangeP(indirect mem, rax_RegP oldval, rRegP newval, rRegP tmp, rFlagsReg cr) %{
   match(Set oldval (CompareAndExchangeP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
+  predicate(UseZGC && !ZGenerational && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
   effect(KILL cr, TEMP tmp);
 
   format %{ "lock\n\t"
@@ -121,7 +121,7 @@ instruct xCompareAndExchangeP(indirect mem, rax_RegP oldval, rRegP newval, rRegP
 instruct xCompareAndSwapP(rRegI res, indirect mem, rRegP newval, rRegP tmp, rFlagsReg cr, rax_RegP oldval) %{
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   match(Set res (WeakCompareAndSwapP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
+  predicate(UseZGC && !ZGenerational && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
   effect(KILL cr, KILL oldval, TEMP tmp);
 
   format %{ "lock\n\t"
@@ -144,7 +144,7 @@ instruct xCompareAndSwapP(rRegI res, indirect mem, rRegP newval, rRegP tmp, rFla
 
 instruct xXChgP(indirect mem, rRegP newval, rFlagsReg cr) %{
   match(Set newval (GetAndSetP mem newval));
-  predicate(UseZGC && ZLegacyMode && n->as_LoadStore()->barrier_data() != 0);
+  predicate(UseZGC && !ZGenerational && n->as_LoadStore()->barrier_data() != 0);
   effect(KILL cr);
 
   format %{ "xchgq    $newval, $mem" %}

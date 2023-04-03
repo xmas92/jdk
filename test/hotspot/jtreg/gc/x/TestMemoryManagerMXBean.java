@@ -25,10 +25,10 @@ package gc.x;
 
 /**
  * @test TestMemoryManagerMXBean
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
  * @summary Test ZGC memory manager MXBean
  * @modules java.management
- * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode -Xmx128M gc.x.TestMemoryManagerMXBean
+ * @run main/othervm -XX:+UseZGC -XX:-ZGenerational -Xmx128M gc.x.TestMemoryManagerMXBean
  */
 
 import java.lang.management.ManagementFactory;

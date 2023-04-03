@@ -25,7 +25,7 @@ package gc.x;
 
 /*
  * @test TestAllocateHeapAt
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode) & os.family == "linux"
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational) & os.family == "linux"
  * @summary Test ZGC with -XX:AllocateHeapAt
  * @library /test/lib
  * @run main/othervm gc.x.TestAllocateHeapAt . true
@@ -43,7 +43,7 @@ public class TestAllocateHeapAt {
 
         ProcessTools.executeProcess(ProcessTools.createJavaProcessBuilder(
                 "-XX:+UseZGC",
-                "-XX:+ZLegacyMode",
+                "-XX:-ZGenerational",
                 "-Xlog:gc*",
                 "-Xms32M",
                 "-Xmx32M",

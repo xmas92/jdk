@@ -89,8 +89,8 @@ inline void stackChunkOopDesc::set_max_thawing_size(int value)  {
 }
 
 inline oop stackChunkOopDesc::cont() const                {
-  if (UseZGC && ZLegacyMode) {
-    assert(!UseCompressedOops, "ZLegacyMode does not support compressed oops");
+  if (UseZGC && !ZGenerational) {
+    assert(!UseCompressedOops, "Non-generational ZGC does not support compressed oops");
     // The state of the cont oop is used by XCollectedHeap::requires_barriers,
     // to determine the age of the stackChunkOopDesc. For that to work, it is
     // only the GC that is allowed to perform a load barrier on the oop.

@@ -43,10 +43,10 @@ GCName GCConfiguration::young_collector() const {
   }
 
   if (UseZGC) {
-    if (ZLegacyMode) {
-      return NA;
-    } else {
+    if (ZGenerational) {
       return ZMinor;
+    } else {
+      return NA;
     }
   }
 
@@ -67,10 +67,10 @@ GCName GCConfiguration::old_collector() const {
   }
 
   if (UseZGC) {
-    if (ZLegacyMode) {
-      return Z;
-    } else {
+    if (ZGenerational) {
       return ZMajor;
+    } else {
+      return Z;
     }
   }
 

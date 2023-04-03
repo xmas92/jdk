@@ -956,7 +956,7 @@ class StubGenerator: public StubCodeGenerator {
 
     // The size of copy32_loop body increases significantly with ZGC GC barriers.
     // Need conditional far branches to reach a point beyond the loop in this case.
-    bool is_far = UseZGC && !ZLegacyMode;
+    bool is_far = UseZGC && ZGenerational;
 
     __ beqz(count, done, is_far);
     __ slli(cnt, count, exact_log2(granularity));

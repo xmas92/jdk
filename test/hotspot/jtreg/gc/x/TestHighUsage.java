@@ -25,7 +25,7 @@ package gc.x;
 
 /*
  * @test TestHighUsage
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
  * @summary Test ZGC "High Usage" rule
  * @library /test/lib
  * @run main/othervm gc.x.TestHighUsage
@@ -86,7 +86,7 @@ public class TestHighUsage {
 
     public static void main(String[] args) throws Exception {
         ProcessTools.executeTestJvm("-XX:+UseZGC",
-                                    "-XX:+ZLegacyMode",
+                                    "-XX:-ZGenerational",
                                     "-XX:-ZProactive",
                                     "-Xms128M",
                                     "-Xmx128M",

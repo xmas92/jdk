@@ -25,9 +25,9 @@ package gc.x;
 
 /*
  * @test TestRelocateInPlace
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
  * @summary Test ZGC in-place relocateion
- * @run main/othervm -XX:+UseZGC -XX:+ZLegacyMode -Xlog:gc*,gc+stats=off -Xmx256M -XX:+UnlockDiagnosticVMOptions -XX:+ZStressRelocateInPlace gc.x.TestRelocateInPlace
+ * @run main/othervm -XX:+UseZGC -XX:-ZGenerational -Xlog:gc*,gc+stats=off -Xmx256M -XX:+UnlockDiagnosticVMOptions -XX:+ZStressRelocateInPlace gc.x.TestRelocateInPlace
  */
 
 import java.util.ArrayList;

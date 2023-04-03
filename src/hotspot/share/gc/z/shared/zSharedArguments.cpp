@@ -40,18 +40,18 @@ void ZSharedArguments::initialize_alignments() {
 void ZSharedArguments::initialize() {
   GCArguments::initialize();
 
-  if (ZLegacyMode) {
-    XArguments::initialize();
-  } else {
+  if (ZGenerational) {
     ZArguments::initialize();
+  } else {
+    XArguments::initialize();
   }
 }
 
 size_t ZSharedArguments::heap_virtual_to_physical_ratio() {
-  if (ZLegacyMode) {
-    return XArguments::heap_virtual_to_physical_ratio();
-  } else {
+  if (ZGenerational) {
     return ZArguments::heap_virtual_to_physical_ratio();
+  } else {
+    return XArguments::heap_virtual_to_physical_ratio();
   }
 }
 
@@ -60,17 +60,17 @@ size_t ZSharedArguments::conservative_max_heap_alignment() {
 }
 
 CollectedHeap* ZSharedArguments::create_heap() {
-  if (ZLegacyMode) {
-    return XArguments::create_heap();
-  } else {
+  if (ZGenerational) {
     return ZArguments::create_heap();
+  } else {
+    return XArguments::create_heap();
   }
 }
 
 bool ZSharedArguments::is_supported() const {
-  if (ZLegacyMode) {
-    return XArguments::is_os_supported();
-  } else {
+  if (ZGenerational) {
     return ZArguments::is_os_supported();
+  } else {
+    return XArguments::is_os_supported();
   }
 }

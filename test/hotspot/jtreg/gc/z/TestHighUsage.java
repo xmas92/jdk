@@ -25,7 +25,7 @@ package gc.z;
 
 /*
  * @test TestHighUsage
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | !vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | vm.opt.ZGenerational)
  * @summary Test ZGC "High Usage" rule
  * @library /test/lib
  * @run main/othervm gc.z.TestHighUsage

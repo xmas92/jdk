@@ -25,7 +25,7 @@ package gc.x;
 
 /*
  * @test TestPageCacheFlush
- * @requires vm.gc.Z & (vm.opt.ZLegacyMode == null | vm.opt.ZLegacyMode)
+ * @requires vm.gc.Z & (vm.opt.ZGenerational == null | !vm.opt.ZGenerational)
  * @summary Test ZGC page cache flushing
  * @library /test/lib
  * @run driver gc.x.TestPageCacheFlush
@@ -70,7 +70,7 @@ public class TestPageCacheFlush {
     public static void main(String[] args) throws Exception {
         ProcessTools.executeProcess(ProcessTools.createJavaProcessBuilder(
                                     "-XX:+UseZGC",
-                                    "-XX:+ZLegacyMode",
+                                    "-XX:-ZGenerational",
                                     "-Xms128M",
                                     "-Xmx128M",
                                     "-Xlog:gc,gc+init,gc+heap=debug",

@@ -55,7 +55,7 @@ static void x_load_barrier_slow_path(MacroAssembler& _masm, const MachNode* node
 instruct xLoadP(iRegPNoSp dst, memory mem)
 %{
   match(Set dst (LoadP mem));
-  predicate(UseZGC && ZLegacyMode && (n->as_Load()->barrier_data() != 0));
+  predicate(UseZGC && !ZGenerational && (n->as_Load()->barrier_data() != 0));
   effect(TEMP dst);
 
   ins_cost(4 * DEFAULT_COST);
@@ -74,7 +74,7 @@ instruct xLoadP(iRegPNoSp dst, memory mem)
 instruct xCompareAndSwapP(iRegINoSp res, indirect mem, iRegP oldval, iRegP newval, rFlagsReg cr) %{
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   match(Set res (WeakCompareAndSwapP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
+  predicate(UseZGC && !ZGenerational && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
   effect(KILL cr, TEMP_DEF res);
 
   ins_cost(2 * VOLATILE_REF_COST);
@@ -110,7 +110,7 @@ instruct xCompareAndSwapP(iRegINoSp res, indirect mem, iRegP oldval, iRegP newva
 instruct xCompareAndSwapPAcq(iRegINoSp res, indirect mem, iRegP oldval, iRegP newval, rFlagsReg cr) %{
   match(Set res (CompareAndSwapP mem (Binary oldval newval)));
   match(Set res (WeakCompareAndSwapP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && needs_acquiring_load_reserved(n) && (n->as_LoadStore()->barrier_data() == XLoadBarrierStrong));
+  predicate(UseZGC && !ZGenerational && needs_acquiring_load_reserved(n) && (n->as_LoadStore()->barrier_data() == XLoadBarrierStrong));
   effect(KILL cr, TEMP_DEF res);
 
   ins_cost(2 * VOLATILE_REF_COST);
@@ -145,7 +145,7 @@ instruct xCompareAndSwapPAcq(iRegINoSp res, indirect mem, iRegP oldval, iRegP ne
 
 instruct xCompareAndExchangeP(iRegPNoSp res, indirect mem, iRegP oldval, iRegP newval) %{
   match(Set res (CompareAndExchangeP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
+  predicate(UseZGC && !ZGenerational && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
   effect(TEMP_DEF res);
 
   ins_cost(2 * VOLATILE_REF_COST);
@@ -173,7 +173,7 @@ instruct xCompareAndExchangeP(iRegPNoSp res, indirect mem, iRegP oldval, iRegP n
 
 instruct xCompareAndExchangePAcq(iRegPNoSp res, indirect mem, iRegP oldval, iRegP newval) %{
   match(Set res (CompareAndExchangeP mem (Binary oldval newval)));
-  predicate(UseZGC && ZLegacyMode && needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
+  predicate(UseZGC && !ZGenerational && needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() == XLoadBarrierStrong);
   effect(TEMP_DEF res);
 
   ins_cost(2 * VOLATILE_REF_COST);
@@ -201,7 +201,7 @@ instruct xCompareAndExchangePAcq(iRegPNoSp res, indirect mem, iRegP oldval, iReg
 
 instruct xGetAndSetP(indirect mem, iRegP newv, iRegPNoSp prev, rFlagsReg cr) %{
   match(Set prev (GetAndSetP mem newv));
-  predicate(UseZGC && ZLegacyMode && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() != 0);
+  predicate(UseZGC && !ZGenerational && !needs_acquiring_load_reserved(n) && n->as_LoadStore()->barrier_data() != 0);
   effect(TEMP_DEF prev, KILL cr);
 
   ins_cost(2 * VOLATILE_REF_COST);
@@ -218,7 +218,7 @@ instruct xGetAndSetP(indirect mem, iRegP newv, iRegPNoSp prev, rFlagsReg cr) %{
 
 instruct xGetAndSetPAcq(indirect mem, iRegP newv, iRegPNoSp prev, rFlagsReg cr) %{
   match(Set prev (GetAndSetP mem newv));
-  predicate(UseZGC && ZLegacyMode && needs_acquiring_load_reserved(n) && (n->as_LoadStore()->barrier_data() != 0));
+  predicate(UseZGC && !ZGenerational && needs_acquiring_load_reserved(n) && (n->as_LoadStore()->barrier_data() != 0));
   effect(TEMP_DEF prev, KILL cr);
 
   ins_cost(VOLATILE_REF_COST);

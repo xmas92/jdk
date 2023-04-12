@@ -41,6 +41,8 @@
 #include "oops/access.inline.hpp"
 
 static const ZStatSubPhase ZSubPhaseConcurrentClassesUnlink("Concurrent Classes Unlink", ZGenerationId::old);
+
+static const ZStatSubPhase ZSubPhaseConcurrentCleanWeakKlassLinks("Concurrent Clean Weak Klass Links", ZGenerationId::old);
 static const ZStatSubPhase ZSubPhaseConcurrentClassesPurge("Concurrent Classes Purge", ZGenerationId::old);
 
 class ZIsUnloadingOopClosure : public OopClosure {
@@ -151,7 +153,12 @@ void ZUnload::unlink() {
     unloading_occurred = SystemDictionary::do_unloading(ZGeneration::old()->gc_timer());
   }
 
-  Klass::clean_weak_klass_links(unloading_occurred);
+  {
+    ZStatTimerOld timer(ZSubPhaseConcurrentCleanWeakKlassLinks);
+
+    Klass::clean_weak_klass_links(unloading_occurred);
+  }
+
   ZNMethod::unlink(_workers, unloading_occurred);
   DependencyContext::cleaning_end();
 }

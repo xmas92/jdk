@@ -34,6 +34,8 @@
 #include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
 
+static const ZStatSubPhase ZSubPhaseConcurrentWeakRootsProcess("Concurrent Weak Roots Process", ZGenerationId::old);
+
 class ZPhantomCleanOopClosure : public OopClosure {
 public:
   virtual void do_oop(oop* p) {
@@ -70,6 +72,8 @@ public:
 };
 
 void ZWeakRootsProcessor::process_weak_roots() {
+  ZStatTimerOld timer(ZSubPhaseConcurrentWeakRootsProcess);
+
   ZProcessWeakRootsTask task;
   _workers->run(&task);
 }

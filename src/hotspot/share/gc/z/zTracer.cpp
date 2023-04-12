@@ -93,29 +93,48 @@ ZMinorTracer::ZMinorTracer() :
 ZMajorTracer::ZMajorTracer() :
     GCTracer(ZMajor) {}
 
+void ZGenerationTracer::send_gc_phase(const char* name, const Ticks& end) {
+  EventGCPhase e(UNTIMED);
+  e.set_gcId(GCId::current());
+  e.set_name(name);
+  e.set_starttime(_start);
+  e.set_endtime(end);
+  e.commit();
+}
+
 void ZGenerationTracer::report_start(const Ticks& timestamp) {
   _start = timestamp;
 }
 
-void ZYoungTracer::report_end(const Ticks& timestamp) {
-  NoSafepointVerifier nsv;
-
+void ZYoungTracer::send_young_gc(const Ticks& end) {
   EventZYoungGarbageCollection e(UNTIMED);
   e.set_gcId(GCId::current());
   e.set_tenuringThreshold(ZGeneration::young()->tenuring_threshold());
   e.set_starttime(_start);
-  e.set_endtime(timestamp);
+  e.set_endtime(end);
   e.commit();
 }
 
-void ZOldTracer::report_end(const Ticks& timestamp) {
+void ZYoungTracer::report_end(const char* name, const Ticks& timestamp) {
   NoSafepointVerifier nsv;
 
+  send_gc_phase(name, timestamp);
+  send_young_gc(timestamp);
+}
+
+void ZOldTracer::send_old_gc(const Ticks& end) {
   EventZOldGarbageCollection e(UNTIMED);
   e.set_gcId(GCId::current());
   e.set_starttime(_start);
-  e.set_endtime(timestamp);
+  e.set_endtime(end);
   e.commit();
+}
+
+void ZOldTracer::report_end(const char* name, const Ticks& timestamp) {
+  NoSafepointVerifier nsv;
+
+  send_gc_phase(name, timestamp);
+  send_old_gc(timestamp);
 }
 
 void ZTracer::initialize() {

@@ -713,7 +713,7 @@ void ZStatPhaseGeneration::register_end(ConcurrentGCTimer* timer, const Ticks& s
     return;
   }
 
-  jfr_tracer()->report_end(end);
+  jfr_tracer()->report_end(name(), end);
 
   ZCollectedHeap::heap()->print_heap_after_gc();
 

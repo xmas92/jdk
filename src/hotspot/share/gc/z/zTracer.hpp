@@ -61,22 +61,30 @@ class ZGenerationTracer {
 protected:
   Ticks _start;
 
+  void send_gc_phase(const char* name, const Ticks& end);
+
 public:
   ZGenerationTracer() :
       _start() {}
 
   void report_start(const Ticks& timestamp);
-  virtual void report_end(const Ticks& timestamp) = 0;
+  virtual void report_end(const char* name, const Ticks& timestamp) = 0;
 };
 
 class ZYoungTracer : public ZGenerationTracer {
+private:
+  void send_young_gc(const Ticks& end);
+
 public:
-  void report_end(const Ticks& timestamp) override;
+  void report_end(const char* name, const Ticks& timestamp) override;
 };
 
 class ZOldTracer : public ZGenerationTracer {
+private:
+  void send_old_gc(const Ticks& end);
+
 public:
-  void report_end(const Ticks& timestamp) override;
+  void report_end(const char* name, const Ticks& timestamp) override;
 };
 
 // For temporary latency measurements during development and debugging

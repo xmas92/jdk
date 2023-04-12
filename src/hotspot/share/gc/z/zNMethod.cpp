@@ -53,6 +53,8 @@
 #include "runtime/continuation.hpp"
 #include "utilities/debug.hpp"
 
+static const ZStatSubPhase ZSubPhaseConcurrentNMethodUnlink("Concurrent NMethod Unlink", ZGenerationId::old);
+
 static ZNMethodData* gc_data(const nmethod* nm) {
   return nm->gc_data<ZNMethodData>();
 }
@@ -423,6 +425,8 @@ public:
 };
 
 void ZNMethod::unlink(ZWorkers* workers, bool unloading_occurred) {
+  ZStatTimerOld timer(ZSubPhaseConcurrentNMethodUnlink);
+
   for (;;) {
     ICRefillVerifier verifier;
 

@@ -51,6 +51,8 @@
 
 static const ZStatCriticalPhase ZCriticalPhaseRelocationStall("Relocation Stall");
 static const ZStatSubPhase ZSubPhaseConcurrentRelocateRememberedSetFlipPromotedYoung("Concurrent Relocate Remset FP", ZGenerationId::young);
+static const ZStatSubPhase ZSubPhaseConcurrentRelocateTaskYoung("Concurrent Relocate Task", ZGenerationId::young);
+static const ZStatSubPhase ZSubPhaseConcurrentRelocateTaskOld("Concurrent Relocate Task", ZGenerationId::old);
 
 static uintptr_t forwarding_index(ZForwarding* forwarding, zoffset from_offset) {
   return (from_offset - forwarding->start()) >> forwarding->object_alignment_shift();
@@ -1060,6 +1062,7 @@ private:
   ZRelocateQueue* const          _queue;
   ZRelocateSmallAllocator        _small_allocator;
   ZRelocateMediumAllocator       _medium_allocator;
+  ZStatTimer                     _timer;
 
 public:
   ZRelocateTask(ZRelocationSet* relocation_set, ZRelocateQueue* queue) :
@@ -1068,7 +1071,11 @@ public:
       _generation(relocation_set->generation()),
       _queue(queue),
       _small_allocator(_generation),
-      _medium_allocator(_generation) {}
+      _medium_allocator(_generation),
+      _timer(_generation->is_young()
+              ? ZSubPhaseConcurrentRelocateTaskYoung
+              : ZSubPhaseConcurrentRelocateTaskOld,
+            _generation->gc_timer()) {}
 
   ~ZRelocateTask() {
     _generation->stat_relocation()->at_relocate_end(_small_allocator.in_place_count(), _medium_allocator.in_place_count());

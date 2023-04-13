@@ -22,7 +22,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import java.util.Iterator;
 
@@ -33,7 +33,7 @@ import sun.jvm.hotspot.runtime.VMObjectFactory;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZPageTable extends VMObject {
+public class XPageTable extends VMObject {
     private static long mapFieldOffset;
 
     static {
@@ -41,49 +41,49 @@ public class ZPageTable extends VMObject {
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZPageTable");
+        Type type = db.lookupType("XPageTable");
 
         mapFieldOffset = type.getAddressField("_map").getOffset();
     }
 
-    public ZPageTable(Address addr) {
+    public XPageTable(Address addr) {
         super(addr);
     }
 
-    private ZGranuleMapForPageTable map() {
-        return VMObjectFactory.newObject(ZGranuleMapForPageTable.class, addr.addOffsetTo(mapFieldOffset));
+    private XGranuleMapForPageTable map() {
+        return VMObjectFactory.newObject(XGranuleMapForPageTable.class, addr.addOffsetTo(mapFieldOffset));
     }
 
-    private ZPageTableEntry getEntry(Address o) {
-        return new ZPageTableEntry(map().get(o));
+    private XPageTableEntry getEntry(Address o) {
+        return new XPageTableEntry(map().get(o));
     }
 
-    ZPage get(Address o) {
-        return VMObjectFactory.newObject(ZPage.class, map().get(VM.getVM().getDebugger().newAddress(ZAddress.offset(o))));
+    XPage get(Address o) {
+        return VMObjectFactory.newObject(XPage.class, map().get(VM.getVM().getDebugger().newAddress(XAddress.offset(o))));
     }
 
     boolean is_relocating(Address o) {
         return getEntry(o).relocating();
     }
 
-    private class ZPagesIterator implements Iterator<ZPage> {
-        private ZGranuleMapForPageTable.Iterator mapIter;
-        private ZPage next;
+    private class XPagesIterator implements Iterator<XPage> {
+        private XGranuleMapForPageTable.Iterator mapIter;
+        private XPage next;
 
-        ZPagesIterator() {
+        XPagesIterator() {
             mapIter = map().new Iterator();
             positionToNext();
         }
 
-        private ZPage positionToNext() {
-            ZPage current = next;
+        private XPage positionToNext() {
+            XPage current = next;
 
             // Find next
-            ZPage found = null;
+            XPage found = null;
             while (mapIter.hasNext()) {
-                ZPageTableEntry entry = new ZPageTableEntry(mapIter.next());
+                XPageTableEntry entry = new XPageTableEntry(mapIter.next());
                 if (!entry.isEmpty()) {
-                    ZPage page = entry.page();
+                    XPage page = entry.page();
                     // Medium pages have repeated entries for all covered slots,
                     // therefore we need to compare against the current page.
                     if (page != null && !page.equals(current)) {
@@ -104,7 +104,7 @@ public class ZPageTable extends VMObject {
         }
 
         @Override
-        public ZPage next() {
+        public XPage next() {
             return positionToNext();
         }
 
@@ -114,27 +114,27 @@ public class ZPageTable extends VMObject {
         }
     }
 
-    abstract class ZPageFilter {
-        public abstract boolean accept(ZPage page);
+    abstract class XPageFilter {
+        public abstract boolean accept(XPage page);
     }
 
-    class ZPagesFilteredIterator implements Iterator<ZPage> {
-        private ZPage next;
-        private ZPagesIterator iter = new ZPagesIterator();
-        private ZPageFilter filter;
+    class XPagesFilteredIterator implements Iterator<XPage> {
+        private XPage next;
+        private XPagesIterator iter = new XPagesIterator();
+        private XPageFilter filter;
 
-        ZPagesFilteredIterator(ZPageFilter filter) {
+        XPagesFilteredIterator(XPageFilter filter) {
             this.filter = filter;
             positionToNext();
         }
 
-        public ZPage positionToNext() {
-            ZPage current = next;
+        public XPage positionToNext() {
+            XPage current = next;
 
             // Find next
-            ZPage found = null;
+            XPage found = null;
             while (iter.hasNext()) {
-                ZPage page = iter.next();
+                XPage page = iter.next();
                 if (filter.accept(page)) {
                     found = page;
                     break;
@@ -152,7 +152,7 @@ public class ZPageTable extends VMObject {
         }
 
         @Override
-        public ZPage next() {
+        public XPage next() {
             return positionToNext();
         }
 
@@ -162,13 +162,13 @@ public class ZPageTable extends VMObject {
         }
     }
 
-    public Iterator<ZPage> iterator() {
-        return new ZPagesIterator();
+    public Iterator<XPage> iterator() {
+        return new XPagesIterator();
     }
 
-    public Iterator<ZPage> activePagesIterator() {
-        return new ZPagesFilteredIterator(new ZPageFilter() {
-            public boolean accept(ZPage page) {
+    public Iterator<XPage> activePagesIterator() {
+        return new XPagesFilteredIterator(new XPageFilter() {
+            public boolean accept(XPage page) {
                 return page != null;
             }
         });

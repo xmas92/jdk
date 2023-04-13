@@ -22,19 +22,39 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
+import sun.jvm.hotspot.runtime.VMObject;
+import sun.jvm.hotspot.runtime.VMObjectFactory;
+import sun.jvm.hotspot.types.AddressField;
+import sun.jvm.hotspot.types.CIntegerField;
+import sun.jvm.hotspot.types.Type;
+import sun.jvm.hotspot.types.TypeDataBase;
 
-class ZUtils {
-    static Address longToAddress(long value) {
-        return VM.getVM().getDebugger().newAddress(value);
+public class XForwardingTable extends VMObject {
+    private static long mapFieldOffset;
+
+    static {
+        VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
-    static long alignUp(long size, long alignment) {
-        long mask = alignment - 1;
-        long adjusted = size + mask;
-        return adjusted & ~mask;
+    private static synchronized void initialize(TypeDataBase db) {
+        Type type = db.lookupType("XForwardingTable");
+
+        mapFieldOffset = type.getAddressField("_map").getOffset();
+    }
+
+    public XForwardingTable(Address addr) {
+        super(addr);
+    }
+
+    private XGranuleMapForForwarding map() {
+        return VMObjectFactory.newObject(XGranuleMapForForwarding.class, addr.addOffsetTo(mapFieldOffset));
+    }
+
+    public XForwarding get(Address o) {
+        return VMObjectFactory.newObject(XForwarding.class, map().get(XAddress.offset(o)));
     }
 }

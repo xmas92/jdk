@@ -22,30 +22,30 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 
-class ZBarrier {
+class XBarrier {
     private static boolean is_weak_good_or_null_fast_path(Address addr) {
-        return ZAddress.is_weak_good_or_null(addr);
+        return XAddress.is_weak_good_or_null(addr);
     }
 
     private static Address weak_load_barrier_on_oop_slow_path(Address addr) {
-        return ZAddress.is_weak_good(addr) ? ZAddress.good(addr) : relocate_or_remap(addr);
+        return XAddress.is_weak_good(addr) ? XAddress.good(addr) : relocate_or_remap(addr);
     }
 
     private static boolean during_relocate() {
-        return ZGlobals.ZGlobalPhase() == ZGlobals.ZPhaseRelocate;
+        return XGlobals.XGlobalPhase() == XGlobals.XPhaseRelocate;
     }
 
     private static Address relocate(Address addr) {
         return zheap().relocate_object(addr);
     }
 
-    private static ZHeap zheap() {
-        ZCollectedHeap zCollectedHeap = (ZCollectedHeap)VM.getVM().getUniverse().heap();
+    private static XHeap zheap() {
+        XCollectedHeap zCollectedHeap = (XCollectedHeap)VM.getVM().getUniverse().heap();
         return zCollectedHeap.heap();
     }
 
@@ -62,7 +62,7 @@ class ZBarrier {
         if (is_weak_good_or_null_fast_path(o)) {
             // Return the good address instead of the weak good address
             // to ensure that the currently active heap view is used.
-            return ZAddress.good_or_null(o);
+            return XAddress.good_or_null(o);
         }
 
         // Slow path

@@ -31,7 +31,7 @@ import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-// Mirror class for ZPageAllocator
+// Mirror class for XPageAllocator
 
 public class ZPageAllocator extends VMObject {
 

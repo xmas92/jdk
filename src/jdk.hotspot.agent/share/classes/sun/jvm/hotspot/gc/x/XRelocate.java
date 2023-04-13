@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, NTT DATA.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,39 +23,52 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 import sun.jvm.hotspot.runtime.VMObject;
-import sun.jvm.hotspot.types.CIntegerField;
+import sun.jvm.hotspot.types.AddressField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZVirtualMemory extends VMObject {
-    private static CIntegerField startField;
-    private static CIntegerField endField;
+public class XRelocate  extends VMObject {
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZVirtualMemory");
-
-        startField = type.getCIntegerField("_start");
-        endField = type.getCIntegerField("_end");
+        Type type = db.lookupType("XRelocate");
     }
 
-    public ZVirtualMemory(Address addr) {
+    public XRelocate(Address addr) {
         super(addr);
     }
 
-    long start() {
-        return startField.getJLong(addr);
+    private long forwardingIndex(XForwarding forwarding, Address from) {
+        long fromOffset = XAddress.offset(from);
+        return (fromOffset - forwarding.start()) >>> forwarding.objectAlignmentShift();
     }
 
-    long end() {
-        return endField.getJLong(addr);
+    private Address forwardingFind(XForwarding forwarding, Address from) {
+        long fromIndex = forwardingIndex(forwarding, from);
+        XForwardingEntry entry = forwarding.find(fromIndex);
+        return entry.populated() ? XAddress.good(VM.getVM().getDebugger().newAddress(entry.toOffset())) : null;
+    }
+
+    public Address forwardObject(XForwarding forwarding, Address from) {
+        return forwardingFind(forwarding, from);
+    }
+
+    public Address relocateObject(XForwarding forwarding, Address o) {
+        Address toAddr = forwardingFind(forwarding, o);
+        if (toAddr != null) {
+            // Already relocated.
+            return toAddr;
+        } else {
+            // Return original address because it is not yet relocated.
+            return o;
+        }
     }
 }

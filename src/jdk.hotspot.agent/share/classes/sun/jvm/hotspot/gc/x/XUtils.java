@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,20 +22,19 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
-class ZHash {
-    private static long uint32(long value) {
-        return value & 0xFFFFFFFFL;
+import sun.jvm.hotspot.debugger.Address;
+import sun.jvm.hotspot.runtime.VM;
+
+class XUtils {
+    static Address longToAddress(long value) {
+        return VM.getVM().getDebugger().newAddress(value);
     }
 
-    static long uint32_to_uint32(long key) {
-        key = uint32(~key + (key << 15));
-        key = uint32(key ^ (key >>> 12));
-        key = uint32(key + (key << 2));
-        key = uint32(key ^ (key >>> 4));
-        key = uint32(key * 2057);
-        key = uint32(key ^ (key >>> 16));
-        return key;
+    static long alignUp(long size, long alignment) {
+        long mask = alignment - 1;
+        long adjusted = size + mask;
+        return adjusted & ~mask;
     }
 }

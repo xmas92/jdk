@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, NTT DATA.
+ * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,68 +22,39 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 import sun.jvm.hotspot.runtime.VMObject;
-import sun.jvm.hotspot.types.AddressField;
+import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZGranuleMapForForwarding  extends VMObject {
-    private static AddressField mapField;
+public class XVirtualMemory extends VMObject {
+    private static CIntegerField startField;
+    private static CIntegerField endField;
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZGranuleMapForForwarding");
+        Type type = db.lookupType("XVirtualMemory");
 
-        mapField = type.getAddressField("_map");
+        startField = type.getCIntegerField("_start");
+        endField = type.getCIntegerField("_end");
     }
 
-    public ZGranuleMapForForwarding(Address addr) {
+    public XVirtualMemory(Address addr) {
         super(addr);
     }
 
-    private Address map() {
-        return mapField.getValue(addr);
+    long start() {
+        return startField.getJLong(addr);
     }
 
-    public long size() {
-        return ZGlobals.ZAddressOffsetMax >> ZGlobals.ZGranuleSizeShift;
-    }
-
-    private long index_for_offset(long offset) {
-        long index = offset >>> ZGlobals.ZGranuleSizeShift;
-
-        return index;
-    }
-
-    Address at(long index) {
-        return map().getAddressAt(index * VM.getVM().getAddressSize());
-    }
-
-    Address get(long offset) {
-        long index = index_for_offset(offset);
-        return at(index);
-    }
-
-    public class Iterator {
-        private long next = 0;
-
-        boolean hasNext() {
-            return next < size();
-        }
-
-        Address next() {
-            if (next >= size()) {
-                throw new RuntimeException("OOIBE");
-            }
-
-            return at(next++);
-        }
+    long end() {
+        return endField.getJLong(addr);
     }
 }

@@ -22,7 +22,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZPage extends VMObject implements LiveRegionsProvider {
+public class XPage extends VMObject implements LiveRegionsProvider {
     private static CIntegerField typeField;
     private static CIntegerField seqnumField;
     private static long virtualFieldOffset;
@@ -52,7 +52,7 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZPage");
+        Type type = db.lookupType("XPage");
 
         typeField = type.getCIntegerField("_type");
         seqnumField = type.getCIntegerField("_seqnum");
@@ -60,7 +60,7 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
         topField = type.getAddressField("_top");
     }
 
-    public ZPage(Address addr) {
+    public XPage(Address addr) {
         super(addr);
     }
 
@@ -72,8 +72,8 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
         return seqnumField.getJInt(addr);
     }
 
-    private ZVirtualMemory virtual() {
-        return VMObjectFactory.newObject(ZVirtualMemory.class, addr.addOffsetTo(virtualFieldOffset));
+    private XVirtualMemory virtual() {
+        return VMObjectFactory.newObject(XVirtualMemory.class, addr.addOffsetTo(virtualFieldOffset));
     }
 
     private Address top() {
@@ -81,7 +81,7 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
     }
 
     private boolean is_relocatable() {
-        return seqnum() < ZGlobals.ZGlobalSeqNum();
+        return seqnum() < XGlobals.XGlobalSeqNum();
     }
 
     long start() {
@@ -93,13 +93,13 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
     }
 
     long object_alignment_shift() {
-        if (type() == ZGlobals.ZPageTypeSmall) {
-            return ZGlobals.ZObjectAlignmentSmallShift();
-        } else if (type() == ZGlobals.ZPageTypeMedium) {
-            return ZGlobals.ZObjectAlignmentMediumShift;
+        if (type() == XGlobals.XPageTypeSmall) {
+            return XGlobals.XObjectAlignmentSmallShift();
+        } else if (type() == XGlobals.XPageTypeMedium) {
+            return XGlobals.XObjectAlignmentMediumShift;
         } else {
-            assert(type() == ZGlobals.ZPageTypeLarge);
-            return ZGlobals.ZObjectAlignmentLargeShift;
+            assert(type() == XGlobals.XPageTypeLarge);
+            return XGlobals.XObjectAlignmentLargeShift;
         }
     }
 
@@ -108,7 +108,7 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
     }
 
     public boolean isIn(Address addr) {
-        long offset = ZAddress.offset(addr);
+        long offset = XAddress.offset(addr);
         // FIXME: it does not consider the sign.
         return (offset >= start()) && (offset < top().asLongValue());
     }
@@ -127,7 +127,7 @@ public class ZPage extends VMObject implements LiveRegionsProvider {
     }
 
     public List<MemRegion> getLiveRegions() {
-        Address start = ZAddress.good(ZUtils.longToAddress(start()));
+        Address start = XAddress.good(XUtils.longToAddress(start()));
 
         // Can't convert top() to a "good" address because it might
         // be at the top of the "offset" range, and therefore also

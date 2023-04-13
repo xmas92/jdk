@@ -22,8 +22,8 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
-class ZForwardingTableCursor {
+class XForwardingTableCursor {
     long _value;
 }

@@ -23,7 +23,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
@@ -32,43 +32,59 @@ import sun.jvm.hotspot.types.AddressField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZRelocate  extends VMObject {
+public class XGranuleMapForForwarding  extends VMObject {
+    private static AddressField mapField;
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZRelocate");
+        Type type = db.lookupType("XGranuleMapForForwarding");
+
+        mapField = type.getAddressField("_map");
     }
 
-    public ZRelocate(Address addr) {
+    public XGranuleMapForForwarding(Address addr) {
         super(addr);
     }
 
-    private long forwardingIndex(ZForwarding forwarding, Address from) {
-        long fromOffset = ZAddress.offset(from);
-        return (fromOffset - forwarding.start()) >>> forwarding.objectAlignmentShift();
+    private Address map() {
+        return mapField.getValue(addr);
     }
 
-    private Address forwardingFind(ZForwarding forwarding, Address from) {
-        long fromIndex = forwardingIndex(forwarding, from);
-        ZForwardingEntry entry = forwarding.find(fromIndex);
-        return entry.populated() ? ZAddress.good(VM.getVM().getDebugger().newAddress(entry.toOffset())) : null;
+    public long size() {
+        return XGlobals.XAddressOffsetMax >> XGlobals.XGranuleSizeShift;
     }
 
-    public Address forwardObject(ZForwarding forwarding, Address from) {
-        return forwardingFind(forwarding, from);
+    private long index_for_offset(long offset) {
+        long index = offset >>> XGlobals.XGranuleSizeShift;
+
+        return index;
     }
 
-    public Address relocateObject(ZForwarding forwarding, Address o) {
-        Address toAddr = forwardingFind(forwarding, o);
-        if (toAddr != null) {
-            // Already relocated.
-            return toAddr;
-        } else {
-            // Return original address because it is not yet relocated.
-            return o;
+    Address at(long index) {
+        return map().getAddressAt(index * VM.getVM().getAddressSize());
+    }
+
+    Address get(long offset) {
+        long index = index_for_offset(offset);
+        return at(index);
+    }
+
+    public class Iterator {
+        private long next = 0;
+
+        boolean hasNext() {
+            return next < size();
+        }
+
+        Address next() {
+            if (next >= size()) {
+                throw new RuntimeException("OOIBE");
+            }
+
+            return at(next++);
         }
     }
 }

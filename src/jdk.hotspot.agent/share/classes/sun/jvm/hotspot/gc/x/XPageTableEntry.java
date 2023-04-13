@@ -22,20 +22,20 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VMObjectFactory;
 
-class ZPageTableEntry {
+class XPageTableEntry {
     Address entry;
 
-    ZPageTableEntry(Address address) {
+    XPageTableEntry(Address address) {
         entry = address;
     }
 
-    ZPage page() {
-        return VMObjectFactory.newObject(ZPage.class, zPageBits());
+    XPage page() {
+        return VMObjectFactory.newObject(XPage.class, zPageBits());
     }
 
     private Address zPageBits() {

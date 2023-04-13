@@ -22,7 +22,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -38,9 +38,9 @@ import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 import sun.jvm.hotspot.utilities.BitMapInterface;
 
-// Mirror class for ZCollectedHeap.
+// Mirror class for XCollectedHeap.
 
-public class ZCollectedHeap extends CollectedHeap {
+public class XCollectedHeap extends CollectedHeap {
     private static long zHeapFieldOffset;
 
     static {
@@ -48,14 +48,14 @@ public class ZCollectedHeap extends CollectedHeap {
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZCollectedHeap");
+        Type type = db.lookupType("XCollectedHeap");
 
         zHeapFieldOffset = type.getAddressField("_heap").getOffset();
     }
 
-    public ZHeap heap() {
+    public XHeap heap() {
         Address heapAddr = addr.addOffsetTo(zHeapFieldOffset);
-        return VMObjectFactory.newObject(ZHeap.class, heapAddr);
+        return VMObjectFactory.newObject(XHeap.class, heapAddr);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class ZCollectedHeap extends CollectedHeap {
         heap().printOn(tty);
     }
 
-    public ZCollectedHeap(Address addr) {
+    public XCollectedHeap(Address addr) {
         super(addr);
     }
 
@@ -84,11 +84,16 @@ public class ZCollectedHeap extends CollectedHeap {
 
     @Override
     public boolean isInReserved(Address a) {
-        throw new RuntimeException("ZCollectedHeap.isInReserved not implemented");
+        return heap().isIn(a);
     }
 
     private OopHandle oop_load_barrier(Address oopAddress) {
-        throw new RuntimeException("ZCollectedHeap.oop_load_barrier not implemented");
+        oopAddress = XBarrier.weak_barrier(oopAddress);
+        if (oopAddress == null) {
+            return null;
+        }
+
+        return oopAddress.addOffsetToAsOopHandle(0);
     }
 
     @Override
@@ -108,16 +113,27 @@ public class ZCollectedHeap extends CollectedHeap {
     }
 
     public String oopAddressDescription(OopHandle handle) {
-        return handle.toString();
+        Address origOop = XOop.to_address(handle);
+        Address loadBarrieredOop = XBarrier.weak_barrier(origOop);
+        if (!origOop.equals(loadBarrieredOop)) {
+            return origOop + " (" + loadBarrieredOop.toString() + ")";
+        } else {
+            return handle.toString();
+        }
     }
 
     @Override
     public void liveRegionsIterate(LiveRegionsClosure closure) {
-        throw new RuntimeException("ZCollectedHeap.liveRegionsIterate not implemented");
+        Iterator<XPage> iter = heap().pageTable().activePagesIterator();
+        while (iter.hasNext()) {
+            XPage page = iter.next();
+            closure.doLiveRegions(page);
+        }
     }
 
     @Override
     public BitMapInterface createBitMap(long size) {
-        throw new RuntimeException("ZCollectedHeap.createBitMap not implemented");
+        // Ignores the size
+        return new XExternalBitMap(this);
     }
 }

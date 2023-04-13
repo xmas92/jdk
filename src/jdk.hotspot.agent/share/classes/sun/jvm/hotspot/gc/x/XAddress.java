@@ -22,12 +22,12 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 
-class ZAddress {
+class XAddress {
     static long as_long(Address value) {
         if (value == null) {
             return 0;
@@ -40,7 +40,7 @@ class ZAddress {
     }
 
     static boolean is_weak_bad(Address value) {
-        return (as_long(value) & ZGlobals.ZAddressWeakBadMask()) != 0L;
+        return (as_long(value) & XGlobals.XAddressWeakBadMask()) != 0L;
     }
 
     static boolean is_weak_good(Address value) {
@@ -52,11 +52,11 @@ class ZAddress {
     }
 
     static long offset(Address address) {
-        return as_long(address) & ZGlobals.ZAddressOffsetMask();
+        return as_long(address) & XGlobals.XAddressOffsetMask();
     }
 
     static Address good(Address value) {
-        return VM.getVM().getDebugger().newAddress(offset(value) | ZGlobals.ZAddressGoodMask());
+        return VM.getVM().getDebugger().newAddress(offset(value) | XGlobals.XAddressGoodMask());
     }
 
     static Address good_or_null(Address value) {
@@ -69,9 +69,9 @@ class ZAddress {
 
     static boolean isIn(Address addr) {
         long value = as_long(addr);
-        if (!isPowerOf2(value & ~ZGlobals.ZAddressOffsetMask())) {
+        if (!isPowerOf2(value & ~XGlobals.XAddressOffsetMask())) {
             return false;
         }
-        return (value & (ZGlobals.ZAddressMetadataMask() & ~ZGlobals.ZAddressMetadataFinalizable())) != 0L;
+        return (value & (XGlobals.XAddressMetadataMask() & ~XGlobals.XAddressMetadataFinalizable())) != 0L;
     }
 }

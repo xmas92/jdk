@@ -22,7 +22,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import java.util.HashMap;
 
@@ -31,30 +31,30 @@ import sun.jvm.hotspot.utilities.BitMap;
 import sun.jvm.hotspot.utilities.BitMapInterface;
 
 /** Discontiguous bitmap for ZGC. */
-public class ZExternalBitMap implements BitMapInterface {
-    private ZPageTable pageTable;
+public class XExternalBitMap implements BitMapInterface {
+    private XPageTable pageTable;
     private final long oopSize;
 
-    private HashMap<ZPage, BitMap> pageToBitMap = new HashMap<ZPage, BitMap>();
+    private HashMap<XPage, BitMap> pageToBitMap = new HashMap<XPage, BitMap>();
 
-    public ZExternalBitMap(ZCollectedHeap collectedHeap) {
+    public XExternalBitMap(XCollectedHeap collectedHeap) {
         pageTable = collectedHeap.heap().pageTable();
         oopSize = VM.getVM().getOopSize();
     }
 
-    private ZPage getPage(long zOffset) {
-        if (zOffset > ZGlobals.ZAddressOffsetMask()) {
+    private XPage getPage(long zOffset) {
+        if (zOffset > XGlobals.XAddressOffsetMask()) {
             throw new RuntimeException("Not a Z offset: " + zOffset);
         }
 
-        ZPage page = pageTable.get(ZUtils.longToAddress(zOffset));
+        XPage page = pageTable.get(XUtils.longToAddress(zOffset));
         if (page == null) {
             throw new RuntimeException("Address not in pageTable: " + zOffset);
         }
         return page;
     }
 
-    private BitMap getOrAddBitMap(ZPage page) {
+    private BitMap getOrAddBitMap(XPage page) {
         BitMap bitMap = pageToBitMap.get(page);
         if (bitMap == null) {
             long size = page.size();
@@ -72,20 +72,20 @@ public class ZExternalBitMap implements BitMapInterface {
         return bitMap;
     }
 
-    private int pageLocalBitMapIndex(ZPage page, long zOffset) {
+    private int pageLocalBitMapIndex(XPage page, long zOffset) {
         long pageLocalZOffset = zOffset - page.start();
         return (int)(pageLocalZOffset >>> page.object_alignment_shift());
     }
 
     private long convertToZOffset(long offset) {
         long addr = oopSize * offset;
-        return addr & ZGlobals.ZAddressOffsetMask();
+        return addr & XGlobals.XAddressOffsetMask();
     }
 
     @Override
     public boolean at(long offset) {
         long zOffset = convertToZOffset(offset);
-        ZPage page = getPage(zOffset);
+        XPage page = getPage(zOffset);
         BitMap bitMap = getOrAddBitMap(page);
         int index = pageLocalBitMapIndex(page, zOffset);
 
@@ -95,7 +95,7 @@ public class ZExternalBitMap implements BitMapInterface {
     @Override
     public void atPut(long offset, boolean value) {
         long zOffset = convertToZOffset(offset);
-        ZPage page = getPage(zOffset);
+        XPage page = getPage(zOffset);
         BitMap bitMap = getOrAddBitMap(page);
         int index = pageLocalBitMapIndex(page, zOffset);
 

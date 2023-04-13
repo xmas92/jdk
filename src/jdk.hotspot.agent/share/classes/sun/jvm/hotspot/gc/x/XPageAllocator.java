@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,39 +22,48 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 import sun.jvm.hotspot.runtime.VMObject;
-import sun.jvm.hotspot.runtime.VMObjectFactory;
-import sun.jvm.hotspot.types.AddressField;
 import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZForwardingTable extends VMObject {
-    private static long mapFieldOffset;
+// Mirror class for XPageAllocator
+
+public class XPageAllocator extends VMObject {
+
+    private static CIntegerField maxCapacityField;
+    private static CIntegerField capacityField;
+    private static CIntegerField usedField;
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZForwardingTable");
+        Type type = db.lookupType("XPageAllocator");
 
-        mapFieldOffset = type.getAddressField("_map").getOffset();
+        maxCapacityField = type.getCIntegerField("_max_capacity");
+        capacityField = type.getCIntegerField("_capacity");
+        usedField = type.getCIntegerField("_used");
     }
 
-    public ZForwardingTable(Address addr) {
+    public long maxCapacity() {
+        return maxCapacityField.getValue(addr);
+    }
+
+    public long capacity() {
+        return capacityField.getValue(addr);
+    }
+
+    public long used() {
+        return usedField.getValue(addr);
+    }
+
+    public XPageAllocator(Address addr) {
         super(addr);
-    }
-
-    private ZGranuleMapForForwarding map() {
-        return VMObjectFactory.newObject(ZGranuleMapForForwarding.class, addr.addOffsetTo(mapFieldOffset));
-    }
-
-    public ZForwarding get(Address o) {
-        return VMObjectFactory.newObject(ZForwarding.class, map().get(ZAddress.offset(o)));
     }
 }

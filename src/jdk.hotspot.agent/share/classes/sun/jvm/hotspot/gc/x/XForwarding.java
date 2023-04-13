@@ -23,7 +23,7 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
 import java.util.Iterator;
 
@@ -35,7 +35,7 @@ import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-public class ZForwarding extends VMObject {
+public class XForwarding extends VMObject {
     private static Type type;
     private static long virtualFieldOffset;
     private static long entriesFieldOffset;
@@ -47,7 +47,7 @@ public class ZForwarding extends VMObject {
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        type = db.lookupType("ZForwarding");
+        type = db.lookupType("XForwarding");
 
         virtualFieldOffset = type.getField("_virtual").getOffset();
         entriesFieldOffset = type.getField("_entries").getOffset();
@@ -55,7 +55,7 @@ public class ZForwarding extends VMObject {
         refCountField = type.getCIntegerField("_ref_count");
     }
 
-    public ZForwarding(Address addr) {
+    public XForwarding(Address addr) {
         super(addr);
     }
 
@@ -63,12 +63,12 @@ public class ZForwarding extends VMObject {
         return type.getSize();
     }
 
-    private ZVirtualMemory virtual() {
-        return VMObjectFactory.newObject(ZVirtualMemory.class, addr.addOffsetTo(virtualFieldOffset));
+    private XVirtualMemory virtual() {
+        return VMObjectFactory.newObject(XVirtualMemory.class, addr.addOffsetTo(virtualFieldOffset));
     }
 
-    private ZAttachedArrayForForwarding entries() {
-        return VMObjectFactory.newObject(ZAttachedArrayForForwarding.class, addr.addOffsetTo(entriesFieldOffset));
+    private XAttachedArrayForForwarding entries() {
+        return VMObjectFactory.newObject(XAttachedArrayForForwarding.class, addr.addOffsetTo(entriesFieldOffset));
     }
 
     public long start() {
@@ -83,21 +83,21 @@ public class ZForwarding extends VMObject {
         return refCountField.getValue(addr) > 0;
     }
 
-    private ZForwardingEntry at(long cursor) {
-        long offset = ZForwardingEntry.getSize() * cursor;
+    private XForwardingEntry at(long cursor) {
+        long offset = XForwardingEntry.getSize() * cursor;
         Address entryAddress = entries().get(this).getAddress().addOffsetTo(offset);
-        return VMObjectFactory.newObject(ZForwardingEntry.class, entryAddress);
+        return VMObjectFactory.newObject(XForwardingEntry.class, entryAddress);
     }
 
-    private class ZForwardEntryIterator implements Iterator<ZForwardingEntry> {
+    private class XForwardEntryIterator implements Iterator<XForwardingEntry> {
 
         private long cursor;
 
-        private ZForwardingEntry nextEntry;
+        private XForwardingEntry nextEntry;
 
-        public ZForwardEntryIterator(long fromIndex) {
+        public XForwardEntryIterator(long fromIndex) {
             long mask = entries().length() - 1;
-            long hash = ZHash.uint32_to_uint32(fromIndex);
+            long hash = XHash.uint32_to_uint32(fromIndex);
             cursor = hash & mask;
             nextEntry = at(cursor);
         }
@@ -108,8 +108,8 @@ public class ZForwarding extends VMObject {
         }
 
         @Override
-        public ZForwardingEntry next() {
-            ZForwardingEntry entry = nextEntry;
+        public XForwardingEntry next() {
+            XForwardingEntry entry = nextEntry;
 
             long mask = entries().length() - 1;
             cursor = (cursor + 1) & mask;
@@ -118,15 +118,15 @@ public class ZForwarding extends VMObject {
             return entry;
         }
 
-        public ZForwardingEntry peak() {
+        public XForwardingEntry peak() {
             return nextEntry;
         }
     }
 
-    public ZForwardingEntry find(long fromIndex) {
-        ZForwardEntryIterator itr = new ZForwardEntryIterator(fromIndex);
+    public XForwardingEntry find(long fromIndex) {
+        XForwardEntryIterator itr = new XForwardEntryIterator(fromIndex);
         while (itr.hasNext()) {
-            ZForwardingEntry entry = itr.next();
+            XForwardingEntry entry = itr.next();
             if (entry.fromIndex() == fromIndex) {
                 return entry;
             }

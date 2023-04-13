@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,34 +22,20 @@
  *
  */
 
-package sun.jvm.hotspot.gc.z;
+package sun.jvm.hotspot.gc.x;
 
-import sun.jvm.hotspot.debugger.Address;
-
-class ZForwardingTableEntry {
-    private Address entry;
-
-    ZForwardingTableEntry(Address addr) {
-        entry = addr;
+class XHash {
+    private static long uint32(long value) {
+        return value & 0xFFFFFFFFL;
     }
 
-    private static long empty() {
-        return ~0L;
-    }
-
-    boolean is_empty() {
-        return entry.asLongValue() == empty();
-    }
-
-    Address to_offset() {
-        return entry.andWithMask((1L << 42) - 1);
-    }
-
-    long from_index() {
-        return entry.asLongValue() >>> 42;
-    }
-
-    public String toString() {
-        return entry + " - from_index: " + from_index() + " to_offset: " + to_offset();
+    static long uint32_to_uint32(long key) {
+        key = uint32(~key + (key << 15));
+        key = uint32(key ^ (key >>> 12));
+        key = uint32(key + (key << 2));
+        key = uint32(key ^ (key >>> 4));
+        key = uint32(key * 2057);
+        key = uint32(key ^ (key >>> 16));
+        return key;
     }
 }

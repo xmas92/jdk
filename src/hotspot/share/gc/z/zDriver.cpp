@@ -221,6 +221,8 @@ bool ZDriver::is_busy() const {
 
 void ZDriver::collect(const ZDriverRequest& request) {
   switch (request.cause()) {
+  case GCCause::_heap_dump:
+  case GCCause::_heap_inspection:
   case GCCause::_wb_young_gc:
   case GCCause::_wb_full_gc:
   case GCCause::_dcmd_gc_run:

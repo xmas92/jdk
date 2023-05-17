@@ -374,6 +374,9 @@ bool RootChunkArea::is_free() const {
   }
 
 void RootChunkArea::verify() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
   assert_lock_strong(Metaspace_lock);
   assert_is_aligned(_base, chunklevel::MAX_CHUNK_BYTE_SIZE);
 
@@ -411,6 +414,10 @@ void RootChunkArea::verify() const {
 }
 
 void RootChunkArea::verify_area_is_ideally_merged() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
+
   SOMETIMES(assert_lock_strong(Metaspace_lock);)
   int num_chunk = 0;
   for (const Metachunk* c = _first_chunk; c != nullptr; c = c->next_in_vs()) {

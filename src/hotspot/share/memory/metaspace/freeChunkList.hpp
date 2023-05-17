@@ -102,7 +102,9 @@ public:
 
   // Remove given chunk from anywhere in the list.
   Metachunk* remove(Metachunk* c) {
-    assert(contains(c), "Must be contained here");
+    if (VerifyMetaspace) {
+      assert(contains(c), "Must be contained here");
+    }
     Metachunk* pred = c->prev();
     Metachunk* succ = c->next();
     if (pred) {
@@ -124,7 +126,9 @@ public:
   }
 
   void add(Metachunk* c) {
-    assert(contains(c) == false, "Chunk already in freelist");
+    if (VerifyMetaspace) {
+      assert(contains(c) == false, "Chunk already in freelist");
+    }
     assert(_first == nullptr || _first->level() == c->level(),
            "List should only contains chunks of the same level.");
     // Uncommitted chunks go to the back, fully or partially committed to the front.

@@ -428,6 +428,10 @@ void MetaspaceArena::usage_numbers(size_t* p_used_words, size_t* p_committed_wor
 #ifdef ASSERT
 
 void MetaspaceArena::verify_locked() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
+
   assert_lock_strong(lock());
   assert(_growth_policy != nullptr && _chunk_manager != nullptr, "Sanity");
   _chunks.verify();
@@ -442,6 +446,10 @@ void MetaspaceArena::Fence::verify() const {
 }
 
 void MetaspaceArena::verify_allocation_guards() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
+
   assert(Settings::use_allocation_guard(), "Don't call with guards disabled.");
   for (const Fence* f = _first_fence; f != nullptr; f = f->next()) {
     f->verify();
@@ -449,6 +457,10 @@ void MetaspaceArena::verify_allocation_guards() const {
 }
 
 void MetaspaceArena::verify() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
+
   MutexLocker cl(lock(), Mutex::_no_safepoint_check_flag);
   verify_locked();
 }

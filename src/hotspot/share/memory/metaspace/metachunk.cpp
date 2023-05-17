@@ -255,6 +255,10 @@ void Metachunk::verify_neighborhood() const {
 volatile MetaWord dummy = 0;
 
 void Metachunk::verify() const {
+  if (!VerifyMetaspace) {
+    return;
+  }
+
   // Note. This should be called under CLD lock protection.
 
   // We can verify everything except the _prev_in_vs/_next_in_vs pair.

@@ -339,10 +339,10 @@ private:
 private:
   void trace_dependency(Handle dependency);
   template<typename HeadLoad, typename HeadReplaceIfNull>
-  void add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, TRAPS);
-  void add_dependency(Handle dependency, objArrayHandle entry, TRAPS);
-  void add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, TRAPS);
-  void add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, TRAPS);
+  void add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, bool trace, TRAPS);
+  void add_dependency(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
+  void add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
+  void add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
 public:
   class DependencyListEntryHandle {
     objArrayHandle _entry;

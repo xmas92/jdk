@@ -438,7 +438,7 @@ static void print_indent(outputStream* st, int indent) {
 
 // Print the class name and its unique ClassLoader identifier.
 static void print_classname(outputStream* st, Klass* klass) {
-  oop loader_oop = klass->class_loader_data()->class_loader();
+  oop loader_oop = klass->class_loader_data()->class_loader_no_keepalive();
   st->print("%s/", klass->external_name());
   if (loader_oop == nullptr) {
     st->print("null");

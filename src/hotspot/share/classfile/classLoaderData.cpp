@@ -771,7 +771,7 @@ Dictionary* ClassLoaderData::create_dictionary() {
   int size;
   if (_the_null_class_loader_data == nullptr) {
     size = _boot_loader_dictionary_size;
-  } else if (class_loader()->is_a(vmClasses::reflect_DelegatingClassLoader_klass())) {
+  } else if (class_loader_no_keepalive()->is_a(vmClasses::reflect_DelegatingClassLoader_klass())) {
     size = 1;  // there's only one class in relection class loader and no initiated classes
   } else if (is_system_class_loader_data()) {
     size = _boot_loader_dictionary_size;
@@ -899,13 +899,13 @@ ClassLoaderData::~ClassLoaderData() {
 // or a user defined system class loader.  (Note that the class loader
 // data may have a Class holder.)
 bool ClassLoaderData::is_system_class_loader_data() const {
-  return SystemDictionary::is_system_class_loader(class_loader());
+  return SystemDictionary::is_system_class_loader(class_loader_no_keepalive());
 }
 
 // Returns true if this class loader data is for the platform class loader.
 // (Note that the class loader data may have a Class holder.)
 bool ClassLoaderData::is_platform_class_loader_data() const {
-  return SystemDictionary::is_platform_class_loader(class_loader());
+  return SystemDictionary::is_platform_class_loader(class_loader_no_keepalive());
 }
 
 // Returns true if the class loader for this class loader data is one of
@@ -915,8 +915,8 @@ bool ClassLoaderData::is_platform_class_loader_data() const {
 // get freed by a GC even if its class loader is one of these loaders.
 bool ClassLoaderData::is_builtin_class_loader_data() const {
   return (is_boot_class_loader_data() ||
-          SystemDictionary::is_system_class_loader(class_loader()) ||
-          SystemDictionary::is_platform_class_loader(class_loader()));
+          SystemDictionary::is_system_class_loader(class_loader_no_keepalive()) ||
+          SystemDictionary::is_platform_class_loader(class_loader_no_keepalive()));
 }
 
 // Returns true if this class loader data is a class loader data
@@ -938,11 +938,11 @@ ClassLoaderMetaspace* ClassLoaderData::metaspace_non_null() {
     // Check if _metaspace got allocated while we were waiting for this lock.
     if ((metaspace = _metaspace) == nullptr) {
       if (this == the_null_class_loader_data()) {
-        assert (class_loader() == nullptr, "Must be");
+        assert (class_loader_no_keepalive() == nullptr, "Must be");
         metaspace = new ClassLoaderMetaspace(_metaspace_lock, Metaspace::BootMetaspaceType);
       } else if (has_class_mirror_holder()) {
         metaspace = new ClassLoaderMetaspace(_metaspace_lock, Metaspace::ClassMirrorHolderMetaspaceType);
-      } else if (class_loader()->is_a(vmClasses::reflect_DelegatingClassLoader_klass())) {
+      } else if (class_loader_no_keepalive()->is_a(vmClasses::reflect_DelegatingClassLoader_klass())) {
         metaspace = new ClassLoaderMetaspace(_metaspace_lock, Metaspace::ReflectionMetaspaceType);
       } else {
         metaspace = new ClassLoaderMetaspace(_metaspace_lock, Metaspace::StandardMetaspaceType);
@@ -1095,9 +1095,9 @@ const char* ClassLoaderData::loader_name_and_id() const {
 }
 
 void ClassLoaderData::print_value_on(outputStream* out) const {
-  if (!is_unloading() && class_loader() != nullptr) {
+  if (!is_unloading() && class_loader_no_keepalive() != nullptr) {
     out->print("loader data: " INTPTR_FORMAT " for instance ", p2i(this));
-    class_loader()->print_value_on(out);  // includes loader_name_and_id() and address of class loader instance
+    class_loader_no_keepalive()->print_value_on(out);  // includes loader_name_and_id() and address of class loader instance
   } else {
     // loader data: 0xsomeaddr of 'bootstrap'
     out->print("loader data: " INTPTR_FORMAT " of %s", p2i(this), loader_name_and_id());
@@ -1202,7 +1202,7 @@ class VerifyHandleOops : public OopClosure {
 
 void ClassLoaderData::verify() {
   assert_locked_or_safepoint(_metaspace_lock);
-  oop cl = class_loader();
+  oop cl = class_loader_no_keepalive();
 
   guarantee(this == class_loader_data(cl) || has_class_mirror_holder(), "Must be the same");
   guarantee(cl != nullptr || this == ClassLoaderData::the_null_class_loader_data() || has_class_mirror_holder(), "must be");

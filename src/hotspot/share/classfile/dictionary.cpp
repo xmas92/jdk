@@ -175,7 +175,7 @@ void DictionaryEntry::add_to_package_access_cache(ClassLoaderData* loader_data, 
     LogStream ls(lt);
     ls.print("adding protection domain that can access class %s", instance_klass()->name()->as_C_string());
     ls.print(" class loader: ");
-    loader_data->class_loader()->print_value_on(&ls);
+    loader_data->class_loader_no_keepalive()->print_value_on(&ls);
     ls.print(" protection domain: ");
     protection_domain->print_value_on(&ls);
     ls.print(" ");
@@ -437,7 +437,7 @@ void Dictionary::remove_from_package_access_cache(GrowableArray<ProtectionDomain
             // Print out trace information
             LogStream ls(lt);
             ls.print_cr("PD in set is not alive:");
-            ls.print("class loader: "); _loader_data->class_loader()->print_value_on(&ls);
+            ls.print("class loader: "); _loader_data->class_loader_no_keepalive()->print_value_on(&ls);
             ls.print(" loading: "); probe->instance_klass()->print_value_on(&ls);
             ls.cr();
           }

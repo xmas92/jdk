@@ -336,7 +336,7 @@ bool SystemDictionaryShared::check_for_exclusion_impl(InstanceKlass* k) {
 }
 
 bool SystemDictionaryShared::is_builtin_loader(ClassLoaderData* loader_data) {
-  oop class_loader = loader_data->class_loader();
+  oop class_loader = loader_data->class_loader_no_keepalive();
   return (class_loader == nullptr ||
           SystemDictionary::is_system_class_loader(class_loader) ||
           SystemDictionary::is_platform_class_loader(class_loader));

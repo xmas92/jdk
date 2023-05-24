@@ -540,10 +540,10 @@ bool Modules::check_archived_module_oop(oop orig_module_obj) {
       assert(!loader_data->is_boot_class_loader_data(), "unnamed module for boot loader should be not archived");
       assert(!orig_module_ent->has_been_archived(), "sanity");
 
-      if (SystemDictionary::is_platform_class_loader(loader_data->class_loader())) {
+      if (SystemDictionary::is_platform_class_loader(loader_data->class_loader_no_keepalive())) {
         assert(!_seen_platform_unnamed_module, "only once");
         _seen_platform_unnamed_module = true;
-      } else if (SystemDictionary::is_system_class_loader(loader_data->class_loader())) {
+      } else if (SystemDictionary::is_system_class_loader(loader_data->class_loader_no_keepalive())) {
         assert(!_seen_system_unnamed_module, "only once");
         _seen_system_unnamed_module = true;
       } else {
@@ -690,7 +690,9 @@ void Modules::set_bootloader_unnamed_module(Handle module, TRAPS) {
   ModuleEntry* unnamed_module = boot_loader_data->unnamed_module();
   assert(unnamed_module != nullptr, "boot loader's unnamed ModuleEntry not defined");
   // TODO[Axel]: HAS_PENDING_EXCEPTION
-  boot_loader_data->record_oop_dependency(module, CHECK);
+  ClassLoaderData::DependencyListEntryHandle module_handle =
+      ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(module, CHECK);
+  boot_loader_data->record_oop_dependency(module_handle);
   unnamed_module->set_module(WeakHandle(Universe::vm_weak(), module));
   // Store pointer to the ModuleEntry in the unnamed module's java.lang.Module object.
   java_lang_Module::set_module_entry(module(), unnamed_module);

@@ -1380,7 +1380,7 @@ static void post_class_define_event(InstanceKlass* k, const ClassLoaderData* def
 void SystemDictionary::define_instance_class(InstanceKlass* k, Handle class_loader, TRAPS) {
 
   ClassLoaderData* loader_data = k->class_loader_data();
-  assert(loader_data->class_loader() == class_loader(), "they must be the same");
+  assert(loader_data->class_loader_no_keepalive() == class_loader(), "they must be the same");
 
   // Bootstrap and other parallel classloaders don't acquire a lock,
   // they use placeholder token.

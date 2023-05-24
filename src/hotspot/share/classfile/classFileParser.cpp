@@ -5434,7 +5434,7 @@ ClassFileParser::ClassFileParser(ClassFileStream* stream,
                                               BytecodeVerificationLocal;
   }
   else {
-    _need_verify = Verifier::should_verify_for(_loader_data->class_loader(),
+    _need_verify = Verifier::should_verify_for(_loader_data->class_loader_no_keepalive(),
                                                stream->need_verify());
   }
 

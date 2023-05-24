@@ -69,7 +69,7 @@ inline oop ClassLoaderData::class_loader_no_keepalive() const {
 }
 
 inline bool ClassLoaderData::is_boot_class_loader_data() const {
-  return this == _the_null_class_loader_data || class_loader() == nullptr;
+  return this == _the_null_class_loader_data || class_loader_no_keepalive() == nullptr;
 }
 
 inline ClassLoaderData* ClassLoaderData::class_loader_data_or_null(oop loader) {

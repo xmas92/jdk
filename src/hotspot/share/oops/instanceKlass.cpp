@@ -2891,7 +2891,7 @@ ModuleEntry* InstanceKlass::module() const {
     if (class_loader_data()->is_boot_class_loader_data()) {
       return ClassLoaderData::the_null_class_loader_data()->unnamed_module();
     } else {
-      oop module = java_lang_ClassLoader::unnamedModule(class_loader_data()->class_loader());
+      oop module = java_lang_ClassLoader::unnamedModule(class_loader_data()->class_loader_no_keepalive());
       assert(java_lang_Module::is_instance(module), "Not an instance of java.lang.Module");
       return java_lang_Module::module_entry(module);
     }
@@ -3789,7 +3789,7 @@ void InstanceKlass::print_class_load_helper(ClassLoaderData* loader_data,
         // source is unknown
       }
     } else {
-      oop class_loader = loader_data->class_loader();
+      oop class_loader = loader_data->class_loader_no_keepalive();
       info_stream.print(" source: %s", class_loader->klass()->external_name());
     }
   } else {

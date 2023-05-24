@@ -319,7 +319,7 @@ ModuleEntry::~ModuleEntry() {
 ModuleEntry* ModuleEntry::create_unnamed_module(ClassLoaderData* cld) {
   // The java.lang.Module for this loader's
   // corresponding unnamed module can be found in the java.lang.ClassLoader object.
-  oop module = java_lang_ClassLoader::unnamedModule(cld->class_loader());
+  oop module = java_lang_ClassLoader::unnamedModule(cld->class_loader_no_keepalive());
 
   // Ensure that the unnamed module was correctly set when the class loader was constructed.
   // Guarantee will cause a recognizable crash if the user code has circumvented calling the ClassLoader constructor.
@@ -534,7 +534,7 @@ void ModuleEntry::restore_archived_oops(ClassLoaderData* loader_data) {
   // because it may be affected by archive relocation.
   java_lang_Module::set_module_entry(module_handle(), this);
 
-  assert(java_lang_Module::loader(module_handle()) == loader_data->class_loader(),
+  assert(java_lang_Module::loader(module_handle()) == loader_data->class_loader_no_keepalive(),
          "must be set in dump time");
 
   if (log_is_enabled(Info, cds, module)) {

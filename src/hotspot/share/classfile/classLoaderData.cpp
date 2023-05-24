@@ -476,11 +476,7 @@ void ClassLoaderData::packages_do(void f(PackageEntry*)) {
   }
 }
 
-// TODO[Axel]: Need to reevaluate the use of this. Maybe it should trace all
-//             dependencies, not only those from record_dependency(cosnt Klass*, TRAPS)
-//               * Check usage and meaning of _dependency_count
-//               * The record_oop_dependency path should not use to_cld. But the
-//                   actual oop.
+// TODO[Axel]: Still need to evaluate this
 void ClassLoaderData::trace_dependency(Handle dependency) {
   NOT_PRODUCT(Atomic::inc(&_dependency_count));
   LogTarget(Trace, class, loader, data) lt;
@@ -497,7 +493,7 @@ void ClassLoaderData::trace_dependency(Handle dependency) {
 }
 
 template<typename HeadLoad, typename HeadReplaceIfNull>
-void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, TRAPS) {
+void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(dependency() != nullptr);
   precond(THREAD != nullptr || entry() != nullptr);
   // TODO[Axel]: Maybe assert the layout of entry()
@@ -517,6 +513,9 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
     } while (cursor == nullptr);
     if (cursor == list_entry) {
       // Succeeded
+      if (trace) {
+        trace_dependency(dependency);
+      }
       return;
     }
   }
@@ -545,35 +544,36 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
 
     if (nullptr == cursor->replace_if_null(1, list_entry) &&
         cursor->obj_at(1) == list_entry) {
-      // TODO[Axel]:
-      trace_dependency(dependency);
+      if (trace) {
+        trace_dependency(dependency);
+      }
       return;
     }
   }
 }
 
-void ClassLoaderData::add_dependency(Handle dependency, objArrayHandle entry, TRAPS) {
+void ClassLoaderData::add_dependency(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(java_lang_ClassLoader::is_instance(class_loader()));
 
   add_dependency_impl([&](){ return java_lang_ClassLoader::dependency(this->class_loader()); },
                       [&](objArrayOop list_entry) { return java_lang_ClassLoader::dependency_replace_if_null(this->class_loader(), list_entry); },
-                      dependency, entry, THREAD);
+                      dependency, entry, trace, THREAD);
 }
 
-void ClassLoaderData::add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, TRAPS) {
+void ClassLoaderData::add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(java_lang_Class::is_instance(holder()));
 
   add_dependency_impl([&](){ return java_lang_Class::dependency(this->holder()); },
                       [&](objArrayOop list_entry) { return java_lang_Class::dependency_replace_if_null(this->holder(), list_entry); },
-                      dependency, entry, THREAD);
+                      dependency, entry, trace, THREAD);
 }
 
-void ClassLoaderData::add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, TRAPS) {
+void ClassLoaderData::add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(is_the_null_class_loader_data());
 
   add_dependency_impl([](){ return _the_null_class_loader_dependencies.resolve_relaxed(); },
                       [](objArrayOop list_entry) { return _the_null_class_loader_dependencies.cmpxchg(nullptr, list_entry); },
-                      dependency, entry, THREAD);
+                      dependency, entry, trace, THREAD);
 }
 
 ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(Handle dependency, TRAPS) {
@@ -585,22 +585,22 @@ ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryH
 
 void ClassLoaderData::record_oop_dependency(ClassLoaderData::DependencyListEntryHandle dependency_entry) {
   if (is_the_null_class_loader_data()) {
-    add_dependency_null_class_loader(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+    add_dependency_null_class_loader(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
   } else if (has_class_mirror_holder() && class_loader() == nullptr) {
-    add_dependency_no_class_loader(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+    add_dependency_no_class_loader(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
   } else {
-    add_dependency(dependency_entry.dependency(), dependency_entry.entry(), nullptr);
+    add_dependency(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
   }
 }
 
 void ClassLoaderData::record_oop_dependency(Handle dependency, TRAPS) {
   precond(dependency() != nullptr);
   if (is_the_null_class_loader_data()) {
-    add_dependency_null_class_loader(dependency, objArrayHandle(), CHECK);
+    add_dependency_null_class_loader(dependency, objArrayHandle(), true, CHECK);
   } else if (has_class_mirror_holder() && class_loader() == nullptr) {
-    add_dependency_no_class_loader(dependency, objArrayHandle(), CHECK);
+    add_dependency_no_class_loader(dependency, objArrayHandle(), true, CHECK);
   } else {
-    add_dependency(dependency, objArrayHandle(), CHECK);
+    add_dependency(dependency, objArrayHandle(), true, CHECK);
   }
 }
 

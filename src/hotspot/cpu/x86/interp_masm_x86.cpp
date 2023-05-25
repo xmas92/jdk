@@ -480,7 +480,7 @@ void InterpreterMacroAssembler::load_resolved_reference_at_index(Register result
   // load pointer for resolved_references[] objArray
   movptr(result, Address(result, ConstantPool::cache_offset()));
   movptr(result, Address(result, ConstantPoolCache::resolved_references_offset()));
-  resolve_oop_handle(result, tmp);
+  resolve_weak_handle(result, tmp);
   load_heap_oop(result, Address(result, index,
                                 UseCompressedOops ? Address::times_4 : Address::times_ptr,
                                 arrayOopDesc::base_offset_in_bytes(T_OBJECT)), tmp);

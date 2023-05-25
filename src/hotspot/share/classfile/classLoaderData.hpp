@@ -115,8 +115,8 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   WeakHandle _holder;       // The oop that determines lifetime of this class loader
   WeakHandle  _class_loader; // The instance of java/lang/ClassLoader associated with
                              // this ClassLoaderData
-  OopHandle  _keep_alive_class_loader; // The same instance which is artificially kept alive
-                                       // with the _keep_alive reference counter.
+  OopHandle  _keep_alive_nested_host; // Used to keep the nested host dependency while
+                                      // creating the hidden class
 
   ClassLoaderMetaspace * volatile _metaspace;  // Meta-space where meta-data defined by the
                                     // classes in the class loader are allocated.
@@ -340,8 +340,8 @@ private:
   void trace_dependency(Handle dependency);
   template<typename HeadLoad, typename HeadReplaceIfNull>
   void add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull head_replace_if_null, Handle dependency, objArrayHandle entry, bool trace, TRAPS);
-  void add_dependency(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
-  void add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
+  void add_dependency_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
+  void add_dependency_mirror_holder(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
   void add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS);
 public:
   class DependencyListEntryHandle {
@@ -350,6 +350,8 @@ public:
     DependencyListEntryHandle();
     DependencyListEntryHandle(objArrayHandle entry, Handle dependency);
   public:
+    static DependencyListEntryHandle create_from_entry_handle(OopHandle entry_h);
+    static objArrayOop create_entry(Handle dependency, TRAPS);
     static DependencyListEntryHandle create_dependency_entry_handle(Handle dependency, TRAPS);
     static DependencyListEntryHandle null_handle();
     objArrayHandle entry();
@@ -357,7 +359,9 @@ public:
   };
   void record_oop_dependency(DependencyListEntryHandle dependency_entry);
   void record_oop_dependency(Handle dependency, TRAPS);
+  oop get_dependency(const Klass* to);
   void record_dependency(const Klass* to, TRAPS);
+  void record_nested_host_dependency(const Klass* to, TRAPS);
   PackageEntryTable* packages() { return _packages; }
   ModuleEntry* unnamed_module() { return _unnamed_module; }
   ModuleEntryTable* modules();

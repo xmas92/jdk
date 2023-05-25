@@ -162,9 +162,6 @@ ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_ho
     _class_loader = WeakHandle(Universe::vm_weak(), h_class_loader);
     _class_loader_klass = h_class_loader->klass();
     initialize_name(h_class_loader);
-    if (keep_alive()) {
-      _keep_alive_class_loader = OopHandle(Universe::vm_global(), h_class_loader());
-    }
   }
 
   if (!has_class_mirror_holder) {
@@ -375,10 +372,11 @@ void ClassLoaderData::dec_keep_alive() {
       demote_strong_roots();
     }
     _keep_alive--;
-    if (!keep_alive()) {
-      assert(class_loader_no_keepalive() == _keep_alive_class_loader.peek(), "Should still be alive");
-      _keep_alive_class_loader.release(Universe::vm_global());
-      _keep_alive_class_loader = OopHandle();
+    if (!keep_alive() && !_keep_alive_nested_host.is_empty()) {
+      DependencyListEntryHandle entry_h =
+          DependencyListEntryHandle::create_from_entry_handle(_keep_alive_nested_host);
+      record_oop_dependency(entry_h);
+      _keep_alive_nested_host.release(Universe::vm_global());
     }
   }
 }
@@ -490,7 +488,11 @@ void ClassLoaderData::trace_dependency(Handle dependency) {
     ls.print("adding dependency from ");
     print_value_on(&ls);
     ls.print(" to ");
-    to_cld->print_value_on(&ls);
+    if (to_cld->has_class_mirror_holder()) {
+      dependency->klass()->print_value_on(&ls);
+    } else {
+      to_cld->print_value_on(&ls);
+    }
     ls.cr();
   }
 }
@@ -555,7 +557,7 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
   }
 }
 
-void ClassLoaderData::add_dependency(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
+void ClassLoaderData::add_dependency_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(java_lang_ClassLoader::is_instance(class_loader()));
 
   add_dependency_impl([&](){ return java_lang_ClassLoader::dependency(this->class_loader()); },
@@ -563,7 +565,7 @@ void ClassLoaderData::add_dependency(Handle dependency, objArrayHandle entry, bo
                       dependency, entry, trace, THREAD);
 }
 
-void ClassLoaderData::add_dependency_no_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
+void ClassLoaderData::add_dependency_mirror_holder(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(java_lang_Class::is_instance(holder()));
 
   add_dependency_impl([&](){ return java_lang_Class::dependency(this->holder()); },
@@ -579,20 +581,37 @@ void ClassLoaderData::add_dependency_null_class_loader(Handle dependency, objArr
                       dependency, entry, trace, THREAD);
 }
 
-ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(Handle dependency, TRAPS) {
+ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::create_from_entry_handle(OopHandle entry_h) {
+  Thread* thread = Thread::current();
+  oop entry_oop = entry_h.resolve();
+  assert(entry_oop->is_objArray(), "must be");
+  objArrayOop entry = (objArrayOop)entry_oop;
+  assert(entry->length() == 2, "must be");
+  oop dependency = entry->obj_at(0);
+  assert(dependency != nullptr, "must be");
+
+  return DependencyListEntryHandle(objArrayHandle(thread, entry), Handle(thread, dependency));
+}
+
+objArrayOop ClassLoaderData::DependencyListEntryHandle::create_entry(Handle dependency, TRAPS) {
   precond(dependency() != nullptr);
-  objArrayOop entry = oopFactory::new_objectArray(2, CHECK_(DependencyListEntryHandle()));
+  objArrayOop entry = oopFactory::new_objectArray(2, CHECK_NULL);
   entry->obj_at_put(0, dependency());
+  return entry;
+}
+
+ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryHandle::create_dependency_entry_handle(Handle dependency, TRAPS) {
+  objArrayOop entry = create_entry(dependency, CHECK_(DependencyListEntryHandle()));
   return DependencyListEntryHandle(objArrayHandle(THREAD, entry), dependency);
 }
 
 void ClassLoaderData::record_oop_dependency(ClassLoaderData::DependencyListEntryHandle dependency_entry) {
   if (is_the_null_class_loader_data()) {
     add_dependency_null_class_loader(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
-  } else if (has_class_mirror_holder() && class_loader() == nullptr) {
-    add_dependency_no_class_loader(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
+  } else if (has_class_mirror_holder()) {
+    add_dependency_mirror_holder(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
   } else {
-    add_dependency(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
+    add_dependency_class_loader(dependency_entry.dependency(), dependency_entry.entry(), false, nullptr);
   }
 }
 
@@ -600,14 +619,14 @@ void ClassLoaderData::record_oop_dependency(Handle dependency, TRAPS) {
   precond(dependency() != nullptr);
   if (is_the_null_class_loader_data()) {
     add_dependency_null_class_loader(dependency, objArrayHandle(), true, CHECK);
-  } else if (has_class_mirror_holder() && class_loader() == nullptr) {
-    add_dependency_no_class_loader(dependency, objArrayHandle(), true, CHECK);
+  } else if (has_class_mirror_holder()) {
+    add_dependency_mirror_holder(dependency, objArrayHandle(), true, CHECK);
   } else {
-    add_dependency(dependency, objArrayHandle(), true, CHECK);
+    add_dependency_class_loader(dependency, objArrayHandle(), true, CHECK);
   }
 }
 
-void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
+oop ClassLoaderData::get_dependency(const Klass* k) {
   assert(k != nullptr, "invariant");
 
   ClassLoaderData * const from_cld = this;
@@ -618,7 +637,7 @@ void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
   // is one of the three builtin class loaders and the dependency's class
   // loader data has a ClassLoader holder, not a Class holder.)
   if (to_cld->is_permanent_class_loader_data()) {
-    return;
+    return nullptr;
   }
 
   oop to;
@@ -627,7 +646,7 @@ void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
     // to itself.  (Note that every non-strong hidden class has its own unique class
     // loader data.)
     if (to_cld == from_cld) {
-      return;
+      return nullptr;
     }
     // Hidden class dependencies are through the mirror.
     to = k->java_mirror();
@@ -638,12 +657,36 @@ void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
     // Just return if this dependency is to a class with the same or a parent
     // class_loader.
     if (from == to || java_lang_ClassLoader::isAncestor(from, to)) {
-      return; // this class loader is in the parent list, no need to add it.
+      return nullptr; // this class loader is in the parent list, no need to add it.
     }
   }
 
-  Handle dependency(Thread::current(), to);
-  record_oop_dependency(dependency, CHECK);
+  return to;
+}
+
+void ClassLoaderData::record_nested_host_dependency(const Klass* k, TRAPS) {
+  oop dependency = get_dependency(k);
+
+  if (dependency == nullptr) {
+    return; // No dependency required
+  }
+
+  Handle dependency_h(THREAD, dependency);
+  DependencyListEntryHandle entry_h =
+      DependencyListEntryHandle::create_dependency_entry_handle(dependency_h, CHECK);
+
+  _keep_alive_nested_host = OopHandle(Universe::vm_global(), entry_h.entry()());
+}
+
+void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
+  oop dependency = get_dependency(k);
+
+  if (dependency == nullptr) {
+    return; // No dependency required
+  }
+
+  Handle dependency_h(THREAD, dependency);
+  record_oop_dependency(dependency_h, CHECK);
 }
 
 void ClassLoaderData::add_class(Klass* k, bool publicize /* true */) {

@@ -532,7 +532,7 @@ void InterpreterMacroAssembler::load_resolved_reference_at_index(Register result
   // Load pointer for resolved_references[] objArray.
   ld(result, ConstantPool::cache_offset(), result);
   ld(result, ConstantPoolCache::resolved_references_offset(), result);
-  resolve_oop_handle(result, tmp1, tmp2, MacroAssembler::PRESERVATION_NONE);
+  resolve_weak_handle(result, tmp1, tmp2, MacroAssembler::PRESERVATION_NONE);
 #ifdef ASSERT
   Label index_ok;
   lwa(R0, arrayOopDesc::length_offset_in_bytes(), result);

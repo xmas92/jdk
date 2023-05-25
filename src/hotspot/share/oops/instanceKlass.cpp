@@ -394,7 +394,7 @@ void InstanceKlass::set_nest_host(InstanceKlass* host, TRAPS) {
   // Record dependency to keep nest host from being unloaded before this class.
   ClassLoaderData* this_key = class_loader_data();
   assert(this_key != nullptr, "sanity");
-  this_key->record_dependency(host, CHECK);
+  this_key->record_nested_host_dependency(host, CHECK);
 }
 
 // check if 'this' and k are nestmates (same nest_host), or k is our nest_host,

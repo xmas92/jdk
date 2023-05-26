@@ -179,8 +179,9 @@ KlassInfoTable::KlassInfoTable(bool add_all_classes) {
       _buckets[index].initialize();
     }
     if (add_all_classes) {
+      assert(SafepointSynchronize::is_at_safepoint(), "should be");
       AllClassesFinder finder(this);
-      ClassLoaderDataGraph::classes_do(&finder);
+      ClassLoaderDataGraph::classes_do_no_keepalive(&finder);
     }
   }
 }

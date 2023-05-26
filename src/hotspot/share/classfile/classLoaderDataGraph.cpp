@@ -391,6 +391,13 @@ void ClassLoaderDataGraph::classes_do(KlassClosure* klass_closure) {
   }
 }
 
+void ClassLoaderDataGraph::classes_do_no_keepalive(KlassClosure* klass_closure) {
+  ClassLoaderDataGraphIteratorNoKeepAlive iter;
+  while (ClassLoaderData* cld = iter.get_next()) {
+    cld->classes_do(klass_closure);
+  }
+}
+
 void ClassLoaderDataGraph::classes_do(void f(Klass* const)) {
   ClassLoaderDataGraphIterator iter;
   while (ClassLoaderData* cld = iter.get_next()) {

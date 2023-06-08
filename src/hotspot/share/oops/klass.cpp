@@ -22,6 +22,7 @@
  *
  */
 
+#include "oops/oopHandle.hpp"
 #include "precompiled.hpp"
 #include "cds/archiveHeapLoader.hpp"
 #include "cds/heapShared.hpp"
@@ -50,6 +51,7 @@
 #include "prims/jvmtiExport.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/handles.hpp"
 #include "runtime/handles.inline.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/powerOfTwo.hpp"
@@ -58,11 +60,22 @@
 void Klass::set_java_mirror(Handle m) {
   assert(!m.is_null(), "New mirror should never be null.");
   assert(_java_mirror.is_empty(), "should only be used to initialize mirror");
-  _java_mirror = class_loader_data()->add_handle(m);
+  _java_mirror = class_loader_data()->add_mirror(this, m);
+}
+
+void Klass::set_strong_java_mirror(Handle m) {
+  assert(!m.is_null(), "New mirror should never be null.");
+  assert(_strong_java_mirror.is_empty(), "should only be used to initialize mirror");
+  _strong_java_mirror = OopHandle(Universe::vm_global(), m());
+}
+
+void Klass::clear_strong_java_mirror() {
+  _strong_java_mirror.release(Universe::vm_global());
+  _strong_java_mirror = OopHandle();
 }
 
 oop Klass::java_mirror_no_keepalive() const {
-  return _java_mirror.peek();
+  return _java_mirror.is_null() ? nullptr : _java_mirror.peek();
 }
 
 bool Klass::is_cloneable() const {

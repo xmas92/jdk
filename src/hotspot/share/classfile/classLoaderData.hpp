@@ -69,36 +69,6 @@ class ClassLoaderMetaspace;
 class ClassLoaderData : public CHeapObj<mtClass> {
   friend class VMStructs;
 
- private:
-  class ChunkedHandleList {
-    struct Chunk : public CHeapObj<mtClass> {
-      static const size_t CAPACITY = 32;
-
-      oop _data[CAPACITY];
-      volatile juint _size;
-      Chunk* _next;
-
-      Chunk(Chunk* c) : _size(0), _next(c) { }
-    };
-
-    Chunk* volatile _head;
-
-    void oops_do_chunk(OopClosure* f, Chunk* c, const juint size);
-
-   public:
-    ChunkedHandleList() : _head(nullptr) {}
-    ~ChunkedHandleList();
-
-    // Only one thread at a time can add, guarded by ClassLoaderData::metaspace_lock().
-    // However, multiple threads can execute oops_do concurrently with add.
-    OopHandle add(oop o);
-    bool contains(oop p);
-    NOT_PRODUCT(bool owner_of(oop* p);)
-    void oops_do(OopClosure* f);
-
-    int count() const;
-  };
-
   friend class ClassLoaderDataGraph;
   template <bool keep_alive>
   friend class ClassLoaderDataGraphIteratorBase;
@@ -139,8 +109,6 @@ class ClassLoaderData : public CHeapObj<mtClass> {
 
   volatile int _claim; // non-zero if claimed, for example during GC traces.
                        // To avoid applying oop closure more than once.
-  ChunkedHandleList _handles; // Handles to constant pool arrays, Modules, etc, which
-                              // have the same life cycle of the corresponding ClassLoader.
 
   NOT_PRODUCT(volatile int _dependency_count;)  // number of class loader dependencies
 

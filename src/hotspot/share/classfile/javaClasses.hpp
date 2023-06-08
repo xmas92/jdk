@@ -323,8 +323,8 @@ class java_lang_Class : AllStatic {
   static oop resolved_references(oop java_class);
   static void set_resolved_references(oop java_class, oop resolved_references);
 
-  static oop dependency(oop java_class);
-  static oop dependency_replace_if_null(oop java_class, objArrayOop dependency_entry);
+  static objArrayOop dependency(oop java_class);
+  static objArrayOop dependency_replace_if_null(oop java_class, objArrayOop dependency_entry);
 
   static oop array_class(oop java_class);
   static oop set_array_class(oop java_class, oop array_class);
@@ -1531,8 +1531,8 @@ class java_lang_ClassLoader : AllStatic {
 
   static oop unnamedModule(oop loader);
 
-  static oop dependency(oop loader);
-  static oop dependency_replace_if_null(oop loader, objArrayOop dependency_entry);
+  static objArrayOop dependency(oop loader);
+  static objArrayOop dependency_replace_if_null(oop loader, objArrayOop dependency_entry);
 
   // Debugging
   friend class JavaClasses;

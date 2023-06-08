@@ -5659,7 +5659,7 @@ void MacroAssembler::load_mirror(Register mirror, Register method, Register tmp)
   const int mirror_offset = in_bytes(Klass::java_mirror_offset());
   load_method_holder(mirror, method);
   movptr(mirror, Address(mirror, mirror_offset));
-  resolve_oop_handle(mirror, tmp);
+  resolve_weak_handle(mirror, tmp);
 }
 
 void MacroAssembler::load_method_holder_cld(Register rresult, Register rmethod) {

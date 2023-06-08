@@ -1648,7 +1648,7 @@ void MacroAssembler::load_mirror(Register mirror, Register method, Register tmp)
   ldr(tmp, Address(tmp,  ConstMethod::constants_offset()));
   ldr(tmp, Address(tmp, ConstantPool::pool_holder_offset()));
   ldr(mirror, Address(tmp, mirror_offset));
-  resolve_oop_handle(mirror);
+  resolve_weak_handle(mirror);
 }
 
 

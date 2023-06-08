@@ -1056,6 +1056,10 @@ const Type *CmpPNode::sub( const Type *t1, const Type *t2 ) const {
 }
 
 static inline Node* isa_java_mirror_load(PhaseGVN* phase, Node* n) {
+  // TODO[AXEL]: If G1 does a phantom load the pre_barrier must be identified
+  //             Currently just performs as strong load for G1, the assumption
+  //             is that any mirror loaded here in emitted code most already be
+  //             strongly reachable.
   // Return the klass node for (indirect load from OopHandle)
   //   LoadBarrier?(LoadP(LoadP(AddP(foo:Klass, #java_mirror))))
   //   or null if not matching.

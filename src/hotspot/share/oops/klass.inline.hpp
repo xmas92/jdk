@@ -30,6 +30,8 @@
 #include "classfile/classLoaderData.inline.hpp"
 #include "oops/klassVtable.hpp"
 #include "oops/markWord.hpp"
+#include "oops/oopHandle.inline.hpp"
+#include "oops/weakHandle.inline.hpp"
 
 // This loads and keeps the klass's loader alive.
 inline oop Klass::klass_holder() const {
@@ -53,11 +55,19 @@ inline bool Klass::is_loader_alive() const {
 }
 
 inline oop Klass::java_mirror() const {
-  return _java_mirror.resolve();
+  return _java_mirror.is_null() ? nullptr : _java_mirror.resolve();
+}
+
+inline void Klass::clear_java_mirror_handle() {
+  _java_mirror.release(Universe::vm_weak());
+  _java_mirror = WeakHandle();
+  // _java_mirror_bootstrap.release(Universe::vm_global());
+  // Leak CDS
+  _strong_java_mirror = OopHandle();
 }
 
 inline oop Klass::java_mirror_no_keepalive() const {
-  return _java_mirror.peek();
+  return _java_mirror.is_null() ? nullptr : _java_mirror.peek();
 }
 
 inline klassVtable Klass::vtable() const {

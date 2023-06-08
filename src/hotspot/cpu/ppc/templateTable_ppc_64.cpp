@@ -2303,7 +2303,7 @@ void TemplateTable::load_resolved_field_entry(Register obj,
     __ ld(obj, in_bytes(ResolvedFieldEntry::field_holder_offset()), cache);
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ ld(obj, mirror_offset, obj);
-    __ resolve_oop_handle(obj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
+    __ resolve_weak_handle(obj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
   }
 }
 

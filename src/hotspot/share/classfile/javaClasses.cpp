@@ -816,6 +816,7 @@ int java_lang_Class::_name_offset;
 int java_lang_Class::_source_file_offset;
 int java_lang_Class::_resolved_references_offset;
 int java_lang_Class::_dependency_offset;
+int java_lang_Class::_array_class_offset;
 int java_lang_Class::_classData_offset;
 int java_lang_Class::_classRedefinedCount_offset;
 
@@ -1085,6 +1086,11 @@ void java_lang_Class::create_mirror(Klass* k, Handle class_loader,
     // after any exceptions can happen during allocations.
     k->set_java_mirror(mirror);
 
+    if (k->is_array_klass()) {
+      // Make the ArrayKlassMirror strongly reachable through the component mirror
+      java_lang_Class::set_array_class(comp_mirror(), mirror());
+    }
+
     // Set the module field in the java_lang_Class instance.  This must be done
     // after the mirror is set.
     set_mirror_module_field(THREAD, k, mirror, module);
@@ -1178,6 +1184,12 @@ bool java_lang_Class::restore_archived_mirror(Klass *k,
   }
 
   k->set_java_mirror(mirror);
+
+  if (k->is_array_klass()) {
+    // TODO[AXEL]: Is already handled when CDS archives the heap?
+    // (ArrayKlass::cast(k)->);
+    // java_lang_Class::set_array_class(comp_mirror(), mirror());
+  }
 
   set_mirror_module_field(THREAD, k, mirror, module);
 
@@ -1314,6 +1326,18 @@ oop  java_lang_Class::dependency_replace_if_null(oop java_class, objArrayOop dep
   assert(_dependency_offset != 0, "offsets should have been initialized");
   assert(is_instance(java_class), "java_class must be oop");
   return HeapAccess<>::oop_atomic_cmpxchg_at(java_class, _dependency_offset, (objArrayOop)nullptr, dependency_entry);
+}
+
+oop java_lang_Class::array_class(oop java_class) {
+  assert(_array_class_offset != 0, "offsets should have been initialized");
+  assert(is_instance(java_class), "java_class must be oop");
+  return java_class->obj_field_access<MO_RELAXED>(_dependency_offset);
+}
+
+oop  java_lang_Class::set_array_class(oop java_class, oop array_class) {
+  assert(_array_class_offset != 0, "offsets should have been initialized");
+  assert(is_instance(java_class), "java_class must be oop");
+  return HeapAccess<>::oop_atomic_cmpxchg_at(java_class, _array_class_offset, (oop)nullptr, array_class);
 }
 
 oop java_lang_Class::create_basic_type_mirror(const char* basic_type_name, BasicType type, TRAPS) {

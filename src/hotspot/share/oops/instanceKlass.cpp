@@ -72,6 +72,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/recordComponent.hpp"
 #include "oops/symbol.hpp"
+#include "oops/weakHandle.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "prims/jvmtiRedefineClasses.hpp"
 #include "prims/jvmtiThreadState.hpp"
@@ -588,7 +589,7 @@ void InstanceKlass::deallocate_contents(ClassLoaderData* loader_data) {
   }
 
   // Also remove mirror from handles
-  loader_data->remove_handle(_java_mirror);
+  loader_data->remove_mirror(this, _java_mirror);
 
   // Need to take this class off the class loader data list.
   loader_data->remove_class(this);

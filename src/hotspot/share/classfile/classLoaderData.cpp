@@ -141,6 +141,7 @@ void ClassLoaderData::initialize_name(Handle class_loader) {
 }
 
 ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_holder) :
+  _holder_oop(nullptr),
   _metaspace(nullptr),
   _metaspace_lock(new Mutex(Mutex::nosafepoint-2, "MetaspaceAllocation_lock")),
   _unloading(false), _has_class_mirror_holder(has_class_mirror_holder),
@@ -372,11 +373,16 @@ void ClassLoaderData::dec_keep_alive_ref_count() {
       demote_strong_roots();
     }
     _keep_alive_ref_count--;
-    if (keep_alive_ref_count() == 0 && !_keep_alive_nested_host.is_empty()) {
-      DependencyListEntryHandle entry_h =
-          DependencyListEntryHandle::create_from_entry_handle(_keep_alive_nested_host);
-      record_oop_dependency(entry_h);
-      _keep_alive_nested_host.release(Universe::vm_global());
+    if (keep_alive_ref_count() == 0) {
+      if (!_keep_alive_nested_host.is_empty()) {
+        DependencyListEntryHandle entry_h =
+            DependencyListEntryHandle::create_from_entry_handle(_keep_alive_nested_host);
+        record_oop_dependency(entry_h);
+        _keep_alive_nested_host.release(Universe::vm_global());
+      }
+      _holder_oop = _keep_alive_holder.resolve();
+      assert(!_keep_alive_holder.is_empty(), "Non-strong hidden classes must be strong roots until created");
+      _keep_alive_holder.release(Universe::vm_global());
     }
   }
 }
@@ -391,7 +397,11 @@ void ClassLoaderData::oops_do(OopClosure* f, int claim_value, bool clear_mod_oop
     clear_modified_oops();
   }
 
-  _handles.oops_do(f);
+  if (!_holder.is_empty()) {
+    //oop holder = *_holder.ptr_raw();
+    //oop holder = _holder.resolve();
+    f->do_oop(&_holder_oop);
+  }
 }
 
 void ClassLoaderData::classes_do(KlassClosure* klass_closure) {
@@ -717,6 +727,11 @@ void ClassLoaderData::initialize_holder(Handle loader_or_mirror) {
   if (loader_or_mirror() != nullptr) {
     assert(_holder.is_null(), "never replace holders");
     _holder = WeakHandle(Universe::vm_weak(), loader_or_mirror);
+    _holder_oop = loader_or_mirror();
+    if (keep_alive() && has_class_mirror_holder()) {
+      assert(java_lang_Class::is_instance(loader_or_mirror()), "must be class holder");
+      _keep_alive_holder = OopHandle(Universe::vm_global(), loader_or_mirror());
+    }
   }
 }
 
@@ -997,19 +1012,26 @@ ClassLoaderMetaspace* ClassLoaderData::metaspace_non_null() {
   return metaspace;
 }
 
-OopHandle ClassLoaderData::add_handle(Handle h) {
-  MutexLocker ml(metaspace_lock(),  Mutex::_no_safepoint_check_flag);
+WeakHandle ClassLoaderData::add_mirror(Klass* k, Handle h) {
+  precond(java_lang_Class::is_instance(h()));
+  if (!k->is_array_klass() && !has_class_mirror_holder()) {
+    assert(k->is_instance_klass(), "should be");
+    k->set_strong_java_mirror(h);
+  } else if (is_the_null_class_loader_data()) {
+    k->set_strong_java_mirror(h);
+  } else {
+    // k->set_strong_java_mirror(h);
+  }
+
   record_modified_oops();
-  return _handles.add(h());
+
+  return WeakHandle(Universe::vm_weak(), h());
 }
 
-void ClassLoaderData::remove_handle(OopHandle h) {
-  assert(!is_unloading(), "Do not remove a handle for a CLD that is unloading");
-  if (!h.is_empty()) {
-    assert(_handles.owner_of(h.ptr_raw()),
-           "Got unexpected handle " PTR_FORMAT, p2i(h.ptr_raw()));
-    h.replace(oop(nullptr));
-  }
+void ClassLoaderData::remove_mirror(Klass* k, WeakHandle& h) {
+  k->clear_strong_java_mirror();
+  h.release(Universe::vm_weak());
+  h = WeakHandle();
 }
 
 void ClassLoaderData::init_handle_locked(WeakHandle& dest, Handle h, TRAPS) {

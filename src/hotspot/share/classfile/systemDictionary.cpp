@@ -1415,6 +1415,9 @@ void SystemDictionary::define_instance_class(InstanceKlass* k, Handle class_load
     JavaCallArguments args(class_loader);
     args.push_oop(Handle(THREAD, k->java_mirror()));
     JavaCalls::call(&result, m, &args, CHECK);
+    // InstanceKlassMirror is now strongly reachable from the class loader
+    // object, the strong root can be cleared
+    k->clear_strong_java_mirror();
   }
 
   // Add to class hierarchy, and do possible deoptimizations.

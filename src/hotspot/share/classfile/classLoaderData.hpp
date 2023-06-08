@@ -113,6 +113,8 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   static OopHandle _the_null_class_loader_dependencies;
 
   WeakHandle _holder;       // The oop that determines lifetime of this class loader
+  OopHandle  _keep_alive_holder; // Used to keep holder alive while creating hidden class
+  oop _holder_oop; // Actual _holder_oop
   WeakHandle  _class_loader; // The instance of java/lang/ClassLoader associated with
                              // this ClassLoaderData
   OopHandle  _keep_alive_nested_host; // Used to keep the nested host dependency while
@@ -330,8 +332,8 @@ private:
   void print_value_on(outputStream* out) const;
   void verify();
 
-  OopHandle add_handle(Handle h);
-  void remove_handle(OopHandle h);
+  WeakHandle add_mirror(Klass* k, Handle h);
+  void remove_mirror(Klass* k, WeakHandle& h);
   void init_handle_locked(WeakHandle& pd, Handle h, TRAPS);  // used for concurrent access to ModuleEntry::_pd field
   void add_class(Klass* k, bool publicize = true);
   void remove_class(Klass* k);

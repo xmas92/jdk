@@ -27,10 +27,12 @@
 
 #include "memory/iterator.hpp"
 #include "memory/memRegion.hpp"
+#include "memory/universe.hpp"
 #include "oops/markWord.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
 #include "oops/oopHandle.hpp"
+#include "oops/weakHandle.hpp"
 #include "utilities/accessFlags.hpp"
 #include "utilities/macros.hpp"
 #if INCLUDE_JFR
@@ -144,7 +146,8 @@ class Klass : public Metadata {
   // Ordered list of all primary supertypes
   Klass*      _primary_supers[_primary_super_limit];
   // java/lang/Class instance mirroring this class
-  OopHandle   _java_mirror;
+  OopHandle    _strong_java_mirror;
+  WeakHandle   _java_mirror;
   // Superclass
   Klass*      _super;
   // First subclass (null if none); _subklass->next_sibling() is next one
@@ -275,16 +278,23 @@ protected:
   oop java_mirror_no_keepalive() const;
   void set_java_mirror(Handle m);
 
+  void set_strong_java_mirror(Handle m);
+  void clear_strong_java_mirror();
+
   oop archived_java_mirror() NOT_CDS_JAVA_HEAP_RETURN_(nullptr);
   void set_archived_java_mirror(int mirror_index) NOT_CDS_JAVA_HEAP_RETURN;
 
   // Temporary mirror switch used by RedefineClasses
-  OopHandle java_mirror_handle() const { return _java_mirror; }
-  void swap_java_mirror_handle(OopHandle& mirror) { _java_mirror.swap(mirror); }
+  WeakHandle java_mirror_handle() const { return _java_mirror; }
+  void swap_java_mirror_handle(WeakHandle& mirror) {
+    WeakHandle tmp = _java_mirror;
+    _java_mirror = mirror;
+    mirror = tmp;
+  }
 
   // Set java mirror OopHandle to null for CDS
   // This leaves the OopHandle in the CLD, but that's ok, you can't release them.
-  void clear_java_mirror_handle() { _java_mirror = OopHandle(); }
+  void clear_java_mirror_handle();
 
   // modifier flags
   jint modifier_flags() const          { return _modifier_flags; }

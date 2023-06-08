@@ -505,6 +505,7 @@ class SerializeClosure;
   template(jvmti_is_in_VTMS_transition_name,          "jvmti_is_in_VTMS_transition")              \
   template(module_entry_name,                         "module_entry")                             \
   template(resolved_references_name,                  "<resolved_references>")                    \
+  template(array_class_name,                          "array_class")                              \
   template(init_lock_name,                            "<init_lock>")                              \
   template(address_size_name,                         "ADDRESS_SIZE0")                            \
   template(page_size_name,                            "PAGE_SIZE")                                \

@@ -59,10 +59,10 @@
 #include "utilities/rotate_bits.hpp"
 #include "utilities/stack.inline.hpp"
 
-void Klass::set_java_mirror(Handle m) {
+void Klass::set_java_mirror(Handle m, TRAPS) {
   assert(!m.is_null(), "New mirror should never be null.");
   assert(_java_mirror.is_empty(), "should only be used to initialize mirror");
-  _java_mirror = class_loader_data()->add_mirror(this, m);
+  _java_mirror = class_loader_data()->add_mirror(this, m, THREAD);
 }
 
 void Klass::set_strong_java_mirror(Handle m) {

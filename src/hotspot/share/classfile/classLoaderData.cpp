@@ -46,6 +46,7 @@
 // The bootstrap loader (represented by null) also has a ClassLoaderData,
 // the singleton class the_null_class_loader_data().
 
+#include "oops/oopsHierarchy.hpp"
 #include "precompiled.hpp"
 #include "classfile/classLoaderData.inline.hpp"
 #include "classfile/classLoaderDataGraph.inline.hpp"
@@ -446,7 +447,7 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
   // Store dependency at the end of the list if not already contained
   while (true) {
     // Find dependency or end of list
-    oop next = cursor;
+    objArrayOop next = cursor;
     do {
       if (cursor->obj_at(0) == dependency()) {
         // Already contained
@@ -455,7 +456,7 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
       assert(cursor->obj_at(0) != nullptr, "null dependency found");
       // Advance the cursor
       cursor = next;
-      next = cursor->obj_at(1);
+      next = (objArrayOop)cursor->obj_at(1);
     } while (next != nullptr);
 
     // Allocate list entry
@@ -493,8 +494,8 @@ void ClassLoaderData::add_dependency_mirror_holder(Handle dependency, objArrayHa
 void ClassLoaderData::add_dependency_null_class_loader(Handle dependency, objArrayHandle entry, bool trace, TRAPS) {
   precond(is_the_null_class_loader_data());
 
-  add_dependency_impl([](){ return _the_null_class_loader_dependencies.resolve_relaxed(); },
-                      [](objArrayOop list_entry) { return _the_null_class_loader_dependencies.cmpxchg(nullptr, list_entry); },
+  add_dependency_impl([](){ return (objArrayOop)_the_null_class_loader_dependencies.resolve_relaxed(); },
+                      [](objArrayOop list_entry) { return (objArrayOop)_the_null_class_loader_dependencies.cmpxchg(nullptr, list_entry); },
                       dependency, entry, trace, THREAD);
 }
 

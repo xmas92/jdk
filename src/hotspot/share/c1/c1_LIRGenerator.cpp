@@ -37,6 +37,7 @@
 #include "compiler/compilerDefinitions.inline.hpp"
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/c1/barrierSetC1.hpp"
+#include "oops/accessDecorators.hpp"
 #include "oops/klass.inline.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
@@ -1264,7 +1265,7 @@ void LIRGenerator::do_getClass(Intrinsic* x) {
   load_klass(rcvr.result(), klass, info);
   __ move_wide(new LIR_Address(klass, in_bytes(Klass::java_mirror_offset()), T_ADDRESS), temp);
   // mirror = ((OopHandle)mirror)->resolve();
-  access_load(IN_NATIVE, T_OBJECT,
+  access_load(IN_NATIVE | ON_PHANTOM_OOP_REF, T_OBJECT,
               LIR_OprFact::address(new LIR_Address(temp, T_OBJECT)), result);
 }
 

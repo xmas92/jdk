@@ -129,11 +129,12 @@ XBarrierSetC1::XBarrierSetC1() :
     _load_barrier_on_weak_oop_field_preloaded_runtime_stub(nullptr) {}
 
 address XBarrierSetC1::load_barrier_on_oop_field_preloaded_runtime_stub(DecoratorSet decorators) const {
-  assert((decorators & ON_PHANTOM_OOP_REF) == 0, "Unsupported decorator");
   //assert((decorators & ON_UNKNOWN_OOP_REF) == 0, "Unsupported decorator");
 
   if ((decorators & ON_WEAK_OOP_REF) != 0) {
     return _load_barrier_on_weak_oop_field_preloaded_runtime_stub;
+  } else if ((decorators & ON_PHANTOM_OOP_REF) != 0) {
+    return _load_barrier_on_phantom_oop_field_preloaded_runtime_stub;
   } else {
     return _load_barrier_on_oop_field_preloaded_runtime_stub;
   }
@@ -234,4 +235,6 @@ void XBarrierSetC1::generate_c1_runtime_stubs(BufferBlob* blob) {
     generate_c1_runtime_stub(blob, ON_STRONG_OOP_REF, "load_barrier_on_oop_field_preloaded_runtime_stub");
   _load_barrier_on_weak_oop_field_preloaded_runtime_stub =
     generate_c1_runtime_stub(blob, ON_WEAK_OOP_REF, "load_barrier_on_weak_oop_field_preloaded_runtime_stub");
+  _load_barrier_on_phantom_oop_field_preloaded_runtime_stub =
+    generate_c1_runtime_stub(blob, ON_PHANTOM_OOP_REF, "load_barrier_on_phantom_oop_field_preloaded_runtime_stub");
 }

@@ -88,6 +88,7 @@
 #include "runtime/vframe.inline.hpp"
 #include "runtime/vm_version.hpp"
 #include "utilities/align.hpp"
+#include "utilities/exceptions.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/preserveException.hpp"
@@ -1084,7 +1085,7 @@ void java_lang_Class::create_mirror(Klass* k, Handle class_loader,
 
     // Setup indirection from klass->mirror
     // after any exceptions can happen during allocations.
-    k->set_java_mirror(mirror);
+    k->set_java_mirror(mirror, CHECK);
 
     if (k->is_array_klass()) {
       // Make the ArrayKlassMirror strongly reachable through the component mirror
@@ -1183,7 +1184,8 @@ bool java_lang_Class::restore_archived_mirror(Klass *k,
     set_class_loader(mirror(), class_loader());
   }
 
-  k->set_java_mirror(mirror);
+  // TODO[AXEL]: strong is_hidden allocates. Duplicate?
+  k->set_java_mirror(mirror, CHECK_false);
 
   if (k->is_array_klass()) {
     // TODO[AXEL]: Is already handled when CDS archives the heap?

@@ -276,8 +276,9 @@ protected:
   // java mirror
   oop java_mirror() const;
   oop java_mirror_no_keepalive() const;
-  void set_java_mirror(Handle m);
+  void set_java_mirror(Handle m, TRAPS);
 
+  bool is_strong_mirror() { return !_strong_java_mirror.is_empty(); }
   void set_strong_java_mirror(Handle m);
   void clear_strong_java_mirror();
 

@@ -46,7 +46,6 @@
 // The bootstrap loader (represented by null) also has a ClassLoaderData,
 // the singleton class the_null_class_loader_data().
 
-#include "oops/oopsHierarchy.hpp"
 #include "precompiled.hpp"
 #include "classfile/classLoaderData.inline.hpp"
 #include "classfile/classLoaderDataGraph.inline.hpp"
@@ -590,10 +589,18 @@ void ClassLoaderData::record_nested_host_dependency(const Klass* k, TRAPS) {
   }
 
   Handle dependency_h(THREAD, dependency);
-  DependencyListEntryHandle entry_h =
-      DependencyListEntryHandle::create_dependency_entry_handle(dependency_h, CHECK);
 
-  _keep_alive_nested_host = OopHandle(Universe::vm_global(), entry_h.entry()());
+  if (!has_class_mirror_holder()) {
+    record_oop_dependency(dependency_h, CHECK);
+  } else {
+    // Class mirror holder is not yet created so we defer record dependency until
+    // after it is. The nested host is kept as a strong root until then.
+    DependencyListEntryHandle entry_h =
+        DependencyListEntryHandle::create_dependency_entry_handle(dependency_h, CHECK);
+
+    _keep_alive_nested_host = OopHandle(Universe::vm_global(), entry_h.entry()());
+  }
+
 }
 
 void ClassLoaderData::record_dependency(const Klass* k, TRAPS) {
@@ -923,11 +930,16 @@ ClassLoaderMetaspace* ClassLoaderData::metaspace_non_null() {
   return metaspace;
 }
 
-WeakHandle ClassLoaderData::add_mirror(Klass* k, Handle h) {
+WeakHandle ClassLoaderData::add_mirror(Klass* k, Handle h, TRAPS) {
   precond(java_lang_Class::is_instance(h()));
   if (!k->is_array_klass() && !has_class_mirror_holder()) {
     assert(k->is_instance_klass(), "should be");
-    k->set_strong_java_mirror(h);
+    if (k->is_hidden()) {
+      record_oop_dependency(h, CHECK_(WeakHandle()));
+    } else {
+      // Kept as strong roots until written into the class loader object
+      k->set_strong_java_mirror(h);
+    }
   } else if (is_the_null_class_loader_data()) {
     k->set_strong_java_mirror(h);
   } else {

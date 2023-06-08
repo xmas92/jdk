@@ -151,7 +151,6 @@ ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_ho
   // The null-class-loader should always be kept alive.
   _keep_alive_ref_count((has_class_mirror_holder || h_class_loader.is_null()) ? 1 : 0),
   _claim(0),
-  _handles(),
   _klasses(nullptr), _packages(nullptr), _modules(nullptr), _unnamed_module(nullptr), _dictionary(nullptr),
   _jmethod_ids(nullptr),
   _deallocate_list(nullptr),
@@ -187,95 +186,6 @@ ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_ho
 
   JFR_ONLY(INIT_ID(this);)
 }
-
-ClassLoaderData::ChunkedHandleList::~ChunkedHandleList() {
-  Chunk* c = _head;
-  while (c != nullptr) {
-    Chunk* next = c->_next;
-    delete c;
-    c = next;
-  }
-}
-
-OopHandle ClassLoaderData::ChunkedHandleList::add(oop o) {
-  if (_head == nullptr || _head->_size == Chunk::CAPACITY) {
-    Chunk* next = new Chunk(_head);
-    Atomic::release_store(&_head, next);
-  }
-  oop* handle = &_head->_data[_head->_size];
-  NativeAccess<IS_DEST_UNINITIALIZED>::oop_store(handle, o);
-  Atomic::release_store(&_head->_size, _head->_size + 1);
-  return OopHandle(handle);
-}
-
-int ClassLoaderData::ChunkedHandleList::count() const {
-  int count = 0;
-  Chunk* chunk = Atomic::load_acquire(&_head);
-  while (chunk != nullptr) {
-    count += Atomic::load(&chunk->_size);
-    chunk = chunk->_next;
-  }
-  return count;
-}
-
-inline void ClassLoaderData::ChunkedHandleList::oops_do_chunk(OopClosure* f, Chunk* c, const juint size) {
-  for (juint i = 0; i < size; i++) {
-    f->do_oop(&c->_data[i]);
-  }
-}
-
-void ClassLoaderData::ChunkedHandleList::oops_do(OopClosure* f) {
-  Chunk* head = Atomic::load_acquire(&_head);
-  if (head != nullptr) {
-    // Must be careful when reading size of head
-    oops_do_chunk(f, head, Atomic::load_acquire(&head->_size));
-    for (Chunk* c = head->_next; c != nullptr; c = c->_next) {
-      oops_do_chunk(f, c, c->_size);
-    }
-  }
-}
-
-class VerifyContainsOopClosure : public OopClosure {
-  oop  _target;
-  bool _found;
-
- public:
-  VerifyContainsOopClosure(oop target) : _target(target), _found(false) {}
-
-  void do_oop(oop* p) {
-    if (p != nullptr && NativeAccess<AS_NO_KEEPALIVE>::oop_load(p) == _target) {
-      _found = true;
-    }
-  }
-
-  void do_oop(narrowOop* p) {
-    // The ChunkedHandleList should not contain any narrowOop
-    ShouldNotReachHere();
-  }
-
-  bool found() const {
-    return _found;
-  }
-};
-
-bool ClassLoaderData::ChunkedHandleList::contains(oop p) {
-  VerifyContainsOopClosure cl(p);
-  oops_do(&cl);
-  return cl.found();
-}
-
-#ifndef PRODUCT
-bool ClassLoaderData::ChunkedHandleList::owner_of(oop* oop_handle) {
-  Chunk* chunk = Atomic::load_acquire(&_head);
-  while (chunk != nullptr) {
-    if (&(chunk->_data[0]) <= oop_handle && oop_handle < &(chunk->_data[Atomic::load(&chunk->_size)])) {
-      return true;
-    }
-    chunk = chunk->_next;
-  }
-  return false;
-}
-#endif // PRODUCT
 
 void ClassLoaderData::clear_claim(int claim) {
   for (;;) {
@@ -1217,7 +1127,6 @@ void ClassLoaderData::print_on(outputStream* out) const {
     case _claim_other | _claim_strong:      out->print_cr("other and strong"); break;
     default:                                ShouldNotReachHere();
   }
-  out->print_cr(" - handles             %d", _handles.count());
   out->print_cr(" - dependency count    %d", _dependency_count);
   out->print   (" - klasses             { ");
   if (Verbose) {

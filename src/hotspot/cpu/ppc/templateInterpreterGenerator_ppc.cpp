@@ -1010,7 +1010,7 @@ void TemplateInterpreterGenerator::generate_fixed_frame(bool native_call, Regist
   // Get mirror and store it in the frame as GC root for this Method*.
   __ ld(Rmirror, ConstantPool::pool_holder_offset(), Rconst_pool);
   __ ld(Rmirror, in_bytes(Klass::java_mirror_offset()), Rmirror);
-  __ resolve_oop_handle(Rmirror, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS);
+  __ resolve_weak_handle(Rmirror, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_FRAME_LR_GP_REGS);
 
   __ addi(R26_monitor, R1_SP, -frame::ijava_state_size);
   __ addi(R15_esp, R26_monitor, -Interpreter::stackElementSize);

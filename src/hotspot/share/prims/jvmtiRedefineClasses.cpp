@@ -1308,7 +1308,7 @@ class RedefineVerifyMark : public StackObj {
  private:
   JvmtiThreadState* _state;
   Klass*            _scratch_class;
-  OopHandle         _scratch_mirror;
+  WeakHandle        _scratch_mirror;
 
  public:
 

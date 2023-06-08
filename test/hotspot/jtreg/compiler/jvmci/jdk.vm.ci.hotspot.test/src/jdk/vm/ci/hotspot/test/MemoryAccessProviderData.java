@@ -66,7 +66,7 @@ public class MemoryAccessProviderData {
     @DataProvider(name = "positiveObject")
     public static Object[][] getPositiveObjectJavaKind() {
         HotSpotJVMCIRuntime runtime = (HotSpotJVMCIRuntime) JVMCI.getRuntime();
-        int offset = new HotSpotVMConfigAccess(runtime.getConfigStore()).getFieldOffset("Klass::_java_mirror", Integer.class, "OopHandle");
+        int offset = new HotSpotVMConfigAccess(runtime.getConfigStore()).getFieldOffset("Klass::_java_mirror", Integer.class, "WeakHandle");
         Constant wrappedKlassPointer = CompilerToVMHelper.fromObjectClass(TestClass.class).klass();
         return new Object[][]{new Object[]{JavaKind.Object, wrappedKlassPointer, (long) offset, TEST_CLASS_CONSTANT, 0}};
     }

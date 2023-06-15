@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "cds/archiveBuilder.hpp"
 #include "cds/heapShared.hpp"
+#include "classfile/javaClasses.inline.hpp"
 #include "classfile/resolutionErrors.hpp"
 #include "classfile/systemDictionary.hpp"
 #include "classfile/systemDictionaryShared.hpp"
@@ -719,8 +720,17 @@ void ConstantPoolCache::remove_unshareable_info() {
 
 void ConstantPoolCache::deallocate_contents(ClassLoaderData* data) {
   assert(!is_shared(), "shared caches are not deallocated");
-  _resolved_references.release(Universe::vm_weak());
-  clear_resolved_references();
+  precond(_resolved_references.is_empty() || java_lang_Class::is_instance(_constant_pool->pool_holder()->java_mirror()));
+  if (!_resolved_references.is_empty()) {
+    oop resolved_reference = _resolved_references.peek();
+    // TODO[AXEL]: _resolved_references may be cleared, probably if the class dies completely while cleaning out its previous
+    //             versions. But what about _constant_pool->pool_holder()->java_mirror(). Need to understand/investigate this.
+    if (resolved_reference != nullptr) {
+      java_lang_Class::remove_resolved_references(_constant_pool->pool_holder()->java_mirror(), resolved_reference);
+    }
+    _resolved_references.release(Universe::vm_weak());
+    clear_resolved_references();
+  }
   MetadataFactory::free_array<u2>(data, _reference_map);
   set_reference_map(nullptr);
 #if INCLUDE_CDS

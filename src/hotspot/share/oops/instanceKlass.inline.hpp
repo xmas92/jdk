@@ -186,4 +186,13 @@ ALWAYSINLINE void InstanceKlass::oop_oop_iterate_bounded(oop obj, OopClosureType
   oop_oop_iterate_oop_maps_bounded<T>(obj, closure, mr);
 }
 
+inline void InstanceKlass::set_redefined_from_class(InstanceKlass* the_class) {
+  assert(_redefined_from_class == nullptr, "only initialize once");
+  _redefined_from_class = the_class;
+}
+
+inline oop InstanceKlass::resolved_reference_holder() const {
+  return _redefined_from_class == nullptr ? java_mirror() : _redefined_from_class->resolved_reference_holder();
+}
+
 #endif // SHARE_OOPS_INSTANCEKLASS_INLINE_HPP

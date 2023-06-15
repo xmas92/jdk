@@ -1041,8 +1041,8 @@ class WalkOopAndArchiveClosure: public BasicOopIterateClosure {
 
       if (!_record_klasses_only && log_is_enabled(Debug, cds, heap)) {
         ResourceMark rm;
-        log_debug(cds, heap)("(%d) %s[" SIZE_FORMAT "] ==> " PTR_FORMAT " size " SIZE_FORMAT " %s", _level,
-                             _referencing_obj->klass()->external_name(), field_delta,
+        log_debug(cds, heap)("(%d) %s[" SIZE_FORMAT "] " PTR_FORMAT " ==> " PTR_FORMAT " size " SIZE_FORMAT " %s", _level,
+                             _referencing_obj->klass()->external_name(), field_delta, p2i(_referencing_obj),
                              p2i(obj), obj->size() * HeapWordSize, obj->klass()->external_name());
         if (log_is_enabled(Trace, cds, heap)) {
           LogTarget(Trace, cds, heap) log;
@@ -1113,6 +1113,9 @@ bool HeapShared::archive_reachable_objects_from(int level,
   // object that is referenced (directly or indirectly) by static fields.
   if (java_lang_Class::is_instance(orig_obj) && subgraph_info != _default_subgraph_info) {
     log_error(cds, heap)("(%d) Unknown java.lang.Class object is in the archived sub-graph", level);
+    LogTarget(Debug, cds, heap) log;
+    LogStream out(log);
+    orig_obj->print_on(&out);
     MetaspaceShared::unrecoverable_writing_error();
   }
 

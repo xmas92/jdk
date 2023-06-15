@@ -1508,6 +1508,7 @@ jvmtiError VM_RedefineClasses::load_new_class_versions() {
     }
 #endif // ASSERT
 
+    scratch_class->set_redefined_from_class(the_class);
     Rewriter::rewrite(scratch_class, THREAD);
     if (!HAS_PENDING_EXCEPTION) {
       scratch_class->link_methods(THREAD);

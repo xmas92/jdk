@@ -692,6 +692,15 @@ public:
 
   bool is_scratch_class() const { return _misc_flags.is_scratch_class(); }
   void set_is_scratch_class() { _misc_flags.set_is_scratch_class(true); }
+private:
+  // TODO[AXEL]: Maybe roll this into is_scratch_class and previous version (similar property)
+  //             Currently set to late
+  InstanceKlass* _redefined_from_class;
+
+public:
+  bool has_redefined_from_class() const { return _redefined_from_class != nullptr; }
+  void set_redefined_from_class(InstanceKlass* the_class);
+  oop resolved_reference_holder() const;
 
   bool has_resolved_methods() const { return _misc_flags.has_resolved_methods(); }
   void set_has_resolved_methods()   { _misc_flags.set_has_resolved_methods(true); }

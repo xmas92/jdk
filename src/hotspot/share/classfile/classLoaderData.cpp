@@ -460,8 +460,11 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
 
     // Allocate list entry
     if (list_entry == nullptr) {
+      HandleMark handlemark(THREAD);
+      objArrayHandle cursor_h = objArrayHandle(THREAD, cursor);
       list_entry = oopFactory::new_objectArray(2, CHECK);
       list_entry->obj_at_put(0, dependency());
+      cursor = cursor_h();
     }
 
     if (nullptr == cursor->replace_if_null(1, list_entry) &&

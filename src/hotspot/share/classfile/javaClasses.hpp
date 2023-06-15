@@ -321,7 +321,10 @@ class java_lang_Class : AllStatic {
   static void set_source_file(oop java_class, oop source_file);
 
   static oop resolved_references(oop java_class);
-  static void set_resolved_references(oop java_class, oop resolved_references);
+  static void init_resolved_references(Handle java_class, Handle resolved_references, TRAPS);
+  static void add_resolved_references(Handle java_class, Handle resolved_references, TRAPS);
+  static void remove_resolved_references(oop java_class, oop resolved_references);
+  static void shrink_resolved_references(Handle java_class, TRAPS);
 
   static objArrayOop dependency(oop java_class);
   static objArrayOop dependency_replace_if_null(oop java_class, objArrayOop dependency_entry);

@@ -1313,9 +1313,54 @@ oop java_lang_Class::resolved_references(oop java_class) {
   return java_class->obj_field(_resolved_references_offset);
 }
 
-void java_lang_Class::set_resolved_references(oop java_class, oop resolved_references) {
+void java_lang_Class::init_resolved_references(Handle java_class, Handle resolved_references, TRAPS) {
   assert(_resolved_references_offset != 0, "must be set");
-  java_class->obj_field_put(_resolved_references_offset, resolved_references);
+  assert(java_class->obj_field(_resolved_references_offset) == nullptr, "only initialize once");
+  objArrayOop resolved_references_array = oopFactory::new_objArray(vmClasses::Object_klass(), 1, CHECK);
+  resolved_references_array->obj_at_put(0, resolved_references());
+  java_class->obj_field_put(_resolved_references_offset, (oop)resolved_references_array);
+}
+
+void java_lang_Class::add_resolved_references(Handle java_class, Handle resolved_references, TRAPS) {
+  assert(_resolved_references_offset != 0, "must be set");
+  objArrayHandle resolved_references_array = objArrayHandle(THREAD, (objArrayOop)java_class->obj_field(_resolved_references_offset));
+  const bool old_exists = !resolved_references_array.is_null();
+  const int old_size = old_exists ? resolved_references_array->length() : 0;
+  const int new_size = old_size + 1;
+  assert(new_size > 0, "overflow");
+  objArrayOop new_resolved_references_array = oopFactory::new_objArray(vmClasses::Object_klass(), new_size, CHECK);
+  if (old_exists) {
+    ArrayAccess<>::oop_arraycopy(resolved_references_array(), objArrayOopDesc::base_offset_in_bytes(), new_resolved_references_array, objArrayOopDesc::base_offset_in_bytes(), old_size);
+  }
+  new_resolved_references_array->obj_at_put(old_size, resolved_references());
+  java_class->obj_field_put(_resolved_references_offset, (oop)new_resolved_references_array);
+}
+
+void java_lang_Class::remove_resolved_references(oop java_class, oop resolved_references) {
+  assert(_resolved_references_offset != 0, "must be set");
+  objArrayOop resolved_references_array = (objArrayOop)java_class->obj_field(_resolved_references_offset);
+  int i = 0;
+  while (i < resolved_references_array->length()) {
+    if (resolved_references == resolved_references_array->obj_at(i)) {
+      resolved_references_array->obj_at_put(i, (oop)nullptr);
+      break;
+    }
+    ++i;
+  }
+#ifdef ASSERT
+  while (i < resolved_references_array->length()) {
+    assert(resolved_references != resolved_references_array->obj_at(i), "only one entry");
+    ++i;
+  }
+#endif
+}
+
+void java_lang_Class::shrink_resolved_references(Handle java_class, TRAPS) {
+  assert(_resolved_references_offset != 0, "must be set");
+  assert(java_class->obj_field(_resolved_references_offset) != nullptr, "must be initialized");
+  // TODO[AXEL]: Figure out when to remove cleared resolved_references, could be done lazily in add
+  //             as well, but still need a final cleaning after previous versions gets cleaned out.
+  //             But requires heap allocations.
 }
 
 objArrayOop java_lang_Class::dependency(oop java_class) {

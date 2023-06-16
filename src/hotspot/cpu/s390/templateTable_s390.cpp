@@ -2412,7 +2412,8 @@ void TemplateTable::load_field_cp_cache_entry(Register obj,
   if (is_static) {
     __ mem2reg_opt(obj, Address(cache, index, cp_base_offset + ConstantPoolCacheEntry::f1_offset()));
     __ mem2reg_opt(obj, Address(obj, Klass::java_mirror_offset()));
-    __ resolve_weak_handle(obj);
+    // TODO[AXEL]: Fix Temp registers
+    __ resolve_weak_handle(obj, noreg, noreg);
   }
 }
 

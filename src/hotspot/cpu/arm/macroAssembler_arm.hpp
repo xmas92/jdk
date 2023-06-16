@@ -594,6 +594,7 @@ public:
   }
 
   void resolve_oop_handle(Register result);
+  void resolve_weak_handle(Register result, Register tmp1, Register tmp2);
   void load_mirror(Register mirror, Register method, Register tmp);
 
   void enter() {

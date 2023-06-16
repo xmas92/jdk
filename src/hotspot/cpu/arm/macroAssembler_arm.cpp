@@ -1642,13 +1642,23 @@ void MacroAssembler::resolve_oop_handle(Register result) {
   ldr(result, Address(result, 0));
 }
 
+// ((WeakHandle)result).resolve();
+void MacroAssembler::resolve_weak_handle(Register result, Register tmp1, Register tmp2) {
+  assert_different_registers(result, tmp1, tmp2, noreg);
+  Label done;
+  cbz(result, done);
+  access_load_at(T_OBJECT, IN_NATIVE | ON_PHANTOM_OOP_REF, Address(result), result, tmp1, tmp2, noreg);
+  bind(done);
+}
+
 void MacroAssembler::load_mirror(Register mirror, Register method, Register tmp) {
   const int mirror_offset = in_bytes(Klass::java_mirror_offset());
   ldr(tmp, Address(method, Method::const_offset()));
   ldr(tmp, Address(tmp,  ConstMethod::constants_offset()));
   ldr(tmp, Address(tmp, ConstantPool::pool_holder_offset()));
   ldr(mirror, Address(tmp, mirror_offset));
-  resolve_weak_handle(mirror);
+  // TODO[AXEL]: Fix Temp registers
+  resolve_weak_handle(mirror, noreg, noreg);
 }
 
 

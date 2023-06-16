@@ -286,7 +286,6 @@ void ShenandoahBarrierSetAssembler::satb_write_barrier_pre(MacroAssembler* masm,
 #endif
 
   if (expand_call) {
-    LP64_ONLY( assert(pre_val != c_rarg1, "smashed arg"); )
 #ifdef _LP64
     if (c_rarg1 != thread) {
       __ mov(c_rarg1, thread);

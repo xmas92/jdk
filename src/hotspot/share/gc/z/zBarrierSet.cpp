@@ -22,6 +22,7 @@
  */
 
 #include "precompiled.hpp"
+#include "gc/z/zBarrier.inline.hpp"
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetNMethod.hpp"
@@ -168,4 +169,83 @@ void ZBarrierSet::clone_obj_array(objArrayOop src_obj, objArrayOop dst_obj) {
 
 void ZBarrierSet::print_on(outputStream* st) const {
   st->print_cr("ZBarrierSet");
+}
+
+class ZStoreBarrierOopClosure : public BasicOopIterateClosure {
+public:
+  virtual void do_oop(oop* p_) {
+    volatile zpointer* const p = (volatile zpointer*)p_;
+    const zpointer ptr = ZBarrier::load_atomic(p);
+    const zaddress addr = ZPointer::uncolor(ptr);
+    ZBarrier::store_barrier_on_heap_oop_field(p, false /* heal */);
+    *p = ZAddress::store_good(addr);
+  }
+
+  virtual void do_oop(narrowOop* p) {
+    ShouldNotReachHere();
+  }
+};
+
+class ZLoadBarrierOopClosure : public BasicOopIterateClosure {
+public:
+  virtual void do_oop(oop* p) {
+    ZBarrier::load_barrier_on_oop_field((zpointer*)p);
+  }
+
+  virtual void do_oop(narrowOop* p) {
+    ShouldNotReachHere();
+  }
+};
+
+void ZBarrierSet::load_barrier_all(oop src, size_t size) {
+  assert_is_valid(to_zaddress(src));
+
+  // Fix the oops
+  ZLoadBarrierOopClosure cl;
+  ZIterator::oop_iterate(src, &cl);
+}
+
+void ZBarrierSet::store_barrier_all(oop dst, size_t size) {
+
+  assert(dst->is_typeArray() || ZHeap::heap()->is_young(to_zaddress(dst)), "ZColorStoreGoodOopClosure is only valid for young objects");
+
+  // Color store good before handing out
+  ZStoreBarrierOopClosure cl_sg;
+  ZIterator::oop_iterate(dst, &cl_sg);
+}
+
+zaddress ZBarrierSet::load_barrier_on_oop_field_preloaded(volatile zpointer* p, zpointer o) {
+  return ZBarrier::load_barrier_on_oop_field_preloaded(p, o);
+}
+
+zaddress ZBarrierSet::no_keep_alive_load_barrier_on_weak_oop_field_preloaded(volatile zpointer* p, zpointer o) {
+  return ZBarrier::no_keep_alive_load_barrier_on_weak_oop_field_preloaded(p, o);
+}
+
+zaddress ZBarrierSet::no_keep_alive_load_barrier_on_phantom_oop_field_preloaded(volatile zpointer* p, zpointer o) {
+  return ZBarrier::no_keep_alive_load_barrier_on_phantom_oop_field_preloaded(p, o);
+}
+
+zaddress ZBarrierSet::load_barrier_on_weak_oop_field_preloaded(volatile zpointer* p, zpointer o) {
+  return ZBarrier::load_barrier_on_weak_oop_field_preloaded(p, o);
+}
+
+zaddress ZBarrierSet::load_barrier_on_phantom_oop_field_preloaded(volatile zpointer* p, zpointer o) {
+  return ZBarrier::load_barrier_on_phantom_oop_field_preloaded(p, o);
+}
+
+void ZBarrierSet::store_barrier_on_heap_oop_field(volatile zpointer* p, bool heal) {
+  ZBarrier::store_barrier_on_heap_oop_field(p, heal);
+}
+
+void ZBarrierSet::no_keep_alive_store_barrier_on_heap_oop_field(volatile zpointer* p) {
+  ZBarrier::no_keep_alive_store_barrier_on_heap_oop_field(p);
+}
+
+void ZBarrierSet::store_barrier_on_native_oop_field(volatile zpointer* p, bool heal) {
+  ZBarrier::store_barrier_on_native_oop_field(p, heal);
+}
+
+zaddress ZBarrierSet::load_barrier_on_oop_field(volatile zpointer* p) {
+  return ZBarrier::load_barrier_on_oop_field(p);
 }

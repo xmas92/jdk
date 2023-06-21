@@ -50,6 +50,21 @@ public:
 
   virtual void print_on(outputStream* st) const;
 
+  static void load_barrier_all(oop src, size_t size);
+  static void store_barrier_all(oop dst, size_t size);
+
+  static zaddress load_barrier_on_oop_field_preloaded(volatile zpointer* p, zpointer o);
+  static zaddress no_keep_alive_load_barrier_on_weak_oop_field_preloaded(volatile zpointer* p, zpointer o);
+  static zaddress no_keep_alive_load_barrier_on_phantom_oop_field_preloaded(volatile zpointer* p, zpointer o);
+  static zaddress load_barrier_on_weak_oop_field_preloaded(volatile zpointer* p, zpointer o);
+  static zaddress load_barrier_on_phantom_oop_field_preloaded(volatile zpointer* p, zpointer o);
+
+  static void store_barrier_on_heap_oop_field(volatile zpointer* p, bool heal);
+  static void no_keep_alive_store_barrier_on_heap_oop_field(volatile zpointer* p);
+  static void store_barrier_on_native_oop_field(volatile zpointer* p, bool heal);
+
+  static zaddress load_barrier_on_oop_field(volatile zpointer* p);
+
   template <DecoratorSet decorators, typename BarrierSetT = ZBarrierSet>
   class AccessBarrier : public BarrierSet::AccessBarrier<decorators, BarrierSetT> {
   private:

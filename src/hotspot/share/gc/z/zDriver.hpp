@@ -48,7 +48,7 @@ class ZLock;
 
 class ZDriver : public ZThread {
   friend class ZDriverLocker;
-  friend class ZDriverUnlocker;
+  friend class ZDriverPriorityUnlocker;
 
 private:
   static volatile bool   _priority_locking;
@@ -140,10 +140,10 @@ public:
   ~ZDriverLocker();
 };
 
-class ZDriverUnlocker : public StackObj {
+class ZDriverPriorityUnlocker : public StackObj {
 public:
-  ZDriverUnlocker();
-  ~ZDriverUnlocker();
+  ZDriverPriorityUnlocker();
+  ~ZDriverPriorityUnlocker();
 };
 
 #endif // SHARE_GC_Z_ZDRIVER_HPP

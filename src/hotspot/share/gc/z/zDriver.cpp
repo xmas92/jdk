@@ -108,11 +108,11 @@ ZDriverLocker::~ZDriverLocker() {
   ZDriver::unlock();
 }
 
-ZDriverUnlocker::ZDriverUnlocker() {
+ZDriverPriorityUnlocker::ZDriverPriorityUnlocker() {
   ZDriver::unlock();
 }
 
-ZDriverUnlocker::~ZDriverUnlocker() {
+ZDriverPriorityUnlocker::~ZDriverPriorityUnlocker() {
   ZDriver::priority_lock();
 }
 

@@ -970,8 +970,8 @@ ZGenerationOld::ZGenerationOld(ZPageTable* page_table, ZPageAllocator* page_allo
 
 class ZGenerationCollectionScopeOld : public StackObj {
 private:
-  ZStatTimer      _stat_timer;
-  ZDriverUnlocker _unlocker;
+  ZStatTimer              _stat_timer;
+  ZDriverPriorityUnlocker _unlocker;
 
 public:
   ZGenerationCollectionScopeOld(ConcurrentGCTimer* gc_timer)

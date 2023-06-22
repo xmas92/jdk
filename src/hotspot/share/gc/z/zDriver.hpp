@@ -26,6 +26,7 @@
 
 #include "gc/shared/gcTimer.hpp"
 #include "gc/z/zDriverPort.hpp"
+#include "gc/z/zLock.hpp"
 #include "gc/z/zThread.hpp"
 #include "gc/z/zTracer.hpp"
 
@@ -50,13 +51,15 @@ class ZDriver : public ZThread {
   friend class ZDriverUnlocker;
 
 private:
-  static ZLock*        _lock;
-  static ZDriverMinor* _minor;
-  static ZDriverMajor* _major;
+  static volatile bool   _priority_locking;
+  static ZConditionLock* _lock;
+  static ZDriverMinor*   _minor;
+  static ZDriverMajor*   _major;
 
   GCCause::Cause _gc_cause;
 
   static void lock();
+  static void priority_lock();
   static void unlock();
 
 public:

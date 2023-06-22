@@ -57,19 +57,30 @@ public:
   }
 };
 
-ZLock*        ZDriver::_lock;
-ZDriverMinor* ZDriver::_minor;
-ZDriverMajor* ZDriver::_major;
+volatile bool   ZDriver::_priority_locking = false;
+ZConditionLock* ZDriver::_lock;
+ZDriverMinor*   ZDriver::_minor;
+ZDriverMajor*   ZDriver::_major;
 
 void ZDriver::initialize() {
-  _lock = new ZLock();
+  _lock = new ZConditionLock();
 }
 
 void ZDriver::lock() {
   _lock->lock();
+  while (Atomic::load_acquire(&_priority_locking)) {
+    _lock->wait();
+  }
+}
+
+void ZDriver::priority_lock() {
+  Atomic::release_store(&_priority_locking, true);
+  _lock->lock();
+  Atomic::release_store(&_priority_locking, false);
 }
 
 void ZDriver::unlock() {
+  _lock->notify();
   _lock->unlock();
 }
 
@@ -102,7 +113,7 @@ ZDriverUnlocker::ZDriverUnlocker() {
 }
 
 ZDriverUnlocker::~ZDriverUnlocker() {
-  ZDriver::lock();
+  ZDriver::priority_lock();
 }
 
 ZDriver::ZDriver()

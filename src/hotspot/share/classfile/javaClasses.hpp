@@ -1520,6 +1520,8 @@ class java_lang_ClassLoader : AllStatic {
   static objArrayOop dependency(oop loader);
   static objArrayOop dependency_replace_if_null(oop loader, objArrayOop dependency_entry);
 
+  static void clear_dependency(oop loader);
+
   // Debugging
   friend class JavaClasses;
 };

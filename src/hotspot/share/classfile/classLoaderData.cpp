@@ -141,7 +141,6 @@ void ClassLoaderData::initialize_name(Handle class_loader) {
 }
 
 ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_holder) :
-  _holder_oop(nullptr),
   _metaspace(nullptr),
   _metaspace_lock(new Mutex(Mutex::nosafepoint-2, "MetaspaceAllocation_lock")),
   _unloading(false), _has_class_mirror_holder(has_class_mirror_holder),
@@ -157,6 +156,10 @@ ClassLoaderData::ClassLoaderData(Handle h_class_loader, bool has_class_mirror_ho
   _next(nullptr),
   _unloading_next(nullptr),
   _class_loader_klass(nullptr), _name(nullptr), _name_and_id(nullptr) {
+  // TODO[AXEL]: Store here may be overly defensive and possibly invalid, no gc should look at
+  //             _holder_oop until it has a holder, which mean it could just be a plain nullptr
+  //             And have initializing stores be IS_DEST_UNINITIALIZED
+  NativeAccess<IS_DEST_UNINITIALIZED>::oop_store(&_holder_oop, (oop)nullptr);
 
   if (!h_class_loader.is_null()) {
     _class_loader = WeakHandle(Universe::vm_weak(), h_class_loader);
@@ -290,7 +293,7 @@ void ClassLoaderData::dec_keep_alive_ref_count() {
         record_oop_dependency(entry_h);
         _keep_alive_nested_host.release(Universe::vm_global());
       }
-      _holder_oop = _keep_alive_holder.resolve();
+      NativeAccess<>::oop_store(&_holder_oop, _keep_alive_holder.resolve());
       assert(!_keep_alive_holder.is_empty(), "Non-strong hidden classes must be strong roots until created");
       _keep_alive_holder.release(Universe::vm_global());
     }
@@ -648,7 +651,7 @@ void ClassLoaderData::initialize_holder(Handle loader_or_mirror) {
   if (loader_or_mirror() != nullptr) {
     assert(_holder.is_null(), "never replace holders");
     _holder = WeakHandle(Universe::vm_weak(), loader_or_mirror);
-    _holder_oop = loader_or_mirror();
+    NativeAccess<>::oop_store(&_holder_oop, loader_or_mirror());
     if (keep_alive() && has_class_mirror_holder()) {
       assert(java_lang_Class::is_instance(loader_or_mirror()), "must be class holder");
       _keep_alive_holder = OopHandle(Universe::vm_global(), loader_or_mirror());
@@ -952,12 +955,6 @@ WeakHandle ClassLoaderData::add_mirror(Klass* k, Handle h, TRAPS) {
   record_modified_oops();
 
   return WeakHandle(Universe::vm_weak(), h());
-}
-
-void ClassLoaderData::remove_mirror(Klass* k, WeakHandle& h) {
-  k->clear_strong_java_mirror();
-  h.release(Universe::vm_weak());
-  h = WeakHandle();
 }
 
 void ClassLoaderData::init_handle_locked(WeakHandle& dest, Handle h, TRAPS) {

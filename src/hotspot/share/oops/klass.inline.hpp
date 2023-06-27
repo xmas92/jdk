@@ -58,11 +58,15 @@ inline oop Klass::java_mirror() const {
   return _java_mirror.is_null() ? nullptr : _java_mirror.resolve();
 }
 
-inline void Klass::clear_java_mirror_handle() {
+inline void Klass::clear_java_mirror_handles() {
+  _java_mirror = WeakHandle();
+  _strong_java_mirror = OopHandle();
+}
+
+inline void Klass::release_java_mirror_handles() {
   _java_mirror.release(Universe::vm_weak());
   _java_mirror = WeakHandle();
-  // _java_mirror_bootstrap.release(Universe::vm_global());
-  // Leak CDS
+  _strong_java_mirror.release(Universe::vm_global());
   _strong_java_mirror = OopHandle();
 }
 

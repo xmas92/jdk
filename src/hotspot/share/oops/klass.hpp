@@ -295,7 +295,8 @@ protected:
 
   // Set java mirror OopHandle to null for CDS
   // This leaves the OopHandle in the CLD, but that's ok, you can't release them.
-  void clear_java_mirror_handle();
+  void clear_java_mirror_handles();
+  void release_java_mirror_handles();
 
   // modifier flags
   jint modifier_flags() const          { return _modifier_flags; }

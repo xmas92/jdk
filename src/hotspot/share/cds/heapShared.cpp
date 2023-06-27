@@ -53,6 +53,7 @@
 #include "oops/fieldStreams.inline.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/oopHandle.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
@@ -1124,6 +1125,11 @@ bool HeapShared::archive_reachable_objects_from(int level,
     return true;
   } else {
     set_has_been_seen_during_subgraph_recording(orig_obj);
+    if (orig_obj->klass()->is_class_loader_instance_klass()) {
+      // Leaked
+      OopHandle handle = OopHandle(Universe::vm_global(), (oop)java_lang_ClassLoader::dependency(orig_obj));
+      java_lang_ClassLoader::clear_dependency(orig_obj);
+    }
   }
 
   bool already_archived = has_been_archived(orig_obj);

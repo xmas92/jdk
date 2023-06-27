@@ -301,7 +301,6 @@ private:
   void verify();
 
   WeakHandle add_mirror(Klass* k, Handle h, TRAPS);
-  void remove_mirror(Klass* k, WeakHandle& h);
   void init_handle_locked(WeakHandle& pd, Handle h, TRAPS);  // used for concurrent access to ModuleEntry::_pd field
   void add_class(Klass* k, bool publicize = true);
   void remove_class(Klass* k);

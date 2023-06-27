@@ -926,7 +926,7 @@ void java_lang_Class::fixup_mirror(Klass* k, TRAPS) {
       assert(present, "Missing archived mirror for %s", k->external_name());
       return;
     } else {
-      k->clear_java_mirror_handle();
+      k->clear_java_mirror_handles();
       k->clear_archived_mirror_index();
     }
   }
@@ -4881,6 +4881,12 @@ objArrayOop java_lang_ClassLoader::dependency_replace_if_null(oop loader, objArr
   assert(_dependency_offset != 0, "offsets should have been initialized");
   assert(is_instance(loader), "loader must be oop");
   return (objArrayOop)HeapAccess<>::oop_atomic_cmpxchg_at(loader, _dependency_offset, (oop)nullptr, (oop)dependency_entry);
+}
+
+void java_lang_ClassLoader::clear_dependency(oop loader) {
+  assert(_dependency_offset != 0, "offsets should have been initialized");
+  assert(is_instance(loader), "loader must be oop");
+  loader->obj_field_put(_dependency_offset, (oop)nullptr);
 }
 
 // Support for java_lang_System

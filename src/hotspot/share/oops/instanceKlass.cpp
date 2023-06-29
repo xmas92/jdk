@@ -149,6 +149,7 @@
 
 #endif //  ndef DTRACE_ENABLED
 
+volatile size_t InstanceKlass::_next_hidden_klass_id = 0xFF;
 bool InstanceKlass::_finalization_enabled = true;
 
 static inline bool is_class_loader(const Symbol* class_name,
@@ -529,6 +530,8 @@ InstanceKlass::InstanceKlass(const ClassFileParser& parser, KlassKind kind, Refe
   assert(nullptr == _methods, "underlying memory not zeroed?");
   assert(is_instance_klass(), "is layout incorrect?");
   assert(size_helper() == parser.layout_size(), "incorrect size_helper?");
+
+  _hidden_klass_id = is_hidden() ? Atomic::fetch_then_add(&_next_hidden_klass_id, (size_t)1) : 0;
 }
 
 void InstanceKlass::deallocate_methods(ClassLoaderData* loader_data,

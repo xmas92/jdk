@@ -861,6 +861,12 @@ public:
   JFR_ONLY(DEFINE_KLASS_TRACE_ID_OFFSET;)
   static ByteSize init_thread_offset() { return byte_offset_of(InstanceKlass, _init_thread); }
 
+ private:
+  static volatile size_t _next_hidden_klass_id;
+  size_t _hidden_klass_id;
+ public:
+  size_t hidden_klass_id() const { return _hidden_klass_id; }
+
   // subclass/subinterface checks
   bool implements_interface(Klass* k) const;
   bool is_same_or_direct_interface(Klass* k) const;

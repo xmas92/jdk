@@ -205,4 +205,38 @@ inline size_t ZRelocationSetSelector::forwarding_entries() const {
   return _small.forwarding_entries() + _medium.forwarding_entries();
 }
 
+inline ZRelocationSetSelectorStatsView::ZRelocationSetSelectorStatsView(const ZRelocationSetSelector& selector)
+  : _selector(selector) {};
+
+inline bool ZRelocationSetSelectorStatsView::has_relocatable_pages() const {
+  return _selector.total() > 0;
+}
+
+inline const ZRelocationSetSelectorGroupStats& ZRelocationSetSelectorStatsView::small(ZPageAge age) const {
+  return _selector._small.stats(age);
+}
+
+inline const ZRelocationSetSelectorGroupStats& ZRelocationSetSelectorStatsView::medium(ZPageAge age) const {
+  return _selector._medium.stats(age);
+}
+
+inline const ZRelocationSetSelectorGroupStats& ZRelocationSetSelectorStatsView::large(ZPageAge age) const {
+  return _selector._large.stats(age);
+}
+
+inline ZRelocationSetSelectorStats ZRelocationSetSelectorStatsView::stats() const {
+  ZRelocationSetSelectorStats stats;
+
+  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+    const ZPageAge age = static_cast<ZPageAge>(i);
+    stats._small[i] = small(age);
+    stats._medium[i] = medium(age);
+    stats._large[i] = large(age);
+  }
+
+  stats._has_relocatable_pages = has_relocatable_pages();
+
+  return stats;
+}
+
 #endif // SHARE_GC_Z_ZRELOCATIONSETSELECTOR_INLINE_HPP

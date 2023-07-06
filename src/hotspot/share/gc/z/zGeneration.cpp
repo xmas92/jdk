@@ -238,11 +238,14 @@ void ZGeneration::select_relocation_set(ZGenerationId generation, bool promote_a
   // Select relocation set
   selector.select();
 
+  // View of selection stats
+  ZRelocationSetSelectorStatsView stats(selector);
+
   // Selecting tenuring threshold must be done after select
   // which produces the liveness data, but before install,
   // which consumes the tenuring threshold.
   if (generation == ZGenerationId::young) {
-    ZGeneration::young()->select_tenuring_threshold(selector.stats(), promote_all);
+    ZGeneration::young()->select_tenuring_threshold(stats, promote_all);
   }
 
   // Install relocation set
@@ -258,8 +261,8 @@ void ZGeneration::select_relocation_set(ZGenerationId generation, bool promote_a
   }
 
   // Update statistics
-  stat_relocation()->at_select_relocation_set(selector.stats());
-  stat_heap()->at_select_relocation_set(selector.stats());
+  stat_relocation()->at_select_relocation_set(stats);
+  stat_heap()->at_select_relocation_set(stats);
 }
 
 ZRelocationSetParallelIterator ZGeneration::relocation_set_parallel_iterator() {
@@ -684,7 +687,7 @@ void ZGenerationYoung::concurrent_reset_relocation_set() {
   reset_relocation_set();
 }
 
-void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStats stats, bool promote_all) {
+void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStatsView stats, bool promote_all) {
   const char* reason = "";
   if (promote_all) {
     _tenuring_threshold = 0;
@@ -699,7 +702,7 @@ void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStats sta
   log_info(gc, reloc)("Using tenuring threshold: %d (%s)", _tenuring_threshold, reason);
 }
 
-uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats stats) {
+uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStatsView stats) {
   size_t young_live_total = 0;
   size_t young_live_last = 0;
   double young_life_expectancy_sum = 0.0;

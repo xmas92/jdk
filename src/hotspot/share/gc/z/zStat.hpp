@@ -538,7 +538,7 @@ private:
 public:
   ZStatRelocation();
 
-  void at_select_relocation_set(const ZRelocationSetSelectorStats& selector_stats);
+  void at_select_relocation_set(ZRelocationSetSelectorStatsView selector_stats);
   void at_install_relocation_set(size_t forwarding_usage);
   void at_relocate_end(size_t small_in_place_count, size_t medium_in_place_count);
 
@@ -680,7 +680,7 @@ public:
   void at_collection_start(const ZPageAllocatorStats& stats);
   void at_mark_start(const ZPageAllocatorStats& stats);
   void at_mark_end(const ZPageAllocatorStats& stats);
-  void at_select_relocation_set(const ZRelocationSetSelectorStats& stats);
+  void at_select_relocation_set(ZRelocationSetSelectorStatsView stats);
   void at_relocate_start(const ZPageAllocatorStats& stats);
   void at_relocate_end(const ZPageAllocatorStats& stats, bool record_stats);
 

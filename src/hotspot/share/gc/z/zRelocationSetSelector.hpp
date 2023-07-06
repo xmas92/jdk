@@ -59,7 +59,7 @@ public:
 };
 
 class ZRelocationSetSelectorStats {
-  friend class ZRelocationSetSelector;
+  friend class ZRelocationSetSelectorStatsView;
 
 private:
   ZRelocationSetSelectorGroupStats _small[ZPageAgeMax + 1];
@@ -114,6 +114,8 @@ public:
 };
 
 class ZRelocationSetSelector : public StackObj {
+  friend class ZRelocationSetSelectorStatsView;
+
 private:
   ZRelocationSetSelectorGroup _small;
   ZRelocationSetSelectorGroup _medium;
@@ -143,6 +145,22 @@ public:
   const ZArray<ZPage*>* not_selected_medium() const;
   const ZArray<ZPage*>* not_selected_large() const;
   size_t forwarding_entries() const;
+};
+
+class ZRelocationSetSelectorStatsView {
+  friend class ZRelocationSetSelector;
+
+private:
+  const ZRelocationSetSelector& _selector;
+
+public:
+  ZRelocationSetSelectorStatsView(const ZRelocationSetSelector& selector);
+
+  const ZRelocationSetSelectorGroupStats& small(ZPageAge age) const;
+  const ZRelocationSetSelectorGroupStats& medium(ZPageAge age) const;
+  const ZRelocationSetSelectorGroupStats& large(ZPageAge age) const;
+
+  bool has_relocatable_pages() const;
 
   ZRelocationSetSelectorStats stats() const;
 };

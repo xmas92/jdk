@@ -1467,8 +1467,8 @@ ZStatRelocation::ZStatRelocation()
     _medium_selected(),
     _medium_in_place_count() {}
 
-void ZStatRelocation::at_select_relocation_set(const ZRelocationSetSelectorStats& selector_stats) {
-  _selector_stats = selector_stats;
+void ZStatRelocation::at_select_relocation_set(ZRelocationSetSelectorStatsView selector_stats) {
+  _selector_stats = selector_stats.stats();
 }
 
 void ZStatRelocation::at_install_relocation_set(size_t forwarding_usage) {
@@ -1789,7 +1789,7 @@ void ZStatHeap::at_mark_end(const ZPageAllocatorStats& stats) {
   _at_mark_end.allocation_stalls = stats.allocation_stalls();
 }
 
-void ZStatHeap::at_select_relocation_set(const ZRelocationSetSelectorStats& stats) {
+void ZStatHeap::at_select_relocation_set(ZRelocationSetSelectorStatsView stats) {
   ZLocker<ZLock> locker(&_stat_lock);
 
   size_t live = 0;

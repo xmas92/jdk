@@ -233,18 +233,3 @@ void ZRelocationSetSelector::select() {
   // Send event
   event.commit(total(), empty(), relocate());
 }
-
-ZRelocationSetSelectorStats ZRelocationSetSelector::stats() const {
-  ZRelocationSetSelectorStats stats;
-
-  for (uint i = 0; i <= ZPageAgeMax; ++i) {
-    const ZPageAge age = static_cast<ZPageAge>(i);
-    stats._small[i] = _small.stats(age);
-    stats._medium[i] = _medium.stats(age);
-    stats._large[i] = _large.stats(age);
-  }
-
-  stats._has_relocatable_pages = total() > 0;
-
-  return stats;
-}

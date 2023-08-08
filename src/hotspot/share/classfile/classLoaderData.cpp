@@ -941,6 +941,9 @@ WeakHandle ClassLoaderData::add_mirror(Klass* k, Handle h, TRAPS) {
   if (!k->is_array_klass() && !has_class_mirror_holder()) {
     assert(k->is_instance_klass(), "should be");
     if (k->is_hidden()) {
+      // TODO[AXEL]: Do the same as !k->is_hidden() and record the dependency
+      //             right before add_to_hierarchy, after which the mirror can't
+      //             be removed
       record_oop_dependency(h, CHECK_(WeakHandle()));
     } else {
       // Kept as strong roots until written into the class loader object

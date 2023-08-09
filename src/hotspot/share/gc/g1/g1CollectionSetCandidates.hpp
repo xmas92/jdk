@@ -37,7 +37,7 @@ class G1CollectionSetCandidates;
 class HeapRegion;
 class HeapRegionClosure;
 
-using G1CollectionCandidateRegionListIterator = GrowableArrayIterator<HeapRegion*>;
+using G1CollectionCandidateRegionListIterator = GrowableArrayConstIterator<HeapRegion*>;
 
 // A set of HeapRegion*, a thin wrapper around GrowableArray.
 class G1CollectionCandidateRegionList {

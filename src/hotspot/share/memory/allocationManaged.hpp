@@ -28,9 +28,7 @@
 #include "memory/allStatic.hpp"
 #include "memory/allocation.hpp"
 #include "metaprogramming/enableIf.hpp"
-#include "metaprogramming/integralConstant.hpp"
 #include "metaprogramming/isDerivedFromCHeapObj.hpp"
-#include "metaprogramming/isSame.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
@@ -402,13 +400,13 @@ private:
 
 
 template<typename T>
-struct ProclaimesRelocatable : FalseType {};
+struct ProclaimesRelocatable : std::false_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapArray<T>> : TrueType {};
+struct ProclaimesRelocatable<ManagedCHeapArray<T>> : std::true_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapObject<T>> : TrueType {};
+struct ProclaimesRelocatable<ManagedCHeapObject<T>> : std::true_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapObj<T>> : TrueType {};
+struct ProclaimesRelocatable<ManagedCHeapObj<T>> : std::true_type {};
 
 template<typename E>
 struct IsTriviallyRelocatable {

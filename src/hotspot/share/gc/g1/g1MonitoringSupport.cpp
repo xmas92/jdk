@@ -182,9 +182,9 @@ G1MonitoringSupport::G1MonitoringSupport(G1CollectedHeap* g1h) :
   //  name "generation.0.space.2"
   // See _old_space_counters for additional counters
   _to_space_counters = new HSpaceCounters(young_collection_name_space,
-    "s1", 2 /* ordinal */,
-    pad_capacity(g1h->max_capacity()) /* max_capacity */,
-    pad_capacity(_survivor_space_committed) /* init_capacity */);
+                                          "s1", 2 /* ordinal */,
+                                          g1h->max_capacity() /* max_capacity */,
+                                          _survivor_space_committed /* init_capacity */);
 }
 
 void G1MonitoringSupport::initialize_serviceability() {

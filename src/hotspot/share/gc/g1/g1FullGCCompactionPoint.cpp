@@ -118,14 +118,14 @@ void G1FullGCCompactionPoint::remove_at_or_above(uint bottom) {
   assert(cur->hrm_index() >= bottom, "Sanity!");
 
   int start_index = 0;
-  for (HeapRegion* r : *_compaction_regions) {
+  for (HeapRegion* r : _compaction_regions) {
     if (r->hrm_index() < bottom) {
       start_index++;
     }
   }
 
   assert(start_index >= 0, "Should have at least one region");
-  _compaction_regions->trunc_to(start_index);
+  _compaction_regions.trunc_to(start_index);
 }
 
 void G1FullGCCompactionPoint::add_humongous(HeapRegion* hr) {
@@ -163,7 +163,7 @@ uint G1FullGCCompactionPoint::forward_humongous(HeapRegion* hr) {
   // Preserve the mark for the humongous object as the region was initially not compacting.
   _collector->marker(0)->preserved_stack()->push_if_necessary(obj, obj->mark());
 
-  HeapRegion* dest_hr = _compaction_regions->at(range_begin);
+  HeapRegion* dest_hr = _compaction_regions.at(range_begin);
   obj->forward_to(cast_to_oop(dest_hr->bottom()));
   assert(obj->is_forwarded(), "Object must be forwarded!");
 
@@ -171,7 +171,7 @@ uint G1FullGCCompactionPoint::forward_humongous(HeapRegion* hr) {
   add_humongous(hr);
 
   // Remove covered regions from compaction target candidates.
-  _compaction_regions->remove_range(range_begin, (range_begin + num_regions));
+  _compaction_regions.remove_range(range_begin, (range_begin + num_regions));
 
   return num_regions;
 }
@@ -195,12 +195,12 @@ uint G1FullGCCompactionPoint::find_contiguous_before(HeapRegion* hr, uint num_re
       break;
     }
     // Check if the current region and the previous region are contiguous.
-    bool regions_are_contiguous = (_compaction_regions->at(range_end)->hrm_index() - _compaction_regions->at(range_end - 1)->hrm_index()) == 1;
+    bool regions_are_contiguous = (_compaction_regions.at(range_end)->hrm_index() - _compaction_regions.at(range_end - 1)->hrm_index()) == 1;
     contiguous_region_count = regions_are_contiguous ? contiguous_region_count + 1 : 1;
   }
 
   if (contiguous_region_count < num_regions &&
-      hr->hrm_index() - _compaction_regions->at(range_end-1)->hrm_index() != 1) {
+      hr->hrm_index() - _compaction_regions.at(range_end-1)->hrm_index() != 1) {
     // We reached the end but the final region is not contiguous with the target region;
     // no contiguous regions to move to.
     return UINT_MAX;

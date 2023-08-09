@@ -28,7 +28,6 @@
 #include "memory/allocation.hpp"
 #include "memory/iterator.hpp"
 #include "metaprogramming/enableIf.hpp"
-#include "metaprogramming/removeCV.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/ostream.hpp"

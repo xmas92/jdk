@@ -108,7 +108,7 @@ class G1BuildCandidateRegionsTask : public WorkerTask {
       }
     }
 
-    CandidateInfo* array() const { return _data; }
+    CandidateInfo* array() const { return _data.get(); }
   };
 
   // Per-region closure. In addition to determining whether a region should be

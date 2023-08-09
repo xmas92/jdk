@@ -34,6 +34,7 @@
 #include "runtime/handshake.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.inline.hpp"
+#include "runtime/mutexLocker.hpp"
 #include "runtime/os.hpp"
 #include "runtime/osThread.hpp"
 #include "runtime/stackWatermarkSet.hpp"
@@ -457,6 +458,7 @@ HandshakeState::HandshakeState(JavaThread* target) :
   _handshakee(target),
   _queue(),
   _lock(Monitor::nosafepoint, "HandshakeState_lock"),
+  _queue_lock(Monitor::nosafepoint-1, "HandshakeState_queue_lock"),
   _active_handshaker(),
   _async_exceptions_blocked(false),
   _suspended(false),
@@ -479,14 +481,15 @@ void HandshakeState::add_operation(HandshakeOperation* op) {
 
 bool HandshakeState::operation_pending(HandshakeOperation* op) {
   MutexLocker ml(&_lock, Mutex::_no_safepoint_check_flag);
+  MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
   MatchOp mo(op);
   return _queue.contains(mo);
 }
 
 HandshakeOperation* HandshakeState::get_op_for_self(bool allow_suspend, bool check_async_exception) {
   assert(_handshakee == Thread::current(), "Must be called by self");
-  assert(_lock.owned_by_self(), "Lock must be held");
   assert(allow_suspend || !check_async_exception, "invalid case");
+  MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
   if (!allow_suspend) {
     return _queue.peek(no_suspend_no_async_exception_filter);
   } else if (check_async_exception && !_async_exceptions_blocked) {
@@ -497,19 +500,19 @@ HandshakeOperation* HandshakeState::get_op_for_self(bool allow_suspend, bool che
 }
 
 bool HandshakeState::has_operation(bool allow_suspend, bool check_async_exception) {
-  MutexLocker ml(&_lock, Mutex::_no_safepoint_check_flag);
   return get_op_for_self(allow_suspend, check_async_exception) != nullptr;
 }
 
 bool HandshakeState::has_async_exception_operation() {
   if (!has_operation()) return false;
-  MutexLocker ml(_lock.owned_by_self() ? nullptr :  &_lock, Mutex::_no_safepoint_check_flag);
+  MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
   return _queue.peek(async_exception_filter) != nullptr;
 }
 
 void HandshakeState::clean_async_exception_operation() {
   while (has_async_exception_operation()) {
     MutexLocker ml(&_lock, Mutex::_no_safepoint_check_flag);
+    MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
     HandshakeOperation* op;
     op = _queue.peek(async_exception_filter);
     remove_op(op);
@@ -519,18 +522,19 @@ void HandshakeState::clean_async_exception_operation() {
 
 bool HandshakeState::have_non_self_executable_operation() {
   assert(_handshakee != Thread::current(), "Must not be called by self");
-  assert(_lock.owned_by_self(), "Lock must be held");
+  MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
   return _queue.contains(non_self_executable_filter);
 }
 
 HandshakeOperation* HandshakeState::get_op() {
   assert(_handshakee != Thread::current(), "Must not be called by self");
-  assert(_lock.owned_by_self(), "Lock must be held");
+  MutexLocker queue_ml(&_queue_lock, Mutex::_no_safepoint_check_flag);
   return _queue.peek(non_self_executable_filter);
 };
 
 void HandshakeState::remove_op(HandshakeOperation* op) {
   assert(_lock.owned_by_self(), "Lock must be held");
+  MutexLocker queue_ml(_queue_lock.owned_by_self() ? nullptr : &_queue_lock, Mutex::_no_safepoint_check_flag);
   MatchOp mo(op);
   HandshakeOperation* ret = _queue.pop(mo);
   assert(ret == op, "Popped op must match requested op");

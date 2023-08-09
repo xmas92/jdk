@@ -100,6 +100,7 @@ class HandshakeState {
   // Provides mutual exclusion to this state and queue. Also used for
   // JavaThread suspend/resume operations.
   Monitor _lock;
+  Monitor _queue_lock;
   // Set to the thread executing the handshake operation.
   Thread* volatile _active_handshaker;
 

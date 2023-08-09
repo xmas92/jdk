@@ -400,20 +400,20 @@ private:
 
 
 template<typename T>
-struct ProclaimesRelocatable : std::false_type {};
+struct ProclaimsRelocatable : std::false_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapArray<T>> : std::true_type {};
+struct ProclaimsRelocatable<ManagedCHeapArray<T>> : std::true_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapObject<T>> : std::true_type {};
+struct ProclaimsRelocatable<ManagedCHeapObject<T>> : std::true_type {};
 template<typename T>
-struct ProclaimesRelocatable<ManagedCHeapObj<T>> : std::true_type {};
+struct ProclaimsRelocatable<ManagedCHeapObj<T>> : std::true_type {};
 
 template<typename E>
 struct IsTriviallyRelocatable {
   static constexpr bool value = (
     std::is_scalar<E>::value ||
     std::is_pointer<E>::value ||
-    ProclaimesRelocatable<E>::value
+    ProclaimsRelocatable<E>::value
   );
 };
 
@@ -539,11 +539,11 @@ static ManagedCHeapArray<T> make_managed_c_heap_array_value_init(size_t size, ME
   return {allocation, size};
 }
 
-template<typename T, typename Initilizer>
-static ManagedCHeapArray<T> make_managed_c_heap_array_with_initilizer(size_t size, MEMFLAGS flags, Initilizer initilizer) {
+template<typename T, typename Initializer>
+static ManagedCHeapArray<T> make_managed_c_heap_array_with_initializer(size_t size, MEMFLAGS flags, Initializer initializer) {
   using pointer_type = typename ManagedCHeapArray<T>::pointer_type;
   const pointer_type allocation = reinterpret_cast<pointer_type>(AllocateHeap(size * sizeof(T), flags));
-  initilizer(reinterpret_cast<pointer_type>(allocation));
+  initializer(reinterpret_cast<pointer_type>(allocation));
   return {allocation, size};
 }
 
@@ -584,13 +584,13 @@ static ManagedCHeapObject<T> make_managed_c_heap_object_value_init(MEMFLAGS flag
 }
 
 
-template<typename T, typename Initilizer, ENABLE_IF(!std::is_base_of<AnyObj, T>::value)>
-static ManagedCHeapObject<T> make_managed_c_heap_object_from_buffer(MEMFLAGS flags, size_t size_in_bytes, Initilizer initilizer) {
+template<typename T, typename Initializer, ENABLE_IF(!std::is_base_of<AnyObj, T>::value)>
+static ManagedCHeapObject<T> make_managed_c_heap_object_from_buffer(MEMFLAGS flags, size_t size_in_bytes, Initializer initializer) {
   STATIC_ASSERT(!std::is_array<T>::value);
   precond(size_in_bytes >= sizeof(T));
   using pointer_type = typename ManagedCHeapObject<T>::pointer_type;
   const address buffer = reinterpret_cast<address>(AllocateHeap(size_in_bytes, flags));
-  const pointer_type allocation = initilizer(buffer);
+  const pointer_type allocation = initializer(buffer);
   postcond(static_cast<void*>(buffer) == static_cast<void*>(allocation));
   return {allocation};
 }

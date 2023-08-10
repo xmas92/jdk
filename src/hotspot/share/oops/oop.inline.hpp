@@ -90,7 +90,7 @@ void oopDesc::init_mark() {
 template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass() const {
   using Mode = ClassPointerMode;
-  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && CompressedKlassPointers::use_compressed_class_pointers())) {
     return CompressedKlassPointers::decode_not_null(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
@@ -100,7 +100,7 @@ Klass* oopDesc::klass() const {
 template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_or_null() const {
   using Mode = ClassPointerMode;
-  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && CompressedKlassPointers::use_compressed_class_pointers())) {
     return CompressedKlassPointers::decode(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
@@ -110,7 +110,7 @@ Klass* oopDesc::klass_or_null() const {
 template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_or_null_acquire() const {
   using Mode = ClassPointerMode;
-  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && CompressedKlassPointers::use_compressed_class_pointers())) {
     narrowKlass nklass = Atomic::load_acquire(&_metadata._compressed_klass);
     return CompressedKlassPointers::decode(nklass);
   } else {
@@ -121,7 +121,7 @@ Klass* oopDesc::klass_or_null_acquire() const {
 template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_raw() const {
   using Mode = ClassPointerMode;
-  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && CompressedKlassPointers::use_compressed_class_pointers())) {
     return CompressedKlassPointers::decode_raw(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
@@ -130,7 +130,7 @@ Klass* oopDesc::klass_raw() const {
 
 void oopDesc::set_klass(Klass* k) {
   assert(Universe::is_bootstrapping() || (k != nullptr && k->is_klass()), "incorrect Klass");
-  if (UseCompressedClassPointers) {
+  if (CompressedKlassPointers::use_compressed_class_pointers()) {
     _metadata._compressed_klass = CompressedKlassPointers::encode_not_null(k);
   } else {
     _metadata._klass = k;
@@ -140,7 +140,7 @@ void oopDesc::set_klass(Klass* k) {
 void oopDesc::release_set_klass(HeapWord* mem, Klass* k) {
   assert(Universe::is_bootstrapping() || (k != nullptr && k->is_klass()), "incorrect Klass");
   char* raw_mem = ((char*)mem + klass_offset_in_bytes());
-  if (UseCompressedClassPointers) {
+  if (CompressedKlassPointers::use_compressed_class_pointers()) {
     Atomic::release_store((narrowKlass*)raw_mem,
                           CompressedKlassPointers::encode_not_null(k));
   } else {
@@ -149,7 +149,7 @@ void oopDesc::release_set_klass(HeapWord* mem, Klass* k) {
 }
 
 void oopDesc::set_klass_gap(HeapWord* mem, int v) {
-  if (UseCompressedClassPointers) {
+  if (CompressedKlassPointers::use_compressed_class_pointers()) {
     *(int*)(((char*)mem) + klass_gap_offset_in_bytes()) = v;
   }
 }

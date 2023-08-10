@@ -56,9 +56,23 @@ class CompressedKlassPointers : public AllStatic {
   //  could use this info to optimize encoding.
   static size_t _range;
 
-  static void set_base(address base);
+  // Reduce the number of loads generated to decode an nKlass by packing all
+  // relevant information (flag, base, shift) into a single 64-bit word. The
+  // encoding base is aligned to metaspace reserve alignment (16Mb), so enough
+  // space to hide additional info away in low bytes. It even allows us the luxury
+  // to use 8 bits for shift and flag each, resulting in 8-bit moves used by the
+  // compiler.
+  // - Bit  [0-7]   shift
+  // - Bit  8       UseCompressedOops
+  // - Bits [16-64] the base.
+  static uint64_t _combo;
+  static constexpr int base_alignment = 16;
+  static constexpr uint64_t mask_base = ~right_n_bits(base_alignment);
+  static constexpr int shift_bitlen = 8; // read with a mov8
+  static constexpr int bitpos_useccp = shift_bitlen;
+
+  static void set_base_and_shift(address base, int shift);
   static void set_range(size_t range);
-  static void set_shift(int shift);
 
 public:
 
@@ -81,9 +95,10 @@ public:
 
   static void     print_mode(outputStream* st);
 
-  static address  base()               { return  _base; }
-  static size_t   range()              { return  _range; }
-  static int      shift()              { return  _shift; }
+  static bool     use_compressed_class_pointers() { return (_combo & nth_bit(bitpos_useccp)); }
+  static address  base()             { return  (address)(_combo & mask_base); }
+  static int      shift()            { return  (int)(_combo & right_n_bits(shift_bitlen)); }
+  static size_t   range()            { return  _range; }
 
   static bool is_null(Klass* v)      { return v == nullptr; }
   static bool is_null(narrowKlass v) { return v == 0; }

@@ -1320,6 +1320,16 @@ void ObjectSynchronizer::inflate_helper(oop obj) {
   (void)inflate(Thread::current(), obj, inflate_cause_vm_internal);
 }
 
+static void log_inflate(Thread* current, oop object, const ObjectSynchronizer::InflateCause cause) {
+  if (log_is_enabled(Info, monitorinflation)) {
+    ResourceMark rm(current);
+    log_info(monitorinflation)("inflate(has_locker): object=" INTPTR_FORMAT ", mark="
+                               INTPTR_FORMAT ", type='%s' cause %s", p2i(object),
+                               object->mark().value(), object->klass()->external_name(),
+                               ObjectSynchronizer::inflate_cause_name(cause));
+  }
+}
+
 // Can be called from non JavaThreads (e.g., VMThread) for FastHashCode
 // calculations as part of JVM/TI tagging.
 static bool is_lock_owned(Thread* thread, oop obj) {
@@ -1411,12 +1421,7 @@ ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
         // Hopefully the performance counters are allocated on distinct
         // cache lines to avoid false sharing on MP systems ...
         OM_PERFDATA_OP(Inflations, inc());
-        if (log_is_enabled(Trace, monitorinflation)) {
-          ResourceMark rm(current);
-          lsh.print_cr("inflate(has_locker): object=" INTPTR_FORMAT ", mark="
-                       INTPTR_FORMAT ", type='%s'", p2i(object),
-                       object->mark().value(), object->klass()->external_name());
-        }
+        log_inflate(current, object, cause);
         if (event.should_commit()) {
           post_monitor_inflate_event(&event, object, cause);
         }
@@ -1510,12 +1515,7 @@ ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
       // Hopefully the performance counters are allocated on distinct cache lines
       // to avoid false sharing on MP systems ...
       OM_PERFDATA_OP(Inflations, inc());
-      if (log_is_enabled(Trace, monitorinflation)) {
-        ResourceMark rm(current);
-        lsh.print_cr("inflate(has_locker): object=" INTPTR_FORMAT ", mark="
-                     INTPTR_FORMAT ", type='%s'", p2i(object),
-                     object->mark().value(), object->klass()->external_name());
-      }
+      log_inflate(current, object, cause);
       if (event.should_commit()) {
         post_monitor_inflate_event(&event, object, cause);
       }
@@ -1554,12 +1554,7 @@ ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
     // Hopefully the performance counters are allocated on distinct
     // cache lines to avoid false sharing on MP systems ...
     OM_PERFDATA_OP(Inflations, inc());
-    if (log_is_enabled(Trace, monitorinflation)) {
-      ResourceMark rm(current);
-      lsh.print_cr("inflate(neutral): object=" INTPTR_FORMAT ", mark="
-                   INTPTR_FORMAT ", type='%s'", p2i(object),
-                   object->mark().value(), object->klass()->external_name());
-    }
+    log_inflate(current, object, cause);
     if (event.should_commit()) {
       post_monitor_inflate_event(&event, object, cause);
     }
@@ -1865,26 +1860,14 @@ void ObjectSynchronizer::do_final_audit_and_print_stats() {
 void ObjectSynchronizer::audit_and_print_stats(bool on_exit) {
   assert(on_exit || SafepointSynchronize::is_at_safepoint(), "invariant");
 
-  LogStreamHandle(Debug, monitorinflation) lsh_debug;
-  LogStreamHandle(Info, monitorinflation) lsh_info;
-  LogStreamHandle(Trace, monitorinflation) lsh_trace;
-  LogStream* ls = nullptr;
-  if (log_is_enabled(Trace, monitorinflation)) {
-    ls = &lsh_trace;
-  } else if (log_is_enabled(Debug, monitorinflation)) {
-    ls = &lsh_debug;
-  } else if (log_is_enabled(Info, monitorinflation)) {
-    ls = &lsh_info;
-  }
-  assert(ls != nullptr, "sanity check");
-
+  LogStreamHandle(Debug, monitorinflation) ls;
   int error_cnt = 0;
 
-  ls->print_cr("Checking in_use_list:");
-  chk_in_use_list(ls, &error_cnt);
+  ls.print_cr("Checking in_use_list:");
+  chk_in_use_list(&ls, &error_cnt);
 
   if (error_cnt == 0) {
-    ls->print_cr("No errors found in in_use_list checks.");
+    ls.print_cr("No errors found in in_use_list checks.");
   } else {
     log_error(monitorinflation)("found in_use_list errors: error_cnt=%d", error_cnt);
   }
@@ -1894,10 +1877,10 @@ void ObjectSynchronizer::audit_and_print_stats(bool on_exit) {
     // When exiting this log output is at the Info level. When called
     // at a safepoint, this log output is at the Trace level since
     // there can be a lot of it.
-    log_in_use_monitor_details(ls, !on_exit /* log_all */);
+    log_in_use_monitor_details(&ls, !on_exit /* log_all */);
   }
 
-  ls->flush();
+  ls.flush();
 
   guarantee(error_cnt == 0, "ERROR: found monitor list errors: error_cnt=%d", error_cnt);
 }

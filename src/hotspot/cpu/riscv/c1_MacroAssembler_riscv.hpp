@@ -49,7 +49,7 @@ using MacroAssembler::null_check;
   );
 
   void initialize_header(Register obj, Register klass, Register len, Register tmp1, Register tmp2);
-  void initialize_body(Register obj, Register len_in_bytes, int hdr_size_in_bytes, Register tmp);
+  void initialize_body(Register obj, Register len_in_bytes, int base_offset_in_bytes, Register tmp);
 
   void float_cmp(bool is_float, int unordered_result,
                  FloatRegister f0, FloatRegister f1,
@@ -93,13 +93,13 @@ using MacroAssembler::null_check;
   };
 
   // allocation of arrays
-  // obj        : will contain pointer to allocated object
-  // len        : array length in number of elements
-  // t          : temp register - contents destroyed
-  // header_size: size of object header in words
-  // f          : element scale factor
-  // slow_case  : exit to slow case implementation if fast allocation fails
-  void allocate_array(Register obj, Register len, Register tmp1, Register tmp2, int header_size, int f, Register klass, Label& slow_case);
+  // obj                 : will contain pointer to allocated object
+  // len                 : array length in number of elements
+  // t                   : temp register - contents destroyed
+  // base_offset_in_bytes: elements offset in bytes
+  // f                   : element scale factor
+  // slow_case           : exit to slow case implementation if fast allocation fails
+  void allocate_array(Register obj, Register len, Register tmp1, Register tmp2, int base_offset_in_bytes, int f, Register klass, Label& slow_case);
 
   int  rsp_offset() const { return _rsp_offset; }
 

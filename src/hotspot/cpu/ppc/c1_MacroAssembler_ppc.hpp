@@ -40,6 +40,7 @@
 
   void initialize_header(Register obj, Register klass, Register len, Register t1, Register t2);
   void initialize_body(Register base, Register index);
+  void initialize_body(Register base, Register index, bool word_aligned, Register t1);
   void initialize_body(Register obj, Register tmp1, Register tmp2, int obj_size_in_bytes, int hdr_size_in_bytes);
 
   // locking/unlocking
@@ -80,7 +81,7 @@
     Register t1,                       // temp register
     Register t2,                       // temp register
     Register t3,                       // temp register
-    int      hdr_size,                 // object header size in words
+    int      base_offset_in_bytes,     // elements offset in bytes
     int      elt_size,                 // element size in bytes
     Register klass,                    // object klass
     Label&   slow_case                 // continuation point if fast allocation fails

@@ -43,7 +43,7 @@
   );
 
   void initialize_header(Register obj, Register klass, Register len, Register t1, Register t2);
-  void initialize_body(Register obj, Register len_in_bytes, int hdr_size_in_bytes, Register t1);
+  void initialize_body(Register obj, Register len_in_bytes, int base_offset_in_bytes, Register t1);
 
   // locking
   // hdr     : must be rax, contents destroyed
@@ -83,13 +83,13 @@
   };
 
   // allocation of arrays
-  // obj        : must be rax, will contain pointer to allocated object
-  // len        : array length in number of elements
-  // t          : scratch register - contents destroyed
-  // header_size: size of object header in words
-  // f          : element scale factor
-  // slow_case  : exit to slow case implementation if fast allocation fails
-  void allocate_array(Register obj, Register len, Register t, Register t2, int header_size, Address::ScaleFactor f, Register klass, Label& slow_case);
+  // obj                 : must be rax, will contain pointer to allocated object
+  // len                 : array length in number of elements
+  // t                   : scratch register - contents destroyed
+  // base_offset_in_bytes: elements offset in bytes
+  // f                   : element scale factor
+  // slow_case           : exit to slow case implementation if fast allocation fails
+  void allocate_array(Register obj, Register len, Register t, Register t2, int base_offset_in_bytes, Address::ScaleFactor f, Register klass, Label& slow_case);
 
   int  rsp_offset() const { return _rsp_offset; }
   void set_rsp_offset(int n) { _rsp_offset = n; }

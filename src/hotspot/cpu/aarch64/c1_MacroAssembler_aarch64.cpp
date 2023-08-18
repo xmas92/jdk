@@ -202,19 +202,27 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
 //
 // Scratch registers: t1 = r10, t2 = r11
 //
-void C1_MacroAssembler::initialize_body(Register obj, Register len_in_bytes, int hdr_size_in_bytes, Register t1, Register t2) {
-  assert(hdr_size_in_bytes >= 0, "header size must be positive or 0");
+void C1_MacroAssembler::initialize_body(Register obj, Register len_in_bytes, int base_offset_in_bytes, Register t1, Register t2) {
+  assert(base_offset_in_bytes >= 0, "base offset must be positive or 0");
   assert(t1 == r10 && t2 == r11, "must be");
 
   Label done;
 
+  int offset_in_bytes = base_offset_in_bytes;
+  if (!is_aligned(offset_in_bytes, BytesPerWord)) {
+    assert(is_aligned(offset_in_bytes, BytesPerInt), "must be 4-byte aligned");
+    strw(zr, Address(obj, offset_in_bytes));
+    offset_in_bytes += BytesPerInt;
+  }
+  assert(is_aligned(offset_in_bytes, BytesPerWord), "must be word-aligned");
+
   // len_in_bytes is positive and ptr sized
-  subs(len_in_bytes, len_in_bytes, hdr_size_in_bytes);
+  subs(len_in_bytes, len_in_bytes, offset_in_bytes);
   br(Assembler::EQ, done);
 
   // zero_words() takes ptr in r10 and count in words in r11
   mov(rscratch1, len_in_bytes);
-  lea(t1, Address(obj, hdr_size_in_bytes));
+  lea(t1, Address(obj, offset_in_bytes));
   lsr(t2, rscratch1, LogBytesPerWord);
   address tpc = zero_words(t1, t2);
 
@@ -292,19 +300,8 @@ void C1_MacroAssembler::allocate_array(Register obj, Register len, Register t1, 
 
   initialize_header(obj, klass, len, t1, t2);
 
-  // Clear leading 4 bytes, if necessary.
-  // TODO: This could perhaps go into initialize_body() and also clear the leading 4 bytes
-  // for non-array objects, thereby replacing the klass-gap clearing code in initialize_header().
-  int base_offset = base_offset_in_bytes;
-  if (!is_aligned(base_offset, BytesPerWord)) {
-    assert(is_aligned(base_offset, BytesPerInt), "must be 4-byte aligned");
-    strw(zr, Address(obj, base_offset));
-    base_offset += BytesPerInt;
-  }
-  assert(is_aligned(base_offset, BytesPerWord), "must be word-aligned");
-
   // clear rest of allocated space
-  initialize_body(obj, arr_size, base_offset, t1, t2);
+  initialize_body(obj, arr_size, base_offset_in_bytes, t1, t2);
   if (Compilation::current()->bailed_out()) {
     return;
   }

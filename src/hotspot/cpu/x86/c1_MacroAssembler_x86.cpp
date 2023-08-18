@@ -161,7 +161,6 @@ void C1_MacroAssembler::try_allocate(Register obj, Register var_size_in_bytes, i
   }
 }
 
-
 void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register len, Register t1, Register t2) {
   assert_different_registers(obj, klass, len);
   movptr(Address(obj, oopDesc::mark_offset_in_bytes()), checked_cast<int32_t>(markWord::prototype().value()));
@@ -178,14 +177,7 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
 
   if (len->is_valid()) {
     movl(Address(obj, arrayOopDesc::length_offset_in_bytes()), len);
-#ifdef _LP64
-    if (!is_aligned(arrayOopDesc::header_size_in_bytes(), BytesPerWord)) {
-      assert(is_aligned(arrayOopDesc::header_size_in_bytes(), BytesPerInt), "must be 4-byte aligned");
-      movl(Address(obj, arrayOopDesc::header_size_in_bytes()), 0);
-    }
-#else
     assert(is_aligned(arrayOopDesc::header_size_in_bytes(), BytesPerInt), "must be 4-byte aligned");
-#endif
   }
 #ifdef _LP64
   else if (UseCompressedClassPointers) {
@@ -195,15 +187,22 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
 #endif
 }
 
-
 // preserves obj, destroys len_in_bytes
-void C1_MacroAssembler::initialize_body(Register obj, Register len_in_bytes, int hdr_size_in_bytes, Register t1) {
-  assert(hdr_size_in_bytes >= 0, "header size must be positive or 0");
+void C1_MacroAssembler::initialize_body(Register obj, Register len_in_bytes, int base_offset_in_bytes, Register t1) {
+  assert(base_offset_in_bytes >= 0, "header size must be positive or 0");
   Label done;
 
+  int offset_in_bytes = base_offset_in_bytes;
+  if (!is_aligned(offset_in_bytes, BytesPerWord)) {
+    assert(is_aligned(offset_in_bytes, BytesPerInt), "Must be");
+    movl(Address(obj, offset_in_bytes), 0);
+    offset_in_bytes += BytesPerInt;
+  }
+  assert(is_aligned(offset_in_bytes, BytesPerWord), "Must be");
+
   // len_in_bytes is positive and ptr sized
-  subptr(len_in_bytes, hdr_size_in_bytes);
-  zero_memory(obj, len_in_bytes, hdr_size_in_bytes, t1);
+  subptr(len_in_bytes, offset_in_bytes);
+  zero_memory(obj, len_in_bytes, offset_in_bytes, t1);
   bind(done);
 }
 
@@ -292,10 +291,7 @@ void C1_MacroAssembler::allocate_array(Register obj, Register len, Register t1, 
 
   // clear rest of allocated space
   const Register len_zero = len;
-  // We align-up the header size to word-size, because we clear the
-  // possible alignment gap in initialize_header().
-  int hdr_size = align_up(base_offset_in_bytes, BytesPerWord);
-  initialize_body(obj, arr_size, hdr_size, len_zero);
+  initialize_body(obj, arr_size, base_offset_in_bytes, len_zero);
 
   if (CURRENT_ENV->dtrace_alloc_probes()) {
     assert(obj == rax, "must be");

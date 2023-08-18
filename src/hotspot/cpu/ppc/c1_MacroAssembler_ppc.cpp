@@ -241,6 +241,19 @@ void C1_MacroAssembler::initialize_body(Register base, Register index) {
   clear_memory_doubleword(base, index);
 }
 
+void C1_MacroAssembler::initialize_body(Register base, Register index, bool word_aligned, Register t1) {
+  assert_different_registers(base, index, t1);
+
+  // Zero first 4 bytes, if start offset is not word aligned.
+  if (!word_aligned) {
+    li(t1, 0);
+    stw(t1, 0, base);
+    addi(base, base, BytesPerInt);
+    // Note: initialize_body(base, index) will align index down, no need to correct it here.
+  }
+  initialize_body(base, index);
+}
+
 void C1_MacroAssembler::initialize_body(Register obj, Register tmp1, Register tmp2,
                                         int obj_size_in_bytes, int hdr_size_in_bytes) {
   const int index = (obj_size_in_bytes - hdr_size_in_bytes) / HeapWordSize;
@@ -378,16 +391,7 @@ void C1_MacroAssembler::allocate_array(
   addi(base, obj, base_offset_in_bytes);               // compute address of first element
   addi(index, arr_size, -(base_offset_in_bytes));      // compute index = number of bytes to clear
 
-  // Zero first 4 bytes, if start offset is not word aligned.
-  if (!is_aligned(base_offset_in_bytes, BytesPerWord)) {
-    assert(is_aligned(base_offset_in_bytes, BytesPerInt), "must be 4-byte aligned");
-    li(t1, 0);
-    stw(t1, 0, base);
-    addi(base, base, BytesPerInt);
-    // Note: initialize_body will align index down, no need to correct it here.
-  }
-
-  initialize_body(base, index);
+  initialize_body(base, index, is_aligned(base_offset_in_bytes, BytesPerWord), t1);
 
   if (CURRENT_ENV->dtrace_alloc_probes()) {
     Unimplemented();

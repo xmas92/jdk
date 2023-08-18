@@ -27,6 +27,8 @@
 
 #include "oops/oop.hpp"
 #include "utilities/align.hpp"
+#include "utilities/copy.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 // arrayOopDesc is the abstract baseclass for all arrays.  It doesn't
@@ -51,6 +53,17 @@ private:
   static int* length_addr_impl(void* obj_ptr) {
     char* ptr = static_cast<char*>(obj_ptr);
     return reinterpret_cast<int*>(ptr + length_offset_in_bytes());
+  }
+
+  static address base_offset_addr_impl(BasicType element_type, void* obj_ptr) {
+    address ptr = static_cast<address>(obj_ptr);
+    return ptr + base_offset_in_bytes(element_type);
+  }
+
+  static int* header_alignment_padding_addr_impl(BasicType element_type, void* obj_ptr) {
+    assert(has_header_alignment_padding(element_type), "invalid call");
+    char* ptr = static_cast<char*>(obj_ptr);
+    return reinterpret_cast<int*>(ptr + header_size_in_bytes());
   }
 
   // Check whether an element of a typeArrayOop with the given type must be
@@ -126,6 +139,53 @@ private:
 
   static void set_length(HeapWord* mem, int length) {
     *length_addr_impl(mem) = length;
+  }
+
+  static bool has_header_alignment_padding(BasicType element_type) {
+    // If the base does not start where the header ends then there is a gap
+    // in-between to align the base
+    return base_offset_in_bytes(element_type) != header_size_in_bytes();
+  }
+
+  static void fill_array_header_alignment_padding(BasicType element_type, HeapWord* mem, int v) {
+    if (has_header_alignment_padding(element_type)) {
+      *header_alignment_padding_addr_impl(element_type, mem) = v;
+    }
+  }
+
+  static void fill_payload_alignment_padding(BasicType element_type, HeapWord* mem, size_t word_size, int length, unsigned int v) {
+    const int element_type_size = type2aelembytes(element_type);
+    const address base_ptr = base_offset_addr_impl(element_type, mem);
+    const address payload_end_ptr = base_ptr + length * element_type_size;
+    const address allocation_end = reinterpret_cast<address>(mem + word_size);
+    const size_t padding_bytes = allocation_end - payload_end_ptr;
+    if (v == 0 && padding_bytes > 0) {
+      Copy::zero_to_bytes(payload_end_ptr, padding_bytes);
+    } else if (padding_bytes > 0) {
+      // Leading bytes
+      const size_t aligned_padding_bytes = align_down(padding_bytes, sizeof(int));
+      const size_t leading_padding_bytes = padding_bytes - aligned_padding_bytes;
+      switch (leading_padding_bytes) {
+        case 3: *(payload_end_ptr + 2) = static_cast<unsigned char>(v >> (8 * 1));
+        case 2: *(payload_end_ptr + 1) = static_cast<unsigned char>(v >> (8 * 2));
+        case 1: *(payload_end_ptr + 0) = static_cast<unsigned char>(v >> (8 * 3));
+        default: break;
+      }
+
+      // Leading half word
+      assert(payload_end_ptr + leading_padding_bytes == align_up(payload_end_ptr, sizeof(int)), "Just checking");
+      const address int_aligned_payload_end_ptr = payload_end_ptr + leading_padding_bytes;
+      if (!is_aligned(int_aligned_payload_end_ptr, BytesPerWord)) {
+        *reinterpret_cast<unsigned int*>(int_aligned_payload_end_ptr) = v;
+      }
+
+      // Rest word aligned
+      assert(is_aligned(word_size, MinObjAlignment), "Invariant");
+      assert(is_aligned(MinObjAlignmentInBytes, BytesPerWord), "Invariant");
+      HeapWord* const word_aligned_payload_end_ptr = reinterpret_cast<HeapWord*>(align_up(int_aligned_payload_end_ptr, BytesPerWord));
+      const size_t aligned_padding_words = aligned_padding_bytes >> LogBytesPerWord;
+      Copy::fill_to_aligned_words(word_aligned_payload_end_ptr, aligned_padding_words, v);
+    }
   }
 
   // Should only be called with constants as argument

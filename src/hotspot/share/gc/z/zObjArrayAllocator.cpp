@@ -76,6 +76,10 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
   ZThreadLocalData::set_invisible_root(_thread, (zaddress_unsafe*)&mem);
 
   const BasicType element_type = ArrayKlass::cast(_klass)->element_type();
+
+  const unsigned int padding_value = DEBUG_ONLY(badHeapWordVal) NOT_DEBUG(0);
+  arrayOopDesc::fill_array_header_alignment_padding(element_type, mem, padding_value);
+
   const size_t base_offset_in_bytes = arrayOopDesc::base_offset_in_bytes(element_type);
   // Payload may contain padding bytes at the end
   const size_t payload_size_in_bytes = _word_size * BytesPerWord - base_offset_in_bytes;
@@ -146,6 +150,10 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
     const bool result = initialize_memory();
     assert(result, "Array initialization should always succeed the second time");
   }
+
+  // initialize_memory() also initializes the padding words, with 0 for typeArrays
+  // and colored null for objArrays. In debug we zap the padding bytes.
+  DEBUG_ONLY(arrayOopDesc::fill_payload_alignment_padding(element_type, mem, _word_size, _length, padding_value);)
 
   ZThreadLocalData::clear_invisible_root(_thread);
 

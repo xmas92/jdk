@@ -123,7 +123,7 @@ class InterpreterMacroAssembler: public MacroAssembler {
                               size_t index_size = sizeof(u2));
 
   // load cpool->resolved_references(index);
-  void load_resolved_reference_at_index(Register result, Register index, Register tmp = rscratch2);
+  void load_resolved_reference_at_index(Register result, Register index, Register tmp);
 
   // load cpool->resolved_klass_at(index)
   void load_resolved_klass_at_index(Register klass,  // contains the Klass on return

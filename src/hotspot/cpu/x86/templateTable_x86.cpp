@@ -443,7 +443,7 @@ void TemplateTable::fast_aldc(LdcType type) {
   // non-null object (String, MethodType, etc.)
   assert_different_registers(result, tmp);
   __ get_cache_index_at_bcp(tmp, 1, index_size);
-  __ load_resolved_reference_at_index(result, tmp);
+  __ load_resolved_reference_at_index(result, tmp, LP64_ONLY(rscratch2) NOT_LP64(rarg));
   __ testptr(result, result);
   __ jcc(Assembler::notZero, resolved);
 
@@ -2762,7 +2762,11 @@ void TemplateTable::load_resolved_field_entry(Register obj,
     __ movptr(obj, Address(cache, ResolvedFieldEntry::field_holder_offset()));
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ movptr(obj, Address(obj, mirror_offset));
-    __ resolve_weak_handle(obj, rscratch2);
+    // TODO[Axel]: Figure out tmp registers for 32-bit
+    const Register tmp = LP64_ONLY(rscratch2) NOT_LP64(rdx);
+    NOT_LP64(__ push(tmp););
+    __ resolve_weak_handle(obj, tmp);
+    NOT_LP64(__ pop(tmp););
   }
 
 }
@@ -2812,7 +2816,10 @@ void TemplateTable::load_invokedynamic_entry(Register method) {
   __ load_unsigned_short(index, Address(cache, in_bytes(ResolvedIndyEntry::resolved_references_index_offset())));
   // Push the appendix as a trailing parameter
   // since the parameter_size includes it.
-  __ load_resolved_reference_at_index(appendix, index);
+  const Register tmp = LP64_ONLY(rscratch2) NOT_LP64(method);
+  NOT_LP64(__ push(tmp);)
+  __ load_resolved_reference_at_index(appendix, index, tmp);
+  NOT_LP64(__ pop(tmp);)
   __ verify_oop(appendix);
   __ push(appendix);  // push appendix (MethodType, CallSite, etc.)
   __ bind(L_no_push);
@@ -2872,7 +2879,10 @@ void TemplateTable::load_resolved_method_entry_handle(Register cache,
   // This must be done before we get the receiver,
   // since the parameter_size includes it.
   Register appendix = method;
-  __ load_resolved_reference_at_index(appendix, ref_index);
+  const Register tmp = LP64_ONLY(rscratch2) NOT_LP64(method);
+  NOT_LP64(__ push(tmp);)
+  __ load_resolved_reference_at_index(appendix, ref_index, tmp);
+  NOT_LP64(__ pop(tmp);)
   __ push(appendix);  // push appendix (MethodType, CallSite, etc.)
   __ bind(L_no_push);
 

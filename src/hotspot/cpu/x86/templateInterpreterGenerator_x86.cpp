@@ -592,7 +592,9 @@ void TemplateInterpreterGenerator::lock_method() {
     // get receiver (assume this is frequent case)
     __ movptr(rax, Address(rlocals, Interpreter::local_offset_in_bytes(0)));
     __ jcc(Assembler::zero, done);
-    __ load_mirror(rax, rbx, rscratch2);
+    NOT_LP64(__ push(rdx);)
+    __ load_mirror(rax, rbx, LP64_ONLY(rscratch2) NOT_LP64(rdx));
+    NOT_LP64(__ pop(rdx);)
 
 #ifdef ASSERT
     {
@@ -636,7 +638,7 @@ void TemplateInterpreterGenerator::generate_fixed_frame(bool native_call) {
   __ lea(rbcp, Address(rbcp, ConstMethod::codes_offset())); // get codebase
   __ push(rbx);        // save Method*
   // Get mirror and store it in the frame as GC root for this Method*
-  __ load_mirror(rdx, rbx, rscratch2);
+  __ load_mirror(rdx, rbx, LP64_ONLY(rscratch2) NOT_LP64(rax));
   __ push(rdx);
   if (ProfileInterpreter) {
     Label method_data_continue;

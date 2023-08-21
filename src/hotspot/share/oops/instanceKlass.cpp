@@ -2514,6 +2514,9 @@ void InstanceKlass::remove_unshareable_info() {
 
   Klass::remove_unshareable_info();
 
+  // Not stable between vms
+  _hidden_klass_id =  0;
+
   if (SystemDictionaryShared::has_class_failed_verification(this)) {
     // Classes are attempted to link during dumping and may fail,
     // but these classes are still in the dictionary and class list in CLD.
@@ -2629,6 +2632,8 @@ void InstanceKlass::restore_unshareable_info(ClassLoaderData* loader_data, Handl
   assert(!shared_loading_failed(), "Must not try to load failed class again");
   set_package(loader_data, pkg_entry, CHECK);
   Klass::restore_unshareable_info(loader_data, protection_domain, CHECK);
+
+  _hidden_klass_id = is_hidden() ? Atomic::fetch_then_add(&_next_hidden_klass_id, (size_t)1) : 0;
 
   Array<Method*>* methods = this->methods();
   int num_methods = methods->length();

@@ -110,6 +110,7 @@ public:
   // Object allocation
   bool is_alloc_stalling() const;
   bool is_alloc_stalling_for_old() const;
+  size_t oldest_alloc_stalling_size() const;
   void handle_alloc_stalling_for_young();
   void handle_alloc_stalling_for_old(bool cleared_soft_refs);
 

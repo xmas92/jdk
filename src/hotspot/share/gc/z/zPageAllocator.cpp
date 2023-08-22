@@ -948,6 +948,18 @@ bool ZPageAllocator::is_alloc_stalling_for_old() const {
   return has_alloc_seen_young(allocation) && !has_alloc_seen_old(allocation);
 }
 
+size_t ZPageAllocator::oldest_alloc_stalling_size() const {
+  ZLocker<ZLock> locker(&_lock);
+
+  ZPageAllocation* const allocation = _stalled.first();
+  if (allocation == nullptr) {
+    // No stalled allocations
+    return 0;
+  }
+
+  return allocation->size();
+}
+
 void ZPageAllocator::notify_out_of_memory() {
   // Fail allocation requests that were enqueued before the last major GC started
   for (ZPageAllocation* allocation = _stalled.first(); allocation != nullptr; allocation = _stalled.first()) {

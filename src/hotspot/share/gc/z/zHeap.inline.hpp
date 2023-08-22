@@ -82,6 +82,10 @@ inline bool ZHeap::is_alloc_stalling_for_old() const {
   return _page_allocator.is_alloc_stalling_for_old();
 }
 
+inline size_t ZHeap::oldest_alloc_stalling_size() const {
+  return _page_allocator.oldest_alloc_stalling_size();
+}
+
 inline void ZHeap::handle_alloc_stalling_for_young() {
   _page_allocator.handle_alloc_stalling_for_young();
 }

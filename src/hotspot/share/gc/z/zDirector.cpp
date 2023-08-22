@@ -301,8 +301,22 @@ static bool is_young_small(const ZDirectorStats& stats) {
 
   // If the freeable memory isn't even 5% of the heap, we can't expect to free up
   // all that much memory, so let's not even try - it will likely be a wasted effort
-  // that takes away CPU power to the hopefullt more profitable major colelction.
+  // that takes away CPU power to the hopefully more profitable major collection.
   return young_used_percent <= 5.0;
+}
+
+static bool young_cannot_satisfy_alloc_stall(const ZDirectorStats& stats) {
+  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
+  const size_t used = stats._heap._used;
+  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
+  const size_t young_used = stats._young_stats._general._used;
+
+  const size_t max_usable_after_young = free_including_headroom + young_used;
+  const size_t stalling_allocation_size = ZHeap::heap()->oldest_alloc_stalling_size();
+
+  // A young collection which reclaims all its memory cannot satisfy the stalling
+  // allocation
+  return stalling_allocation_size > max_usable_after_young;
 }
 
 template <typename PrintFn = void(*)(size_t, double)>
@@ -324,7 +338,7 @@ static bool is_high_usage(const ZDirectorStats& stats, PrintFn* print_function =
 }
 
 static bool is_major_urgent(const ZDirectorStats& stats) {
-  return is_young_small(stats) && is_high_usage(stats);
+  return (is_young_small(stats) && is_high_usage(stats)) || young_cannot_satisfy_alloc_stall(stats);
 }
 
 static bool rule_minor_allocation_rate(const ZDirectorStats& stats) {
@@ -339,6 +353,10 @@ static bool rule_minor_allocation_rate(const ZDirectorStats& stats) {
   }
 
   if (is_young_small(stats)) {
+    return false;
+  }
+
+  if (young_cannot_satisfy_alloc_stall(stats)) {
     return false;
   }
 
@@ -367,7 +385,7 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
     return false;
   }
 
-  if (is_young_small(stats)) {
+  if (is_young_small(stats) || young_cannot_satisfy_alloc_stall(stats)) {
     return false;
   }
 
@@ -376,12 +394,6 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
   // such that the allocation rate rule doesn't trigger, but the amount of free
   // memory is still slowly but surely heading towards zero. In this situation,
   // we start a GC cycle to avoid a potential allocation stall later.
-
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, soft_max_capacity);
 
   auto print_function = [&](size_t free, double free_percent) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: " SIZE_FORMAT "MB(%.1f%%)",

@@ -305,7 +305,7 @@ static bool is_young_small(const ZDirectorStats& stats) {
   return young_used_percent <= 5.0;
 }
 
-static bool young_cannot_satisfy_alloc_stall(const ZDirectorStats& stats) {
+static bool minor_cannot_satisfy_alloc_stall(const ZDirectorStats& stats) {
   const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
   const size_t used = stats._heap._used;
   const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
@@ -314,9 +314,9 @@ static bool young_cannot_satisfy_alloc_stall(const ZDirectorStats& stats) {
   const size_t max_usable_after_young = free_including_headroom + young_used;
   const size_t stalling_allocation_size = ZHeap::heap()->oldest_alloc_stalling_size();
 
-  // A young collection which reclaims all its memory cannot satisfy the stalling
-  // allocation
-  return stalling_allocation_size > max_usable_after_young;
+  // If a minor collection cannot reclaim enough memory to satisfy the stalling
+  // allocation prioritize the
+  return false; // stalling_allocation_size > max_usable_after_young;
 }
 
 template <typename PrintFn = void(*)(size_t, double)>
@@ -338,7 +338,7 @@ static bool is_high_usage(const ZDirectorStats& stats, PrintFn* print_function =
 }
 
 static bool is_major_urgent(const ZDirectorStats& stats) {
-  return (is_young_small(stats) && is_high_usage(stats)) || young_cannot_satisfy_alloc_stall(stats);
+  return (is_young_small(stats) && is_high_usage(stats)) || minor_cannot_satisfy_alloc_stall(stats);
 }
 
 static bool rule_minor_allocation_rate(const ZDirectorStats& stats) {
@@ -356,7 +356,7 @@ static bool rule_minor_allocation_rate(const ZDirectorStats& stats) {
     return false;
   }
 
-  if (young_cannot_satisfy_alloc_stall(stats)) {
+  if (minor_cannot_satisfy_alloc_stall(stats)) {
     return false;
   }
 
@@ -385,7 +385,7 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
     return false;
   }
 
-  if (is_young_small(stats) || young_cannot_satisfy_alloc_stall(stats)) {
+  if (is_young_small(stats) || minor_cannot_satisfy_alloc_stall(stats)) {
     return false;
   }
 

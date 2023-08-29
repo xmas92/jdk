@@ -2588,7 +2588,6 @@ void TemplateTable::resolve_cache_and_index(int byte_no,
 
 
 // The Rcache and Rindex registers must be set before call
-// Rcache and Rindex are clobbered if is_static
 void TemplateTable::load_field_cp_cache_entry(Register Rcache,
                                               Register Rindex,
                                               Register Roffset,
@@ -2616,10 +2615,7 @@ void TemplateTable::load_field_cp_cache_entry(Register Rcache,
              cp_base_offset + ConstantPoolCacheEntry::f1_offset()));
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ ldr(Robj, Address(Robj, mirror_offset));
-
-    const Register Rtmp1 = Rcache;
-    const Register Rtmp2 = Rindex;
-    __ resolve_weak_handle(Robj, Rtmp1, Rtmp2);
+    __ access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Address(Robj, 0), Robj, noreg, noreg, noreg);
   }
 }
 

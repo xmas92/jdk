@@ -2303,7 +2303,7 @@ void TemplateTable::load_resolved_field_entry(Register obj,
     __ ld(obj, in_bytes(ResolvedFieldEntry::field_holder_offset()), cache);
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ ld(obj, mirror_offset, obj);
-    __ resolve_weak_handle(obj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
+    __ access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, obj, noreg, obj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
   }
 }
 
@@ -2330,7 +2330,7 @@ void TemplateTable::load_field_cp_cache_entry(Register Robj,
   if (is_static) {
     __ ld(Robj, in_bytes(cp_base_offset) + in_bytes(ConstantPoolCacheEntry::f1_offset()), Rcache);
     __ ld(Robj, in_bytes(Klass::java_mirror_offset()), Robj);
-    __ resolve_weak_handle(Robj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
+    __ access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Robj, noreg, Robj, R11_scratch1, R12_scratch2, MacroAssembler::PRESERVATION_NONE);
     // Acquire not needed here. Following access has an address dependency on this value.
   }
 }

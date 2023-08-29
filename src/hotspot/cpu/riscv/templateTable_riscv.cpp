@@ -2267,7 +2267,7 @@ void TemplateTable::load_resolved_field_entry(Register obj,
     __ ld(obj, Address(cache, ResolvedFieldEntry::field_holder_offset()));
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ ld(obj, Address(obj, mirror_offset));
-    __ resolve_weak_handle(obj, x15, t1);
+    __ access_load_at(T_OBJECT, IN_NATIVE, obj, Address(obj, 0), x15, t1);
   }
 }
 
@@ -2295,7 +2295,7 @@ void TemplateTable::load_field_cp_cache_entry(Register obj,
                                        ConstantPoolCacheEntry::f1_offset())));
     const int mirror_offset = in_bytes(Klass::java_mirror_offset());
     __ ld(obj, Address(obj, mirror_offset));
-    __ resolve_weak_handle(obj, x15, t1);
+    __ access_load_at(T_OBJECT, IN_NATIVE, obj, Address(obj, 0), x15, t1);
   }
 }
 

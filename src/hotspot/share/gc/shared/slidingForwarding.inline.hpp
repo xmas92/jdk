@@ -44,6 +44,12 @@ size_t SlidingForwarding::biased_region_index_containing(HeapWord* addr) {
 }
 
 uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
+  if (_use_compact_forwarding) {
+    uintptr_t encoded = ((uintptr_t)to - (uintptr_t)_heap_start) | markWord::marked_value;
+    assert(to == decode_forwarding(from, encoded), "must be reversible");
+    assert((encoded & ~MARK_LOWER_HALF_MASK) == 0, "must encode to lowest 32 bits");
+    return encoded;
+  }
   static_assert(NUM_TARGET_REGIONS == 2, "Only implemented for this amount");
 
   size_t from_reg_idx = biased_region_index_containing(from);
@@ -93,6 +99,9 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
   assert((encoded & markWord::lock_mask_in_place) == markWord::marked_value, "must be marked as forwarded");
   assert((encoded & FALLBACK_MASK) == 0, "must not be fallback-forwarded");
   assert((encoded & ~MARK_LOWER_HALF_MASK) == 0, "must decode from lowest 32 bits");
+  if (_use_compact_forwarding) {
+    return (HeapWord*)((uintptr_t)_heap_start + (encoded & ~markWord::lock_mask));
+  }
   size_t alternate = (encoded >> ALT_REGION_SHIFT) & right_n_bits(ALT_REGION_BITS);
   assert(alternate < NUM_TARGET_REGIONS, "Sanity");
   uintptr_t offset = (encoded >> OFFSET_BITS_SHIFT);
@@ -109,7 +118,7 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
 }
 
 inline void SlidingForwarding::forward_to_impl(oop from, oop to) {
-  assert(_bases_table != nullptr, "call begin() before forwarding");
+  assert(_use_compact_forwarding || _bases_table != nullptr, "call begin() before forwarding");
 
   markWord from_header = from->mark();
   if (from_header.has_displaced_mark_helper()) {
@@ -122,7 +131,7 @@ inline void SlidingForwarding::forward_to_impl(oop from, oop to) {
   markWord new_header = markWord((from_header.value() & ~MARK_LOWER_HALF_MASK) | encoded);
   from->set_mark(new_header);
 
-  if ((encoded & FALLBACK_MASK) != 0) {
+  if (!_use_compact_forwarding && (encoded & FALLBACK_MASK) != 0) {
     fallback_forward_to(from_hw, to_hw);
   }
 }
@@ -131,7 +140,7 @@ template <bool ALT_FWD>
 inline void SlidingForwarding::forward_to(oop obj, oop fwd) {
 #ifdef _LP64
   if (ALT_FWD) {
-    assert(_bases_table != nullptr, "expect sliding forwarding initialized");
+    assert(_use_compact_forwarding || _bases_table != nullptr, "expect sliding forwarding initialized");
     forward_to_impl(obj, fwd);
     assert(forwardee<ALT_FWD>(obj) == fwd, "must be forwarded to correct forwardee");
   } else
@@ -142,11 +151,11 @@ inline void SlidingForwarding::forward_to(oop obj, oop fwd) {
 }
 
 inline oop SlidingForwarding::forwardee_impl(oop from) {
-  assert(_bases_table != nullptr, "call begin() before asking for forwarding");
+  assert(_use_compact_forwarding || _bases_table != nullptr, "call begin() before asking for forwarding");
 
   markWord header = from->mark();
   HeapWord* from_hw = cast_from_oop<HeapWord*>(from);
-  if ((header.value() & FALLBACK_MASK) != 0) {
+  if (!_use_compact_forwarding && (header.value() & FALLBACK_MASK) != 0) {
     HeapWord* to = fallback_forwardee(from_hw);
     return cast_to_oop(to);
   }
@@ -159,7 +168,7 @@ template <bool ALT_FWD>
 inline oop SlidingForwarding::forwardee(oop obj) {
 #ifdef _LP64
   if (ALT_FWD) {
-    assert(_bases_table != nullptr, "expect sliding forwarding initialized");
+    assert(_use_compact_forwarding || _bases_table != nullptr, "expect sliding forwarding initialized");
     return forwardee_impl(obj);
   } else
 #endif

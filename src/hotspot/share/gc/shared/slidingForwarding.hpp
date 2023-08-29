@@ -130,12 +130,21 @@ private:
 
   // The offset bits start then
   static const int OFFSET_BITS_SHIFT = ALT_REGION_SHIFT + ALT_REGION_BITS;
+  // The metadata bits
+  static const int NUM_METADATA_BITS = markWord::lock_bits
+                                     + FALLBACK_BITS
+                                     + ALT_REGION_BITS;
+  static const int NUM_METADATA_COMPACT_BITS = markWord::lock_bits
+                                             + FALLBACK_BITS;
 
   // How many bits we use for the offset
-  static const int NUM_OFFSET_BITS = 32 - OFFSET_BITS_SHIFT;
+  static const int NUM_OFFSET_BITS = 32 - NUM_METADATA_BITS;
+  static const int NUM_OFFSET_COMPACT_BITS = 32 - NUM_METADATA_COMPACT_BITS;
 
   // Indicates an unused base address in the target base table.
   static HeapWord* const UNUSED_BASE;
+
+  static bool           _use_compact_forwarding;
 
   static HeapWord*      _heap_start;
   static size_t         _region_size_words;

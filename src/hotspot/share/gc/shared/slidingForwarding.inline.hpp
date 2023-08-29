@@ -73,7 +73,7 @@ uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
       // Both primary and alternate are not fitting
       // This happens only in the following rare situations:
       // - In Serial GC, sometimes when compact-top switches spaces, because the
-      //   region boudaries are virtual and objects can cross regions
+      //   region boundaries are virtual and objects can cross regions
       // - In G1 serial compaction, because tails of various compaction chains
       //   are distributed across the remainders of already compacted regions.
       return (1 << FALLBACK_SHIFT) | markWord::marked_value;
@@ -81,12 +81,12 @@ uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
     alternate = 1;
   }
 
-  size_t offset = pointer_delta(to, to_region_base);
-  assert(offset < _region_size_words, "Offset should be within the region. from: " PTR_FORMAT
+  size_t offset = pointer_delta(to, to_region_base) << OFFSET_BITS_SHIFT;
+  assert((offset >> OFFSET_BITS_SHIFT) < _region_size_words, "Offset should be within the region. from: " PTR_FORMAT
          ", to: " PTR_FORMAT ", to_region_base: " PTR_FORMAT ", offset: " SIZE_FORMAT,
          p2i(from), p2i(to), p2i(to_region_base), offset);
 
-  uintptr_t encoded = (offset << OFFSET_BITS_SHIFT) |
+  uintptr_t encoded = offset |
                       (alternate << ALT_REGION_SHIFT) |
                       markWord::marked_value;
 
@@ -104,7 +104,7 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
   }
   size_t alternate = (encoded >> ALT_REGION_SHIFT) & right_n_bits(ALT_REGION_BITS);
   assert(alternate < NUM_TARGET_REGIONS, "Sanity");
-  uintptr_t offset = (encoded >> OFFSET_BITS_SHIFT);
+  uintptr_t offset = ((encoded >> OFFSET_BITS_SHIFT) & right_n_bits(NUM_OFFSET_BITS));
 
   size_t from_idx = biased_region_index_containing(from);
   HeapWord* base = _biased_bases[alternate][from_idx];

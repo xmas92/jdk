@@ -34,6 +34,7 @@
 HeapWord* const SlidingForwarding::UNUSED_BASE = reinterpret_cast<HeapWord*>(0x1);
 
 HeapWord* SlidingForwarding::_heap_start = nullptr;
+bool SlidingForwarding::_use_compact_forwarding = false;
 size_t SlidingForwarding::_region_size_words = 0;
 size_t SlidingForwarding::_heap_start_region_bias = 0;
 size_t SlidingForwarding::_num_regions = 0;
@@ -53,7 +54,12 @@ void SlidingForwarding::initialize(MemRegion heap, size_t region_size_words) {
     // if it happens to be aligned to allow biasing.
     size_t rounded_heap_size = round_up_power_of_2(heap.byte_size());
 
-    if (UseSerialGC && (heap.word_size() <= (1 << NUM_OFFSET_BITS)) &&
+    if ((heap.word_size() <= (1 << NUM_OFFSET_COMPACT_BITS))
+        && UseCompactAltGCFwd) {
+      guarantee(LogMinObjAlignmentInBytes >= 3, "lowest 3 bits clear");
+      _use_compact_forwarding = true;
+    }
+    if (UseSerialGC && (heap.word_size() <= (1 << NUM_OFFSET_COMPACT_BITS)) &&
         is_aligned((uintptr_t)_heap_start, rounded_heap_size)) {
       _num_regions = 1;
       _region_size_words = heap.word_size();
@@ -65,8 +71,7 @@ void SlidingForwarding::initialize(MemRegion heap, size_t region_size_words) {
     }
     _heap_start_region_bias = (uintptr_t)_heap_start >> _region_size_bytes_shift;
     _region_mask = ~((uintptr_t(1) << _region_size_bytes_shift) - 1);
-
-    guarantee((_heap_start_region_bias << _region_size_bytes_shift) == (uintptr_t)_heap_start, "must be aligned: _heap_start_region_bias: " SIZE_FORMAT ", _region_size_byte_shift: %u, _heap_start: " PTR_FORMAT, _heap_start_region_bias, _region_size_bytes_shift, p2i(_heap_start));
+    guarantee(_use_compact_forwarding || (_heap_start_region_bias << _region_size_bytes_shift) == (uintptr_t)_heap_start, "must be aligned: _heap_start_region_bias: " SIZE_FORMAT ", _region_size_byte_shift: %u, _heap_start: " PTR_FORMAT, _heap_start_region_bias, _region_size_bytes_shift, p2i(_heap_start));
 
     assert(_region_size_words >= 1, "regions must be at least a word large");
     assert(_bases_table == nullptr, "should not be initialized yet");
@@ -77,7 +82,7 @@ void SlidingForwarding::initialize(MemRegion heap, size_t region_size_words) {
 
 void SlidingForwarding::begin() {
 #ifdef _LP64
-  if (UseAltGCForwarding) {
+  if (!_use_compact_forwarding && UseAltGCForwarding) {
     assert(_bases_table == nullptr, "should not be initialized yet");
     assert(_fallback_table == nullptr, "should not be initialized yet");
 
@@ -95,7 +100,7 @@ void SlidingForwarding::begin() {
 
 void SlidingForwarding::end() {
 #ifdef _LP64
-  if (UseAltGCForwarding) {
+  if (!_use_compact_forwarding && UseAltGCForwarding) {
     assert(_bases_table != nullptr, "should be initialized");
     FREE_C_HEAP_ARRAY(HeapWord*, _bases_table);
     _bases_table = nullptr;

@@ -4891,7 +4891,7 @@ void MacroAssembler::load_mirror(Register dst, Register method, Register tmp1, R
   ldr(dst, Address(dst, ConstMethod::constants_offset()));
   ldr(dst, Address(dst, ConstantPool::pool_holder_offset()));
   ldr(dst, Address(dst, mirror_offset));
-  resolve_weak_handle(dst, tmp1, tmp2);
+  access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, dst, Address(dst, 0), tmp1, tmp2);
 }
 
 void MacroAssembler::cmp_klass(Register oop, Register trial_klass, Register tmp) {

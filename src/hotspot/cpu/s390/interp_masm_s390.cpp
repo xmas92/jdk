@@ -406,8 +406,7 @@ void InterpreterMacroAssembler::load_resolved_reference_at_index(Register result
   // Load pointer for resolved_references[] objArray.
   z_lg(result, in_bytes(ConstantPool::cache_offset()), result);
   z_lg(result, in_bytes(ConstantPoolCache::resolved_references_offset()), result);
-  // TODO[AXEL]: Fix Temp registers
-  resolve_weak_handle(result, noreg, noreg); // Load resolved references array itself.
+  access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Address(result, 0), result, noreg, noreg);
 #ifdef ASSERT
   NearLabel index_ok;
   z_lgf(Z_R0, Address(result, arrayOopDesc::length_offset_in_bytes()));

@@ -228,8 +228,7 @@ void InterpreterMacroAssembler::load_resolved_reference_at_index(
   // load pointer for resolved_references[] objArray
   ldr(cache, Address(result, ConstantPool::cache_offset()));
   ldr(cache, Address(result, ConstantPoolCache::resolved_references_offset()));
-  // TODO[AXEL]: Fix Temp registers
-  resolve_weak_handle(cache, noreg, noreg);
+  access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Address(cache, 0), cache, noreg, noreg, noreg);
   // Add in the index
   // convert from field index to resolved_references() index and from
   // word index to byte offset. Since this is a java object, it can be compressed

@@ -218,7 +218,7 @@ void InterpreterMacroAssembler::load_resolved_reference_at_index(
   // load pointer for resolved_references[] objArray
   ldr(result, Address(result, ConstantPool::cache_offset()));
   ldr(result, Address(result, ConstantPoolCache::resolved_references_offset()));
-  resolve_weak_handle(result, tmp, rscratch2);
+  access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, result, Address(result, 0), tmp, rscratch2);
   // Add in the index
   add(index, index, arrayOopDesc::base_offset_in_bytes(T_OBJECT) >> LogBytesPerHeapOop);
   load_heap_oop(result, Address(result, index, Address::uxtw(LogBytesPerHeapOop)), tmp, rscratch2);

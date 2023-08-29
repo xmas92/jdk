@@ -241,13 +241,13 @@ void G1BarrierSetAssembler::g1_write_barrier_pre(MacroAssembler* masm,
   // expand_call should be passed true.
 
   if (expand_call) {
-    LP64_ONLY( assert(thread != c_rarg0, "smashed arg"); )
+    LP64_ONLY( assert(pre_val != c_rarg1, "smashed arg"); )
 #ifdef _LP64
-    if (c_rarg0 != pre_val) {
-      __ mov(c_rarg0, pre_val);
-    }
     if (c_rarg1 != thread) {
       __ mov(c_rarg1, thread);
+    }
+    if (c_rarg0 != pre_val) {
+      __ mov(c_rarg0, pre_val);
     }
 #else
     __ push(thread);

@@ -2459,8 +2459,7 @@ void TemplateTable::load_resolved_field_entry(Register obj,
   if (is_static) {
     __ load_sized_value(obj, Address(cache, ResolvedFieldEntry::field_holder_offset()), sizeof(void*), false);
     __ load_sized_value(obj, Address(obj, in_bytes(Klass::java_mirror_offset())), sizeof(void*), false);
-    // TODO[AXEL]: Fix Temp registers
-    __ resolve_weak_handle(obj, noreg, noreg);
+    __ access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Address(obj, 0), obj, noreg, noreg);
   }
 }
 

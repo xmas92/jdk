@@ -2564,7 +2564,7 @@ void MacroAssembler::load_mirror(Register dst, Register method, Register tmp1, R
   ld(dst, Address(dst, ConstMethod::constants_offset()));
   ld(dst, Address(dst, ConstantPool::pool_holder_offset()));
   ld(dst, Address(dst, mirror_offset));
-  resolve_weak_handle(dst, tmp1, tmp2);
+  access_load_at(T_OBJECT, IN_NATIVE, dst, Address(dst, 0), tmp1, tmp2);
 }
 
 void MacroAssembler::resolve_oop_handle(Register result, Register tmp1, Register tmp2) {

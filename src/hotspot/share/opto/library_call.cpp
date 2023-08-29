@@ -22,7 +22,6 @@
  *
  */
 
-#include "gc/shared/gc_globals.hpp"
 #include "precompiled.hpp"
 #include "asm/macroAssembler.hpp"
 #include "ci/ciUtilities.inline.hpp"
@@ -32,7 +31,6 @@
 #include "gc/shared/barrierSet.hpp"
 #include "jfr/support/jfrIntrinsics.hpp"
 #include "memory/resourceArea.hpp"
-#include "oops/accessDecorators.hpp"
 #include "oops/klass.inline.hpp"
 #include "oops/objArrayKlass.hpp"
 #include "opto/addnode.hpp"
@@ -3723,10 +3721,7 @@ Node* LibraryCallKit::load_mirror_from_klass(Node* klass) {
   Node* p = basic_plus_adr(klass, in_bytes(Klass::java_mirror_offset()));
   Node* load = make_load(nullptr, p, TypeRawPtr::NOTNULL, T_ADDRESS, MemNode::unordered);
   // mirror = ((OopHandle)mirror)->resolve();
-  if (UseG1GC) {
-    return access_load(load, TypeInstPtr::MIRROR, T_OBJECT, IN_NATIVE);
-  }
-  return access_load(load, TypeInstPtr::MIRROR, T_OBJECT, IN_NATIVE | ON_PHANTOM_OOP_REF);
+  return access_load(load, TypeInstPtr::MIRROR, T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE);
 }
 
 //-----------------------load_klass_from_mirror_common-------------------------

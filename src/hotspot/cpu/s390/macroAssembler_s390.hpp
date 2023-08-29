@@ -819,7 +819,7 @@ class MacroAssembler: public Assembler {
   void compare_klass_ptr(Register Rop1, int64_t disp, Register Rbase, bool maybenull);
 
   // Access heap oop, handle encoding and GC barriers.
- private:
+ public:
   void access_store_at(BasicType type, DecoratorSet decorators,
                        const Address& addr, Register val,
                        Register tmp1, Register tmp2, Register tmp3);
@@ -842,7 +842,6 @@ class MacroAssembler: public Assembler {
                    Register Rbase = Z_R1, int pow2_offset = -1);
 
   void resolve_oop_handle(Register result);
-  void resolve_weak_handle(Register result, Register tmp1, Register tmp2);
   void load_mirror_from_const_method(Register mirror, Register const_method);
   void load_method_holder(Register holder, Register method);
 

@@ -4582,17 +4582,6 @@ void MacroAssembler::oop_decoder(Register Rdst, Register Rsrc, bool maybenull, R
   }
 }
 
-// ((WeakHandle)result).resolve();
-void MacroAssembler::resolve_weak_handle(Register result, Register tmp1, Register tmp2) {
-  // TODO[Axel]: null check
-  assert_different_registers(result, tmp1, tmp2, noreg);
-  NearLabel Ldone, Lnot_weak;
-  z_ltgr(tmp1, result);
-  z_bre(Ldone);
-  access_load_at(T_OBJECT, IN_NATIVE | ON_PHANTOM_OOP_REF, Address(result), result, tmp1, tmp2);
-  bind(Ldone);
-}
-
 // ((OopHandle)result).resolve();
 void MacroAssembler::resolve_oop_handle(Register result) {
   // OopHandle::resolve is an indirection.
@@ -4603,8 +4592,7 @@ void MacroAssembler::load_mirror_from_const_method(Register mirror, Register con
   mem2reg_opt(mirror, Address(const_method, ConstMethod::constants_offset()));
   mem2reg_opt(mirror, Address(mirror, ConstantPool::pool_holder_offset()));
   mem2reg_opt(mirror, Address(mirror, Klass::java_mirror_offset()));
-  // TODO[AXEL]: Fix Temp registers
-  resolve_weak_handle(mirror, noreg, noreg);
+  access_load_at(T_OBJECT, IN_NATIVE | AS_NO_KEEPALIVE, Address(mirror, 0), mirror, noreg, noreg);
 }
 
 void MacroAssembler::load_method_holder(Register holder, Register method) {

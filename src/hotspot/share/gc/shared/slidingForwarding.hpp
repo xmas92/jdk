@@ -58,11 +58,11 @@
  * When recording the sliding forwarding, the mark word would look roughly like this:
  *
  *   64                              32                                0
- *    [................................OOOOOOOOOOOOOOOOOOOOOOOOOOOOAFTT]
+ *    [................................AOOOOOOOOOOOOOOOOOOOOOOOOOOOOFTT]
  *                                                                    ^----- normal lock bits, would record "object is forwarded"
  *                                                                  ^------- fallback bit (explained below)
- *                                                                 ^-------- alternate region select
- *                                     ^------------------------------------ in-region offset
+ *                                     ^------------------------------------ alternate region select
+ *                                      ^----------------------------------- in-region offset
  *     ^-------------------------------------------------------------------- protected area, *not touched* by this code, useful for
  *                                                                           compressed class pointer with compact object headers
  *
@@ -123,13 +123,17 @@ private:
   static const int FALLBACK_MASK = right_n_bits(FALLBACK_BITS) << FALLBACK_SHIFT;
 
   // Next bit selects the target region
-  static const int ALT_REGION_SHIFT = FALLBACK_SHIFT + FALLBACK_BITS;
   static const int ALT_REGION_BITS = 1;
+  static const int ALT_REGION_SHIFT = 32 - ALT_REGION_BITS;
   // This will be "2" always, but expose it as named constant for clarity
   static const size_t NUM_TARGET_REGIONS = 1 << ALT_REGION_BITS;
 
   // The offset bits start then
-  static const int OFFSET_BITS_SHIFT = ALT_REGION_SHIFT + ALT_REGION_BITS;
+  static const int OFFSET_BITS_SHIFT = FALLBACK_SHIFT + FALLBACK_BITS;
+  static const uintptr_t OFFSET_MASK = MARK_LOWER_HALF_MASK &
+                                       ~(right_n_bits(OFFSET_BITS_SHIFT) |
+                                       (right_n_bits(ALT_REGION_BITS) << ALT_REGION_SHIFT));
+
   // The metadata bits
   static const int NUM_METADATA_BITS = markWord::lock_bits
                                      + FALLBACK_BITS

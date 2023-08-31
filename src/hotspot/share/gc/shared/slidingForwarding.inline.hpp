@@ -29,6 +29,7 @@
 #include "gc/shared/slidingForwarding.hpp"
 #include "oops/markWord.hpp"
 #include "oops/oop.inline.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/macros.hpp"
 
 inline bool SlidingForwarding::is_forwarded(oop obj) {
@@ -43,13 +44,15 @@ size_t SlidingForwarding::biased_region_index_containing(HeapWord* addr) {
   return (uintptr_t)addr >> _region_size_bytes_shift;
 }
 
+template <SlidingForwarding::ForwardingMode MODE>
 uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
-  if (_use_compact_forwarding) {
+  if (MODE == ForwardingMode::HEAP_OFFSET) {
     uintptr_t encoded = ((uintptr_t)to - (uintptr_t)_heap_start) | markWord::marked_value;
-    assert(to == decode_forwarding(from, encoded), "must be reversible");
+    assert(to == decode_forwarding<MODE>(from, encoded), "must be reversible");
     assert((encoded & ~MARK_LOWER_HALF_MASK) == 0, "must encode to lowest 32 bits");
     return encoded;
   }
+  assert(MODE == ForwardingMode::BIASED_BASE_TABLE, "must be true");
   static_assert(NUM_TARGET_REGIONS == 2, "Only implemented for this amount");
 
   size_t from_reg_idx = biased_region_index_containing(from);
@@ -90,18 +93,20 @@ uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
                       (alternate << ALT_REGION_SHIFT) |
                       markWord::marked_value;
 
-  assert(to == decode_forwarding(from, encoded), "must be reversible");
+  assert(to == decode_forwarding<MODE>(from, encoded), "must be reversible");
   assert((encoded & ~MARK_LOWER_HALF_MASK) == 0, "must encode to lowest 32 bits");
   return encoded;
 }
 
+template <SlidingForwarding::ForwardingMode MODE>
 HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded) {
   assert((encoded & markWord::lock_mask_in_place) == markWord::marked_value, "must be marked as forwarded");
   assert((encoded & FALLBACK_MASK) == 0, "must not be fallback-forwarded");
   assert((encoded & ~MARK_LOWER_HALF_MASK) == 0, "must decode from lowest 32 bits");
-  if (_use_compact_forwarding) {
+  if (MODE == ForwardingMode::HEAP_OFFSET) {
     return (HeapWord*)((uintptr_t)_heap_start + (encoded & ~markWord::lock_mask));
   }
+  assert(MODE == ForwardingMode::BIASED_BASE_TABLE, "must be true");
   size_t alternate = (encoded >> ALT_REGION_SHIFT) & right_n_bits(ALT_REGION_BITS);
   assert(alternate < NUM_TARGET_REGIONS, "Sanity");
   uintptr_t offset = ((encoded >> OFFSET_BITS_SHIFT) & right_n_bits(NUM_OFFSET_BITS));
@@ -117,8 +122,27 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
   return decoded;
 }
 
+inline SlidingForwarding::ForwardingMode SlidingForwarding::forwarding_mode() {
+  if (!UseAltGCForwarding) {
+    assert(_forwarding_mode == ForwardingMode::LEGACY, "Must be");
+    return ForwardingMode::LEGACY;
+  } else if (!UseCompactAltGCFwd) {
+    assert(_forwarding_mode == ForwardingMode::BIASED_BASE_TABLE, "Must be");
+    return ForwardingMode::BIASED_BASE_TABLE;
+  }
+  return _forwarding_mode;
+}
+
+template <SlidingForwarding::ForwardingMode MODE>
+constexpr inline bool SlidingForwarding::requires_fallback() {
+  assert(MODE != ForwardingMode::LEGACY, "");
+  return MODE == ForwardingMode::BIASED_BASE_TABLE;
+}
+
+template <SlidingForwarding::ForwardingMode MODE>
 inline void SlidingForwarding::forward_to_impl(oop from, oop to) {
-  assert(_use_compact_forwarding || _bases_table != nullptr, "call begin() before forwarding");
+  assert(MODE == forwarding_mode(), "Must be");
+  assert(MODE != ForwardingMode::BIASED_BASE_TABLE || _bases_table != nullptr, "expect sliding forwarding initialized");
 
   markWord from_header = from->mark();
   if (from_header.has_displaced_mark_helper()) {
@@ -127,22 +151,21 @@ inline void SlidingForwarding::forward_to_impl(oop from, oop to) {
 
   HeapWord* from_hw = cast_from_oop<HeapWord*>(from);
   HeapWord* to_hw   = cast_from_oop<HeapWord*>(to);
-  uintptr_t encoded = encode_forwarding(from_hw, to_hw);
+  uintptr_t encoded = encode_forwarding<MODE>(from_hw, to_hw);
   markWord new_header = markWord((from_header.value() & ~MARK_LOWER_HALF_MASK) | encoded);
   from->set_mark(new_header);
 
-  if (!_use_compact_forwarding && (encoded & FALLBACK_MASK) != 0) {
+  if (requires_fallback<MODE>() && (encoded & FALLBACK_MASK) != 0) {
     fallback_forward_to(from_hw, to_hw);
   }
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 inline void SlidingForwarding::forward_to(oop obj, oop fwd) {
 #ifdef _LP64
-  if (ALT_FWD) {
-    assert(_use_compact_forwarding || _bases_table != nullptr, "expect sliding forwarding initialized");
-    forward_to_impl(obj, fwd);
-    assert(forwardee<ALT_FWD>(obj) == fwd, "must be forwarded to correct forwardee");
+  if (MODE != ForwardingMode::LEGACY) {
+    forward_to_impl<MODE>(obj, fwd);
+    assert(forwardee<MODE>(obj) == fwd, "must be forwarded to correct forwardee");
   } else
 #endif
   {
@@ -150,26 +173,27 @@ inline void SlidingForwarding::forward_to(oop obj, oop fwd) {
   }
 }
 
+template <SlidingForwarding::ForwardingMode MODE>
 inline oop SlidingForwarding::forwardee_impl(oop from) {
-  assert(_use_compact_forwarding || _bases_table != nullptr, "call begin() before asking for forwarding");
+  assert(MODE == forwarding_mode(), "Must be");
+  assert(MODE != ForwardingMode::BIASED_BASE_TABLE || _bases_table != nullptr, "expect sliding forwarding initialized");
 
   markWord header = from->mark();
   HeapWord* from_hw = cast_from_oop<HeapWord*>(from);
-  if (!_use_compact_forwarding && (header.value() & FALLBACK_MASK) != 0) {
+  if (requires_fallback<MODE>() && (header.value() & FALLBACK_MASK) != 0) {
     HeapWord* to = fallback_forwardee(from_hw);
     return cast_to_oop(to);
   }
   uintptr_t encoded = header.value() & MARK_LOWER_HALF_MASK;
-  HeapWord* to = decode_forwarding(from_hw, encoded);
+  HeapWord* to = decode_forwarding<MODE>(from_hw, encoded);
   return cast_to_oop(to);
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 inline oop SlidingForwarding::forwardee(oop obj) {
 #ifdef _LP64
-  if (ALT_FWD) {
-    assert(_use_compact_forwarding || _bases_table != nullptr, "expect sliding forwarding initialized");
-    return forwardee_impl(obj);
+  if (MODE != ForwardingMode::LEGACY) {
+    return forwardee_impl<MODE>(obj);
   } else
 #endif
   {

@@ -26,6 +26,7 @@
 #define SHARE_GC_SHENANDOAH_SHENANDOAHFULLGC_HPP
 
 #include "gc/shared/gcTimer.hpp"
+#include "gc/shared/slidingForwarding.hpp"
 #include "gc/shenandoah/shenandoahGC.hpp"
 #include "gc/shenandoah/shenandoahHeapRegionSet.hpp"
 
@@ -55,7 +56,7 @@ class VM_ShenandoahFullGC;
 class ShenandoahDegenGC;
 
 class ShenandoahFullGC : public ShenandoahGC {
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   friend class ShenandoahPrepareForCompactionObjectClosure;
   friend class VM_ShenandoahFullGC;
   friend class ShenandoahDegenGC;
@@ -84,10 +85,10 @@ private:
   void phase4_compact_objects(ShenandoahHeapRegionSet** worker_slices);
 
   void distribute_slices(ShenandoahHeapRegionSet** worker_slices);
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void calculate_target_humongous_objects_impl();
   void calculate_target_humongous_objects();
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void compact_humongous_objects_impl();
   void compact_humongous_objects();
 };

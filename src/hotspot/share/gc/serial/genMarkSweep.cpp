@@ -248,8 +248,19 @@ void GenMarkSweep::mark_sweep_phase3() {
 
   ClassLoaderDataGraph::verify_claimed_marks_cleared(ClassLoaderData::_claim_stw_fullgc_adjust);
 
-  if (UseAltGCForwarding) {
-    AdjustPointerClosure<true> adjust_pointer_closure;
+  using Mode = SlidingForwarding::ForwardingMode;
+  if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+    AdjustPointerClosure<Mode::BIASED_BASE_TABLE> adjust_pointer_closure;
+    CLDToOopClosure adjust_cld_closure(&adjust_pointer_closure, ClassLoaderData::_claim_stw_fullgc_adjust);
+    CodeBlobToOopClosure code_closure(&adjust_pointer_closure, CodeBlobToOopClosure::FixRelocations);
+    gch->process_roots(GenCollectedHeap::SO_AllCodeCache,
+                       &adjust_pointer_closure,
+                       &adjust_cld_closure,
+                       &adjust_cld_closure,
+                       &code_closure);
+    gch->gen_process_weak_roots(&adjust_pointer_closure);
+  } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+    AdjustPointerClosure<Mode::HEAP_OFFSET> adjust_pointer_closure;
     CLDToOopClosure adjust_cld_closure(&adjust_pointer_closure, ClassLoaderData::_claim_stw_fullgc_adjust);
     CodeBlobToOopClosure code_closure(&adjust_pointer_closure, CodeBlobToOopClosure::FixRelocations);
     gch->process_roots(GenCollectedHeap::SO_AllCodeCache,
@@ -259,7 +270,8 @@ void GenMarkSweep::mark_sweep_phase3() {
                        &code_closure);
     gch->gen_process_weak_roots(&adjust_pointer_closure);
   } else {
-    AdjustPointerClosure<false> adjust_pointer_closure;
+    assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+    AdjustPointerClosure<Mode::LEGACY> adjust_pointer_closure;
     CLDToOopClosure adjust_cld_closure(&adjust_pointer_closure, ClassLoaderData::_claim_stw_fullgc_adjust);
     CodeBlobToOopClosure code_closure(&adjust_pointer_closure, CodeBlobToOopClosure::FixRelocations);
     gch->process_roots(GenCollectedHeap::SO_AllCodeCache,

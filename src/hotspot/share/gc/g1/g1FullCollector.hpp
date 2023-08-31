@@ -35,6 +35,7 @@
 #include "gc/shared/gcTraceTime.hpp"
 #include "gc/shared/preservedMarks.hpp"
 #include "gc/shared/referenceProcessor.hpp"
+#include "gc/shared/slidingForwarding.hpp"
 #include "gc/shared/taskqueue.hpp"
 #include "memory/allocation.hpp"
 #include "oops/oopsHierarchy.hpp"
@@ -158,10 +159,10 @@ private:
 
   void phase2a_determine_worklists();
   bool phase2b_forward_oops();
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void phase2c_prepare_serial_compaction_impl();
   void phase2c_prepare_serial_compaction();
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void phase2d_prepare_humongous_compaction_impl();
   void phase2d_prepare_humongous_compaction();
 

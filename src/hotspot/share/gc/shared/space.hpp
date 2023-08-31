@@ -27,6 +27,7 @@
 
 #include "gc/shared/blockOffsetTable.hpp"
 #include "gc/shared/cardTable.hpp"
+#include "gc/shared/slidingForwarding.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "memory/allocation.hpp"
 #include "memory/iterator.hpp"
@@ -312,13 +313,13 @@ private:
   static inline void clear_empty_region(ContiguousSpace* space);
 
 #if INCLUDE_SERIALGC
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void prepare_for_compaction_impl(CompactPoint* cp);
 
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void adjust_pointers_impl();
 
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void compact_impl();
 #endif
 
@@ -409,7 +410,7 @@ protected:
   // and then forward.  In either case, returns the new value of "compact_top".
   // Invokes the "alloc_block" function of the then-current compaction
   // space.
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   HeapWord* forward(oop q, size_t size, CompactPoint* cp,
                     HeapWord* compact_top);
 

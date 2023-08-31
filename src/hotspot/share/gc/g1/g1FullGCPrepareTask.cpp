@@ -104,24 +104,29 @@ G1FullGCPrepareTask::G1CalculatePointersClosure::G1CalculatePointersClosure(G1Fu
   _cp(cp) { }
 
 
-template <bool ALT_FWD>
-G1FullGCPrepareTask::G1PrepareCompactLiveClosure<ALT_FWD>::G1PrepareCompactLiveClosure(G1FullGCCompactionPoint* cp) :
+template <SlidingForwarding::ForwardingMode MODE>
+G1FullGCPrepareTask::G1PrepareCompactLiveClosure<MODE>::G1PrepareCompactLiveClosure(G1FullGCCompactionPoint* cp) :
     _cp(cp) { }
 
-template <bool ALT_FWD>
-size_t G1FullGCPrepareTask::G1PrepareCompactLiveClosure<ALT_FWD>::apply(oop object) {
+template <SlidingForwarding::ForwardingMode MODE>
+size_t G1FullGCPrepareTask::G1PrepareCompactLiveClosure<MODE>::apply(oop object) {
   size_t size = object->size();
-  _cp->forward<ALT_FWD>(object, size);
+  _cp->forward<MODE>(object, size);
   return size;
 }
 
 void G1FullGCPrepareTask::G1CalculatePointersClosure::prepare_for_compaction(HeapRegion* hr) {
   if (!_collector->is_free(hr->hrm_index())) {
-    if (UseAltGCForwarding) {
-      G1PrepareCompactLiveClosure<true> prepare_compact(_cp);
+    using Mode = SlidingForwarding::ForwardingMode;
+    if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+      G1PrepareCompactLiveClosure<Mode::BIASED_BASE_TABLE> prepare_compact(_cp);
+      hr->apply_to_marked_objects(_bitmap, &prepare_compact);
+    } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+      G1PrepareCompactLiveClosure<Mode::HEAP_OFFSET> prepare_compact(_cp);
       hr->apply_to_marked_objects(_bitmap, &prepare_compact);
     } else {
-      G1PrepareCompactLiveClosure<false> prepare_compact(_cp);
+      assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+      G1PrepareCompactLiveClosure<Mode::LEGACY> prepare_compact(_cp);
       hr->apply_to_marked_objects(_bitmap, &prepare_compact);
     }
   }

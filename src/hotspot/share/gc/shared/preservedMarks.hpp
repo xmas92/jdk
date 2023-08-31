@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_SHARED_PRESERVEDMARKS_HPP
 #define SHARE_GC_SHARED_PRESERVEDMARKS_HPP
 
+#include "gc/shared/slidingForwarding.hpp"
 #include "memory/allocation.hpp"
 #include "memory/padded.hpp"
 #include "oops/oop.hpp"
@@ -55,7 +56,7 @@ private:
 
   inline bool should_preserve_mark(oop obj, markWord m) const;
 
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void adjust_during_full_gc_impl();
 
 public:
@@ -68,7 +69,7 @@ public:
 
   // Adjust the preserved mark according to its
   // forwarding location stored in the mark.
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   static inline void adjust_preserved_mark(PreservedMark* elem);
 
   // Iterate over the stack, adjust all preserved marks according

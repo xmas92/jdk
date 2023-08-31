@@ -88,6 +88,14 @@
  * that point, ultimate performance is no longer the main concern.
  */
 class SlidingForwarding : public AllStatic {
+public:
+  enum class ForwardingMode {
+    BIASED_BASE_TABLE,
+    HEAP_OFFSET,
+    LEGACY,
+    DEFAULT_MODE = LEGACY,
+  };
+
 private:
 
   /*
@@ -148,7 +156,7 @@ private:
   // Indicates an unused base address in the target base table.
   static HeapWord* const UNUSED_BASE;
 
-  static bool           _use_compact_forwarding;
+  static ForwardingMode _forwarding_mode;
 
   static HeapWord*      _heap_start;
   static size_t         _region_size_words;
@@ -167,14 +175,21 @@ private:
 
   static inline size_t biased_region_index_containing(HeapWord* addr);
 
+  template <ForwardingMode MODE>
   static inline uintptr_t encode_forwarding(HeapWord* from, HeapWord* to);
+  template <ForwardingMode MODE>
   static inline HeapWord* decode_forwarding(HeapWord* from, uintptr_t encoded);
 
   static void fallback_forward_to(HeapWord* from, HeapWord* to);
   static HeapWord* fallback_forwardee(HeapWord* from);
 
+  template <ForwardingMode MODE>
   static inline void forward_to_impl(oop from, oop to);
+  template <ForwardingMode MODE>
   static inline oop forwardee_impl(oop from);
+
+  template <ForwardingMode MODE>
+  static constexpr inline bool requires_fallback();
 
 public:
   static void initialize(MemRegion heap, size_t region_size_words);
@@ -185,9 +200,11 @@ public:
   static inline bool is_forwarded(oop obj);
   static inline bool is_not_forwarded(oop obj);
 
-  template <bool ALT_FWD>
+  static inline ForwardingMode forwarding_mode();
+
+  template <ForwardingMode MODE>
   static inline void forward_to(oop from, oop to);
-  template <bool ALT_FWD>
+  template <ForwardingMode MODE>
   static inline oop forwardee(oop from);
 };
 

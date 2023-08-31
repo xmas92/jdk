@@ -35,17 +35,17 @@
 #include "oops/oop.inline.hpp"
 #include "utilities/ticks.hpp"
 
-template <bool ALT_FWD>
-void G1FullGCCompactTask::G1CompactRegionClosure<ALT_FWD>::clear_in_bitmap(oop obj) {
+template <SlidingForwarding::ForwardingMode MODE>
+void G1FullGCCompactTask::G1CompactRegionClosure<MODE>::clear_in_bitmap(oop obj) {
   assert(_bitmap->is_marked(obj), "Should only compact marked objects");
   _bitmap->clear(obj);
 }
 
-template <bool ALT_FWD>
-size_t G1FullGCCompactTask::G1CompactRegionClosure<ALT_FWD>::apply(oop obj) {
+template <SlidingForwarding::ForwardingMode MODE>
+size_t G1FullGCCompactTask::G1CompactRegionClosure<MODE>::apply(oop obj) {
   size_t size = obj->size();
   if (SlidingForwarding::is_forwarded(obj)) {
-    G1FullGCCompactTask::copy_object_to_new_location<ALT_FWD>(obj);
+    G1FullGCCompactTask::copy_object_to_new_location<MODE>(obj);
   }
 
   // Clear the mark for the compacted object to allow reuse of the
@@ -54,15 +54,15 @@ size_t G1FullGCCompactTask::G1CompactRegionClosure<ALT_FWD>::apply(oop obj) {
   return size;
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 void G1FullGCCompactTask::copy_object_to_new_location(oop obj) {
   assert(SlidingForwarding::is_forwarded(obj), "Sanity!");
-  assert(SlidingForwarding::forwardee<ALT_FWD>(obj) != obj, "Object must have a new location");
+  assert(SlidingForwarding::forwardee<MODE>(obj) != obj, "Object must have a new location");
 
   size_t size = obj->size();
   // Copy object and reinit its mark.
   HeapWord* obj_addr = cast_from_oop<HeapWord*>(obj);
-  HeapWord* destination = cast_from_oop<HeapWord*>(SlidingForwarding::forwardee<ALT_FWD>(obj));
+  HeapWord* destination = cast_from_oop<HeapWord*>(SlidingForwarding::forwardee<MODE>(obj));
   Copy::aligned_conjoint_words(obj_addr, destination, size);
 
   // There is no need to transform stack chunks - marking already did that.
@@ -81,11 +81,17 @@ void G1FullGCCompactTask::compact_region(HeapRegion* hr) {
     // showed that it was better overall to clear bit by bit, compared
     // to clearing the whole region at the end. This difference was
     // clearly seen for regions with few marks.
-    if (UseAltGCForwarding) {
-      G1CompactRegionClosure<true> compact(collector()->mark_bitmap());
+
+    using Mode = SlidingForwarding::ForwardingMode;
+    if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+      G1CompactRegionClosure<Mode::BIASED_BASE_TABLE> compact(collector()->mark_bitmap());
+      hr->apply_to_marked_objects(collector()->mark_bitmap(), &compact);
+    } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+      G1CompactRegionClosure<Mode::HEAP_OFFSET> compact(collector()->mark_bitmap());
       hr->apply_to_marked_objects(collector()->mark_bitmap(), &compact);
     } else {
-      G1CompactRegionClosure<false> compact(collector()->mark_bitmap());
+      assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+      G1CompactRegionClosure<Mode::LEGACY> compact(collector()->mark_bitmap());
       hr->apply_to_marked_objects(collector()->mark_bitmap(), &compact);
     }
   }
@@ -113,24 +119,28 @@ void G1FullGCCompactTask::serial_compaction() {
   }
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 void G1FullGCCompactTask::humongous_compaction_impl() {
   for (HeapRegion* hr : collector()->humongous_compaction_regions()) {
     assert(collector()->is_compaction_target(hr->hrm_index()), "Sanity");
-    compact_humongous_obj<ALT_FWD>(hr);
+    compact_humongous_obj<MODE>(hr);
   }
 }
 
 void G1FullGCCompactTask::humongous_compaction() {
   GCTraceTime(Debug, gc, phases) tm("Phase 4: Humonguous Compaction", collector()->scope()->timer());
-  if (UseAltGCForwarding) {
-    humongous_compaction_impl<true>();
+  using Mode = SlidingForwarding::ForwardingMode;
+  if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+    humongous_compaction_impl<Mode::BIASED_BASE_TABLE>();
+  } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+    humongous_compaction_impl<Mode::HEAP_OFFSET>();
   } else {
-    humongous_compaction_impl<false>();
+    assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+    humongous_compaction_impl<Mode::LEGACY>();
   }
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 void G1FullGCCompactTask::compact_humongous_obj(HeapRegion* src_hr) {
   assert(src_hr->is_starts_humongous(), "Should be start region of the humongous object");
 
@@ -138,12 +148,12 @@ void G1FullGCCompactTask::compact_humongous_obj(HeapRegion* src_hr) {
   size_t word_size = obj->size();
 
   uint num_regions = (uint)G1CollectedHeap::humongous_obj_size_in_regions(word_size);
-  HeapWord* destination = cast_from_oop<HeapWord*>(SlidingForwarding::forwardee<ALT_FWD>(obj));
+  HeapWord* destination = cast_from_oop<HeapWord*>(SlidingForwarding::forwardee<MODE>(obj));
 
   assert(collector()->mark_bitmap()->is_marked(obj), "Should only compact marked objects");
   collector()->mark_bitmap()->clear(obj);
 
-  copy_object_to_new_location<ALT_FWD>(obj);
+  copy_object_to_new_location<MODE>(obj);
 
   uint dest_start_idx = _g1h->addr_to_region(destination);
   // Update the metadata for the destination regions.

@@ -191,11 +191,11 @@ void MarkAndPushClosure::do_oop_work(T* p)            { MarkSweep::mark_and_push
 void MarkAndPushClosure::do_oop(      oop* p)         { do_oop_work(p); }
 void MarkAndPushClosure::do_oop(narrowOop* p)         { do_oop_work(p); }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 void MarkSweep::adjust_marks_impl() {
   // adjust the oops we saved earlier
   for (size_t i = 0; i < _preserved_count; i++) {
-    PreservedMarks::adjust_preserved_mark<ALT_FWD>(_preserved_marks + i);
+    PreservedMarks::adjust_preserved_mark<MODE>(_preserved_marks + i);
   }
 
   // deal with the overflow stack
@@ -203,10 +203,14 @@ void MarkSweep::adjust_marks_impl() {
 }
 
 void MarkSweep::adjust_marks() {
-  if (UseAltGCForwarding) {
-    adjust_marks_impl<true>();
+  using Mode = SlidingForwarding::ForwardingMode;
+  if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+    adjust_marks_impl<Mode::BIASED_BASE_TABLE>();
+  } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+    adjust_marks_impl<Mode::HEAP_OFFSET>();
   } else {
-    adjust_marks_impl<false>();
+    assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+    adjust_marks_impl<Mode::LEGACY>();
   }
 }
 

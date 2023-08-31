@@ -696,7 +696,7 @@
                                                                             \
   product(bool, UseAltGCForwarding, false,                                  \
           "Use alternative GC forwarding that preserves object headers")    \
-  product(bool, UseCompactAltGCFwd, false,                                  \
+  product(bool, UseCompactAltGCFwd, false,                                   \
           "=======================")                                        \
 
 // end of GC_FLAGS

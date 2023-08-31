@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1FULLGCOOPCLOSURES_HPP
 #define SHARE_GC_G1_G1FULLGCOOPCLOSURES_HPP
 
+#include "gc/shared/slidingForwarding.hpp"
 #include "gc/shared/verifyOption.hpp"
 #include "memory/iterator.hpp"
 
@@ -73,7 +74,7 @@ public:
   virtual void do_oop(narrowOop* p);
 };
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 class G1AdjustClosure : public BasicOopIterateClosure {
   G1FullCollector* _collector;
 

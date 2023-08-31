@@ -41,20 +41,24 @@ void PreservedMarks::restore() {
   assert_empty();
 }
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 void PreservedMarks::adjust_during_full_gc_impl() {
   StackIterator<PreservedMark, mtGC> iter(_stack);
   while (!iter.is_empty()) {
     PreservedMark* elem = iter.next_addr();
-    adjust_preserved_mark<ALT_FWD>(elem);
+    adjust_preserved_mark<MODE>(elem);
   }
 }
 
 void PreservedMarks::adjust_during_full_gc() {
-  if (UseAltGCForwarding) {
-    adjust_during_full_gc_impl<true>();
+  using Mode = SlidingForwarding::ForwardingMode;
+  if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
+    adjust_during_full_gc_impl<Mode::BIASED_BASE_TABLE>();
+  } else if (SlidingForwarding::forwarding_mode() == Mode::HEAP_OFFSET) {
+    adjust_during_full_gc_impl<Mode::HEAP_OFFSET>();
   } else {
-    adjust_during_full_gc_impl<false>();
+    assert(SlidingForwarding::forwarding_mode() == Mode::LEGACY, "must be");
+    adjust_during_full_gc_impl<Mode::LEGACY>();
   }
 }
 

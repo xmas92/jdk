@@ -29,6 +29,7 @@
 #include "gc/g1/g1FullGCTask.hpp"
 #include "gc/g1/g1RootProcessor.hpp"
 #include "gc/g1/heapRegionManager.hpp"
+#include "gc/shared/slidingForwarding.hpp"
 #include "gc/shared/weakProcessor.hpp"
 #include "utilities/ticks.hpp"
 
@@ -39,7 +40,7 @@ class G1FullGCAdjustTask : public G1FullGCTask {
   WeakProcessor::Task      _weak_proc_task;
   HeapRegionClaimer        _hrclaimer;
 
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void work_impl(uint worker_id);
 public:
   G1FullGCAdjustTask(G1FullCollector* collector);

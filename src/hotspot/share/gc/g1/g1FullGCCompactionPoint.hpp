@@ -25,6 +25,7 @@
 #ifndef SHARE_GC_G1_G1FULLGCCOMPACTIONPOINT_HPP
 #define SHARE_GC_G1_G1FULLGCCOMPACTIONPOINT_HPP
 
+#include "gc/shared/slidingForwarding.hpp"
 #include "memory/allocation.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "utilities/growableArray.hpp"
@@ -54,9 +55,9 @@ public:
   bool is_initialized();
   void initialize(HeapRegion* hr);
   void update();
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   void forward(oop object, size_t size);
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   uint forward_humongous(HeapRegion* hr);
   void add(HeapRegion* hr);
   void add_humongous(HeapRegion* hr);

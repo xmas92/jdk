@@ -138,19 +138,19 @@ class MarkSweep : AllStatic {
   static void adjust_marks();   // Adjust the pointers in the preserved marks table
   static void restore_marks();  // Restore the marks that we saved in preserve_mark
 
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   static size_t adjust_pointers(oop obj);
 
   static void follow_stack();   // Empty marking stack.
 
-  template <bool ALT_FWD, class T>
+  template <SlidingForwarding::ForwardingMode MODE, class T>
   static void adjust_pointer(T* p);
 
   // Check mark and maybe push on marking stack
   template <class T> static void mark_and_push(T* p);
 
  private:
-  template <bool ALT_FWD>
+  template <SlidingForwarding::ForwardingMode MODE>
   static void adjust_marks_impl();
 
   // Call backs for marking
@@ -180,7 +180,7 @@ public:
   }
 };
 
-template <bool ALT_FWD>
+template <SlidingForwarding::ForwardingMode MODE>
 class AdjustPointerClosure: public BasicOopIterateClosure {
  public:
   template <typename T> void do_oop_work(T* p);

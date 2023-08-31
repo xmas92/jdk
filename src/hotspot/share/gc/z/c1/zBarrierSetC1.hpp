@@ -91,7 +91,6 @@ class ZBarrierSetC1 : public BarrierSetC1 {
 private:
   address _load_barrier_on_oop_field_preloaded_runtime_stub;
   address _load_barrier_on_weak_oop_field_preloaded_runtime_stub;
-  address _load_barrier_on_phantom_oop_field_preloaded_runtime_stub;
   address _store_barrier_on_oop_field_with_healing;
   address _store_barrier_on_oop_field_without_healing;
 

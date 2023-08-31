@@ -59,7 +59,7 @@ class XBarrierSetC1 : public BarrierSetC1 {
 private:
   address _load_barrier_on_oop_field_preloaded_runtime_stub;
   address _load_barrier_on_weak_oop_field_preloaded_runtime_stub;
-  address _load_barrier_on_phantom_oop_field_preloaded_runtime_stub;
+  address _weak_load_barrier_on_oop_field_preloaded_runtime_stub;
 
   address load_barrier_on_oop_field_preloaded_runtime_stub(DecoratorSet decorators) const;
   void load_barrier(LIRAccess& access, LIR_Opr result) const;

@@ -33,6 +33,7 @@
 #include "memory/iterator.hpp"
 #include "memory/memRegion.hpp"
 #include "oops/markWord.hpp"
+#include "oops/oop.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "utilities/align.hpp"
 #include "utilities/macros.hpp"
@@ -315,11 +316,17 @@ private:
 #if INCLUDE_SERIALGC
   template <SlidingForwarding::ForwardingMode MODE>
   void prepare_for_compaction_impl(CompactPoint* cp);
+  template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
+  void prepare_for_compaction_impl(CompactPoint* cp);
 
   template <SlidingForwarding::ForwardingMode MODE>
   void adjust_pointers_impl();
+  template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
+  void adjust_pointers_impl();
 
   template <SlidingForwarding::ForwardingMode MODE>
+  void compact_impl();
+  template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
   void compact_impl();
 #endif
 

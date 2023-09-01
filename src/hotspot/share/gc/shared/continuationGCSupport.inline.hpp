@@ -30,9 +30,14 @@
 #include "oops/instanceStackChunkKlass.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/stackChunkOop.inline.hpp"
+#include "utilities/debug.hpp"
 
 inline bool ContinuationGCSupport::relativize_stack_chunk(oop obj) {
-  if (!obj->is_stackChunk()) {
+  return relativize_stack_chunk(obj, obj->klass());
+}
+inline bool ContinuationGCSupport::relativize_stack_chunk(oop obj, Klass* klass) {
+  assert(obj->klass() == klass, "Must be");
+  if (!klass->is_stack_chunk_instance_klass()) {
     return false;
   }
 
@@ -43,7 +48,12 @@ inline bool ContinuationGCSupport::relativize_stack_chunk(oop obj) {
 }
 
 inline void ContinuationGCSupport::transform_stack_chunk(oop obj) {
-  if (!obj->is_stackChunk()) {
+  transform_stack_chunk(obj, obj->klass());
+}
+
+inline void ContinuationGCSupport::transform_stack_chunk(oop obj, Klass* klass) {
+  assert(obj->klass() == klass, "Must be");
+  if (!klass->is_stack_chunk_instance_klass()) {
     return;
   }
 

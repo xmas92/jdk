@@ -35,11 +35,13 @@
 #include "memory/universe.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/java.hpp"
 #include "runtime/prefetch.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "utilities/align.hpp"
 #include "utilities/copy.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #if INCLUDE_SERIALGC
@@ -290,7 +292,7 @@ HeapWord* ContiguousSpace::forward(oop q, size_t size,
 
 #if INCLUDE_SERIALGC
 
-template <SlidingForwarding::ForwardingMode MODE>
+template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
 void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
   // Compute the new addresses for the live objects and store it in the mark
   // Used by universe::mark_sweep_phase2()
@@ -323,7 +325,7 @@ void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
     if (cast_to_oop(cur_obj)->is_gc_marked()) {
       // prefetch beyond cur_obj
       Prefetch::write(cur_obj, interval);
-      size_t size = cast_to_oop(cur_obj)->size();
+      size_t size = cast_to_oop(cur_obj)->size<ClassPointersMode>();
       compact_top = cp->space->forward<MODE>(cast_to_oop(cur_obj), size, cp, compact_top);
       cur_obj += size;
       end_of_live = cur_obj;
@@ -332,15 +334,16 @@ void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
       HeapWord* end = cur_obj;
       do {
         // prefetch beyond end
-        Prefetch::write(end, interval);
-        end += cast_to_oop(end)->size();
+        Prefetch::read(end, interval);
+        end += cast_to_oop(end)->size<ClassPointersMode>();
       } while (end < scan_limit && !cast_to_oop(end)->is_gc_marked());
 
       // see if we might want to pretend this object is alive so that
       // we don't have to compact quite as often.
       if (cur_obj == compact_top && dead_spacer.insert_deadspace(cur_obj, end)) {
         oop obj = cast_to_oop(cur_obj);
-        compact_top = cp->space->forward<MODE>(obj, obj->size(), cp, compact_top);
+        assert((size_t)(end - cur_obj) == obj->size<ClassPointersMode>(), "must be");
+        compact_top = cp->space->forward<MODE>(obj, end - cur_obj, cp, compact_top);
         end_of_live = end;
       } else {
         // otherwise, it really is a free region.
@@ -371,6 +374,15 @@ void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
   cp->space->set_compaction_top(compact_top);
 }
 
+template <SlidingForwarding::ForwardingMode MODE>
+void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
+  if (UseCompressedClassPointers) {
+    prepare_for_compaction_impl<MODE, oopDesc::ClassPointerMode::Compressed>(cp);
+  } else {
+    prepare_for_compaction_impl<MODE, oopDesc::ClassPointerMode::Uncompressed>(cp);
+  }
+}
+
 void ContiguousSpace::prepare_for_compaction(CompactPoint* cp) {
   using Mode = SlidingForwarding::ForwardingMode;
   if (SlidingForwarding::forwarding_mode() == Mode::BIASED_BASE_TABLE) {
@@ -383,7 +395,7 @@ void ContiguousSpace::prepare_for_compaction(CompactPoint* cp) {
   }
 }
 
-template <SlidingForwarding::ForwardingMode MODE>
+template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
 void ContiguousSpace::adjust_pointers_impl() {
   // Check first is there is any work to do.
   if (used() == 0) {
@@ -407,7 +419,7 @@ void ContiguousSpace::adjust_pointers_impl() {
     if (cur_obj < first_dead || cast_to_oop(cur_obj)->is_gc_marked()) {
       // cur_obj is alive
       // point all the oops to the new location
-      size_t size = MarkSweep::adjust_pointers<MODE>(cast_to_oop(cur_obj));
+      size_t size = MarkSweep::adjust_pointers<MODE, ClassPointersMode>(cast_to_oop(cur_obj));
       debug_only(prev_obj = cur_obj);
       cur_obj += size;
     } else {
@@ -419,6 +431,15 @@ void ContiguousSpace::adjust_pointers_impl() {
   }
 
   assert(cur_obj == end_of_live, "just checking");
+}
+
+template <SlidingForwarding::ForwardingMode MODE>
+void ContiguousSpace::adjust_pointers_impl() {
+  if (UseCompressedClassPointers) {
+    adjust_pointers_impl<MODE, oopDesc::ClassPointerMode::Compressed>();
+  } else {
+    adjust_pointers_impl<MODE, oopDesc::ClassPointerMode::Uncompressed>();
+  }
 }
 
 void ContiguousSpace::adjust_pointers() {
@@ -433,7 +454,7 @@ void ContiguousSpace::adjust_pointers() {
   }
 }
 
-template <SlidingForwarding::ForwardingMode MODE>
+template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
 void ContiguousSpace::compact_impl() {
   // Copy all live objects to their new location
   // Used by MarkSweep::mark_sweep_phase4()
@@ -473,7 +494,8 @@ void ContiguousSpace::compact_impl() {
       Prefetch::read(cur_obj, scan_interval);
 
       // size and destination
-      size_t size = cast_to_oop(cur_obj)->size();
+      Klass* klass = cast_to_oop(cur_obj)->klass<ClassPointersMode>();
+      size_t size = cast_to_oop(cur_obj)->size_given_klass(klass);
       HeapWord* compaction_top = cast_from_oop<HeapWord*>(SlidingForwarding::forwardee<MODE>(cast_to_oop(cur_obj)));
 
       // prefetch beyond compaction_top
@@ -484,7 +506,7 @@ void ContiguousSpace::compact_impl() {
       Copy::aligned_conjoint_words(cur_obj, compaction_top, size);
       oop new_obj = cast_to_oop(compaction_top);
 
-      ContinuationGCSupport::transform_stack_chunk(new_obj);
+      ContinuationGCSupport::transform_stack_chunk(new_obj, klass);
 
       new_obj->init_mark();
       assert(new_obj->klass() != nullptr, "should have a class");
@@ -495,6 +517,15 @@ void ContiguousSpace::compact_impl() {
   }
 
   clear_empty_region(this);
+}
+
+template <SlidingForwarding::ForwardingMode MODE>
+void ContiguousSpace::compact_impl() {
+  if (UseCompressedClassPointers) {
+    compact_impl<MODE, oopDesc::ClassPointerMode::Compressed>();
+  } else {
+    compact_impl<MODE, oopDesc::ClassPointerMode::Uncompressed>();
+  }
 }
 
 void ContiguousSpace::compact() {

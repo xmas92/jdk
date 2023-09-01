@@ -36,6 +36,7 @@
 #include "oops/markWord.hpp"
 #include "oops/access.inline.hpp"
 #include "oops/compressedOops.inline.hpp"
+#include "oops/oop.hpp"
 #include "oops/oop.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/stack.inline.hpp"
@@ -64,10 +65,10 @@ inline void AdjustPointerClosure<MODE>::do_oop(oop* p)       { do_oop_work(p); }
 template <SlidingForwarding::ForwardingMode MODE>
 inline void AdjustPointerClosure<MODE>::do_oop(narrowOop* p) { do_oop_work(p); }
 
-template <SlidingForwarding::ForwardingMode MODE>
+template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
 inline size_t MarkSweep::adjust_pointers(oop obj) {
   AdjustPointerClosure<MODE> adjust_pointer_closure;
-  return obj->oop_iterate_size(&adjust_pointer_closure);
+  return obj->oop_iterate_size<ClassPointersMode>(&adjust_pointer_closure);
 }
 
 #endif // SHARE_GC_SERIAL_MARKSWEEP_INLINE_HPP

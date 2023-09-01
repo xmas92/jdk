@@ -138,7 +138,7 @@ class MarkSweep : AllStatic {
   static void adjust_marks();   // Adjust the pointers in the preserved marks table
   static void restore_marks();  // Restore the marks that we saved in preserve_mark
 
-  template <SlidingForwarding::ForwardingMode MODE>
+  template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
   static size_t adjust_pointers(oop obj);
 
   static void follow_stack();   // Empty marking stack.

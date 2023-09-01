@@ -65,6 +65,11 @@ class oopDesc {
   NONCOPYABLE(oopDesc);
 
  public:
+  enum class ClassPointerMode {
+    Compressed,
+    Uncompressed,
+    Dynamic,
+  };
   // Must be trivial; see verifying static assert after the class.
   oopDesc() = default;
 
@@ -84,10 +89,14 @@ class oopDesc {
   // objects during a GC) -- requires a valid klass pointer
   inline void init_mark();
 
+  template<ClassPointerMode MODE = ClassPointerMode::Dynamic>
   inline Klass* klass() const;
+  template<ClassPointerMode MODE = ClassPointerMode::Dynamic>
   inline Klass* klass_or_null() const;
+  template<ClassPointerMode MODE = ClassPointerMode::Dynamic>
   inline Klass* klass_or_null_acquire() const;
   // Get the raw value without any checks.
+  template<ClassPointerMode MODE = ClassPointerMode::Dynamic>
   inline Klass* klass_raw() const;
 
   void set_narrow_klass(narrowKlass nk) NOT_CDS_JAVA_HEAP_RETURN;
@@ -104,6 +113,7 @@ class oopDesc {
   inline bool is_a(Klass* k) const;
 
   // Returns the actual oop size of the object in machine words
+  template<ClassPointerMode MODE = ClassPointerMode::Dynamic>
   inline size_t size();
 
   // Sometimes (for complicated concurrency-related reasons), it is useful
@@ -276,19 +286,19 @@ class oopDesc {
   inline uint age() const;
   inline void incr_age();
 
-  template <typename OopClosureType>
+  template <oopDesc::ClassPointerMode ClassPointersMode = oopDesc::ClassPointerMode::Dynamic, typename OopClosureType>
   inline void oop_iterate(OopClosureType* cl);
 
-  template <typename OopClosureType>
+  template <oopDesc::ClassPointerMode ClassPointersMode = oopDesc::ClassPointerMode::Dynamic, typename OopClosureType>
   inline void oop_iterate(OopClosureType* cl, MemRegion mr);
 
-  template <typename OopClosureType>
+  template <oopDesc::ClassPointerMode ClassPointersMode = oopDesc::ClassPointerMode::Dynamic, typename OopClosureType>
   inline size_t oop_iterate_size(OopClosureType* cl);
 
-  template <typename OopClosureType>
+  template <oopDesc::ClassPointerMode ClassPointersMode = oopDesc::ClassPointerMode::Dynamic, typename OopClosureType>
   inline size_t oop_iterate_size(OopClosureType* cl, MemRegion mr);
 
-  template <typename OopClosureType>
+  template <oopDesc::ClassPointerMode ClassPointersMode = oopDesc::ClassPointerMode::Dynamic, typename OopClosureType>
   inline void oop_iterate_backwards(OopClosureType* cl);
 
   template <typename OopClosureType>
@@ -324,7 +334,7 @@ class oopDesc {
   static void* load_klass_raw(oop obj);
   static void* load_oop_raw(oop obj, int offset);
 
-  DEBUG_ONLY(bool size_might_change();)
+  DEBUG_ONLY(bool size_might_change() const;)
 };
 
 // An oopDesc is not initialized via a constructor.  Space is allocated in

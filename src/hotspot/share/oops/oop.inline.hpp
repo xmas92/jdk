@@ -87,24 +87,30 @@ void oopDesc::init_mark() {
   set_mark(markWord::prototype());
 }
 
+template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass() const {
-  if (UseCompressedClassPointers) {
+  using Mode = ClassPointerMode;
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
     return CompressedKlassPointers::decode_not_null(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
   }
 }
 
+template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_or_null() const {
-  if (UseCompressedClassPointers) {
+  using Mode = ClassPointerMode;
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
     return CompressedKlassPointers::decode(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
   }
 }
 
+template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_or_null_acquire() const {
-  if (UseCompressedClassPointers) {
+  using Mode = ClassPointerMode;
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
     narrowKlass nklass = Atomic::load_acquire(&_metadata._compressed_klass);
     return CompressedKlassPointers::decode(nklass);
   } else {
@@ -112,8 +118,10 @@ Klass* oopDesc::klass_or_null_acquire() const {
   }
 }
 
+template<oopDesc::ClassPointerMode MODE>
 Klass* oopDesc::klass_raw() const {
-  if (UseCompressedClassPointers) {
+  using Mode = ClassPointerMode;
+  if (MODE == Mode::Compressed || (MODE == Mode::Dynamic && UseCompressedClassPointers)) {
     return CompressedKlassPointers::decode_raw(_metadata._compressed_klass);
   } else {
     return _metadata._klass;
@@ -150,8 +158,9 @@ bool oopDesc::is_a(Klass* k) const {
   return klass()->is_subtype_of(k);
 }
 
+template<oopDesc::ClassPointerMode MODE>
 size_t oopDesc::size()  {
-  return size_given_klass(klass());
+  return size_given_klass(klass<MODE>());
 }
 
 size_t oopDesc::size_given_klass(Klass* klass)  {
@@ -169,33 +178,26 @@ size_t oopDesc::size_given_klass(Klass* klass)  {
   // alive or dead.  So the speed here is equal in importance to the
   // speed of allocation.
 
-  if (lh > Klass::_lh_neutral_value) {
-    if (!Klass::layout_helper_needs_slow_path(lh)) {
-      s = lh >> LogHeapWordSize;  // deliver size scaled by wordSize
-    } else {
-      s = klass->oop_size(this);
-    }
-  } else if (lh <= Klass::_lh_neutral_value) {
-    // The most common case is instances; fall through if so.
-    if (lh < Klass::_lh_neutral_value) {
-      // Second most common case is arrays.  We have to fetch the
-      // length of the array, shift (multiply) it appropriately,
-      // up to wordSize, add the header, and align to object size.
-      size_t size_in_bytes;
-      size_t array_length = (size_t) ((arrayOop)this)->length();
-      size_in_bytes = array_length << Klass::layout_helper_log2_element_size(lh);
-      size_in_bytes += Klass::layout_helper_header_size(lh);
+  if (lh > Klass::_lh_neutral_value && !Klass::layout_helper_needs_slow_path(lh)) {
+    s = lh >> LogHeapWordSize;  // deliver size scaled by wordSize
+  } else if (lh < Klass::_lh_neutral_value) {
+    // Second most common case is arrays.  We have to fetch the
+    // length of the array, shift (multiply) it appropriately,
+    // up to wordSize, add the header, and align to object size.
+    size_t size_in_bytes;
+    size_t array_length = (size_t) ((arrayOop)cast_to_oop(this))->length();
+    size_in_bytes = array_length << Klass::layout_helper_log2_element_size(lh);
+    size_in_bytes += Klass::layout_helper_header_size(lh);
 
-      // This code could be simplified, but by keeping array_header_in_bytes
-      // in units of bytes and doing it this way we can round up just once,
-      // skipping the intermediate round to HeapWordSize.
-      s = align_up(size_in_bytes, MinObjAlignmentInBytes) / HeapWordSize;
+    // This code could be simplified, but by keeping array_header_in_bytes
+    // in units of bytes and doing it this way we can round up just once,
+    // skipping the intermediate round to HeapWordSize.
+    s = align_up(size_in_bytes, MinObjAlignmentInBytes) / HeapWordSize;
 
-      assert(s == klass->oop_size(this) || size_might_change(), "wrong array object size");
-    } else {
-      // Must be zero, so bite the bullet and take the virtual call.
-      s = klass->oop_size(this);
-    }
+    assert(s == klass->oop_size(cast_to_oop(this)) || size_might_change(), "wrong array object size");
+  } else {
+    // Must be zero, so bite the bullet and take the virtual call.
+    s = klass->oop_size(cast_to_oop(this));
   }
 
   assert(s > 0, "Oop size must be greater than zero, not " SIZE_FORMAT, s);
@@ -375,35 +377,35 @@ void oopDesc::incr_age() {
   }
 }
 
-template <typename OopClosureType>
+template <oopDesc::ClassPointerMode ClassPointersMode, typename OopClosureType>
 void oopDesc::oop_iterate(OopClosureType* cl) {
-  OopIteratorClosureDispatch::oop_oop_iterate(cl, this, klass());
+  OopIteratorClosureDispatch::oop_oop_iterate(cl, this, klass<ClassPointersMode>());
 }
 
-template <typename OopClosureType>
+template <oopDesc::ClassPointerMode ClassPointersMode, typename OopClosureType>
 void oopDesc::oop_iterate(OopClosureType* cl, MemRegion mr) {
-  OopIteratorClosureDispatch::oop_oop_iterate(cl, this, klass(), mr);
+  OopIteratorClosureDispatch::oop_oop_iterate(cl, this, klass<ClassPointersMode>(), mr);
 }
 
-template <typename OopClosureType>
+template <oopDesc::ClassPointerMode ClassPointersMode, typename OopClosureType>
 size_t oopDesc::oop_iterate_size(OopClosureType* cl) {
-  Klass* k = klass();
+  Klass* k = klass<ClassPointersMode>();
   size_t size = size_given_klass(k);
   OopIteratorClosureDispatch::oop_oop_iterate(cl, this, k);
   return size;
 }
 
-template <typename OopClosureType>
+template <oopDesc::ClassPointerMode ClassPointersMode, typename OopClosureType>
 size_t oopDesc::oop_iterate_size(OopClosureType* cl, MemRegion mr) {
-  Klass* k = klass();
+  Klass* k = klass<ClassPointersMode>();
   size_t size = size_given_klass(k);
   OopIteratorClosureDispatch::oop_oop_iterate(cl, this, k, mr);
   return size;
 }
 
-template <typename OopClosureType>
+template <oopDesc::ClassPointerMode ClassPointersMode, typename OopClosureType>
 void oopDesc::oop_iterate_backwards(OopClosureType* cl) {
-  oop_iterate_backwards(cl, klass());
+  oop_iterate_backwards(cl, klass<ClassPointersMode>());
 }
 
 template <typename OopClosureType>

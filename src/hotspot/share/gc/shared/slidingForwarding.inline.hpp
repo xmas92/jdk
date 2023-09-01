@@ -62,14 +62,14 @@ uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
   uintptr_t alternate = 0;
   if (*base == to_region_base) {
     // Primary is good
-  } else if (*base == UNUSED_BASE) {
+  } else if ((uintptr_t)*base == UNUSED_BASE) {
     // Primary is free
     *base = to_region_base;
   } else {
     base = &_biased_bases[1][from_reg_idx];
     if (*base == to_region_base) {
       // Alternate is good
-    } else if (*base == UNUSED_BASE) {
+    } else if ((uintptr_t)*base == UNUSED_BASE) {
       // Alternate is free
       *base = to_region_base;
     } else {
@@ -113,7 +113,7 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
 
   size_t from_idx = biased_region_index_containing(from);
   HeapWord* base = _biased_bases[alternate][from_idx];
-  assert(base != UNUSED_BASE, "must not be unused base");
+  assert((uintptr_t)base != UNUSED_BASE, "must not be unused base");
   HeapWord* decoded = base + offset;
   assert(decoded >= _heap_start,
          "Address must be above heap start. encoded: " INTPTR_FORMAT ", alt_region: " SIZE_FORMAT ", base: " PTR_FORMAT,

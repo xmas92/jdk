@@ -29,10 +29,6 @@
 #include "utilities/ostream.hpp"
 #include "utilities/powerOfTwo.hpp"
 
-// We cannot use 0, because that may already be a valid base address in zero-based heaps.
-// 0x1 is safe because heap base addresses must be aligned by much larger alignment
-HeapWord* const SlidingForwarding::UNUSED_BASE = reinterpret_cast<HeapWord*>(0x1);
-
 HeapWord* SlidingForwarding::_heap_start = nullptr;
 SlidingForwarding::ForwardingMode SlidingForwarding::_forwarding_mode = ForwardingMode::DEFAULT_MODE;
 size_t SlidingForwarding::_region_size_words = 0;
@@ -93,7 +89,7 @@ void SlidingForwarding::begin() {
     _biased_bases[0] = biased_start;
     _biased_bases[1] = biased_start + _num_regions;
     for (size_t i = 0; i < max; i++) {
-      _bases_table[i] = UNUSED_BASE;
+      _bases_table[i] = (HeapWord*)UNUSED_BASE;
     }
   }
 #endif

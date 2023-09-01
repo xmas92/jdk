@@ -154,7 +154,9 @@ private:
   static const int NUM_OFFSET_COMPACT_BITS = 32 - NUM_METADATA_COMPACT_BITS;
 
   // Indicates an unused base address in the target base table.
-  static HeapWord* const UNUSED_BASE;
+  // We cannot use 0, because that may already be a valid base address in zero-based heaps.
+  // alignof(HeapWord*) is safe because heap base addresses must be aligned by much larger alignment
+  static constexpr uintptr_t const UNUSED_BASE = alignof(HeapWord*);
 
   static ForwardingMode _forwarding_mode;
 

@@ -643,6 +643,11 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
 #ifndef _LP64
   // The object is inflated.
 
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    testptr(objReg, objReg);
+    jmp(NO_COUNT);
+  }
+
   // boxReg refers to the on-stack BasicLock in the current frame.
   // We'd like to write:
   //   set box->_displaced_header = markWord::unused_mark().  Any non-0 value suffices.
@@ -685,7 +690,13 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   // Intentional fall-through into DONE_LABEL ...
 #else // _LP64
   // It's inflated and we use scrReg for ObjectMonitor* in this section.
-  movq(scrReg, tmpReg);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    cmpptr(objReg, Address(r15_thread, JavaThread::om_cache_oop_offset()));
+    jcc(Assembler::notEqual, NO_COUNT);
+    movptr(scrReg, Address(r15_thread, JavaThread::om_cache_monitor_offset()));
+  } else {
+    movq(scrReg, tmpReg);
+  }
   xorq(tmpReg, tmpReg);
   lock();
   cmpxchgptr(thread, Address(scrReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
@@ -833,8 +844,6 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
   movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
   jmpb  (DONE_LABEL);
 #else // _LP64
-  // It's inflated
-  Label CheckSucc, LNotRecursive, LSuccess, LGoSlowPath;
 
   cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
   jccb(Assembler::equal, LNotRecursive);

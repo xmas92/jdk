@@ -312,6 +312,37 @@ ALWAYSINLINE HeapWord* ContiguousSpace::forward(oop q, size_t size,
 #if INCLUDE_SERIALGC
 
 template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
+static bool prepare_for_compaction_dead_obj(HeapWord*& cur_obj, CompactPoint* cp, HeapWord* scan_limit, HeapWord*& compact_top, DeadSpacer& dead_spacer) {
+  const intx interval = PrefetchScanIntervalInBytes;
+  bool inserted = false;
+  // run over all the contiguous dead objects
+  HeapWord* end = cur_obj;
+  do {
+    // prefetch beyond end
+    Prefetch::read(end, interval);
+    end += cast_to_oop(end)->size<ClassPointersMode>();
+  } while (end < scan_limit && !cast_to_oop(end)->is_gc_marked());
+
+  // see if we might want to pretend this object is alive so that
+  // we don't have to compact quite as often.
+  if (cur_obj == compact_top && dead_spacer.insert_deadspace(cur_obj, end)) {
+    oop obj = cast_to_oop(cur_obj);
+    assert((size_t)(end - cur_obj) == obj->size<ClassPointersMode>(), "must be");
+    compact_top = cp->space->forward<MODE>(obj, end - cur_obj, cp, compact_top);
+    inserted = true;
+  } else {
+    // otherwise, it really is a free region.
+
+    // cur_obj is a pointer to a dead object. Use this dead memory to store a pointer to the next live object.
+    *(HeapWord**)cur_obj = end;
+  }
+
+  // move on to the next object
+  cur_obj = end;
+  return inserted;
+}
+
+template <SlidingForwarding::ForwardingMode MODE, oopDesc::ClassPointerMode ClassPointersMode>
 void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
   // Compute the new addresses for the live objects and store it in the mark
   // Used by universe::mark_sweep_phase2()
@@ -351,35 +382,13 @@ void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
       cur_obj += size;
       end_of_live = cur_obj;
     } else {
-      // run over all the contiguous dead objects
-      HeapWord* end = cur_obj;
-      do {
-        // prefetch beyond end
-        Prefetch::read(end, interval);
-        end += cast_to_oop(end)->size<ClassPointersMode>();
-      } while (end < scan_limit && !cast_to_oop(end)->is_gc_marked());
-
-      // see if we might want to pretend this object is alive so that
-      // we don't have to compact quite as often.
-      if (cur_obj == compact_top && dead_spacer.insert_deadspace(cur_obj, end)) {
-        oop obj = cast_to_oop(cur_obj);
-        assert((size_t)(end - cur_obj) == obj->size<ClassPointersMode>(), "must be");
-        compact_top = cp->space->forward<MODE>(obj, end - cur_obj, cp, compact_top);
-        end_of_live = end;
-      } else {
-        // otherwise, it really is a free region.
-
-        // cur_obj is a pointer to a dead object. Use this dead memory to store a pointer to the next live object.
-        *(HeapWord**)cur_obj = end;
-
-        // see if this is the first dead region.
-        if (first_dead == nullptr) {
-          first_dead = cur_obj;
-        }
+      DEBUG_ONLY(HeapWord* prev_obj = cur_obj;)
+      if (prepare_for_compaction_dead_obj<MODE, ClassPointersMode>(cur_obj, cp, scan_limit, compact_top, dead_spacer)) {
+        end_of_live = cur_obj;
+      } else if (first_dead == nullptr) {
+        assert(prev_obj == end_of_live, "just checking");
+        first_dead = end_of_live;
       }
-
-      // move on to the next object
-      cur_obj = end;
     }
   }
 

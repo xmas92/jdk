@@ -36,8 +36,8 @@ size_t SlidingForwarding::_heap_start_region_bias = 0;
 size_t SlidingForwarding::_num_regions = 0;
 uint SlidingForwarding::_region_size_bytes_shift = 0;
 uintptr_t SlidingForwarding::_region_mask = 0;
-HeapWord** SlidingForwarding::_biased_bases[SlidingForwarding::NUM_TARGET_REGIONS] = { nullptr, nullptr };
-HeapWord** SlidingForwarding::_bases_table = nullptr;
+SlidingForwarding::BiasedBases* SlidingForwarding::_biased_bases = nullptr;
+SlidingForwarding::BiasedBases* SlidingForwarding::_bases_table = nullptr;
 SlidingForwarding::FallbackTable* SlidingForwarding::_fallback_table = nullptr;
 
 void SlidingForwarding::initialize(MemRegion heap, size_t region_size_words) {
@@ -83,13 +83,11 @@ void SlidingForwarding::begin() {
     assert(_bases_table == nullptr, "should not be initialized yet");
     assert(_fallback_table == nullptr, "should not be initialized yet");
 
-    size_t max = _num_regions * NUM_TARGET_REGIONS;
-    _bases_table = NEW_C_HEAP_ARRAY(HeapWord*, max, mtGC);
-    HeapWord** biased_start = _bases_table - _heap_start_region_bias;
-    _biased_bases[0] = biased_start;
-    _biased_bases[1] = biased_start + _num_regions;
-    for (size_t i = 0; i < max; i++) {
-      _bases_table[i] = (HeapWord*)UNUSED_BASE;
+    _bases_table = NEW_C_HEAP_ARRAY(BiasedBases, _num_regions, mtGC);
+    BiasedBases* biased_start = _bases_table - _heap_start_region_bias;
+    _biased_bases = biased_start;
+    for (size_t i = 0; i < _num_regions; i++) {
+      _bases_table[i] = UNUSED_BASES;
     }
   }
 #endif

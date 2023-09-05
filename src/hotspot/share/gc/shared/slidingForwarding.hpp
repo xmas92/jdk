@@ -155,8 +155,8 @@ private:
 
   // Indicates an unused base address in the target base table.
   // We cannot use 0, because that may already be a valid base address in zero-based heaps.
-  // alignof(HeapWord*) is safe because heap base addresses must be aligned by much larger alignment
-  static constexpr uintptr_t const UNUSED_BASE = alignof(HeapWord*);
+  // alignof(uintptr_t) is safe because heap base addresses must be aligned by much larger alignment
+  static constexpr uintptr_t const UNUSED_BASE = alignof(uintptr_t);
 
   static ForwardingMode _forwarding_mode;
 
@@ -168,10 +168,19 @@ private:
   static uint           _region_size_bytes_shift;
   static uintptr_t      _region_mask;
 
+  struct BiasedBases {
+    uintptr_t bases[NUM_TARGET_REGIONS];
+
+    uintptr_t& operator[](size_t t) {
+      return bases[t];
+    }
+  };
+  static constexpr BiasedBases const UNUSED_BASES = {{UNUSED_BASE, UNUSED_BASE}};
+
   // The target base table memory.
-  static HeapWord**     _bases_table;
+  static BiasedBases*     _bases_table;
   // Entries into the target base tables, biased to the start of the heap.
-  static HeapWord**     _biased_bases[NUM_TARGET_REGIONS];
+  static BiasedBases*     _biased_bases;
 
   static FallbackTable* _fallback_table;
 

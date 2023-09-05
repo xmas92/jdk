@@ -56,38 +56,42 @@ uintptr_t SlidingForwarding::encode_forwarding(HeapWord* from, HeapWord* to) {
   static_assert(NUM_TARGET_REGIONS == 2, "Only implemented for this amount");
 
   size_t from_reg_idx = biased_region_index_containing(from);
-  HeapWord* to_region_base = (HeapWord*)((uintptr_t)to & _region_mask);
+  uintptr_t to_region_base = ((uintptr_t)to & _region_mask);
+  BiasedBases& bases = _biased_bases[from_reg_idx];
 
-  HeapWord** base = &_biased_bases[0][from_reg_idx];
-  uintptr_t alternate = 0;
-  if (*base == to_region_base) {
-    // Primary is good
-  } else if ((uintptr_t)*base == UNUSED_BASE) {
-    // Primary is free
-    *base = to_region_base;
-  } else {
-    base = &_biased_bases[1][from_reg_idx];
-    if (*base == to_region_base) {
-      // Alternate is good
-    } else if ((uintptr_t)*base == UNUSED_BASE) {
-      // Alternate is free
-      *base = to_region_base;
-    } else {
-      // Both primary and alternate are not fitting
-      // This happens only in the following rare situations:
-      // - In Serial GC, sometimes when compact-top switches spaces, because the
-      //   region boundaries are virtual and objects can cross regions
-      // - In G1 serial compaction, because tails of various compaction chains
-      //   are distributed across the remainders of already compacted regions.
-      return (1 << FALLBACK_SHIFT) | markWord::marked_value;
+  auto try_alternative = [&](size_t alternate) -> bool {
+    uintptr_t& base = bases[alternate];
+    if (base == to_region_base) {
+      // Base is good
+      return true;
+    } else if (base == UNUSED_BASE) {
+      // Base is free
+      base = to_region_base;
+      return true;
     }
+    return false;
+  };
+  uintptr_t alternate;
+  if (try_alternative(0)) {
+    // Using primary
+    alternate = 0;
+  } else if (try_alternative(1)) {
+    // Using alternate
     alternate = 1;
+  } else {
+    // Both primary and alternate are not fitting
+    // This happens only in the following rare situations:
+    // - In Serial GC, sometimes when compact-top switches spaces, because the
+    //   region boundaries are virtual and objects can cross regions
+    // - In G1 serial compaction, because tails of various compaction chains
+    //   are distributed across the remainders of already compacted regions.
+    return (1 << FALLBACK_SHIFT) | markWord::marked_value;
   }
 
-  size_t offset = pointer_delta(to, to_region_base) << OFFSET_BITS_SHIFT;
+  size_t offset = pointer_delta(to, (HeapWord*)to_region_base) << OFFSET_BITS_SHIFT;
   assert((offset >> OFFSET_BITS_SHIFT) < _region_size_words, "Offset should be within the region. from: " PTR_FORMAT
          ", to: " PTR_FORMAT ", to_region_base: " PTR_FORMAT ", offset: " SIZE_FORMAT,
-         p2i(from), p2i(to), p2i(to_region_base), offset);
+         p2i(from), p2i(to), to_region_base, offset);
 
   uintptr_t encoded = offset |
                       (alternate << ALT_REGION_SHIFT) |
@@ -112,7 +116,7 @@ HeapWord* SlidingForwarding::decode_forwarding(HeapWord* from, uintptr_t encoded
   uintptr_t offset = ((encoded >> OFFSET_BITS_SHIFT) & right_n_bits(NUM_OFFSET_BITS));
 
   size_t from_idx = biased_region_index_containing(from);
-  HeapWord* base = _biased_bases[alternate][from_idx];
+  HeapWord* base = (HeapWord*)(_biased_bases[from_idx][alternate]);
   assert((uintptr_t)base != UNUSED_BASE, "must not be unused base");
   HeapWord* decoded = base + offset;
   assert(decoded >= _heap_start,

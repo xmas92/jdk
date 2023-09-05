@@ -27,6 +27,7 @@
 
 #include "gc/shared/blockOffsetTable.hpp"
 #include "gc/shared/cardTable.hpp"
+#include "gc/shared/generation.hpp"
 #include "gc/shared/slidingForwarding.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "memory/allocation.hpp"
@@ -54,7 +55,6 @@ class BlockOffsetArray;
 class BlockOffsetArrayContigSpace;
 class BlockOffsetTable;
 #endif
-class Generation;
 class ContiguousSpace;
 class CardTableRS;
 class DirtyCardToOopClosure;
@@ -291,10 +291,10 @@ public:
 // during compaction.
 class CompactPoint : public StackObj {
 public:
-  Generation* gen;
+  Generation::Name gen;
   ContiguousSpace* space;
 
-  CompactPoint(Generation* g = nullptr) :
+  CompactPoint(Generation::Name g = Generation::Name::Other) :
     gen(g), space(nullptr) {}
 };
 
@@ -420,6 +420,11 @@ protected:
   template <SlidingForwarding::ForwardingMode MODE>
   HeapWord* forward(oop q, size_t size, CompactPoint* cp,
                     HeapWord* compact_top);
+private:
+  template <SlidingForwarding::ForwardingMode MODE>
+  HeapWord* forward_next_compact_point(oop q, size_t size, CompactPoint* cp,
+                    HeapWord* compact_top);
+public:
 
   // Accessors
   HeapWord* top() const            { return _top;    }

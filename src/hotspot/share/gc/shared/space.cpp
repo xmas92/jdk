@@ -247,27 +247,41 @@ void ContiguousSpace::mangle_unused_area_complete() {
 }
 #endif  // NOT_PRODUCT
 
+static HeapWord* update_compact_points(CompactPoint* cp, HeapWord* compact_top) {
+  // switch to next compaction space
+  cp->space->set_compaction_top(compact_top);
+  cp->space = cp->space->next_compaction_space();
+  if (cp->space == nullptr) {
+    Generation* const gen = GenCollectedHeap::heap()->young_gen();
+    cp->gen = Generation::Name::DefNew;
+    assert(gen->kind() == cp->gen, "just checking");
+    DefNewGeneration* const young_gen = (DefNewGeneration*)gen;
+    cp->space = young_gen->eden();
+    assert(cp->space == young_gen->first_compaction_space(), "just checking");
+    assert(cp->space != nullptr, "generation must have a first compaction space");
+  }
+  compact_top = cp->space->bottom();
+  cp->space->set_compaction_top(compact_top);
+  assert(cp->gen == Generation::Name::DefNew, "only ever young gen");
+  return compact_top;
+}
 template <SlidingForwarding::ForwardingMode MODE>
-HeapWord* ContiguousSpace::forward(oop q, size_t size,
+HeapWord* ContiguousSpace::forward_next_compact_point(oop q, size_t size,
+                                    CompactPoint* cp, HeapWord* compact_top) {
+  assert(size > pointer_delta(end(), compact_top), "just checking");
+  compact_top = update_compact_points(cp, compact_top);
+  return cp->space->forward<MODE>(q, size, cp, compact_top);
+}
+
+template <SlidingForwarding::ForwardingMode MODE>
+ALWAYSINLINE HeapWord* ContiguousSpace::forward(oop q, size_t size,
                                     CompactPoint* cp, HeapWord* compact_top) {
   // q is alive
   // First check if we should switch compaction space
   assert(this == cp->space, "'this' should be current compaction space.");
   size_t compaction_max_size = pointer_delta(end(), compact_top);
-  while (size > compaction_max_size) {
-    // switch to next compaction space
-    cp->space->set_compaction_top(compact_top);
-    cp->space = cp->space->next_compaction_space();
-    if (cp->space == nullptr) {
-      cp->gen = GenCollectedHeap::heap()->young_gen();
-      assert(cp->gen != nullptr, "compaction must succeed");
-      cp->space = cp->gen->first_compaction_space();
-      assert(cp->space != nullptr, "generation must have a first compaction space");
-    }
-    compact_top = cp->space->bottom();
-    cp->space->set_compaction_top(compact_top);
-    cp->space->initialize_threshold();
-    compaction_max_size = pointer_delta(cp->space->end(), compact_top);
+  if (size > compaction_max_size) {
+    return forward_next_compact_point<MODE>(q, size, cp, compact_top);
   }
 
   // store the forwarding pointer into the mark word
@@ -286,6 +300,11 @@ HeapWord* ContiguousSpace::forward(oop q, size_t size,
   // We need to update the offset table so that the beginnings of objects can be
   // found during scavenge.  Note that we are updating the offset table based on
   // where the object will be once the compaction phase finishes.
+  // if (cp->gen == Generation::Name::MarkSweepCompact) {
+  //   TenuredSpace* const old_space = (TenuredSpace*)cp->space;
+  //   assert(old_space == GenCollectedHeap::heap()->old_gen()->first_compaction_space(), "just checking");
+  //   old_space->alloc_block(compact_top - size, compact_top);
+  // }
   cp->space->alloc_block(compact_top - size, compact_top);
   return compact_top;
 }
@@ -302,9 +321,11 @@ void ContiguousSpace::prepare_for_compaction_impl(CompactPoint* cp) {
   set_compaction_top(bottom());
 
   if (cp->space == nullptr) {
-    assert(cp->gen != nullptr, "need a generation");
-    assert(cp->gen->first_compaction_space() == this, "just checking");
-    cp->space = cp->gen->first_compaction_space();
+    assert(cp->gen != Generation::Name::Other, "need a generation");
+    assert(cp->gen == Generation::Name::DefNew
+                   ? GenCollectedHeap::heap()->young_gen()->first_compaction_space() == this
+                   : GenCollectedHeap::heap()->old_gen()->first_compaction_space() == this, "just checking");
+    cp->space = this;
     cp->space->initialize_threshold();
     cp->space->set_compaction_top(cp->space->bottom());
   }

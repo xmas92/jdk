@@ -940,7 +940,7 @@ GenCollectedHeap* GenCollectedHeap::heap() {
 #if INCLUDE_SERIALGC
 void GenCollectedHeap::prepare_for_compaction() {
   // Start by compacting into same gen.
-  CompactPoint cp(_old_gen);
+  CompactPoint cp(_old_gen->kind());
   _old_gen->prepare_for_compaction(&cp);
   _young_gen->prepare_for_compaction(&cp);
 }

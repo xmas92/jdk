@@ -1441,6 +1441,9 @@ static void post_monitor_inflate_event(EventJavaMonitorInflate* event,
 
 // Fast path code shared by multiple functions
 void ObjectSynchronizer::inflate_helper(oop obj) {
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    return;
+  }
   Thread* current = Thread::current();
   markWord mark = obj->mark_acquire();
   if (mark.has_monitor()) {

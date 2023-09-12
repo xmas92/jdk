@@ -363,8 +363,9 @@ private:
   void      ExitEpilog(JavaThread* current, ObjectWaiter* Wakee);
 
   // Deflation support
-  bool      deflate_monitor();
+  bool      deflate_monitor(Thread* current);
   void      install_displaced_markword_in_object(const oop obj);
+  void      transition_from_monitor(const oop obj) const;
 };
 
 #endif // SHARE_RUNTIME_OBJECTMONITOR_HPP

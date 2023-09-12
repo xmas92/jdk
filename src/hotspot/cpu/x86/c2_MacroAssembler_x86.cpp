@@ -35,6 +35,7 @@
 #include "opto/subnode.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/stubRoutines.hpp"
+#include "runtime/synchronizer.hpp"
 #include "utilities/checkedCast.hpp"
 
 #ifdef PRODUCT

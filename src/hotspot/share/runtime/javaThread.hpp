@@ -1146,11 +1146,10 @@ public:
 
 private:
   LockStack _lock_stack;
-
-public:
   oop _om_cache_oop;
   ObjectMonitor* _om_cache_monitor;
 
+public:
   LockStack& lock_stack() { return _lock_stack; }
 
   static ByteSize lock_stack_offset()      { return byte_offset_of(JavaThread, _lock_stack); }
@@ -1162,6 +1161,9 @@ public:
 
   static ByteSize om_cache_oop_offset()    { return byte_offset_of(JavaThread, _om_cache_oop); }
   static ByteSize om_cache_monitor_offset(){ return byte_offset_of(JavaThread, _om_cache_monitor); }
+
+  void om_set_monitor_cache(oop obj, ObjectMonitor* monitor);
+  void om_clear_monitor_cache();
 
   static OopStorage* thread_oop_storage();
 

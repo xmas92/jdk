@@ -1146,8 +1146,9 @@ public:
 
 private:
   LockStack _lock_stack;
-  oop _om_cache_oop;
-  ObjectMonitor* _om_cache_monitor;
+  static constexpr size_t OM_CACHE_SIZE = 1;
+  oop _om_cache_oop[OM_CACHE_SIZE];
+  ObjectMonitor* _om_cache_monitor[OM_CACHE_SIZE];
 
 public:
   LockStack& lock_stack() { return _lock_stack; }
@@ -1164,6 +1165,7 @@ public:
 
   void om_set_monitor_cache(oop obj, ObjectMonitor* monitor);
   void om_clear_monitor_cache();
+  ObjectMonitor* om_get_from_monitor_cache(oop obj);
 
   static OopStorage* thread_oop_storage();
 

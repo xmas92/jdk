@@ -313,6 +313,12 @@ void ObjectMonitor::ClearSuccOnSuspend::operator()(JavaThread* current) {
   }
 }
 
+#define assert_mark_word_concistency()                                                 \
+  assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this),  \
+         "object mark must match encoded this: mark=" INTPTR_FORMAT                    \
+         ", encoded this=" INTPTR_FORMAT, object()->mark().value(),                    \
+         markWord::encode(this).value());
+
 // -----------------------------------------------------------------------------
 // Enter support
 
@@ -351,10 +357,7 @@ bool ObjectMonitor::enter(JavaThread* current) {
   if (TrySpin(current) > 0) {
     assert(owner_raw() == current, "must be current: owner=" INTPTR_FORMAT, p2i(owner_raw()));
     assert(_recursions == 0, "must be 0: recursions=" INTX_FORMAT, _recursions);
-    assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this),
-           "object mark must match encoded this: mark=" INTPTR_FORMAT
-           ", encoded this=" INTPTR_FORMAT, object()->mark().value(),
-           markWord::encode(this).value());
+    assert_mark_word_concistency();
     current->_Stalled = 0;
     return true;
   }
@@ -445,7 +448,7 @@ bool ObjectMonitor::enter(JavaThread* current) {
   assert(_recursions == 0, "invariant");
   assert(owner_raw() == current, "invariant");
   assert(_succ != current, "invariant");
-  assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this), "invariant");
+  assert_mark_word_concistency();
 
   // The thread -- now the owner -- is back in vm mode.
   // Report the glorious news via TI,DTrace and jvmstat.
@@ -941,12 +944,11 @@ void ObjectMonitor::EnterI(JavaThread* current) {
 
 void ObjectMonitor::ReenterI(JavaThread* current, ObjectWaiter* currentNode) {
   assert(current != nullptr, "invariant");
+  assert(current->thread_state() != _thread_blocked, "invariant");
   assert(currentNode != nullptr, "invariant");
   assert(currentNode->_thread == current, "invariant");
   assert(_waiters > 0, "invariant");
-  assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this), "invariant");
-
-  assert(current->thread_state() != _thread_blocked, "invariant");
+  assert_mark_word_concistency();
 
   int nWakeups = 0;
   for (;;) {
@@ -1003,7 +1005,7 @@ void ObjectMonitor::ReenterI(JavaThread* current, ObjectWaiter* currentNode) {
   // In addition, current.TState is stable.
 
   assert(owner_raw() == current, "invariant");
-  assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this), "invariant");
+  assert_mark_word_concistency();
   UnlinkAfterAcquire(current, currentNode);
   if (_succ == current) _succ = nullptr;
   assert(_succ != current, "invariant");
@@ -1634,7 +1636,7 @@ void ObjectMonitor::wait(jlong millis, bool interruptible, TRAPS) {
   // Verify a few postconditions
   assert(owner_raw() == current, "invariant");
   assert(_succ != current, "invariant");
-  assert(LockingMode == LM_LIGHTWEIGHT || object()->mark() == markWord::encode(this), "invariant");
+  assert_mark_word_concistency();
 
   // check if the notification happened
   if (!WasNotified) {

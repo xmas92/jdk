@@ -374,7 +374,16 @@ private:
   // Deflation support
   bool      deflate_monitor(Thread* current);
   void      install_displaced_markword_in_object(const oop obj);
-  void      transition_from_monitor(const oop obj) const;
+};
+
+// RAII object to ensure that ObjectMonitor::is_being_async_deflated() is
+// stable within the context of this mark.
+class ObjectMonitorContentionMark {
+  ObjectMonitor* _monitor;
+
+public:
+  ObjectMonitorContentionMark(ObjectMonitor* monitor);
+  ~ObjectMonitorContentionMark();
 };
 
 #endif // SHARE_RUNTIME_OBJECTMONITOR_HPP

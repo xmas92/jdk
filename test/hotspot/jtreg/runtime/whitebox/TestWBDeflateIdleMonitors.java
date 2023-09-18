@@ -59,6 +59,8 @@ public class TestWBDeflateIdleMonitors {
 
     public static class InflateMonitorsTest {
         static WhiteBox wb = WhiteBox.getWhiteBox();
+        static long LockingMode = wb.getIntVMFlag("LockingMode");
+        static long LM_LIGHTWEIGHT = 2;
         public static Object obj;
 
         public static void main(String args[]) throws Exception {

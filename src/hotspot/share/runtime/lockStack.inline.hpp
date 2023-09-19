@@ -159,6 +159,7 @@ inline size_t LockStack::remove(oop o) {
 }
 
 inline bool LockStack::contains(oop o) const {
+  assert(o != nullptr, "Catch me!");
   verify("pre-contains");
 
   // Can't poke around in thread oops without having started stack watermark processing.

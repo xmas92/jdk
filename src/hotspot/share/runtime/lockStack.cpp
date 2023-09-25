@@ -43,7 +43,7 @@ const int LockStack::lock_stack_top_offset =  in_bytes(JavaThread::lock_stack_to
 const int LockStack::lock_stack_base_offset = in_bytes(JavaThread::lock_stack_base_offset());
 
 LockStack::LockStack(JavaThread* jt) :
-  _top(lock_stack_base_offset), _base() {
+  _top(lock_stack_base_offset), _has_recu(false), _base(), _recu() {
   // Make sure the layout of the object is compatible with the emitted code's assumptions.
   STATIC_ASSERT(sizeof(_bad_oop_sentinel) == oopSize);
   STATIC_ASSERT(sizeof(_base[0]) == oopSize);
@@ -75,6 +75,7 @@ void LockStack::verify(const char* msg) const {
   assert((_top >= start_offset()), "lockstack underflow: _top %d end_offset %d", _top, start_offset());
   if (SafepointSynchronize::is_at_safepoint() || (Thread::current()->is_Java_thread() && is_owning_thread())) {
     int top = to_index(_top);
+    bool found_recu = false;
     for (int i = 0; i < top; i++) {
       assert(_base[i] != nullptr, "no zapped before top");
       if (VM_Version::supports_recursive_lightweight_locking()) {
@@ -87,12 +88,16 @@ void LockStack::verify(const char* msg) const {
         }
       }
 
+      assert(_has_recu || _recu[i] == 0, "!_has_recu => for all i : _recu[i] == 0");
+      found_recu = found_recu || _recu[i] != 0;
       for (int j = i + 1; j < top; j++) {
         assert(_base[i] != _base[j], "entries must be unique: %s", msg);
       }
     }
+    assert(!_has_recu || found_recu, "_has_recu => exists i : _recu[i] != 0");
     for (int i = top; i < CAPACITY; i++) {
       assert(_base[i] == nullptr, "only zapped entries after top: i: %d, top: %d, entry: " PTR_FORMAT, i, top, p2i(_base[i]));
+      assert(_recu[i] == 0, "only 0 recu entries after top: i: %d, top: %d, entry: " PTR_FORMAT ", recu: %zu", i, top, p2i(_base[i]), _recu[i]);
     }
   }
 }

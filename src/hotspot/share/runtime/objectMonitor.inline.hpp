@@ -34,6 +34,7 @@
 #include "runtime/globals.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/synchronizer.hpp"
+#include "utilities/checkedCast.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 inline bool ObjectMonitor::is_entered(JavaThread* current) const {

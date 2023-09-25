@@ -23,6 +23,7 @@
  *
  */
 
+#include "assembler_aarch64.hpp"
 #include "precompiled.hpp"
 #include "asm/assembler.hpp"
 #include "asm/assembler.inline.hpp"
@@ -6360,6 +6361,10 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
 // - obj: the object to be unlocked
 // - t1, t2, t3: temporary registers
 void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, Register t3, Label& slow) {
+  lightweight_unlock(obj, hdr, t1, t2, slow, slow);
+}
+
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& recur, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, t1, t2, t3, rscratch1);
 
@@ -6374,6 +6379,12 @@ void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, 
     bind(stack_ok);
   }
 #endif
+
+  if (OMRecursiveLightweight) {
+    ldrb(t1, Address(rthread, JavaThread::lock_stack_has_recu_offset()));
+    cmp(t1, zr);
+    br(Assembler::NE, recur);
+  }
 
   Label unlocked, push_and_slow;
   const Register top = t1;

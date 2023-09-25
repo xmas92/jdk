@@ -23,7 +23,6 @@
  *
  */
 
-#include "assembler_aarch64.hpp"
 #include "precompiled.hpp"
 #include "asm/assembler.hpp"
 #include "asm/assembler.inline.hpp"

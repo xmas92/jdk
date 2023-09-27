@@ -186,15 +186,4 @@ inline void LockStack::oops_do(OopClosure* cl) {
   verify("post-oops-do");
 }
 
-inline void LockStack::recursive_oops_do(OopClosure* cl) {
-  verify("pre-recursive-oops-do");
-  int end = to_index(_top);
-  for (int i = 0; i < end; i++) {
-    if (_recu[i] > 0) {
-      cl->do_oop(&_base[i]);
-    }
-  }
-  verify("post-recursive-oops-do");
-}
-
 #endif // SHARE_RUNTIME_LOCKSTACK_INLINE_HPP

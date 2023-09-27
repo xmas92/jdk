@@ -913,18 +913,6 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
     jmpb  (DONE_LABEL);
   }
 
-  // Setup medium path stub lightweight
-  C2LightweightRecursiveUnlockStub* stub = nullptr;
-  if (LockingMode == LM_LIGHTWEIGHT &&
-      OMRecursiveLightweight &&
-      C2OMUnlockMediumPathRecursiveLightweight &&
-      !Compile::current()->output()->in_scratch_emit_size()) {
-    stub = new (Compile::current()->comp_arena()) C2LightweightRecursiveUnlockStub(objReg, tmpReg, boxReg);
-    Compile::current()->output()->add_stub(stub);
-  }
-  Label dummy_stub;
-  Label& MEDIUM_PATH = stub == nullptr ? NO_COUNT : stub->entry();
-  Label& STUB_CONT = stub == nullptr ? dummy_stub : stub->continuation();
 #endif // _LP64
 
   if (LockingMode != LM_MONITOR) {

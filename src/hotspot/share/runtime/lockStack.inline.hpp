@@ -78,6 +78,11 @@ inline oop LockStack::bottom() const {
   return _base[0];
 }
 
+inline oop LockStack::top() {
+  assert(to_index(_top) > 0, "may only call with at least one element in the stack");
+  return _base[to_index(_top) - 1];
+}
+
 inline bool LockStack::is_empty() const {
   return to_index(_top) == 0;
 }

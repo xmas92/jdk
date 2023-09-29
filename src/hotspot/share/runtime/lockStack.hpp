@@ -92,6 +92,9 @@ public:
   // Is the lock-stack empty.
   inline bool is_empty() const;
 
+  // Get the oldest oop in the stack
+  inline oop top();
+
   // Check if object is recursive.
   // Precondition: This lock-stack must contain the oop.
   inline bool is_recursive(oop o) const;

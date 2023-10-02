@@ -30,8 +30,10 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
 
-class Thread;
+class JavaThread;
+class ObjectMonitor;
 class OopClosure;
+class Thread;
 
 class LockStack {
   friend class VMStructs;
@@ -51,6 +53,7 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
+  bool _wait_was_inflated;
   oop _base[CAPACITY];
 
   // Get the owning thread of this lock-stack.
@@ -77,6 +80,9 @@ public:
 
   // Return true if we have room to push onto this lock-stack, false otherwise.
   inline bool can_push() const;
+
+  // Return true if we have room to push n oops onto this lock-stack, false otherwise.
+  inline bool can_push(int n) const;
 
   // Pushes an oop on this lock-stack.
   inline void push(oop o);
@@ -107,6 +113,10 @@ public:
 
   // GC support
   inline void oops_do(OopClosure* cl);
+
+  bool wait_was_inflated() const { return _wait_was_inflated; };
+  void set_wait_was_inflated() { _wait_was_inflated = true; };
+  void clear_wait_was_inflated() { _wait_was_inflated = false; };
 
 };
 

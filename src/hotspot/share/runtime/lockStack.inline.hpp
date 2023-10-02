@@ -51,6 +51,10 @@ inline bool LockStack::is_full() const {
   return to_index(_top) == CAPACITY;
 }
 
+inline bool LockStack::can_push(int n) const {
+  return (CAPACITY - to_index(_top)) >= n;
+}
+
 inline bool LockStack::is_owning_thread() const {
   Thread* current = Thread::current();
   if (current->is_Java_thread()) {

@@ -2003,7 +2003,7 @@ const int ObjectAlignmentInBytes = 8;
                                                                             \
   product(bool, OMRegenerateCache, false, "")                               \
                                                                             \
-  product(bool, OMRecursiveLightweight, false, "")                          \
+  product(bool, OMRecursiveLightweight, true, "")                           \
                                                                             \
   product(bool, OMRetryLock, false, "")                                     \
                                                                             \

@@ -123,4 +123,27 @@ public:
   void print_on(outputStream* st);
 };
 
+class OMCache {
+  friend class VMStructs;
+public:
+  static constexpr int CAPACITY = 8;
+
+private:
+  oop _oops[CAPACITY];
+  const oop _null_sentinel;
+  ObjectMonitor* _monitors[CAPACITY];
+
+public:
+  static ByteSize oops_offset() { return byte_offset_of(OMCache, _oops); }
+  static ByteSize monitors_offset() { return byte_offset_of(OMCache, _monitors); }
+  static ByteSize oop_to_monitor_difference() { return monitors_offset() - oops_offset(); }
+
+  OMCache(JavaThread* jt) : _oops(), _null_sentinel(nullptr), _monitors() {};
+
+  inline ObjectMonitor* get_monitor(oop o);
+  inline void set_monitor(ObjectMonitor* monitor);
+  inline void clear();
+
+};
+
 #endif // SHARE_RUNTIME_LOCKSTACK_HPP

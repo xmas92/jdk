@@ -574,7 +574,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg, 
 
   // ObjectMonitor* is *not* in the header and no cache has been implemented.
   // Take the slow-path into the runtime.
-  if (C2OMLockCacheSize == 0) {
+  if (!OMUseC2Cache) {
     jcc(Assembler::notZero, SLOW_PATH);
     lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
     jmp(SUCCESS);

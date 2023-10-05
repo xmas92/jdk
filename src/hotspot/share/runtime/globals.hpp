@@ -1985,14 +1985,10 @@ const int ObjectAlignmentInBytes = 8;
           "2: monitors & new lightweight locking (LM_LIGHTWEIGHT, default)") \
           range(0, 2)                                                       \
                                                                             \
-  product(int, C2OMLockCacheSize, 1, "")                                    \
-          range(0, JavaThread::OM_CACHE_SIZE)                               \
+  product(bool, OMUseC2Cache, true, "")                                     \
                                                                             \
-  product(int, C2OMUnlockCacheSize, 1, "")                                  \
-          range(0, JavaThread::OM_CACHE_SIZE)                               \
-                                                                            \
-  product(int, CPPOMCacheSize, 5, "")                                       \
-          range(0, JavaThread::OM_CACHE_SIZE)                               \
+  product(int, OMCacheSize, 8, "")                                          \
+          range(0, OMCache::CAPACITY)                                       \
                                                                             \
   product(bool, OMRegenerateCache, false, "")                               \
                                                                             \
@@ -2011,6 +2007,8 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, OMDeflateAfterWait, false, "")                              \
                                                                             \
   product(bool, OMDeflateBeforeExit, false, "")                             \
+                                                                            \
+  product(bool, OMCacheHitRate, false, "")                                  \
                                                                             \
   product(uint, TrimNativeHeapInterval, 0, EXPERIMENTAL,                    \
           "Interval, in ms, at which the JVM will trim the native heap if " \

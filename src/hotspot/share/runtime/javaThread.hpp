@@ -1145,11 +1145,9 @@ public:
   void interrupt();
   bool is_interrupted(bool clear_interrupted);
 
-  static constexpr size_t OM_CACHE_SIZE = 5;
 private:
   LockStack _lock_stack;
-  oop _om_cache_oop[OM_CACHE_SIZE];
-  ObjectMonitor* _om_cache_monitor[OM_CACHE_SIZE];
+  OMCache _om_cache;
 
 public:
   LockStack& lock_stack() { return _lock_stack; }
@@ -1163,6 +1161,16 @@ public:
   size_t _wait_deflation = 0;
   size_t _exit_deflation = 0;
 
+  size_t _lock_lookup = 0;
+  size_t _lock_hit = 0;
+  size_t _unlock_lookup = 0;
+  size_t _unlock_hit = 0;
+
+  static ByteSize lock_lookup_offset() { return byte_offset_of(JavaThread, _lock_lookup); }
+  static ByteSize lock_hit_offset() { return byte_offset_of(JavaThread, _lock_hit); }
+  static ByteSize unlock_lookup_offset() { return byte_offset_of(JavaThread, _unlock_lookup); }
+  static ByteSize unlock_hit_offset() { return byte_offset_of(JavaThread, _unlock_hit); }
+
   static ByteSize lock_stack_offset()      { return byte_offset_of(JavaThread, _lock_stack); }
   // Those offsets are used in code generators to access the LockStack that is embedded in this
   // JavaThread structure. Those accesses are relative to the current thread, which
@@ -1170,10 +1178,9 @@ public:
   static ByteSize lock_stack_top_offset()  { return lock_stack_offset() + LockStack::top_offset(); }
   static ByteSize lock_stack_base_offset() { return lock_stack_offset() + LockStack::base_offset(); }
 
-  static ByteSize om_cache_oop_offset()    { return byte_offset_of(JavaThread, _om_cache_oop); }
-  static ByteSize om_cache_monitor_offset(){ return byte_offset_of(JavaThread, _om_cache_monitor); }
-  static ByteSize om_nth_cache_oop_offset(size_t n);
-  static ByteSize om_nth_cache_monitor_offset(size_t n);
+
+  static ByteSize om_cache_offset()        { return byte_offset_of(JavaThread, _om_cache); }
+  static ByteSize om_cache_oops_offset()   { return om_cache_offset() + OMCache::oops_offset(); }
 
   void om_set_monitor_cache(ObjectMonitor* monitor);
   void om_clear_monitor_cache();

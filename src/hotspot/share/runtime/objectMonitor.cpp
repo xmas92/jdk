@@ -321,6 +321,21 @@ void ObjectMonitor::ClearSuccOnSuspend::operator()(JavaThread* current) {
 
 // -----------------------------------------------------------------------------
 // Enter support
+bool ObjectMonitor::try_enter(JavaThread* current) {
+  void* cur = try_set_owner_from(nullptr, current);
+  if (cur == nullptr) {
+    assert(_recursions == 0, "invariant");
+    return true;
+  }
+
+  if (cur == current) {
+    // TODO-FIXME: check for integer overflow!  BUGID 6557169.
+    _recursions++;
+    return true;
+  }
+
+  return false;
+}
 
 bool ObjectMonitor::enter(JavaThread* current) {
   // The following code is ordered to check the most common cases first

@@ -55,7 +55,7 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   Register tmp = tmp2Reg;
   Label cont;
   Label object_has_monitor;
-  Label count, no_count;
+  Label count, no_count, mon_count;
   Label recursive;
 
   assert(LockingMode != LM_LIGHTWEIGHT, "uses fast_lock_lightweight");
@@ -71,7 +71,12 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
     br(Assembler::NE, cont);
   }
 
-  if (LockingMode == LM_LIGHTWEIGHT && C2OMLockCacheSize == 0) {
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // Null markWord
+    str(zr, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+  }
+
+  if (LockingMode == LM_LIGHTWEIGHT && !OMUseC2Cache) {
     // Always slow path for monitors
     tst(disp_hdr, markWord::monitor_value);
     br(Assembler::NE, no_count);
@@ -128,25 +133,21 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   }
 
   // Fetch the monitor
-  if (LockingMode == LM_LIGHTWEIGHT && C2OMLockCacheSize > 0) {
-    Label monitor_found;
-    Label monitor_load[JavaThread::OM_CACHE_SIZE - 1];
-    const int end = C2OMLockCacheSize - 1;
-    for (int i = 0; i < end; ++i) {
-      ldr(disp_hdr, Address(rthread, JavaThread::om_nth_cache_oop_offset(i)));
-      cmp(oop, disp_hdr);
-      br(Assembler::EQ, monitor_load[i]);
-    }
-    ldr(disp_hdr, Address(rthread, JavaThread::om_nth_cache_oop_offset(end)));
+  if (LockingMode == LM_LIGHTWEIGHT && OMUseC2Cache) {
+    if (OMCacheHitRate) increment(Address(rthread, JavaThread::lock_lookup_offset()));
+
+    Label monitor_found, loop;
+    lea(tmp, Address(rthread, JavaThread::om_cache_oops_offset()));
+    bind(loop);
+    ldr(disp_hdr, Address(tmp));
     cmp(oop, disp_hdr);
-    br(Assembler::NE, no_count);
-    ldr(disp_hdr, Address(rthread, JavaThread::om_nth_cache_monitor_offset(end)));
-    for (int i = 0; i < end; ++i) {
-      b(monitor_found);
-      bind(monitor_load[end - i - 1]);
-      ldr(disp_hdr, Address(rthread, JavaThread::om_nth_cache_monitor_offset(end - i - 1)));
-    }
+    br(Assembler::EQ, monitor_found);
+    increment(tmp, oopSize);
+    cbnz(disp_hdr, loop);
+    b(no_count); // Cache Miss, NE set from cmp above, cbnz does not set flags
     bind(monitor_found);
+    ldr(disp_hdr, Address(tmp, OMCache::oop_to_monitor_difference()));
+    if (OMCacheHitRate) increment(Address(rthread, JavaThread::lock_hit_offset()));
 
   } else {
     // Convert markWord to ObjectMonitor
@@ -191,6 +192,11 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
 
   // flag == EQ still from the cmp above, checking if this is a reentrant lock
 
+  bind(mon_count);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    str(disp_hdr, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+  }
+
   bind(cont);
   // flag == EQ indicates success
   // flag == NE indicates failure
@@ -226,7 +232,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
 
   // Handle existing monitor.
   ldr(tmp, Address(oop, oopDesc::mark_offset_in_bytes()));
-  if (LockingMode == LM_LIGHTWEIGHT && C2OMUnlockCacheSize == 0) {
+  if (LockingMode == LM_LIGHTWEIGHT && !OMUseC2Cache) {
     // Always slow path for monitors
     tst(tmp, markWord::monitor_value);
     br(Assembler::NE, no_count);

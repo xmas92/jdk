@@ -214,4 +214,90 @@ inline void LockStack::oops_do(OopClosure* cl) {
   verify("post-oops-do");
 }
 
+inline void OMCache::set_monitor(ObjectMonitor *monitor) {
+  const int end = OMCacheSize - 1;
+  if (end < 0) {
+    return;
+  }
+
+  oop obj = monitor->object_peek();
+  assert(obj != nullptr, "must be alive");
+  assert(monitor == LightweightSynchronizer::read_monitor(JavaThread::current(), obj), "must be exist in table");
+
+  oop cmp_obj = obj;
+  for (int i = 0; i < end; ++i) {
+    if (_oops[i] == cmp_obj ||
+        _monitors[i] == nullptr ||
+        _monitors[i]->is_being_async_deflated()) {
+      _oops[i] = obj;
+      _monitors[i] = monitor;
+      return;
+    }
+#if 1
+    if (OMRegenerateCache &&
+        _monitors[i] != nullptr &&
+        _oops[i] == nullptr) {
+      oop woop = _monitors[i]->object_peek();
+      if (woop == nullptr || woop == cmp_obj) {
+        _oops[i] = obj;
+        _monitors[i] = monitor;
+        return;
+      } else {
+        _oops[i] = woop;
+      }
+    }
+#endif
+    // Remember Most Recent Values
+    oop tmp_oop = obj;
+    ObjectMonitor* tmp_mon = monitor;
+    // Set next pair to the next most recent
+    obj = _oops[i];
+    monitor = _monitors[i];
+    // Store most recent values
+    _oops[i] = tmp_oop;
+    _monitors[i] = tmp_mon;
+  }
+  _oops[end] = obj;
+  _monitors[end] = monitor;
+}
+
+inline ObjectMonitor* OMCache::get_monitor(oop o) {
+  for (int i = 0; i < OMCacheSize; ++i) {
+    if (_oops[i] == o) {
+      assert(_monitors[i] != nullptr, "monitor must exist");
+      if (_monitors[i]->is_being_async_deflated()) {
+        // Bad monitor
+        // Shift down rest
+        for (; i < OMCacheSize - 1; ++i) {
+          _oops[i] = _oops[i + 1];
+          _monitors[i] =  _monitors[i + 1];
+        }
+        // i == CAPACITY - 1
+        _oops[i] = nullptr;
+        _monitors[i] = nullptr;
+        return nullptr;
+      }
+      return _monitors[i];
+    }
+  }
+  return nullptr;
+}
+
+inline void OMCache::clear() {
+  for (size_t i = 0 , r = 0; i < CAPACITY; ++i) {
+    _oops[i] = nullptr;
+#if 1
+    if (!OMRegenerateCache ||
+        (_monitors[i] != nullptr &&
+         _monitors[i]->is_being_async_deflated())) {
+      _monitors[i] = nullptr;
+    } else {
+      _monitors[r++] = _monitors[i];
+    }
+#else
+    _om_cache_monitor[i] = nullptr;
+#endif
+  }
+}
+
 #endif // SHARE_RUNTIME_LOCKSTACK_INLINE_HPP

@@ -247,67 +247,13 @@ inline void JavaThread::om_set_monitor_cache(ObjectMonitor* monitor) {
   assert(monitor != nullptr, "use om_clear_monitor_cache to clear");
   assert(this == current(), "only set own thread locals");
 
-  const int end = MAX3(CPPOMCacheSize, C2OMLockCacheSize, C2OMUnlockCacheSize) - 1;
-  if (end < 0) {
-    return;
-  }
-
-  oop obj = monitor->object_peek();
-  assert(obj != nullptr, "must be alive");
-  assert(monitor == LightweightSynchronizer::read_monitor(this, obj), "must be exist in table");
-
-  oop cmp_obj = obj;
-  for (int i = 0; i < end; ++i) {
-    if (_om_cache_oop[i] == cmp_obj ||
-        _om_cache_monitor[i] == nullptr ||
-        _om_cache_monitor[i]->is_being_async_deflated()) {
-      _om_cache_oop[i] = obj;
-      _om_cache_monitor[i] = monitor;
-      return;
-    }
-#if 1
-    if (OMRegenerateCache &&
-        _om_cache_monitor[i] != nullptr &&
-        _om_cache_oop[i] == nullptr) {
-      oop woop = _om_cache_monitor[i]->object_peek();
-      if (woop == nullptr || woop == cmp_obj) {
-        _om_cache_oop[i] = obj;
-        _om_cache_monitor[i] = monitor;
-        return;
-      } else {
-        _om_cache_oop[i] = woop;
-      }
-    }
-#endif
-    // Remember Most Recent Values
-    oop tmp_oop = obj;
-    ObjectMonitor* tmp_mon = monitor;
-    // Set next pair to the next most recent
-    obj = _om_cache_oop[i];
-    monitor = _om_cache_monitor[i];
-    // Store most recent values
-    _om_cache_oop[i] = tmp_oop;
-    _om_cache_monitor[i] = tmp_mon;
-  }
-  _om_cache_oop[end] = obj;
-  _om_cache_monitor[end] = monitor;
+  _om_cache.set_monitor(monitor);
 }
 
 inline void JavaThread::om_clear_monitor_cache() {
-  for (size_t i = 0 , r = 0; i < OM_CACHE_SIZE; ++i) {
-    _om_cache_oop[i] = nullptr;
-#if 1
-    if (!OMRegenerateCache ||
-        (_om_cache_monitor[i] != nullptr &&
-         _om_cache_monitor[i]->is_being_async_deflated())) {
-      _om_cache_monitor[i] = nullptr;
-    } else {
-      _om_cache_monitor[r++] = _om_cache_monitor[i];
-    }
-#else
-    _om_cache_monitor[i] = nullptr;
-#endif
-  }
+
+  _om_cache.clear();
+
   if (_unlocked_inflation != 0 ||
       _recursive_inflation != 0 ||
       _contended_recursive_inflation != 0 ||
@@ -337,34 +283,25 @@ inline void JavaThread::om_clear_monitor_cache() {
   }
   _wait_deflation = 0;
   _exit_deflation = 0;
+
+  if (_lock_lookup != 0 ||
+      _unlock_lookup != 0) {
+    const double lock_hit_rate = (double)_lock_hit / (double)_lock_lookup * 100;
+    const double unlock_hit_rate = (double)_unlock_hit / (double)_unlock_lookup * 100;
+    log_info(monitorinflation)("Lock: %3.2lf %% [%6zu / %6zu] Unlock: %3.2lf %% [%6zu / %6zu]",
+                              lock_hit_rate, _lock_hit, _lock_lookup,
+                              unlock_hit_rate, _unlock_hit, _unlock_lookup);
+  }
+  _lock_hit = 0;
+  _lock_lookup = 0;
+  _unlock_hit = 0;
+  _unlock_lookup = 0;
 }
 
 inline ObjectMonitor* JavaThread::om_get_from_monitor_cache(oop obj) {
   assert(obj != nullptr, "do not look for null objects");
   assert(this == current(), "only get own thread locals");
-  for (int i = 0; i < CPPOMCacheSize; ++i) {
-    if (_om_cache_oop[i] == obj) {
-      assert(_om_cache_monitor[i] != nullptr, "monitor must exist");
-      if (_om_cache_monitor[i]->is_being_async_deflated()) {
-        // Bad monitor
-        _om_cache_oop[i] = nullptr;
-        _om_cache_monitor[i] = nullptr;
-        return nullptr;
-      }
-      return _om_cache_monitor[i];
-    }
-  }
-  return nullptr;
-}
-
-inline ByteSize JavaThread::om_nth_cache_oop_offset(size_t n) {
-  assert(n < OM_CACHE_SIZE, "out of bounds");
-  return om_cache_oop_offset() + in_ByteSize(checked_cast<int>(sizeof(_om_cache_oop[n]) * n));
-}
-
-inline ByteSize JavaThread::om_nth_cache_monitor_offset(size_t n){
-  assert(n < OM_CACHE_SIZE, "out of bounds");
-  return om_cache_monitor_offset() + in_ByteSize(checked_cast<int>(sizeof(_om_cache_monitor[n]) * n));
+  return _om_cache.get_monitor(obj);
 }
 
 #endif // SHARE_RUNTIME_JAVATHREAD_INLINE_HPP

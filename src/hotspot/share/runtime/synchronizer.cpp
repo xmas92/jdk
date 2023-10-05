@@ -467,7 +467,7 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* locking_
   locking_thread->inc_held_monitor_count();
 
   if (LockingMode == LM_LIGHTWEIGHT) {
-    return LightweightSynchronizer::enter(obj, locking_thread, current);
+    return LightweightSynchronizer::enter(obj, lock, locking_thread, current);
   }
 
   if (!useHeavyMonitors()) {
@@ -594,7 +594,7 @@ void ObjectSynchronizer::jni_enter(Handle obj, JavaThread* current) {
     ObjectMonitor* monitor;
     bool entered;
     if (LockingMode == LM_LIGHTWEIGHT) {
-      entered = LightweightSynchronizer::inflate_and_enter(obj(), current, current, inflate_cause_jni_enter);
+      entered = LightweightSynchronizer::inflate_and_enter(obj(), nullptr, current, current, inflate_cause_jni_enter);
     } else {
       monitor = inflate(current, obj(), inflate_cause_jni_enter);
       entered = monitor->enter(current);
@@ -2279,10 +2279,21 @@ void LightweightSynchronizer::ensure_lock_stack_space(JavaThread* locking_thread
   }
 }
 
-void LightweightSynchronizer::enter(Handle obj, JavaThread* locking_thread, JavaThread* current) {
+void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* locking_thread, JavaThread* current) {
   assert(LockingMode == LM_LIGHTWEIGHT, "must be");
   assert(current == Thread::current(), "must be");
   assert(locking_thread == current || true /* TODO: What to assert here */, "");
+
+  if (lock != nullptr) {
+    // This is cleared in the interpreter
+    // TODO: All paths should have cleared this, assert it is 0
+    //       instead of clearing it here. Should maybe only be for
+    //       c++ ObjectLocks and compiler re-lock (check this)
+    //       Also double check JNI interactions, JNI does not have
+    //       a slot, so no cache, but is there a problem if JNI first
+    //       followed by recursive monitor enter exit
+    lock->clear_displaced_header();
+  }
 
   SpinYield spin_yield(0, 2);
   bool first_time = true;
@@ -2294,7 +2305,7 @@ void LightweightSynchronizer::enter(Handle obj, JavaThread* locking_thread, Java
     oop o = obj();
     // Would like to fast lock here, but cannot ensure lock order
     // Inflate the relocked lock.
-    bool entered = inflate_and_enter(o, locking_thread, current, ObjectSynchronizer::inflate_cause_monitor_enter);
+    bool entered = inflate_and_enter(o, lock, locking_thread, current, ObjectSynchronizer::inflate_cause_monitor_enter);
     assert(entered, "relock must lock the object, without races");
     return;
   }
@@ -2344,7 +2355,7 @@ void LightweightSynchronizer::enter(Handle obj, JavaThread* locking_thread, Java
       spin_yield.wait();
     }
 
-    if (inflate_and_enter(obj(), locking_thread, current, ObjectSynchronizer::inflate_cause_monitor_enter)) {
+    if (inflate_and_enter(obj(), lock, locking_thread, current, ObjectSynchronizer::inflate_cause_monitor_enter)) {
       return;
     }
 
@@ -2511,7 +2522,7 @@ ObjectMonitor* LightweightSynchronizer::inflate_fast_locked_object(oop object, J
   return monitor;
 }
 
-bool LightweightSynchronizer::inflate_and_enter(oop object, JavaThread* locking_thread, JavaThread* current, const ObjectSynchronizer::InflateCause cause) {
+bool LightweightSynchronizer::inflate_and_enter(oop object, BasicLock* lock, JavaThread* locking_thread, JavaThread* current, const ObjectSynchronizer::InflateCause cause) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used for lightweight");
   assert(current == Thread::current(), "must be");
   NoSafepointVerifier nsv;
@@ -2534,6 +2545,14 @@ bool LightweightSynchronizer::inflate_and_enter(oop object, JavaThread* locking_
   // Get or create the monitor
   if (monitor == nullptr) {
     monitor = get_or_insert_monitor(object, current, cause, true /* try_read */);
+  }
+
+  if (monitor->try_enter(locking_thread)) {
+    current->om_set_monitor_cache(monitor);
+    if (lock != nullptr) {
+      lock->set_displaced_header(monitor);
+    }
+    return true;
   }
 
   // Holds is_being_async_deflated() stable throughout this function.
@@ -2656,6 +2675,9 @@ bool LightweightSynchronizer::inflate_and_enter(oop object, JavaThread* locking_
     // Update the thread-local cache
     if (current == locking_thread) {
       current->om_set_monitor_cache(monitor);
+    }
+    if (lock != nullptr) {
+      lock->set_displaced_header(monitor);
     }
 
     return true;

@@ -33,8 +33,10 @@
 #include "opto/output.hpp"
 #include "opto/opcodes.hpp"
 #include "opto/subnode.hpp"
+#include "runtime/basicLock.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/javaThread.inline.hpp"
+#include "runtime/lockStack.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/synchronizer.hpp"
@@ -840,7 +842,7 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
   jmpb  (DONE_LABEL);
 
 #else // _LP64
-  if (LockingMode != LM_LIGHTWEIGHT || C2OMUnlockCacheSize > 0) {
+  if (LockingMode != LM_LIGHTWEIGHT || OMUseC2Cache) {
     cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
     jccb(Assembler::equal, LNotRecursive);
 

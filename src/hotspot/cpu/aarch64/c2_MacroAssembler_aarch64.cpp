@@ -257,7 +257,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
     if (OMCacheHitRate) increment(Address(rthread, JavaThread::unlock_lookup_offset()));
     ldr(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
     cmp(tmp, (uint8_t)1);
-    br(Assembler::LS, no_count); // Non symmetrical, take slow path tmp == 0, 0 < 1, both LS and NE
+    br(Assembler::LO, no_count); // Non symmetrical, take slow path tmp == 0, 0 < 1, both LS and NE
     if (OMCacheHitRate) increment(Address(rthread, JavaThread::unlock_hit_offset()));
   } else {
     STATIC_ASSERT(markWord::monitor_value <= INT_MAX);

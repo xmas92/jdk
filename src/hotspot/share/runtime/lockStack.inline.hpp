@@ -36,6 +36,7 @@
 #include "runtime/stackWatermarkSet.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "runtime/synchronizer.hpp"
 
 inline int LockStack::to_index(uint32_t offset) {
   assert(is_aligned(offset, oopSize), "Bad alignment: %u", offset);

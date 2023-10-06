@@ -33,8 +33,10 @@
 #include "opto/output.hpp"
 #include "opto/opcodes.hpp"
 #include "opto/subnode.hpp"
+#include "runtime/basicLock.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/javaThread.inline.hpp"
+#include "runtime/lockStack.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/synchronizer.hpp"
@@ -706,7 +708,52 @@ void C2_MacroAssembler::rtm_inflated_locking(Register objReg, Register boxReg, R
 //    In the case of failure, the node will branch directly to the
 //    FailureLabel
 
+void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg, Register tmpReg, Register monReg, Register thread, Label& SUCCESS, Label &SLOW_PATH) {
+  // x86_64
+  assert_different_registers(objReg, boxReg, tmpReg, monReg);
 
+  // Check if monitor
+  movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));
+  testptr(tmpReg, markWord::monitor_value);
+
+  // ObjectMonitor* is *not* in the header and no cache has been implemented.
+  // Take the slow-path into the runtime.
+  if (!OMUseC2Cache) {
+    jcc(Assembler::notZero, SLOW_PATH);
+    lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
+    jmp(SUCCESS);
+  } else {
+    Label INFLATED;
+    movptr(Address(boxReg, BasicLock::displaced_header_offset_in_bytes()), 0);
+
+    jcc(Assembler::notZero, INFLATED);
+
+    lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
+    jmp(SUCCESS);
+
+    bind(INFLATED);
+    if (OMCacheHitRate) increment(Address(thread, JavaThread::lock_lookup_offset()));
+
+    // Fetch ObjectMonitor* from the cache or take the slow-path
+    Label monitor_found, loop;
+    lea(tmpReg, Address(thread, JavaThread::om_cache_oops_offset()));
+    bind(loop);
+    cmpptr(objReg, Address(tmpReg));
+    jccb(Assembler::equal, monitor_found);
+    cmpptr(Address(tmpReg), 1);
+    jcc(Assembler::below, SLOW_PATH); // 0 check, but with ZF=0 when *tmpReg == 0
+    increment(tmpReg, oopSize);
+    jmpb(loop);
+    bind(monitor_found);
+    movptr(monReg, Address(tmpReg, OMCache::oop_to_monitor_difference()));
+    if (OMCacheHitRate) increment(Address(thread, JavaThread::lock_hit_offset()));
+    Label SUCCESS_MONITOR;
+    // Lock the monitor
+    fast_lock_inflated(boxReg, tmpReg, monReg, thread, SUCCESS_MONITOR, SLOW_PATH);
+    bind(SUCCESS_MONITOR);
+    movptr(Address(boxReg, BasicLock::displaced_header_offset_in_bytes()), monReg);
+
+  }
 
 void C2_MacroAssembler::fast_lock_value_class_check(Register objReg, Register tmpReg,
                                                     Register scrReg, Label& DONE_LABEL) {
@@ -913,7 +960,7 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   jmpb  (DONE_LABEL);
 
 #else // _LP64
-  if (LockingMode != LM_LIGHTWEIGHT || C2OMUnlockCacheSize > 0) {
+  if (LockingMode != LM_LIGHTWEIGHT || OMUseC2Cache) {
     cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
     jccb(Assembler::equal, LNotRecursive);
 

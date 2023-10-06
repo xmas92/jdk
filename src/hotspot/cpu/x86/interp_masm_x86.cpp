@@ -1237,6 +1237,7 @@ void InterpreterMacroAssembler::lock_object(Register lock_reg) {
       get_thread(thread);
 #endif
       // Load object header, prepare for CAS from unlocked to locked.
+      movptr(Address(lock_reg, mark_offset), 0);
       movptr(swap_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
       lightweight_lock(obj_reg, swap_reg, thread, tmp_reg, slow_case);
     } else if (LockingMode == LM_LEGACY) {

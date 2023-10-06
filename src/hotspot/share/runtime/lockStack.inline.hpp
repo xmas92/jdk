@@ -34,6 +34,7 @@
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
+#include "runtime/synchronizer.hpp"
 
 inline int LockStack::to_index(uint32_t offset) {
   return (offset - lock_stack_base_offset) / oopSize;

@@ -31,6 +31,7 @@
 #include "memory/iterator.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/javaThread.hpp"
+#include "runtime/objectMonitor.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"

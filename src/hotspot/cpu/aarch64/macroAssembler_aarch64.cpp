@@ -6334,8 +6334,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
   bind(retry);
 
   if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    tst(hdr, markWord::monitor_value | markWord::unlocked_value);
-    br(Assembler::EQ, recursive_check);
+    tbz(hdr, exact_log2(markWord::unlocked_value), recursive_check);
   }
 
   // Load (object->mark() | 1) into hdr
@@ -6360,9 +6359,14 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
       tbnz(hdr, log2i_exact(markWord::unlocked_value), retry);
     }
 
-    // Check if fast locked
-    tst(t2, markWord::monitor_value | markWord::unlocked_value);
-    br(Assembler::NE, slow);
+    if (!OMRecursiveFastPath2) {
+      // Check if fast locked
+      tst(t2, markWord::monitor_value | markWord::unlocked_value);
+      br(Assembler::NE, slow);
+    } else {
+      // NE set after failed CAS
+      b(slow);
+    }
 
     bind(recursive_check);
 

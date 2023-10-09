@@ -26,6 +26,8 @@
 #ifndef SHARE_RUNTIME_JAVATHREAD_INLINE_HPP
 #define SHARE_RUNTIME_JAVATHREAD_INLINE_HPP
 
+#include "logging/log.hpp"
+#include "memory/resourceArea.hpp"
 #include "runtime/javaThread.hpp"
 
 #include "classfile/javaClasses.hpp"
@@ -254,19 +256,27 @@ inline void JavaThread::om_clear_monitor_cache() {
 
   _om_cache.clear();
 
+  LogTarget(Info, monitorinflation) lt;
+  if (!lt.is_enabled()) {
+    return;
+  }
+
+  ResourceMark rm;
+
   if (_unlocked_inflation != 0 ||
       _recursive_inflation != 0 ||
       _contended_recursive_inflation != 0 ||
       _contended_inflation != 0 ||
       _wait_inflation != 0 ||
       _lock_stack_inflation != 0) {
-    log_info(monitorinflation)("Mon: %8zu Rec: %8zu CRec: %8zu Cont: %8zu Wait: %8zu Stack: %8zu",
+    log_info(monitorinflation)("Mon: %8zu Rec: %8zu CRec: %8zu Cont: %8zu Wait: %8zu Stack: %8zu Thread: %s",
                               _unlocked_inflation,
                               _recursive_inflation,
                               _contended_recursive_inflation,
                               _contended_inflation,
                               _wait_inflation,
-                              _lock_stack_inflation);
+                              _lock_stack_inflation,
+                              name());
   }
   _unlocked_inflation            = 0;
   _recursive_inflation           = 0;
@@ -277,9 +287,10 @@ inline void JavaThread::om_clear_monitor_cache() {
 
   if (_wait_deflation != 0 ||
       _exit_deflation != 0) {
-    log_info(monitorinflation)("Wait: %8zu Exit: %8zu",
+    log_info(monitorinflation)("Wait: %8zu Exit: %8zu Thread: %s",
                               _wait_deflation,
-                              _exit_deflation);
+                              _exit_deflation,
+                              name());
   }
   _wait_deflation = 0;
   _exit_deflation = 0;
@@ -288,9 +299,10 @@ inline void JavaThread::om_clear_monitor_cache() {
       _unlock_lookup != 0) {
     const double lock_hit_rate = (double)_lock_hit / (double)_lock_lookup * 100;
     const double unlock_hit_rate = (double)_unlock_hit / (double)_unlock_lookup * 100;
-    log_info(monitorinflation)("Lock: %3.2lf %% [%6zu / %6zu] Unlock: %3.2lf %% [%6zu / %6zu]",
+    log_info(monitorinflation)("Lock: %3.2lf %% [%6zu / %6zu] Unlock: %3.2lf %% [%6zu / %6zu] Thread: %s",
                               lock_hit_rate, _lock_hit, _lock_lookup,
-                              unlock_hit_rate, _unlock_hit, _unlock_lookup);
+                              unlock_hit_rate, _unlock_hit, _unlock_lookup,
+                              name());
   }
   _lock_hit = 0;
   _lock_lookup = 0;

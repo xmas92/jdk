@@ -766,6 +766,8 @@ void JavaThread::exit(bool destroy_vm, ExitType exit_type) {
   elapsedTimer _timer_exit_phase3;
   elapsedTimer _timer_exit_phase4;
 
+  om_clear_monitor_cache();
+
   if (log_is_enabled(Debug, os, thread, timer)) {
     _timer_exit_phase1.start();
   }

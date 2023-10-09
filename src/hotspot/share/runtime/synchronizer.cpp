@@ -2311,6 +2311,11 @@ void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* loc
   }
 
   if (lock_stack.try_recursive_enter(obj())) {
+    // TODO: Maybe guard this by the value in the markWord (only is fast locked)
+    //       Currently this is done when exiting. Doing it early could remove,
+    //       LockStack::CAPACITY - 1 slow paths in the best case. But need to fix
+    //       some of the inflation counters for this change.
+
     // Recursively fast locked
     return;
   }
@@ -2318,6 +2323,10 @@ void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* loc
   if (lock_stack.contains(obj())) {
     ObjectMonitor* mon = inflate_fast_locked_object(obj(), locking_thread, current, ObjectSynchronizer::inflate_cause_monitor_enter);
     bool entered = mon->enter(locking_thread);
+    locking_thread->om_set_monitor_cache(mon);
+    if (lock != nullptr) {
+      lock->set_displaced_header(mon);
+    }
     assert(entered, "recursive ObjectMonitor::enter must succeed");
     return;
   }

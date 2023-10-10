@@ -9958,10 +9958,6 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
 
 #ifdef _LP64
   if (OMRecursiveLightweight) {
-    //movl(tmp, Address(r15_thread, JavaThread::lock_stack_top_offset()));
-    // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
-    //cmpptr(obj, Address(r15_thread, tmp, Address::times_1, -oopSize * 2));
-    // next to last obj on lock_stack is also this oop, recursive unlock
     cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
     jccb(Assembler::equal, success);
   }

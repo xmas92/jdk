@@ -9853,6 +9853,61 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
 }
 
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow) {
+  assert(hdr == rax, "header must be in rax for cmpxchg");
+  assert_different_registers(obj, hdr, thread, tmp);
+  Label success, retry;
+
+  // First we need to check if the lock-stack has room for pushing the object reference.
+  // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
+  // of 'greaterEqual' below, which readily clears the ZF. This makes C2 code a little simpler and
+  // avoids one branch.
+  cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
+  jcc(Assembler::greater, slow);
+
+  // Now we attempt to take the fast-lock.
+  // Clear lock_mask bits (locked state).
+  bind(retry);
+  andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
+  movptr(tmp, hdr);
+  // Set unlocked_value bit.
+  orptr(hdr, markWord::unlocked_value);
+  lock();
+  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+
+#ifdef _LP64
+  if (OMRecursiveLightweight) {
+    // Load lock_stack_top, this is only not used in the slowest of paths
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+    // CAS successful
+    jcc(Assembler::equal, success);
+
+    if (OMRetryLock) {
+      // Retry lock if failed due to non-lock bits changed
+      testptr(hdr, markWord::unlocked_value);
+      jccb(Assembler::notZero, retry);
+    }
+    // Check if fast locked
+    testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
+    jcc(Assembler::notZero, slow);
+
+    cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
+    jcc(Assembler::notEqual, slow);
+    movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
+  } else
+#endif
+  {
+    jcc(Assembler::notEqual, slow);
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+  }
+
+  bind(success);
+  // If successful, push object to lock-stack.
+  movptr(Address(thread, tmp), obj);
+  incrementl(tmp, oopSize);
+  movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
+}
+
 // Implements lightweight-unlocking.
 // Branches to slow upon failure, with ZF cleared.
 // Falls through upon success, with unspecified ZF.
@@ -9873,6 +9928,44 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
     // next to last obj on lock_stack is also this oop, recursive unlock
     jccb(Assembler::equal, success);
   }
+#endif
+
+  // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
+  movptr(tmp, hdr); // The expected old value
+  orptr(tmp, markWord::unlocked_value);
+  lock();
+  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+  jcc(Assembler::notEqual, slow);
+  // Pop the lock object from the lock-stack.
+#ifdef _LP64
+  const Register thread = r15_thread;
+#else
+  const Register thread = rax;
+  get_thread(thread);
+#endif
+  bind(success);
+  subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
+#ifdef ASSERT
+  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+  movptr(Address(thread, tmp), 0);
+#endif
+}
+
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box, Register tmp, Label& slow) {
+  assert(hdr == rax, "header must be in rax for cmpxchg");
+  assert_different_registers(obj, hdr, tmp);
+  Label success;
+
+#ifdef _LP64
+  if (OMRecursiveLightweight) {
+    //movl(tmp, Address(r15_thread, JavaThread::lock_stack_top_offset()));
+    // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
+    //cmpptr(obj, Address(r15_thread, tmp, Address::times_1, -oopSize * 2));
+    // next to last obj on lock_stack is also this oop, recursive unlock
+    cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
+    jccb(Assembler::equal, success);
+  }
+  movptr(hdr, tmp);
 #endif
 
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.

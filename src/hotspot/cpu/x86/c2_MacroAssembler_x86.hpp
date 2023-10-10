@@ -35,8 +35,16 @@ public:
 
   // Code used by cmpFastLock and cmpFastUnlock mach instructions in .ad file.
   // See full description in macroAssembler_x86.cpp.
-  void fast_lock(Register obj, Register box, Register tmp,
-                 Register scr, Register thread);
+  void fast_lock_value_class_check(Register objReg, Register tmpReg,
+                                   Register scrReg, Label& DONE_LABEL);
+  void fast_lock_prequel(Register objReg, Register boxReg, Register tmpReg,
+                         Register scrReg, Register thread,
+                         Label& IsInflated, Label& DONE_LABEL, Label& NO_COUNT, Label& COUNT);
+  void fast_lock(Register obj, Register box, Register tmp, Register scr, Register thread);
+  void fast_unlock_prequel(Register objReg, Register boxReg, Register tmpReg,
+                           Label& Stacked, Label& COUNT, Label& NO_COUNT);
+  void fast_unlock_inflated(Register objReg, Register boxReg, Register tmpReg,
+                            Label& DONE_LABEL, Label& Stacked, Label& COUNT, Label& NO_COUNT);
   void fast_unlock(Register obj, Register box, Register tmp);
 
 #if INCLUDE_RTM_OPT

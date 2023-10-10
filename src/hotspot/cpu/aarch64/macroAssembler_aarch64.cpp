@@ -6387,6 +6387,74 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
   strw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
 }
 
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
+  assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
+  assert_different_registers(obj, hdr, t1, t2, rscratch1);
+  Label success, retry, recursive_check;
+
+  // Check if we would have space on lock-stack for the object.
+  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+  cmpw(t1, (unsigned)LockStack::end_offset() - 1);
+  br(Assembler::GT, slow);
+
+  bind(retry);
+
+  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
+    tbz(hdr, exact_log2(markWord::unlocked_value), recursive_check);
+  }
+
+  // Load (object->mark() | 1) into hdr
+  orr(hdr, hdr, markWord::unlocked_value);
+  // Clear lock-bits, into t1
+  eor(t1, hdr, markWord::unlocked_value);
+  // Try to swing header from unlocked to locked
+  cmpxchg(/*addr*/ obj, /*expected*/ hdr, /*new*/ t1, Assembler::xword,
+          /*acquire*/ true, /*release*/ true, /*weak*/ false, t2);
+
+  // Reload top
+  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+
+  if (OMRecursiveLightweight) {
+    // CAS successful
+    br(Assembler::EQ, success);
+
+    if (OMRetryLock) {
+      // Retry lock if failed due to non-lock bits changed
+      mov(hdr, t2);
+      // Test unlock bit, if still set, retry
+      tbnz(hdr, log2i_exact(markWord::unlocked_value), retry);
+    }
+
+    if (!OMRecursiveFastPath2) {
+      // Check if fast locked
+      tst(t2, markWord::monitor_value | markWord::unlocked_value);
+      br(Assembler::NE, slow);
+    } else {
+      // NE set after failed CAS
+      b(slow);
+    }
+
+    bind(recursive_check);
+
+    // Check if the lock is lightweight-lock recursive
+    subw(t2, t1, oopSize);
+    ldr(t2, Address(rthread, t2));
+    cmp(obj, t2);
+    br(Assembler::NE, slow);
+    mov(t2, 1);
+    str(t2, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+  } else {
+    br(Assembler::NE, slow);
+  }
+
+  bind(success);
+
+  // After successful lock, push object on lock-stack
+  str(obj, Address(rthread, t1));
+  addw(t1, t1, oopSize);
+  strw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+}
+
 // Implements lightweight-unlocking.
 // Branches to slow upon failure, with ZF cleared.
 // Falls through upon success, with ZF set.
@@ -6443,6 +6511,72 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1,
     cmp(obj, t2);
     // next to last obj on lock_stack is also this oop, recursive unlock
     br(Assembler::EQ, success);
+  }
+
+  // Load the new header (unlocked) into t1
+  orr(t2, hdr, markWord::unlocked_value);
+
+  // Try to swing header from locked to unlocked
+  // Clobbers rscratch1 when UseLSE is false
+  cmpxchg(obj, hdr, t2, Assembler::xword,
+          /*acquire*/ true, /*release*/ true, /*weak*/ false, noreg);
+  br(Assembler::NE, slow);
+
+  bind(success);
+
+  // After successful unlock, pop object from lock-stack
+  subw(t1, t1, oopSize);
+#ifdef ASSERT
+  str(zr, Address(rthread, t1));
+#endif
+  strw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+}
+
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
+  assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
+  assert_different_registers(obj, hdr, t1, t2, rscratch1);
+
+#ifdef ASSERT
+  {
+    // The following checks rely on the fact that LockStack is only ever modified by
+    // its owning thread, even if the lock got inflated concurrently; removal of LockStack
+    // entries after inflation will happen delayed in that case.
+
+    // Check for lock-stack underflow.
+    Label stack_ok;
+    ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+    cmpw(t1, (unsigned)LockStack::start_offset());
+    br(Assembler::GT, stack_ok);
+    STOP("Lock-stack underflow");
+    bind(stack_ok);
+  }
+  {
+    // Check if the top of the lock-stack matches the unlocked object.
+    Label tos_ok;
+    subw(t1, t1, oopSize);
+    ldr(t1, Address(rthread, t1));
+    cmpoop(t1, obj);
+    br(Assembler::EQ, tos_ok);
+    STOP("Top of lock-stack does not match the unlocked object");
+    bind(tos_ok);
+  }
+  {
+    // Check that hdr is fast-locked.
+    Label hdr_ok;
+    tst(hdr, markWord::lock_mask_in_place);
+    br(Assembler::EQ, hdr_ok);
+    STOP("Header is not fast-locked");
+    bind(hdr_ok);
+  }
+#endif
+
+  Label success;
+
+  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+
+  if (OMRecursiveLightweight) {
+    ldr(t1, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+    tbnz(t1, 0, success); // Recursive if lowest bit is set
   }
 
   // Load the new header (unlocked) into t1

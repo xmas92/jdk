@@ -1593,7 +1593,9 @@ public:
   void spin_wait();
 
   void lightweight_lock(Register obj, Register hdr, Register t1, Register t2, Label& slow);
+  void lightweight_lock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
   void lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& slow);
+  void lightweight_unlock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
 
 private:
   // Check the current thread doesn't need a cross modify fence.

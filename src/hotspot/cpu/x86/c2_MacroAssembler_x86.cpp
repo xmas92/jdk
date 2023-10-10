@@ -170,6 +170,309 @@ inline Assembler::AvxVectorLen C2_MacroAssembler::vector_length_encoding(int vle
 
 #if INCLUDE_RTM_OPT
 
+// obj: object to lock
+// box: on-stack box address (displaced header location) - KILLED
+// rax,: tmp -- KILLED
+// scr: tmp -- KILLED
+void C2_MacroAssembler::fast_lock_rtm(Register objReg, Register boxReg, Register tmpReg,
+                                      Register scrReg, Register cx1Reg, Register cx2Reg, Register thread,
+                                      RTMLockingCounters* rtm_counters,
+                                      RTMLockingCounters* stack_rtm_counters,
+                                      Metadata* method_data, bool profile_rtm) {
+  // Ensure the register assignments are disjoint
+  assert(tmpReg == rax, "");
+  assert_different_registers(objReg, boxReg, tmpReg, scrReg, cx1Reg, cx2Reg);
+
+
+  // Possible cases that we'll encounter in fast_lock
+  // ------------------------------------------------
+  // * Inflated
+  //    -- unlocked
+  //    -- Locked
+  //       = by self
+  //       = by other
+  // * neutral
+  // * stack-locked
+  //    -- by self
+  //       = sp-proximity test hits
+  //       = sp-proximity test generates false-negative
+  //    -- by other
+  //
+
+  Label IsInflated, DONE_LABEL, NO_COUNT, COUNT;
+
+  if (DiagnoseSyncOnValueBasedClasses != 0) {
+    load_klass(tmpReg, objReg, scrReg);
+    movl(tmpReg, Address(tmpReg, Klass::access_flags_offset()));
+    testl(tmpReg, JVM_ACC_IS_VALUE_BASED_CLASS);
+    jcc(Assembler::notZero, DONE_LABEL);
+  }
+
+  if (UseRTMForStackLocks) {
+    assert(LockingMode != LM_MONITOR, "LockingMode == 0 (LM_MONITOR) and +UseRTMForStackLocks are mutually exclusive");
+    rtm_stack_locking(objReg, tmpReg, scrReg, cx2Reg,
+                      stack_rtm_counters, method_data, profile_rtm,
+                      DONE_LABEL, IsInflated);
+  }
+
+  movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));          // [FETCH]
+  testptr(tmpReg, markWord::monitor_value); // inflated vs stack-locked|neutral
+  jcc(Assembler::notZero, IsInflated);
+
+  if (LockingMode == LM_MONITOR) {
+    // Clear ZF so that we take the slow path at the DONE label. objReg is known to be not 0.
+    testptr(objReg, objReg);
+  } else if (LockingMode == LM_LEGACY) {
+    // Attempt stack-locking ...
+    orptr (tmpReg, markWord::unlocked_value);
+    movptr(Address(boxReg, 0), tmpReg);          // Anticipate successful CAS
+    lock();
+    cmpxchgptr(boxReg, Address(objReg, oopDesc::mark_offset_in_bytes()));      // Updates tmpReg
+    jcc(Assembler::equal, COUNT);           // Success
+
+    // Recursive locking.
+    // The object is stack-locked: markword contains stack pointer to BasicLock.
+    // Locked by current thread if difference with current SP is less than one page.
+    subptr(tmpReg, rsp);
+    // Next instruction set ZFlag == 1 (Success) if difference is less then one page.
+    andptr(tmpReg, (int32_t) (NOT_LP64(0xFFFFF003) LP64_ONLY(7 - (int)os::vm_page_size())) );
+    movptr(Address(boxReg, 0), tmpReg);
+  } else {
+    assert(LockingMode == LM_LIGHTWEIGHT, "");
+    lightweight_lock(objReg, tmpReg, thread, scrReg, NO_COUNT);
+    jmp(COUNT);
+  }
+  jmp(DONE_LABEL);
+
+  bind(IsInflated);
+  // The object is inflated. tmpReg contains pointer to ObjectMonitor* + markWord::monitor_value
+
+  // Use the same RTM locking code in 32- and 64-bit VM.
+  rtm_inflated_locking(objReg, boxReg, tmpReg, scrReg, cx1Reg, cx2Reg,
+                        rtm_counters, method_data, profile_rtm, DONE_LABEL);
+
+  bind(DONE_LABEL);
+
+  // ZFlag == 1 count in fast path
+  // ZFlag == 0 count in slow path
+  jccb(Assembler::notZero, NO_COUNT); // jump if ZFlag == 0
+
+  bind(COUNT);
+  // Count monitors in fast path
+  increment(Address(thread, JavaThread::held_monitor_count_offset()));
+
+  xorl(tmpReg, tmpReg); // Set ZF == 1
+
+  bind(NO_COUNT);
+
+  // At NO_COUNT the icc ZFlag is set as follows ...
+  // fast_unlock uses the same protocol.
+  // ZFlag == 1 -> Success
+  // ZFlag == 0 -> Failure - force control through the slow path
+}
+
+// obj: object to unlock
+// box: box address (displaced header location), killed.  Must be EAX.
+// tmp: killed, cannot be obj nor box.
+//
+// For commentary on balanced locking see C2_MacroAssembler::fast_unlock
+
+void C2_MacroAssembler::fast_unlock_rtm(Register objReg, Register boxReg, Register tmpReg) {
+  assert(boxReg == rax, "");
+  assert_different_registers(objReg, boxReg, tmpReg);
+
+  Label DONE_LABEL, Stacked, COUNT, NO_COUNT;
+
+  if (UseRTMForStackLocks) {
+    assert(LockingMode != LM_MONITOR, "LockingMode == 0 (LM_MONITOR) and +UseRTMForStackLocks are mutually exclusive");
+    Label L_regular_unlock;
+    movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes())); // fetch markword
+    andptr(tmpReg, markWord::lock_mask_in_place);                     // look at 2 lock bits
+    cmpptr(tmpReg, markWord::unlocked_value);                         // bits = 01 unlocked
+    jccb(Assembler::notEqual, L_regular_unlock);                      // if !HLE RegularLock
+    xend();                                                           // otherwise end...
+    jmp(DONE_LABEL);                                                  // ... and we're done
+    bind(L_regular_unlock);
+  }
+
+  if (LockingMode == LM_LEGACY) {
+    cmpptr(Address(boxReg, 0), NULL_WORD);                            // Examine the displaced header
+    jcc   (Assembler::zero, COUNT);                                   // 0 indicates recursive stack-lock
+  }
+  movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));   // Examine the object's markword
+  if (LockingMode != LM_MONITOR) {
+    testptr(tmpReg, markWord::monitor_value);                         // Inflated?
+    jcc(Assembler::zero, Stacked);
+  }
+
+  // It's inflated.
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // If the owner is ANONYMOUS, we need to fix it -  in an outline stub.
+    testb(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), (int32_t) ObjectMonitor::ANONYMOUS_OWNER);
+#ifdef _LP64
+    if (!Compile::current()->output()->in_scratch_emit_size()) {
+      C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmpReg, boxReg);
+      Compile::current()->output()->add_stub(stub);
+      jcc(Assembler::notEqual, stub->entry());
+      bind(stub->continuation());
+    } else
+#endif
+    {
+      // We can't easily implement this optimization on 32 bit because we don't have a thread register.
+      // Call the slow-path instead.
+      jcc(Assembler::notEqual, NO_COUNT);
+    }
+  }
+
+  Label L_regular_inflated_unlock;
+  int owner_offset = OM_OFFSET_NO_MONITOR_VALUE_TAG(owner);
+  movptr(boxReg, Address(tmpReg, owner_offset));
+  testptr(boxReg, boxReg);
+  jccb(Assembler::notZero, L_regular_inflated_unlock);
+  xend();
+  jmp(DONE_LABEL);
+  bind(L_regular_inflated_unlock);
+
+  // Despite our balanced locking property we still check that m->_owner == Self
+  // as java routines or native JNI code called by this thread might
+  // have released the lock.
+  // Refer to the comments in synchronizer.cpp for how we might encode extra
+  // state in _succ so we can avoid fetching EntryList|cxq.
+  //
+  // If there's no contention try a 1-0 exit.  That is, exit without
+  // a costly MEMBAR or CAS.  See synchronizer.cpp for details on how
+  // we detect and recover from the race that the 1-0 exit admits.
+  //
+  // Conceptually fast_unlock() must execute a STST|LDST "release" barrier
+  // before it STs null into _owner, releasing the lock.  Updates
+  // to data protected by the critical section must be visible before
+  // we drop the lock (and thus before any other thread could acquire
+  // the lock and observe the fields protected by the lock).
+  // IA32's memory-model is SPO, so STs are ordered with respect to
+  // each other and there's no need for an explicit barrier (fence).
+  // See also http://gee.cs.oswego.edu/dl/jmm/cookbook.html.
+#ifndef _LP64
+  // Note that we could employ various encoding schemes to reduce
+  // the number of loads below (currently 4) to just 2 or 3.
+  // Refer to the comments in synchronizer.cpp.
+  // In practice the chain of fetches doesn't seem to impact performance, however.
+  xorptr(boxReg, boxReg);
+  orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
+  jccb  (Assembler::notZero, DONE_LABEL);
+  movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
+  orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
+  jccb  (Assembler::notZero, DONE_LABEL);
+  movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
+  jmpb  (DONE_LABEL);
+#else // _LP64
+  // It's inflated
+  Label CheckSucc, LNotRecursive, LSuccess, LGoSlowPath;
+
+  cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
+  jccb(Assembler::equal, LNotRecursive);
+
+  // Recursive inflated unlock
+  decq(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
+  jmpb(LSuccess);
+
+  bind(LNotRecursive);
+  movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
+  orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
+  jccb  (Assembler::notZero, CheckSucc);
+  // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
+  movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
+  jmpb  (DONE_LABEL);
+
+  // Try to avoid passing control into the slow_path ...
+  bind  (CheckSucc);
+
+  // The following optional optimization can be elided if necessary
+  // Effectively: if (succ == null) goto slow path
+  // The code reduces the window for a race, however,
+  // and thus benefits performance.
+  cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
+  jccb  (Assembler::zero, LGoSlowPath);
+
+  xorptr(boxReg, boxReg);
+  // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
+  movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
+
+  // Memory barrier/fence
+  // Dekker pivot point -- fulcrum : ST Owner; MEMBAR; LD Succ
+  // Instead of MFENCE we use a dummy locked add of 0 to the top-of-stack.
+  // This is faster on Nehalem and AMD Shanghai/Barcelona.
+  // See https://blogs.oracle.com/dave/entry/instruction_selection_for_volatile_fences
+  // We might also restructure (ST Owner=0;barrier;LD _Succ) to
+  // (mov box,0; xchgq box, &m->Owner; LD _succ) .
+  lock(); addl(Address(rsp, 0), 0);
+
+  cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
+  jccb  (Assembler::notZero, LSuccess);
+
+  // Rare inopportune interleaving - race.
+  // The successor vanished in the small window above.
+  // The lock is contended -- (cxq|EntryList) != null -- and there's no apparent successor.
+  // We need to ensure progress and succession.
+  // Try to reacquire the lock.
+  // If that fails then the new owner is responsible for succession and this
+  // thread needs to take no further action and can exit via the fast path (success).
+  // If the re-acquire succeeds then pass control into the slow path.
+  // As implemented, this latter mode is horrible because we generated more
+  // coherence traffic on the lock *and* artificially extended the critical section
+  // length while by virtue of passing control into the slow path.
+
+  // box is really RAX -- the following CMPXCHG depends on that binding
+  // cmpxchg R,[M] is equivalent to rax = CAS(M,rax,R)
+  lock();
+  cmpxchgptr(r15_thread, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
+  // There's no successor so we tried to regrab the lock.
+  // If that didn't work, then another thread grabbed the
+  // lock so we're done (and exit was a success).
+  jccb  (Assembler::notEqual, LSuccess);
+  // Intentional fall-through into slow path
+
+  bind  (LGoSlowPath);
+  orl   (boxReg, 1);                      // set ICC.ZF=0 to indicate failure
+  jmpb  (DONE_LABEL);
+
+  bind  (LSuccess);
+  testl (boxReg, 0);                      // set ICC.ZF=1 to indicate success
+  jmpb  (DONE_LABEL);
+
+#endif
+  if (LockingMode != LM_MONITOR) {
+    bind  (Stacked);
+    if (LockingMode == LM_LIGHTWEIGHT) {
+      mov(boxReg, tmpReg);
+      lightweight_unlock(objReg, boxReg, tmpReg, NO_COUNT);
+      jmp(COUNT);
+    } else if (LockingMode == LM_LEGACY) {
+      movptr(tmpReg, Address (boxReg, 0));      // re-fetch
+      lock();
+      cmpxchgptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes())); // Uses RAX which is box
+    }
+    // Intentional fall-thru into DONE_LABEL
+  }
+  bind(DONE_LABEL);
+
+  // ZFlag == 1 count in fast path
+  // ZFlag == 0 count in slow path
+  jccb(Assembler::notZero, NO_COUNT);
+
+  bind(COUNT);
+  // Count monitors in fast path
+#ifndef _LP64
+  get_thread(tmpReg);
+  decrementl(Address(tmpReg, JavaThread::held_monitor_count_offset()));
+#else // _LP64
+  decrementq(Address(r15_thread, JavaThread::held_monitor_count_offset()));
+#endif
+
+  xorl(tmpReg, tmpReg); // Set ZF == 1
+
+  bind(NO_COUNT);
+}
+
 // Update rtm_counters based on abort status
 // input: abort_status
 //        rtm_counters (RTMLockingCounters*)
@@ -549,21 +852,10 @@ void C2_MacroAssembler::rtm_inflated_locking(Register objReg, Register boxReg, R
 // rax,: tmp -- KILLED
 // scr: tmp -- KILLED
 void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmpReg,
-                                 Register scrReg, Register cx1Reg, Register cx2Reg, Register thread,
-                                 RTMLockingCounters* rtm_counters,
-                                 RTMLockingCounters* stack_rtm_counters,
-                                 Metadata* method_data,
-                                 bool use_rtm, bool profile_rtm) {
+                                  Register scrReg, Register thread) {
   // Ensure the register assignments are disjoint
   assert(tmpReg == rax, "");
-
-  if (use_rtm) {
-    assert_different_registers(objReg, boxReg, tmpReg, scrReg, cx1Reg, cx2Reg);
-  } else {
-    assert(cx1Reg == noreg, "");
-    assert(cx2Reg == noreg, "");
-    assert_different_registers(objReg, boxReg, tmpReg, scrReg);
-  }
+  assert_different_registers(objReg, boxReg, tmpReg, scrReg);
 
   // Possible cases that we'll encounter in fast_lock
   // ------------------------------------------------
@@ -588,15 +880,6 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
     testl(tmpReg, JVM_ACC_IS_VALUE_BASED_CLASS);
     jcc(Assembler::notZero, DONE_LABEL);
   }
-
-#if INCLUDE_RTM_OPT
-  if (UseRTMForStackLocks && use_rtm) {
-    assert(LockingMode != LM_MONITOR, "LockingMode == 0 (LM_MONITOR) and +UseRTMForStackLocks are mutually exclusive");
-    rtm_stack_locking(objReg, tmpReg, scrReg, cx2Reg,
-                      stack_rtm_counters, method_data, profile_rtm,
-                      DONE_LABEL, IsInflated);
-  }
-#endif // INCLUDE_RTM_OPT
 
   movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));          // [FETCH]
   testptr(tmpReg, markWord::monitor_value); // inflated vs stack-locked|neutral
@@ -629,14 +912,6 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
 
   bind(IsInflated);
   // The object is inflated. tmpReg contains pointer to ObjectMonitor* + markWord::monitor_value
-
-#if INCLUDE_RTM_OPT
-  // Use the same RTM locking code in 32- and 64-bit VM.
-  if (use_rtm) {
-    rtm_inflated_locking(objReg, boxReg, tmpReg, scrReg, cx1Reg, cx2Reg,
-                         rtm_counters, method_data, profile_rtm, DONE_LABEL);
-  } else {
-#endif // INCLUDE_RTM_OPT
 
 #ifndef _LP64
   // The object is inflated.
@@ -698,9 +973,7 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   incq(Address(scrReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
   xorq(rax, rax); // Set ZF = 1 (success) for recursive lock, denoting locking success
 #endif // _LP64
-#if INCLUDE_RTM_OPT
-  } // use_rtm()
-#endif
+
   bind(DONE_LABEL);
 
   // ZFlag == 1 count in fast path
@@ -753,25 +1026,11 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
 // A perfectly viable alternative is to elide the owner check except when
 // Xcheck:jni is enabled.
 
-void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register tmpReg, bool use_rtm) {
+void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register tmpReg) {
   assert(boxReg == rax, "");
   assert_different_registers(objReg, boxReg, tmpReg);
 
   Label DONE_LABEL, Stacked, COUNT, NO_COUNT;
-
-#if INCLUDE_RTM_OPT
-  if (UseRTMForStackLocks && use_rtm) {
-    assert(LockingMode != LM_MONITOR, "LockingMode == 0 (LM_MONITOR) and +UseRTMForStackLocks are mutually exclusive");
-    Label L_regular_unlock;
-    movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes())); // fetch markword
-    andptr(tmpReg, markWord::lock_mask_in_place);                     // look at 2 lock bits
-    cmpptr(tmpReg, markWord::unlocked_value);                         // bits = 01 unlocked
-    jccb(Assembler::notEqual, L_regular_unlock);                      // if !HLE RegularLock
-    xend();                                                           // otherwise end...
-    jmp(DONE_LABEL);                                                  // ... and we're done
-    bind(L_regular_unlock);
-  }
-#endif
 
   if (LockingMode == LM_LEGACY) {
     cmpptr(Address(boxReg, 0), NULL_WORD);                            // Examine the displaced header
@@ -801,19 +1060,6 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
       jcc(Assembler::notEqual, NO_COUNT);
     }
   }
-
-#if INCLUDE_RTM_OPT
-  if (use_rtm) {
-    Label L_regular_inflated_unlock;
-    int owner_offset = OM_OFFSET_NO_MONITOR_VALUE_TAG(owner);
-    movptr(boxReg, Address(tmpReg, owner_offset));
-    testptr(boxReg, boxReg);
-    jccb(Assembler::notZero, L_regular_inflated_unlock);
-    xend();
-    jmp(DONE_LABEL);
-    bind(L_regular_inflated_unlock);
-  }
-#endif
 
   // Despite our balanced locking property we still check that m->_owner == Self
   // as java routines or native JNI code called by this thread might

@@ -36,14 +36,17 @@ public:
   // Code used by cmpFastLock and cmpFastUnlock mach instructions in .ad file.
   // See full description in macroAssembler_x86.cpp.
   void fast_lock(Register obj, Register box, Register tmp,
-                 Register scr, Register cx1, Register cx2, Register thread,
-                 RTMLockingCounters* rtm_counters,
-                 RTMLockingCounters* stack_rtm_counters,
-                 Metadata* method_data,
-                 bool use_rtm, bool profile_rtm);
-  void fast_unlock(Register obj, Register box, Register tmp, bool use_rtm);
+                 Register scr, Register thread);
+  void fast_unlock(Register obj, Register box, Register tmp);
 
 #if INCLUDE_RTM_OPT
+  void fast_lock_rtm(Register obj, Register box, Register tmp,
+                     Register scr, Register cx1, Register cx2, Register thread,
+                     RTMLockingCounters* rtm_counters,
+                     RTMLockingCounters* stack_rtm_counters,
+                     Metadata* method_data, bool profile_rtm);
+  void fast_unlock_rtm(Register obj, Register box, Register tmp);
+
   void rtm_counters_update(Register abort_status, Register rtm_counters);
   void branch_on_random_using_rdtsc(Register tmp, Register scr, int count, Label& brLabel);
   void rtm_abort_ratio_calculation(Register tmp, Register rtm_counters_reg,

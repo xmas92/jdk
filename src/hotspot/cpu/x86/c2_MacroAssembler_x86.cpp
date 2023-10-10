@@ -578,7 +578,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg, 
   // Take the slow-path into the runtime.
   if (!OMUseC2Cache) {
     jcc(Assembler::notZero, SLOW_PATH);
-    lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
+    lightweight_lock(objReg, tmpReg, boxReg, thread, monReg, SLOW_PATH);
     jmp(SUCCESS);
   } else {
     Label INFLATED;
@@ -586,7 +586,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg, 
 
     jcc(Assembler::notZero, INFLATED);
 
-    lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
+    lightweight_lock(objReg, tmpReg, boxReg, thread, monReg, SLOW_PATH);
     jmp(SUCCESS);
 
     bind(INFLATED);
@@ -882,7 +882,7 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
       Label monitor_found;
       if (OMCacheHitRate) increment(Address(r15_thread, JavaThread::unlock_lookup_offset()));
       movptr(tmpReg, Address(boxReg, BasicLock::displaced_header_offset_in_bytes()));
-      cmpptr(tmpReg, 1);
+      cmpptr(tmpReg, 2);
       jcc(Assembler::below, NO_COUNT); // 0 check with ZF=0 when tmpReg == 0
 
       if (OMCacheHitRate) increment(Address(r15_thread, JavaThread::unlock_hit_offset()));
@@ -1018,8 +1018,8 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
   if (LockingMode != LM_MONITOR) {
     bind  (Stacked);
     if (LockingMode == LM_LIGHTWEIGHT) {
-      mov(boxReg, tmpReg);
-      lightweight_unlock(objReg, boxReg, tmpReg, NO_COUNT);
+      //mov(boxReg, tmpReg);
+      lightweight_unlock(objReg, boxReg, boxReg, tmpReg, NO_COUNT);
       jmp(COUNT);
     } else if (LockingMode == LM_LEGACY) {
       movptr(tmpReg, Address (boxReg, 0));      // re-fetch

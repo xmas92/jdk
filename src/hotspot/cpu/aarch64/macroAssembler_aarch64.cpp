@@ -6359,13 +6359,13 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
       tbnz(hdr, log2i_exact(markWord::unlocked_value), retry);
     }
 
-    if (!OMRecursiveFastPath2) {
+    if (OMRecursiveFastPath2) {
+      // NE set after failed CAS
+      b(slow);
+    } else {
       // Check if fast locked
       tst(t2, markWord::monitor_value | markWord::unlocked_value);
       br(Assembler::NE, slow);
-    } else {
-      // NE set after failed CAS
-      b(slow);
     }
 
     bind(recursive_check);
@@ -6425,13 +6425,13 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
       tbnz(hdr, log2i_exact(markWord::unlocked_value), retry);
     }
 
-    if (!OMRecursiveFastPath2) {
+    if (OMRecursiveFastPath2) {
+      // NE set after failed CAS
+      b(slow);
+    } else {
       // Check if fast locked
       tst(t2, markWord::monitor_value | markWord::unlocked_value);
       br(Assembler::NE, slow);
-    } else {
-      // NE set after failed CAS
-      b(slow);
     }
 
     bind(recursive_check);

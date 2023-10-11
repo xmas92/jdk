@@ -756,12 +756,18 @@ void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg,
     if (OMCacheHitRate) increment(Address(thread, JavaThread::lock_hit_offset()));
     Label SUCCESS_MONITOR;
     // Lock the monitor
+    Label recursion;
+    if (OMRecursiveFastPath) {
+      cmpptr(thread, Address(monReg, ObjectMonitor::owner_offset()));
+      jccb(Assembler::equal, recursion);
+    }
     xorptr(rax, rax);
     lock(); cmpxchgptr(thread, Address(monReg, ObjectMonitor::owner_offset()));
     jccb(Assembler::equal, SUCCESS_MONITOR);          // CAS above succeeded; propagate ZF = 1 (success)
 
     cmpptr(thread, rax);                // Check if we are already the owner (recursive lock)
     jccb(Assembler::notEqual, SLOW_PATH);    // If not recursive, ZF = 0 at this point (fail)
+    bind(recursion);
     increment(Address(monReg, ObjectMonitor::recursions_offset()));
 
     bind(SUCCESS_MONITOR);
@@ -1141,45 +1147,45 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
     movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
     jmpb  (SUCCESS);
 #else // _LP64
-  // It's inflated
-  Label CheckSucc, LNotRecursive, LSuccess, LGoSlowPath;
+    // It's inflated
+    Label CheckSucc, LNotRecursive;
 
-  cmpptr(Address(tmpReg, ObjectMonitor::recursions_offset()), 0);
-  jccb(Assembler::equal, LNotRecursive);
+    cmpptr(Address(tmpReg, ObjectMonitor::recursions_offset()), 0);
+    jccb(Assembler::equal, LNotRecursive);
 
-  // Recursive inflated unlock
-  decq(Address(tmpReg, ObjectMonitor::recursions_offset()));
-  jmpb(SUCCESS);
+    // Recursive inflated unlock
+    decq(Address(tmpReg, ObjectMonitor::recursions_offset()));
+    jmp(SUCCESS);
 
-  bind(LNotRecursive);
-  movptr(boxReg, Address(tmpReg, ObjectMonitor::cxq_offset()));
-  orptr(boxReg, Address(tmpReg, ObjectMonitor::EntryList_offset()));
-  jccb  (Assembler::notZero, CheckSucc);
-  movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
-  jmpb  (SUCCESS);
+    bind(LNotRecursive);
+    movptr(boxReg, Address(tmpReg, ObjectMonitor::cxq_offset()));
+    orptr(boxReg, Address(tmpReg, ObjectMonitor::EntryList_offset()));
+    jccb  (Assembler::notZero, CheckSucc);
+    movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
+    jmp   (SUCCESS);
 
-  // Try to avoid passing control into the slow_path ...
-  bind  (CheckSucc);
-  cmpptr(Address(tmpReg, ObjectMonitor::succ_offset()), 1);
-  jccb  (Assembler::below, SLOW_PATH); // null check with ZF == 0 on null
+    // Try to avoid passing control into the slow_path ...
+    bind  (CheckSucc);
+    cmpptr(Address(tmpReg, ObjectMonitor::succ_offset()), 1);
+    jcc   (Assembler::below, SLOW_PATH); // null check with ZF == 0 on null
 
-  // Unlock
-  movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
+    // Unlock
+    movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
 
-  // Memory barrier/fence
-  lock(); addl(Address(rsp, 0), 0);
+    // Memory barrier/fence
+    lock(); addl(Address(rsp, 0), 0);
 
-  cmpptr(Address(tmpReg, ObjectMonitor::succ_offset()), NULL_WORD);
-  jccb  (Assembler::notZero, SUCCESS);
+    cmpptr(Address(tmpReg, ObjectMonitor::succ_offset()), NULL_WORD);
+    jcc   (Assembler::notZero, SUCCESS);
 
-  // No successor, attempt to retake the lock and unlock in slow path incase of race
-  xorptr(rax, rax);
-  lock(); cmpxchgptr(r15_thread, Address(tmpReg, ObjectMonitor::owner_offset()));
-  jccb  (Assembler::notEqual, SUCCESS);
+    // No successor, attempt to retake the lock and unlock in slow path incase of race
+    xorptr(rax, rax);
+    lock(); cmpxchgptr(r15_thread, Address(tmpReg, ObjectMonitor::owner_offset()));
+    jcc   (Assembler::notEqual, SUCCESS);
 
-  // if CAS failed rax is not 0, ZF == 0 after test
-  testptr(rax, rax);
-  jmpb(SLOW_PATH);
+    // set ZF = 0, objReg know non null
+    testptr(objReg, objReg);
+    jmp(SLOW_PATH);
 #endif
   } else {
     // No cache; take the slow-path

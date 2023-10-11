@@ -9865,6 +9865,13 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
   cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
   jcc(Assembler::greater, slow);
 
+  Label recursion;
+  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+    testptr(hdr, markWord::unlocked_value);
+    jccb(Assembler::zero, recursion);
+  }
+
   // Now we attempt to take the fast-lock.
   // Clear lock_mask bits (locked state).
   bind(retry);
@@ -9880,7 +9887,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
     // Load lock_stack_top, this is only not used in the slowest of paths
     movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     // CAS successful
-    jcc(Assembler::equal, success);
+    jccb(Assembler::equal, success);
 
     if (OMRetryLock) {
       // Retry lock if failed due to non-lock bits changed
@@ -9891,6 +9898,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
     testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
     jcc(Assembler::notZero, slow);
 
+    bind(recursion);
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
     jcc(Assembler::notEqual, slow);
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
@@ -9947,6 +9955,11 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 #ifdef ASSERT
   movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+  Label correct;
+  cmpptr(obj, Address(thread, tmp));
+  jccb(Assembler::equal, correct);
+  stop("C2 Wrong oop popped from LockStack");
+  bind(correct);
   movptr(Address(thread, tmp), 0);
 #endif
 }
@@ -9954,12 +9967,12 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
 void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box, Register tmp, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, tmp);
-  Label success;
+  Label success, recursive_success;
 
 #ifdef _LP64
   if (OMRecursiveLightweight) {
     cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
-    jccb(Assembler::equal, success);
+    jccb(Assembler::equal, recursive_success);
   }
   movptr(hdr, tmp);
 #endif
@@ -9977,10 +9990,23 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
   const Register thread = rax;
   get_thread(thread);
 #endif
+  bind(recursive_success);
+#ifdef ASSERT
+  jmpb(success);
+  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+  cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize * 2));
+  jccb(Assembler::equal, success);
+  stop("C2 Invalid recusive");
+#endif
   bind(success);
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 #ifdef ASSERT
   movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+  Label correct;
+  cmpptr(obj, Address(thread, tmp));
+  jccb(Assembler::equal, correct);
+  stop("C2 Wrong oop popped from LockStack");
+  bind(correct);
   movptr(Address(thread, tmp), 0);
 #endif
 }

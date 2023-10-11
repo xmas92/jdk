@@ -9867,7 +9867,6 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
 
   Label recursion;
   if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     testptr(hdr, markWord::unlocked_value);
     jccb(Assembler::zero, recursion);
   }
@@ -9885,7 +9884,6 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
 #ifdef _LP64
   if (OMRecursiveLightweight) {
     // Load lock_stack_top, this is only not used in the slowest of paths
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     // CAS successful
     jccb(Assembler::equal, success);
 
@@ -9899,6 +9897,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
     jcc(Assembler::notZero, slow);
 
     bind(recursion);
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
     jcc(Assembler::notEqual, slow);
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
@@ -9906,10 +9905,10 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
 #endif
   {
     jcc(Assembler::notEqual, slow);
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   }
 
   bind(success);
+  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   // If successful, push object to lock-stack.
   movptr(Address(thread, tmp), obj);
   incrementl(tmp, oopSize);

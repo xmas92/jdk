@@ -210,4 +210,26 @@ inline ObjectMonitorContentionMark::~ObjectMonitorContentionMark() {
   _monitor->add_to_contentions(-1);
 }
 
+inline oop ObjectMonitor::object_peek() const {
+  if (_object.is_null()) {
+    return nullptr;
+  }
+  return _object.peek();
+}
+
+inline bool ObjectMonitor::object_is_dead() const {
+  return object_peek() == nullptr;
+}
+
+inline bool ObjectMonitor::object_is_cleared() const {
+  return _object.is_null();
+}
+
+inline bool ObjectMonitor::object_refers_to(oop obj) const {
+  if (_object.is_null()) {
+    return false;
+  }
+  return _object.peek() == obj;
+}
+
 #endif // SHARE_RUNTIME_OBJECTMONITOR_INLINE_HPP

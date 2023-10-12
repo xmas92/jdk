@@ -9975,7 +9975,6 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
 
-#ifdef _LP64
   if (OMRecursiveLightweight) {
     // Load lock_stack_top, this is only not used in the slowest of paths
     // CAS successful
@@ -9995,9 +9994,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
     jcc(Assembler::notEqual, slow);
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
-  } else
-#endif
-  {
+  } else {
     jcc(Assembler::notEqual, slow);
   }
 
@@ -10077,13 +10074,11 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
   assert_different_registers(obj, hdr, tmp);
   Label success, recursive_success;
 
-#ifdef _LP64
   if (OMRecursiveLightweight) {
     cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
     jccb(Assembler::equal, recursive_success);
   }
   movptr(hdr, tmp);
-#endif
 
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
   movptr(tmp, hdr); // The expected old value
@@ -10098,13 +10093,18 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
   const Register thread = rax;
   get_thread(thread);
 #endif
-  bind(recursive_success);
 #ifdef ASSERT
   jmpb(success);
+#endif
+  bind(recursive_success);
+#ifdef ASSERT
+#ifndef _LP64
+  get_thread(thread);
+#endif
   movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize * 2));
   jccb(Assembler::equal, success);
-  stop("C2 Invalid recusive");
+  stop("C2 Invalid recursive");
 #endif
   bind(success);
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);

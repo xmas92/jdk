@@ -870,6 +870,8 @@ public:
   void testq(Address dst, int32_t imm32);
   void testq(Register dst, int32_t imm32);
 
+  void btrptr(Address dst, int imm8) { LP64_ONLY(btrq(dst, imm8)) NOT_LP64(btrl(dst, imm8)); }
+
   void orptr(Register dst, Address src) { LP64_ONLY(orq(dst, src)) NOT_LP64(orl(dst, src)); }
   void orptr(Register dst, Register src) { LP64_ONLY(orq(dst, src)) NOT_LP64(orl(dst, src)); }
   void orptr(Register dst, int32_t src) { LP64_ONLY(orq(dst, src)) NOT_LP64(orl(dst, src)); }

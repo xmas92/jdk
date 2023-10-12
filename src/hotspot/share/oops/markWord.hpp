@@ -120,8 +120,8 @@ class markWord {
   static const uintptr_t hash_mask                = right_n_bits(hash_bits);
   static const uintptr_t hash_mask_in_place       = hash_mask << hash_shift;
 
-  static const uintptr_t locked_value             = 0;
-  static const uintptr_t unlocked_value           = 1;
+  static const uintptr_t unlocked_value           = 0;
+  static const uintptr_t locked_value             = 1;
   static const uintptr_t monitor_value            = 2;
   static const uintptr_t marked_value             = 3;
 
@@ -170,7 +170,7 @@ class markWord {
   // synchronization functions. They are not really gc safe.
   // They must get updated if markWord layout get changed.
   markWord set_unlocked() const {
-    return markWord(value() | unlocked_value);
+    return markWord(value() & ~lock_mask_in_place);
   }
   bool has_locker() const {
     assert(LockingMode == LM_LEGACY, "should only be called with legacy stack locking");
@@ -187,7 +187,7 @@ class markWord {
   }
   markWord set_fast_locked() const {
     // Clear the lock_mask_in_place bits to set locked_value:
-    return markWord(value() & ~lock_mask_in_place);
+    return markWord((value() & ~lock_mask_in_place) | locked_value);
   }
 
   bool has_monitor() const {
@@ -202,7 +202,7 @@ class markWord {
   bool has_displaced_mark_helper() const {
     intptr_t lockbits = value() & lock_mask_in_place;
     return LockingMode == LM_LIGHTWEIGHT  ? false // lockbits == monitor_value   // monitor?
-                                          : (lockbits & unlocked_value) == 0; // monitor | stack-locked?
+                                          : lockbits != 0; // monitor | stack-locked?
   }
   markWord displaced_mark_helper() const;
   void set_displaced_mark_helper(markWord m) const;

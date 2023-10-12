@@ -9802,7 +9802,7 @@ void MacroAssembler::check_stack_alignment(Register sp, const char* msg, unsigne
 void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, thread, tmp);
-  Label success, retry;
+  Label success;
 
   // First we need to check if the lock-stack has room for pushing the object reference.
   // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
@@ -9813,11 +9813,10 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
 
   // Now we attempt to take the fast-lock.
   // Clear lock_mask bits (locked state).
-  bind(retry);
   andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
   movptr(tmp, hdr);
   // Set unlocked_value bit.
-  orptr(hdr, markWord::unlocked_value);
+  orptr(tmp, markWord::locked_value);
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
 
@@ -9827,13 +9826,8 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
     // CAS successful
     jcc(Assembler::equal, success);
 
-    if (OMRetryLock) {
-      // Retry lock if failed due to non-lock bits changed
-      testptr(hdr, markWord::unlocked_value);
-      jccb(Assembler::notZero, retry);
-    }
     // Check if fast locked
-    testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
+    testptr(hdr, markWord::monitor_value);
     jcc(Assembler::notZero, slow);
 
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
@@ -9853,7 +9847,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
 void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, thread, tmp);
-  Label success, retry;
+  Label success;
 
   // First we need to check if the lock-stack has room for pushing the object reference.
   // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
@@ -9864,17 +9858,16 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
 
   Label recursion;
   if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    testptr(hdr, markWord::unlocked_value);
-    jccb(Assembler::zero, recursion);
+    testptr(hdr, markWord::lock_mask);
+    jccb(Assembler::notZero, recursion);
   }
 
   // Now we attempt to take the fast-lock.
   // Clear lock_mask bits (locked state).
-  bind(retry);
   andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
   movptr(tmp, hdr);
   // Set unlocked_value bit.
-  orptr(hdr, markWord::unlocked_value);
+  orptr(tmp, markWord::locked_value);
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
 
@@ -9883,13 +9876,8 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, 
     // CAS successful
     jccb(Assembler::equal, success);
 
-    if (OMRetryLock) {
-      // Retry lock if failed due to non-lock bits changed
-      testptr(hdr, markWord::unlocked_value);
-      jccb(Assembler::notZero, retry);
-    }
     // Check if fast locked
-    testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
+    testptr(hdr, markWord::monitor_value);
     jcc(Assembler::notZero, slow);
 
     bind(recursion);
@@ -9940,7 +9928,7 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
 
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
   movptr(tmp, hdr); // The expected old value
-  orptr(tmp, markWord::unlocked_value);
+  orptr(hdr, markWord::locked_value);
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
   jcc(Assembler::notEqual, slow);
@@ -9975,18 +9963,20 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
   }
   movptr(hdr, tmp);
 
-  // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
-  movptr(tmp, hdr); // The expected old value
-  orptr(tmp, markWord::unlocked_value);
-  lock();
-  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
-  jcc(Assembler::notEqual, slow);
+
+  lock(); btrptr(Address(obj, oopDesc::mark_offset_in_bytes()), 0);
+  jccb(Assembler::carrySet, success);  // Transitioned from 01 -> 00, not 10 -> 10
+  if (!OMRecursiveLightweight) {
+    // With OMRecursiveLightweight ZF is cleared by cmpptr above
+    // otherwise clear it here. Box is known non null
+    testptr(box,box);
+  }
+  jmp(slow);
   // Pop the lock object from the lock-stack.
 #ifdef _LP64
   const Register thread = r15_thread;
 #else
   const Register thread = rax;
-  get_thread(thread);
 #endif
 #ifdef ASSERT
   jmpb(success);
@@ -10002,6 +9992,9 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box
   stop("C2 Invalid recursive");
 #endif
   bind(success);
+#ifndef _LP64
+  get_thread(thread);
+#endif
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 #ifdef ASSERT
   movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));

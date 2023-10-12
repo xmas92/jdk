@@ -96,7 +96,6 @@ inline oop LockStack::top() {
 }
 
 inline bool LockStack::is_recursive(oop o) {
-#ifdef _LP64
   if (!OMRecursiveLightweight) {
     return false;
   }
@@ -108,12 +107,11 @@ inline bool LockStack::is_recursive(oop o) {
       return true;
     }
   }
-#endif
+
   return false;
 }
 
 inline bool LockStack::try_recursive_exit(oop o) {
-#ifdef _LP64
   if (!OMRecursiveLightweight) {
     return false;
   }
@@ -127,13 +125,11 @@ inline bool LockStack::try_recursive_exit(oop o) {
 #endif
     return true;
   }
-#endif
 
   return false;
 }
 
 inline bool LockStack::try_recursive_enter(oop o) {
-#ifdef _LP64
   if (!OMRecursiveLightweight) {
     return false;
   }
@@ -143,7 +139,7 @@ inline bool LockStack::try_recursive_enter(oop o) {
     _top += oopSize;
     return true;
   }
-#endif
+
   return false;
 }
 

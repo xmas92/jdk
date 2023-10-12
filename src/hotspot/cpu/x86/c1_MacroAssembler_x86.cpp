@@ -64,9 +64,9 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
   movptr(hdr, Address(obj, hdr_offset));
 
   if (LockingMode == LM_LIGHTWEIGHT) {
+    movptr(Address(disp_hdr), 0);
 #ifdef _LP64
     const Register thread = r15_thread;
-    movptr(Address(disp_hdr), 0);
 #else
     const Register thread = disp_hdr;
     get_thread(thread);

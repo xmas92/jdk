@@ -1715,6 +1715,7 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
       __ jcc(Assembler::notEqual, slow_path_lock);
     } else {
       assert(LockingMode == LM_LIGHTWEIGHT, "must be");
+      __ movptr(Address(lock_reg, mark_word_offset), 0);
       // Load object header
       __ movptr(swap_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
       __ lightweight_lock(obj_reg, swap_reg, thread, lock_reg, slow_path_lock);

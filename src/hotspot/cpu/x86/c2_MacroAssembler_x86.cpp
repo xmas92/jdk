@@ -1140,10 +1140,10 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
 #ifndef _LP64
     xorptr(boxReg, boxReg);
     orptr(boxReg, Address(tmpReg, ObjectMonitor::recursions_offset()));
-    jccb  (Assembler::notZero, SLOW_PATH);
+    jcc   (Assembler::notZero, SLOW_PATH);
     movptr(boxReg, Address(tmpReg, ObjectMonitor::EntryList_offset()));
     orptr(boxReg, Address(tmpReg, ObjectMonitor::cxq_offset()));
-    jccb  (Assembler::notZero, SLOW_PATH);
+    jcc  (Assembler::notZero, SLOW_PATH);
     movptr(Address(tmpReg, ObjectMonitor::owner_offset()), NULL_WORD);
     jmpb  (SUCCESS);
 #else // _LP64

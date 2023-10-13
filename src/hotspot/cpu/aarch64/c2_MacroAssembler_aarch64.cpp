@@ -205,7 +205,12 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   bind(count);
   increment(Address(rthread, JavaThread::held_monitor_count_offset()));
 
+  DEBUG_ONLY(Label check_exit;)
+  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
+  DEBUG_ONLY(br(Assembler::NE, check_exit);)
+  DEBUG_ONLY(stop("C2 FastLock SlowPath without NE");)
+  DEBUG_ONLY(bind(check_exit);)
 }
 
 void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Register tmpReg,
@@ -290,6 +295,8 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   bind(count);
   decrement(Address(rthread, JavaThread::held_monitor_count_offset()));
 
+  DEBUG_ONLY(Label check_exit;)
+  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
 }
 

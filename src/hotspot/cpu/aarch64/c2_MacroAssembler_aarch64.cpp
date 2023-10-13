@@ -198,7 +198,12 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   bind(count);
   increment(Address(rthread, JavaThread::held_monitor_count_offset()));
 
+  DEBUG_ONLY(Label check_exit;)
+  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
+  DEBUG_ONLY(br(Assembler::NE, check_exit);)
+  DEBUG_ONLY(stop("C2 FastLock SlowPath without NE");)
+  DEBUG_ONLY(bind(check_exit);)
 }
 
 void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Register tmpReg,
@@ -256,8 +261,9 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   if (LockingMode == LM_LIGHTWEIGHT && OMUseC2Cache) {
     if (OMCacheHitRate) increment(Address(rthread, JavaThread::unlock_lookup_offset()));
     ldr(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-    cmp(tmp, (uint8_t)1);
-    br(Assembler::LO, no_count); // Non symmetrical, take slow path tmp == 0, 0 < 1, both LS and NE
+    // TODO: Cleanup these constants (with an enum and asserts)
+    cmp(tmp, (uint8_t)2);
+    br(Assembler::LO, no_count); // Non symmetrical, take slow path tmp == 0 or 1, 0 and 1 < 2, both LS and NE
     if (OMCacheHitRate) increment(Address(rthread, JavaThread::unlock_hit_offset()));
   } else {
     STATIC_ASSERT(markWord::monitor_value <= INT_MAX);
@@ -293,7 +299,12 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   bind(count);
   decrement(Address(rthread, JavaThread::held_monitor_count_offset()));
 
+  DEBUG_ONLY(Label check_exit;)
+  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
+  DEBUG_ONLY(br(Assembler::NE, check_exit);)
+  DEBUG_ONLY(stop("C2 FastUnlock SlowPath without NE");)
+  DEBUG_ONLY(bind(check_exit);)
 }
 
 // Search for str1 in str2 and return index or -1

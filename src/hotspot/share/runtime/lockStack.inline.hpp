@@ -101,8 +101,8 @@ inline bool LockStack::is_recursive(oop o) {
   }
 
   assert(contains(o), "entries must exist");
-  int last = to_index(_top) - 1;
-  for (int i = 1; i < last; i++) {
+  int end = to_index(_top);
+  for (int i = 1; i < end; i++) {
     if (_base[i-1] == o && _base[i] == o) {
       return true;
     }

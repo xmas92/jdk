@@ -26,14 +26,18 @@
 #ifndef SHARE_RUNTIME_LOCKSTACK_INLINE_HPP
 #define SHARE_RUNTIME_LOCKSTACK_INLINE_HPP
 
+#include "runtime/lockStack.hpp"
+
 #include "memory/iterator.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/lockStack.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
+#include "utilities/align.hpp"
 
 inline int LockStack::to_index(uint32_t offset) {
+  assert(is_aligned(offset, oopSize), "Weird offset: %u", offset);
   return (offset - lock_stack_base_offset) / oopSize;
 }
 
@@ -75,6 +79,10 @@ inline oop LockStack::pop() {
   assert(!contains(o), "entries must be unique: " PTR_FORMAT, p2i(o));
   verify("post-pop");
   return o;
+}
+
+inline bool LockStack::is_empty() const {
+  return to_index(_top) == 0;
 }
 
 inline bool LockStack::is_recursive(oop o) {

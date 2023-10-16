@@ -35,6 +35,7 @@ class OopClosure;
 class outputStream;
 
 class LockStack {
+  friend class LockStackTest;
   friend class VMStructs;
   JVMCI_ONLY(friend class JVMCIVMStructs;)
 private:
@@ -83,6 +84,9 @@ public:
 
   // Pops an oop from this lock-stack.
   inline oop pop();
+
+  // Is the lock-stack empty
+  inline bool is_empty() const;
 
   // Check if object is recursive
   inline bool is_recursive(oop o);

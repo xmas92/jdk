@@ -2597,9 +2597,9 @@ ObjectMonitor* LightweightSynchronizer::inflate_fast_locked_object(oop object, J
   for (;;) {
   // Fetch the monitor from the table
     monitor = get_or_insert_monitor(object, current, cause, true /* try_read */);
-    assert(monitor == read_monitor(current, object), "The monitor must be in the table");
 
     if (monitor->is_owner_anonymous()) {
+      assert(monitor == read_monitor(current, object), "The monitor must be in the table");
       // New fresh monitor
       break;
     }

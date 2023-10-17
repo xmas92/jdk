@@ -6355,7 +6355,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
   strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
 }
 
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
+void MacroAssembler::lightweight_lock_WIP(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, hdr, t1, t2, rscratch1);
   Label success, retry, recursive_check;
@@ -6504,7 +6504,7 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1,
   bind(unlocked);
 }
 
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
+void MacroAssembler::lightweight_unlock_WIP(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, hdr, t1, t2, rscratch1);
 

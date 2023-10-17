@@ -1593,9 +1593,12 @@ public:
   void spin_wait();
 
   void lightweight_lock(Register obj, Register hdr, Register t1, Register t2, Label& slow);
-  void lightweight_lock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
   void lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& slow);
-  void lightweight_unlock(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
+
+  // WIP. These are unused for now. Using the stack (box) to signal which locks are
+  //      recursive would require that this is implemented in all locking paths.
+  void lightweight_lock_WIP(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
+  void lightweight_unlock_WIP(Register obj, Register hdr, Register box, Register t1, Register t2, Label& slow);
 
 private:
   // Check the current thread doesn't need a cross modify fence.

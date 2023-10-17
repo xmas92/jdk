@@ -9850,7 +9850,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
 }
 
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_lock_WIP(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, thread, tmp);
   Label success, retry;
@@ -9964,7 +9964,7 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
 #endif
 }
 
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register box, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_unlock_WIP(Register obj, Register hdr, Register box, Register tmp, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, tmp);
   Label success, recursive_success;

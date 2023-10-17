@@ -2024,9 +2024,12 @@ public:
   void check_stack_alignment(Register sp, const char* msg, unsigned bias = 0, Register tmp = noreg);
 
   void lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Label& slow);
-  void lightweight_lock(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow);
-  void lightweight_unlock(Register obj, Register hdr, Register box, Register tmp, Label& slow);
   void lightweight_unlock(Register obj, Register hdr, Register tmp, Label& slow);
+
+  // WIP. These are unused for now. Using the stack (box) to signal which locks are
+  //      recursive would require that this is implemented in all locking paths.
+  void lightweight_lock_WIP(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow);
+  void lightweight_unlock_WIP(Register obj, Register hdr, Register box, Register tmp, Label& slow);
 };
 
 /**

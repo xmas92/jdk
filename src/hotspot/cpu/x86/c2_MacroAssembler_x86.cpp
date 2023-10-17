@@ -735,7 +735,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register objReg, Register boxReg,
 
     jcc(Assembler::notZero, INFLATED);
 
-    lightweight_lock(objReg, tmpReg, thread, monReg, SLOW_PATH);
+    lightweight_lock_WIP(objReg, tmpReg, boxReg, thread, monReg, SLOW_PATH);
     jmp(SUCCESS);
 
     bind(INFLATED);
@@ -1193,8 +1193,12 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
     jmp(SLOW_PATH);
   }
   bind  (FAST_LOCKED);
-  mov(boxReg, tmpReg);
-  lightweight_unlock(objReg, boxReg, tmpReg, SLOW_PATH);
+  if (UseNewCode) {
+    mov(boxReg, tmpReg);
+    lightweight_unlock(objReg, boxReg, tmpReg, SLOW_PATH);
+  } else {
+    lightweight_unlock_WIP(objReg, boxReg, boxReg, tmpReg, SLOW_PATH);
+  }
   // Fallthrough = Success
 
   bind(SUCCESS);

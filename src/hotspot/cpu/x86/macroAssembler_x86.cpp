@@ -10081,7 +10081,6 @@ void MacroAssembler::lightweight_unlock_WIP(Register obj, Register hdr, Register
   movptr(hdr, tmp);
 
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
-  movptr(tmp, hdr); // The expected old value
   orptr(tmp, markWord::unlocked_value);
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));

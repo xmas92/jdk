@@ -203,10 +203,11 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
     // We cannot use tbnz here, the target might be too far away and cannot
     // be encoded.
     tst(tmp2, (uint64_t)ObjectMonitor::ANONYMOUS_OWNER);
-    C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmp, tmp2);
-    Compile::current()->output()->add_stub(stub);
-    br(Assembler::NE, stub->entry());
-    bind(stub->continuation());
+    // C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmp, tmp2);
+    // Compile::current()->output()->add_stub(stub);
+    // br(Assembler::NE, stub->entry());
+    // bind(stub->continuation());
+    br(Assembler::NE, no_count);
   }
 
   ldr(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));

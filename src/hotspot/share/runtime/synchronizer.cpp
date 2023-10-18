@@ -523,6 +523,9 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
             lock_stack.push(obj());
             return;
           }
+        } else if (mark.is_fast_locked() && lock_stack.try_recursive_enter(obj())) {
+          // Recursive lock successful
+          return;
         }
       }
       // All other paths fall-through to inflate-enter.
@@ -572,7 +575,13 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
     markWord mark = object->mark();
     if (LockingMode == LM_LIGHTWEIGHT) {
       // Fast-locking does not use the 'lock' argument.
-      if (mark.is_fast_locked()) {
+      LockStack& lock_stack = current->lock_stack();
+      if (mark.is_fast_locked() && lock_stack.try_recursive_exit(object)) {
+        // Recursively unlocked
+        return;
+      } else if (mark.is_fast_locked() && lock_stack.is_recursive(object)) {
+        // This lock is recursive but not a balanced exit. Just inflate the lock.
+      } else if (mark.is_fast_locked()) {
         markWord unlocked_mark = mark.set_unlocked();
         markWord old_mark = object->cas_set_mark(unlocked_mark, mark);
         if (old_mark != mark) {
@@ -586,8 +595,8 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
           monitor->set_owner_from_anonymous(current);
           monitor->exit(current);
         }
-        LockStack& lock_stack = current->lock_stack();
-        lock_stack.remove(object);
+        size_t recursions = lock_stack.remove(object);
+        assert(recursions == 0, "must not be recursive here");
         return;
       }
     } else if (LockingMode == LM_LEGACY) {
@@ -641,9 +650,8 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
   if (LockingMode == LM_LIGHTWEIGHT && monitor->is_owner_anonymous()) {
     // It must be owned by us. Pop lock object from lock stack.
     LockStack& lock_stack = current->lock_stack();
-    oop popped = lock_stack.pop();
-    assert(popped == object, "must be owned by this thread");
     monitor->set_owner_from_anonymous(current);
+    monitor->set_recursions(lock_stack.remove(object));
   }
   monitor->exit(current);
 }
@@ -1339,7 +1347,7 @@ ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
       assert(dmw.is_neutral(), "invariant: header=" INTPTR_FORMAT, dmw.value());
       if (LockingMode == LM_LIGHTWEIGHT && inf->is_owner_anonymous() && is_lock_owned(current, object)) {
         inf->set_owner_from_anonymous(current);
-        JavaThread::cast(current)->lock_stack().remove(object);
+        inf->set_recursions(JavaThread::cast(current)->lock_stack().remove(object));
       }
       return inf;
     }
@@ -1385,7 +1393,7 @@ ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
       if (old_mark == mark) {
         // Success! Return inflated monitor.
         if (own) {
-          JavaThread::cast(current)->lock_stack().remove(object);
+          monitor->set_recursions(JavaThread::cast(current)->lock_stack().remove(object));
         }
         // Once the ObjectMonitor is configured and object is associated
         // with the ObjectMonitor, it is safe to allow async deflation:

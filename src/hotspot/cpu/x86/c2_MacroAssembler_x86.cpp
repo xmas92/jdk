@@ -262,7 +262,8 @@ void C2_MacroAssembler::fast_unlock_prequel(Register objReg, Register boxReg, Re
     // If the owner is ANONYMOUS, we need to fix it -  in an outline stub.
     testb(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), (int32_t) ObjectMonitor::ANONYMOUS_OWNER);
 #ifdef _LP64
-    if (!Compile::current()->output()->in_scratch_emit_size()) {
+    // TODO: Fix this
+    if (false && !Compile::current()->output()->in_scratch_emit_size()) {
       C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmpReg, boxReg);
       Compile::current()->output()->add_stub(stub);
       jcc(Assembler::notEqual, stub->entry());
@@ -889,30 +890,30 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   // In practice the chain of fetches doesn't seem to impact performance, however.
   xorptr(boxReg, boxReg);
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
-  jccb  (Assembler::notZero, DONE_LABEL);
+  jcc  (Assembler::notZero, DONE_LABEL);
   movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
-  jccb  (Assembler::notZero, DONE_LABEL);
+  jcc  (Assembler::notZero, DONE_LABEL);
   movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 #else // _LP64
   // It's inflated
   Label CheckSucc, LNotRecursive, LSuccess, LGoSlowPath;
 
   cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
-  jccb(Assembler::equal, LNotRecursive);
+  jcc(Assembler::equal, LNotRecursive);
 
   // Recursive inflated unlock
   decq(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
-  jmpb(LSuccess);
+  jmp(LSuccess);
 
   bind(LNotRecursive);
   movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
-  jccb  (Assembler::notZero, CheckSucc);
+  jcc  (Assembler::notZero, CheckSucc);
   // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
   movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
   // Try to avoid passing control into the slow_path ...
   bind  (CheckSucc);
@@ -922,7 +923,7 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   // The code reduces the window for a race, however,
   // and thus benefits performance.
   cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
-  jccb  (Assembler::zero, LGoSlowPath);
+  jcc  (Assembler::zero, LGoSlowPath);
 
   xorptr(boxReg, boxReg);
   // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
@@ -938,7 +939,7 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   lock(); addl(Address(rsp, 0), 0);
 
   cmpptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
-  jccb  (Assembler::notZero, LSuccess);
+  jcc  (Assembler::notZero, LSuccess);
 
   // Rare inopportune interleaving - race.
   // The successor vanished in the small window above.
@@ -959,16 +960,16 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   // There's no successor so we tried to regrab the lock.
   // If that didn't work, then another thread grabbed the
   // lock so we're done (and exit was a success).
-  jccb  (Assembler::notEqual, LSuccess);
+  jcc  (Assembler::notEqual, LSuccess);
   // Intentional fall-through into slow path
 
   bind  (LGoSlowPath);
   orl   (boxReg, 1);                      // set ICC.ZF=0 to indicate failure
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
   bind  (LSuccess);
   testl (boxReg, 0);                      // set ICC.ZF=1 to indicate success
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
 #endif
   if (LockingMode != LM_MONITOR) {

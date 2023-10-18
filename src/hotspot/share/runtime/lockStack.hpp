@@ -84,8 +84,17 @@ public:
   // Pops an oop from this lock-stack.
   inline oop pop();
 
+  // Check if object is recursive
+  inline bool is_recursive(oop o);
+
+  // Try recursive exit
+  inline bool try_recursive_exit(oop o);
+
+  // Try recursive enter
+  inline bool try_recursive_enter(oop o);
+
   // Removes an oop from an arbitrary location of this lock-stack.
-  inline void remove(oop o);
+  inline size_t remove(oop o);
 
   // Tests whether the oop is on this lock-stack.
   inline bool contains(oop o) const;

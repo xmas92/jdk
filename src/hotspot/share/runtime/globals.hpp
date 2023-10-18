@@ -1985,6 +1985,8 @@ const int ObjectAlignmentInBytes = 8;
           "2: monitors & new lightweight locking (LM_LIGHTWEIGHT, default)") \
           range(0, 2)                                                       \
                                                                             \
+  product(bool, OMRecursiveLightweight, true, "")                           \
+                                                                            \
   product(uint, TrimNativeHeapInterval, 0, EXPERIMENTAL,                    \
           "Interval, in ms, at which the JVM will trim the native heap if " \
           "the platform supports that. Lower values will reclaim memory "   \

@@ -25,6 +25,7 @@
 
 #include "precompiled.hpp"
 #include "memory/allocation.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
@@ -65,8 +66,19 @@ void LockStack::verify(const char* msg) const {
   assert((_top >= start_offset()), "lockstack underflow: _top %d end_offset %d", _top, start_offset());
   if (SafepointSynchronize::is_at_safepoint() || (Thread::current()->is_Java_thread() && is_owning_thread())) {
     int top = to_index(_top);
+    bool found_recu = false;
     for (int i = 0; i < top; i++) {
       assert(_base[i] != nullptr, "no zapped before top");
+      if (OMRecursiveLightweight) {
+        oop o = _base[i];
+        for (;i < top - 1; i++) {
+          // Consecutive entries may be the same
+          if (_base[i + 1] != o) {
+            break;
+          }
+        }
+      }
+
       for (int j = i + 1; j < top; j++) {
         assert(_base[i] != _base[j], "entries must be unique: %s", msg);
       }

@@ -9809,6 +9809,12 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
   jcc(Assembler::greater, slow);
 
+  Label recursion;
+  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
+    testptr(hdr, markWord::unlocked_value);
+    jccb(Assembler::zero, recursion);
+  }
+
   // Now we attempt to take the fast-lock.
   // Clear lock_mask bits (locked state).
   andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
@@ -9819,23 +9825,23 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
 
   if (OMRecursiveLightweight) {
-    // Load lock_stack_top, this is only not used in the slowest of paths
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     // CAS successful
-    jcc(Assembler::equal, success);
+    jccb(Assembler::equal, success);
 
     // Check if fast locked
     testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
     jcc(Assembler::notZero, slow);
 
+    bind(recursion);
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
     jcc(Assembler::notEqual, slow);
   } else {
     jcc(Assembler::notEqual, slow);
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   }
 
   bind(success);
+  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   // If successful, push object to lock-stack.
   movptr(Address(thread, tmp), obj);
   incrementl(tmp, oopSize);

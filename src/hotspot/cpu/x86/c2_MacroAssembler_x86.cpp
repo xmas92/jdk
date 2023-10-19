@@ -258,24 +258,6 @@ void C2_MacroAssembler::fast_unlock_prequel(Register objReg, Register boxReg, Re
   }
 
   // It's inflated.
-  if (LockingMode == LM_LIGHTWEIGHT) {
-    // If the owner is ANONYMOUS, we need to fix it -  in an outline stub.
-    testb(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), (int32_t) ObjectMonitor::ANONYMOUS_OWNER);
-#ifdef _LP64
-    // TODO: Fix this
-    if (false && !Compile::current()->output()->in_scratch_emit_size()) {
-      C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmpReg, boxReg);
-      Compile::current()->output()->add_stub(stub);
-      jcc(Assembler::notEqual, stub->entry());
-      bind(stub->continuation());
-    } else
-#endif
-    {
-      // We can't easily implement this optimization on 32 bit because we don't have a thread register.
-      // Call the slow-path instead.
-      jcc(Assembler::notEqual, NO_COUNT);
-    }
-  }
 }
 
 void C2_MacroAssembler::fast_unlock_rtm(Register objReg, Register boxReg, Register tmpReg) {
@@ -908,6 +890,11 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   jmp(LSuccess);
 
   bind(LNotRecursive);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // If the owner is ANONYMOUS, we need to fix it -- take slow path.
+    testb(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), (int32_t) ObjectMonitor::ANONYMOUS_OWNER);
+    jcc(Assembler::notEqual, NO_COUNT);
+  }
   movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
   jcc  (Assembler::notZero, CheckSucc);

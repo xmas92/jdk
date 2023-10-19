@@ -196,20 +196,6 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   STATIC_ASSERT(markWord::monitor_value <= INT_MAX);
   add(tmp, tmp, -(int)markWord::monitor_value); // monitor
 
-  if (LockingMode == LM_LIGHTWEIGHT) {
-    // If the owner is anonymous, we need to fix it -- in an outline stub.
-    Register tmp2 = disp_hdr;
-    ldr(tmp2, Address(tmp, ObjectMonitor::owner_offset()));
-    // We cannot use tbnz here, the target might be too far away and cannot
-    // be encoded.
-    tst(tmp2, (uint64_t)ObjectMonitor::ANONYMOUS_OWNER);
-    // C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmp, tmp2);
-    // Compile::current()->output()->add_stub(stub);
-    // br(Assembler::NE, stub->entry());
-    // bind(stub->continuation());
-    br(Assembler::NE, no_count);
-  }
-
   ldr(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));
 
   Label notRecursive;
@@ -222,6 +208,15 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   b(cont);
 
   bind(notRecursive);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // If the owner is anonymous, we need to fix it -- take slow path.
+    Register tmp2 = disp_hdr;
+    ldr(tmp2, Address(tmp, ObjectMonitor::owner_offset()));
+    // We cannot use tbnz here, the target might be too far away and cannot
+    // be encoded.
+    tst(tmp2, (uint64_t)ObjectMonitor::ANONYMOUS_OWNER);
+    br(Assembler::NE, no_count);
+  }
   ldr(rscratch1, Address(tmp, ObjectMonitor::EntryList_offset()));
   ldr(disp_hdr, Address(tmp, ObjectMonitor::cxq_offset()));
   orr(rscratch1, rscratch1, disp_hdr); // Will be 0 if both are 0.

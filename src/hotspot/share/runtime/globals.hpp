@@ -1989,6 +1989,8 @@ const int ObjectAlignmentInBytes = 8;
                                                                             \
   product(bool, OMRecursiveFastPath2, true, "")                             \
                                                                             \
+  product(bool, OMUseBox, true, "")                                         \
+                                                                            \
   product(uint, TrimNativeHeapInterval, 0, EXPERIMENTAL,                    \
           "Interval, in ms, at which the JVM will trim the native heap if " \
           "the platform supports that. Lower values will reclaim memory "   \

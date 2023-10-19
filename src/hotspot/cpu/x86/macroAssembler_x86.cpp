@@ -42,6 +42,7 @@
 #include "oops/compressedOops.inline.hpp"
 #include "oops/klass.inline.hpp"
 #include "prims/methodHandles.hpp"
+#include "runtime/basicLock.hpp"
 #include "runtime/continuation.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.hpp"
@@ -9797,10 +9798,11 @@ void MacroAssembler::check_stack_alignment(Register sp, const char* msg, unsigne
 // hdr: the (pre-loaded) header of the object, must be rax
 // thread: the thread which attempts to lock obj
 // tmp: a temporary register
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Register box, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
-  assert_different_registers(obj, hdr, thread, tmp);
+  assert_different_registers(obj, hdr, thread, tmp, box);
   Label success;
+  const bool use_box = box != noreg && OMUseBox;
 
   // First we need to check if the lock-stack has room for pushing the object reference.
   // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
@@ -9809,7 +9811,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
   jcc(Assembler::greater, slow);
 
-  Label recursion;
+  Label recursion, cas_success;
   if (OMRecursiveLightweight && OMRecursiveFastPath2) {
     testptr(hdr, markWord::unlocked_value);
     jccb(Assembler::zero, recursion);
@@ -9826,7 +9828,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
 
   if (OMRecursiveLightweight) {
     // CAS successful
-    jccb(Assembler::equal, success);
+    jccb(Assembler::equal, cas_success);
 
     // Check if fast locked
     testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
@@ -9836,13 +9838,21 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
     movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
     cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
     jcc(Assembler::notEqual, slow);
+    if (use_box) {
+      movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::recursive_mark);
+      jmpb(success);
+      bind(cas_success);
+      movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::bottom_lock_mark);
+    } else {
+      bind(cas_success);
+    }
   } else {
     jcc(Assembler::notEqual, slow);
   }
 
   bind(success);
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   // If successful, push object to lock-stack.
+  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   movptr(Address(thread, tmp), obj);
   incrementl(tmp, oopSize);
   movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
@@ -9855,12 +9865,26 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
 // obj: the object to be unlocked
 // hdr: the (pre-loaded) header of the object, must be rax
 // tmp: a temporary register
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp, Register box, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, tmp);
-  Label success;
+  Label success, unlock;
+  const bool use_box = box != noreg && OMUseBox;
+  // If the box alias the hdr we do not have enough registers at the call site
+  // The hdr will then be passed in tmp, and we need to mov it to the hdr after
+  // we are done using the box.
+  const bool box_alias_hdr = box == hdr;
 
   if (OMRecursiveLightweight) {
+    if (use_box) {
+      cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::recursive_mark);
+      jccb(Assembler::equal, success);
+      cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::bottom_lock_mark);
+      if (box_alias_hdr) {
+        movptr(hdr, tmp);
+      }
+      jccb(Assembler::equal, unlock);
+    }
 #ifdef _LP64
     movl(tmp, Address(r15_thread, JavaThread::lock_stack_top_offset()));
     // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
@@ -9877,6 +9901,7 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
     //       and pop it after the CAS to avoid reloading the thread
   }
 
+  bind(unlock);
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
   movptr(tmp, hdr); // The expected old value
   orptr(tmp, markWord::unlocked_value);

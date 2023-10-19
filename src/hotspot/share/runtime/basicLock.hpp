@@ -50,6 +50,9 @@ class BasicLock {
   void move_to(oop obj, BasicLock* dest);
 
   static int displaced_header_offset_in_bytes() { return (int)offset_of(BasicLock, _displaced_header); }
+
+  static constexpr uint32_t recursive_mark = 1;
+  static constexpr uint32_t bottom_lock_mark = 2;
 };
 
 // A BasicObjectLock associates a specific Java object with a BasicLock.

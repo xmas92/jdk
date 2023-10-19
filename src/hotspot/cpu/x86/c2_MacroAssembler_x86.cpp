@@ -723,7 +723,7 @@ void C2_MacroAssembler::fast_lock_prequel(Register objReg, Register boxReg, Regi
     movptr(Address(boxReg, 0), tmpReg);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "");
-    lightweight_lock(objReg, tmpReg, thread, scrReg, NO_COUNT);
+    lightweight_lock(objReg, tmpReg, thread, scrReg, boxReg, NO_COUNT);
     jmp(COUNT);
   }
   jmp(DONE_LABEL);
@@ -962,8 +962,7 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   if (LockingMode != LM_MONITOR) {
     bind  (Stacked);
     if (LockingMode == LM_LIGHTWEIGHT) {
-      mov(boxReg, tmpReg);
-      lightweight_unlock(objReg, boxReg, tmpReg, NO_COUNT);
+      lightweight_unlock(objReg, boxReg, tmpReg, boxReg, NO_COUNT);
       jmp(COUNT);
     } else if (LockingMode == LM_LEGACY) {
       movptr(tmpReg, Address (boxReg, 0));      // re-fetch

@@ -25,7 +25,9 @@
 #include "precompiled.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/basicLock.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/synchronizer.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 void BasicLock::print_on(outputStream* st, oop owner) const {
   st->print("monitor");
@@ -38,6 +40,10 @@ void BasicLock::print_on(outputStream* st, oop owner) const {
 }
 
 void BasicLock::move_to(oop obj, BasicLock* dest) {
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    dest->clear_displaced_header();
+    return;
+  }
   // Check to see if we need to inflate the lock. This is only needed
   // if an object is locked using "this" lightweight monitor. In that
   // case, the displaced_header() is unlocked/is_neutral, because the

@@ -9804,6 +9804,16 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
   Label success;
   const bool use_box = box != noreg && OMUseBox;
 
+#ifdef ASSERT
+  if (use_box) {
+    Label box_correct;
+    cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::clear_value);
+    jccb(Assembler::equal, box_correct);
+    stop("Bad Box Lock");
+    bind(box_correct);
+  }
+#endif
+
   // First we need to check if the lock-stack has room for pushing the object reference.
   // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
   // of 'greaterEqual' below, which readily clears the ZF. This makes C2 code a little simpler and
@@ -9868,7 +9878,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register threa
 void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp, Register box, Label& slow) {
   assert(hdr == rax, "header must be in rax for cmpxchg");
   assert_different_registers(obj, hdr, tmp);
-  Label success, unlock;
+  Label success, recursive_success, unlock, unlock_fix_hdr;
   const bool use_box = box != noreg && OMUseBox;
   // If the box alias the hdr we do not have enough registers at the call site
   // The hdr will then be passed in tmp, and we need to mov it to the hdr after
@@ -9878,16 +9888,29 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
   if (OMRecursiveLightweight) {
     if (use_box) {
       cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::recursive_mark);
-      jccb(Assembler::equal, success);
+      jccb(Assembler::equal, recursive_success);
       cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::bottom_lock_mark);
+#ifdef ASSERT
+      jccb(Assembler::equal, unlock_fix_hdr);
+      Label box_correct;
+      cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::clear_value);
+      jccb(Assembler::equal, box_correct);
+      stop("Bad Box Unlock");
+      bind(box_correct);
+      if (box_alias_hdr) {
+        movptr(hdr, tmp);
+      }
+#else
       if (box_alias_hdr) {
         movptr(hdr, tmp);
       }
       jccb(Assembler::equal, unlock);
+#endif
+    } else if (box_alias_hdr) {
+      movptr(hdr, tmp);
     }
 #ifdef _LP64
     movl(tmp, Address(r15_thread, JavaThread::lock_stack_top_offset()));
-    // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
     cmpptr(obj, Address(r15_thread, tmp, Address::times_1, -oopSize * 2));
     // next to last obj on lock_stack is also this oop, recursive unlock
 #else
@@ -9896,33 +9919,63 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp
     cmpptr(obj, Address(tmp, -oopSize * 2));
 #endif
     jccb(Assembler::equal, success);
+    // Make sure both hdr and tmp has the header
+    movptr(tmp, hdr);
 
     // TODO: x86 we can push tmp (ptr to top of lock stack) onto the stack here
     //       and pop it after the CAS to avoid reloading the thread
-  }
 
-  bind(unlock);
+#ifdef ASSERT
+    if (use_box) {
+      jmpb(unlock);
+      bind(unlock_fix_hdr);
+      movptr(hdr, tmp);
+    }
+#endif
+
+    bind(unlock);
+  } else if (box_alias_hdr) {
+    // Header is in tmp
+    movptr(hdr, tmp);
+  } else {
+    // Header is in hdr
+    movptr(tmp, hdr);
+  }
   // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
-  movptr(tmp, hdr); // The expected old value
   orptr(tmp, markWord::unlocked_value);
   lock();
   cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
   jcc(Assembler::notEqual, slow);
   // Pop the lock object from the lock-stack.
-  bind(success);
+#ifdef ASSERT
+  if (use_box) {
+    jmpb(success);
+  }
+#endif
+  bind(recursive_success);
 #ifdef _LP64
   const Register thread = r15_thread;
 #else
   const Register thread = rax;
-  get_thread(thread);
 #endif
+#ifdef ASSERT
+  if (use_box) {
+    NOT_LP64(get_thread(thread);)
+    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
+    cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize * 2));
+    jccb(Assembler::equal, success);
+    stop("Bad Box");
+  }
+#endif
+  bind(success);
+  NOT_LP64(get_thread(thread);)
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 #ifdef ASSERT
   movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
   Label correct;
   cmpptr(obj, Address(thread, tmp));
   jccb(Assembler::equal, correct);
-  stop("C2 Wrong oop popped from LockStack");
+  stop("Wrong oop popped from LockStack");
   bind(correct);
   movptr(Address(thread, tmp), 0);
 #endif

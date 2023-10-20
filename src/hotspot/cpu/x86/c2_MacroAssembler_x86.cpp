@@ -33,9 +33,11 @@
 #include "opto/output.hpp"
 #include "opto/opcodes.hpp"
 #include "opto/subnode.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "utilities/checkedCast.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -699,6 +701,10 @@ void C2_MacroAssembler::fast_lock_value_class_check(Register objReg, Register tm
 void C2_MacroAssembler::fast_lock_prequel(Register objReg, Register boxReg, Register tmpReg,
                                           Register scrReg, Register thread,
                                           Label& IsInflated, Label& DONE_LABEL, Label& NO_COUNT, Label& COUNT) {
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    movptr(Address(boxReg, BasicLock::displaced_header_offset_in_bytes()), BasicLock::clear_value);
+  }
+
   movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));          // [FETCH]
   testptr(tmpReg, markWord::monitor_value); // inflated vs stack-locked|neutral
   jcc(Assembler::notZero, IsInflated);

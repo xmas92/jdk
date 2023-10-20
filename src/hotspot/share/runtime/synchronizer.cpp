@@ -36,6 +36,7 @@
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/frame.inline.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/handshake.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
@@ -60,6 +61,7 @@
 #include "utilities/align.hpp"
 #include "utilities/dtrace.hpp"
 #include "utilities/events.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/preserveException.hpp"
 
@@ -387,6 +389,10 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
 
   const markWord mark = obj->mark();
 
+  if (LockingMode == LM_LIGHTWEIGHT && lock != nullptr) {
+    lock->clear_displaced_header();
+  }
+
   if (mark.has_monitor()) {
     ObjectMonitor* const m = mark.monitor();
     // An async deflation or GC can race us before we manage to make
@@ -509,6 +515,9 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
 
   if (!useHeavyMonitors()) {
     if (LockingMode == LM_LIGHTWEIGHT) {
+      if (lock != nullptr) {
+        lock->clear_displaced_header();
+      }
       // Fast-locking does not use the 'lock' argument.
       LockStack& lock_stack = current->lock_stack();
       if (lock_stack.can_push()) {

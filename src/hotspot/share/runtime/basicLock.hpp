@@ -44,6 +44,10 @@ class BasicLock {
     Atomic::store(&_displaced_header, header);
   }
 
+  void clear_displaced_header() {
+    Atomic::store(&_displaced_header, markWord(clear_value));
+  }
+
   void print_on(outputStream* st, oop owner) const;
 
   // move a basic lock (used during deoptimization
@@ -53,6 +57,7 @@ class BasicLock {
 
   static constexpr uint32_t recursive_mark = 1;
   static constexpr uint32_t bottom_lock_mark = 2;
+  static constexpr uint32_t clear_value = 0;
 };
 
 // A BasicObjectLock associates a specific Java object with a BasicLock.

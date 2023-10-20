@@ -236,8 +236,11 @@ TEST_VM_F(LockStackTest, contains) {
   EXPECT_TRUE(ls.contains(obj0));
   EXPECT_TRUE(ls.contains(obj1));
 
+  // Clear stack
   pop_raw(ls);
   pop_raw(ls);
+
+  EXPECT_TRUE(ls.is_empty());
 }
 
 TEST_VM_F(LockStackTest, remove) {
@@ -336,10 +339,14 @@ TEST_VM_F(LockStackTest, remove) {
   push_raw(ls, obj1);
   push_raw(ls, obj2);
   push_raw(ls, obj2);
+  push_raw(ls, obj2);
+  push_raw(ls, obj2);
   push_raw(ls, obj3);
 
-  // 0, 1, 1, 2, 2, 3
+  // 0, 1, 1, 2, 2, 2, 2, 3
   {
+    EXPECT_EQ(size(ls), 8u);
+
     size_t rec = ls.remove(obj1);
     EXPECT_EQ(rec, 1u);
 
@@ -351,7 +358,40 @@ TEST_VM_F(LockStackTest, remove) {
     EXPECT_EQ(at(ls, 0), obj0);
     EXPECT_EQ(at(ls, 1), obj2);
     EXPECT_EQ(at(ls, 2), obj2);
-    EXPECT_EQ(at(ls, 3), obj3);
-    EXPECT_EQ(size(ls), 4u);
+    EXPECT_EQ(at(ls, 3), obj2);
+    EXPECT_EQ(at(ls, 4), obj2);
+    EXPECT_EQ(at(ls, 5), obj3);
+    EXPECT_EQ(size(ls), 6u);
+
+    rec = ls.remove(obj2);
+    EXPECT_EQ(rec, 3u);
+
+    EXPECT_TRUE(ls.contains(obj0));
+    EXPECT_FALSE(ls.contains(obj1));
+    EXPECT_FALSE(ls.contains(obj2));
+    EXPECT_TRUE(ls.contains(obj3));
+
+    EXPECT_EQ(at(ls, 0), obj0);
+    EXPECT_EQ(at(ls, 1), obj3);
+    EXPECT_EQ(size(ls), 2u);
+
+    rec = ls.remove(obj0);
+    EXPECT_EQ(rec, 0u);
+
+    EXPECT_FALSE(ls.contains(obj0));
+    EXPECT_FALSE(ls.contains(obj1));
+    EXPECT_FALSE(ls.contains(obj2));
+    EXPECT_TRUE(ls.contains(obj3));
+
+    EXPECT_EQ(at(ls, 0), obj3);
+    EXPECT_EQ(size(ls), 1u);
+
+    rec = ls.remove(obj3);
+    EXPECT_EQ(rec, 0u);
+
+    EXPECT_TRUE(ls.is_empty());
+    EXPECT_EQ(size(ls), 0u);
   }
+
+  EXPECT_TRUE(ls.is_empty());
 }

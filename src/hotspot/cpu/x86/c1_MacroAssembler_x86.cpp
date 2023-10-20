@@ -138,7 +138,8 @@ void C1_MacroAssembler::unlock_object(Register hdr, Register obj, Register disp_
 
   if (LockingMode == LM_LIGHTWEIGHT) {
     movptr(hdr, Address(obj, hdr_offset));
-    andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
+    testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
+    jcc(Assembler::notZero, slow_case);
     lightweight_unlock(obj, disp_hdr, hdr, disp_hdr, slow_case);
   } else if (LockingMode == LM_LEGACY) {
     // test if object header is pointing to the displaced header, and if so, restore

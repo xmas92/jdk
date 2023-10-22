@@ -52,6 +52,7 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
+  const oop null_sentinel = nullptr;
   oop _base[CAPACITY];
 
   // Get the owning thread of this lock-stack.

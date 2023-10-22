@@ -48,6 +48,7 @@
 #include "oops/compressedKlass.inline.hpp"
 #include "oops/compressedOops.inline.hpp"
 #include "oops/klass.inline.hpp"
+#include "runtime/basicLock.hpp"
 #include "runtime/continuation.hpp"
 #include "runtime/icache.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
@@ -6317,10 +6318,11 @@ void MacroAssembler::double_move(VMRegPair src, VMRegPair dst, Register tmp) {
 //  - obj: the object to be locked
 //  - hdr: the header, already loaded from obj, will be destroyed
 //  - t1, t2: temporary registers, will be destroyed
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, Register t2, Label& slow) {
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, Register t2, Register box, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, hdr, t1, t2, rscratch1);
-  Label success, recursive_check;
+  assert_different_registers(obj, hdr, t1, t2, box, rscratch1);
+  Label success, recursive_check, cas_success;
+  const bool use_box = box != noreg && OMUseBox;
 
   // Check if we would have space on lock-stack for the object.
   ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
@@ -6344,7 +6346,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
 
   if (OMRecursiveLightweight) {
     // CAS successful
-    br(Assembler::EQ, success);
+    br(Assembler::EQ, cas_success);
 
     if (OMRecursiveFastPath2) {
       // NE set after failed CAS
@@ -6362,6 +6364,16 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
     ldr(t2, Address(rthread, t2));
     cmp(obj, t2);
     br(Assembler::NE, slow);
+    if (use_box) {
+      mov(t2, BasicLock::recursive_mark);
+      str(t2, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+      b(success);
+      bind(cas_success);
+      mov(t2, BasicLock::bottom_lock_mark);
+      str(t2, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+    } else {
+      bind(cas_success);
+    }
   } else {
     br(Assembler::NE, slow);
   }
@@ -6381,9 +6393,11 @@ void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, R
 // - obj: the object to be unlocked
 // - hdr: the (pre-loaded) header of the object
 // - t1, t2: temporary registers
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& slow) {
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Register box, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
+  // box may alias t2
   assert_different_registers(obj, hdr, t1, t2, rscratch1);
+  assert_different_registers(obj, hdr, t1, box, rscratch1);
 
 #ifdef ASSERT
   {
@@ -6419,11 +6433,22 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1,
   }
 #endif
 
-  Label success;
+  Label success, unlock;
+  const bool use_box = box != noreg && OMUseBox;
+  // If the box alias the hdr we do not have enough registers at the call site
+  // The hdr will then be passed in tmp, and we need to mov it to the hdr after
+  // we are done using the box.
 
   ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
 
   if (OMRecursiveLightweight) {
+    if (use_box) {
+      ldr(t2, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+      cmp(t2, checked_cast<uint8_t>(BasicLock::recursive_mark));
+      br(Assembler::EQ, success);
+      cmp(t2, checked_cast<uint8_t>(BasicLock::bottom_lock_mark));
+      br(Assembler::EQ, unlock);
+    }
     // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
     subw(t2, t1, oopSize * 2);
     ldr(t2, Address(rthread, t2));
@@ -6432,6 +6457,7 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1,
     br(Assembler::EQ, success);
   }
 
+  bind(unlock);
   // Load the new header (unlocked) into t1
   orr(t2, hdr, markWord::unlocked_value);
 

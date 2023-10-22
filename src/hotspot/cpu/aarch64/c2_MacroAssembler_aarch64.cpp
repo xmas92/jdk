@@ -31,7 +31,10 @@
 #include "opto/matcher.hpp"
 #include "opto/output.hpp"
 #include "opto/subnode.hpp"
+#include "runtime/basicLock.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/stubRoutines.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -65,6 +68,11 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
     ldrw(tmp, Address(tmp, Klass::access_flags_offset()));
     tstw(tmp, JVM_ACC_IS_VALUE_BASED_CLASS);
     br(Assembler::NE, cont);
+  }
+
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    mov(tmp, BasicLock::clear_value);
+    str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
   }
 
   // Check for existing monitor
@@ -104,7 +112,7 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
     b(cont);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-    lightweight_lock(oop, disp_hdr, tmp, tmp3Reg, no_count);
+    lightweight_lock(oop, disp_hdr, tmp, tmp3Reg, box, no_count);
     b(count);
   }
 
@@ -185,7 +193,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
     b(cont);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-    lightweight_unlock(oop, tmp, box, disp_hdr, no_count);
+    lightweight_unlock(oop, tmp, disp_hdr, box, box, no_count);
     b(count);
   }
 

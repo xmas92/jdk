@@ -234,7 +234,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
     if (OMPrefetchHeader) {
       prfm(Address(oop), PSTL1STRM);
     }
-    ldxr(tmp, oop);
+    ldr(tmp, Address(oop));
   }
   tbnz(tmp, exact_log2(markWord::monitor_value), object_has_monitor);
 
@@ -253,6 +253,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
     assert(LockingMode == LM_LIGHTWEIGHT, "must be");
     // lightweight_unlock(oop, tmp, box, disp_hdr, no_count);
 
+    ldxr(tmp, oop);
     // Load the new header (unlocked) into t1
     orr(tmp, tmp, markWord::unlocked_value);
     stlxr(rscratch1, tmp, oop);

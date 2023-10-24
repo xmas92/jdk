@@ -22,6 +22,7 @@
  *
  */
 
+#include "oops/markWord.hpp"
 #include "precompiled.hpp"
 #include "asm/assembler.hpp"
 #include "asm/assembler.inline.hpp"
@@ -33,9 +34,11 @@
 #include "opto/output.hpp"
 #include "opto/opcodes.hpp"
 #include "opto/subnode.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "utilities/checkedCast.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -699,6 +702,19 @@ void C2_MacroAssembler::fast_lock_value_class_check(Register objReg, Register tm
 void C2_MacroAssembler::fast_lock_prequel(Register objReg, Register boxReg, Register tmpReg,
                                           Register scrReg, Register thread,
                                           Label& IsInflated, Label& DONE_LABEL, Label& NO_COUNT, Label& COUNT) {
+  Label success;
+
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
+    jcc(Assembler::greater, NO_COUNT);
+
+    if (OMRecursiveLightweight) {
+      movl(scrReg, Address(thread, JavaThread::lock_stack_top_offset()));
+      cmpptr(objReg, Address(thread, scrReg, Address::times_1, -oopSize));
+      jcc(Assembler::equal, success);
+    }
+  }
+
   movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));          // [FETCH]
   testptr(tmpReg, markWord::monitor_value); // inflated vs stack-locked|neutral
   jcc(Assembler::notZero, IsInflated);
@@ -723,7 +739,31 @@ void C2_MacroAssembler::fast_lock_prequel(Register objReg, Register boxReg, Regi
     movptr(Address(boxReg, 0), tmpReg);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "");
-    lightweight_lock(objReg, tmpReg, thread, scrReg, NO_COUNT);
+    // lightweight_lock(objReg, tmpReg, thread, scrReg, NO_COUNT);
+    Label unlocked;
+
+    if (OMRecursiveLightweight && OMRecursiveFastPath2) {
+      testptr(tmpReg, markWord::unlocked_value);
+      jccb(Assembler::notZero, unlocked);
+      xorptr(objReg, objReg);
+      jmp(NO_COUNT);
+    }
+
+    bind(unlocked);
+    movptr(boxReg, tmpReg);
+    andptr(boxReg, ~(int32_t)markWord::unlocked_value);
+    if (!OMRecursiveFastPath2) {
+      // !OMRecursiveFastPath2 does not check for unlocked, need to make sure hdr is 0b01
+      orptr(tmpReg, markWord::unlocked_value);
+    }
+    lock(); cmpxchgptr(boxReg, Address(objReg, oopDesc::mark_offset_in_bytes()));
+    jcc(Assembler::notEqual, NO_COUNT);
+
+    bind(success);
+    // If successful, push object to lock-stack.
+    movptr(Address(thread, scrReg), objReg);
+    incrementl(scrReg, oopSize);
+    movl(Address(thread, JavaThread::lock_stack_top_offset()), scrReg);
     jmp(COUNT);
   }
   jmp(DONE_LABEL);
@@ -967,9 +1007,9 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   if (LockingMode != LM_MONITOR) {
     bind  (Stacked);
     if (LockingMode == LM_LIGHTWEIGHT) {
-      mov(boxReg, tmpReg);
-      lightweight_unlock(objReg, boxReg, tmpReg, NO_COUNT);
-      jmp(COUNT);
+      // mov(boxReg, tmpReg);
+      // lightweight_unlock(objReg, boxReg, tmpReg, NO_COUNT);
+      // jmp(COUNT);
     } else if (LockingMode == LM_LEGACY) {
       movptr(tmpReg, Address (boxReg, 0));      // re-fetch
       lock();
@@ -1015,11 +1055,49 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
   assert(boxReg == rax, "");
   assert_different_registers(objReg, boxReg, tmpReg);
 
-  Label DONE_LABEL, Stacked, COUNT, NO_COUNT;
+  Label DONE_LABEL, Stacked, COUNT, NO_COUNT, success;
 
-  fast_unlock_prequel(objReg, boxReg, tmpReg, Stacked, COUNT, NO_COUNT);
+  if (LockingMode != LM_LIGHTWEIGHT) {
+    fast_unlock_prequel(objReg, boxReg, tmpReg, Stacked, COUNT, NO_COUNT);
+  } else {
+    if (OMRecursiveLightweight) {
+#ifdef _LP64
+      movl(tmpReg, Address(r15_thread, JavaThread::lock_stack_top_offset()));
+      // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
+      cmpptr(objReg, Address(r15_thread, tmpReg, Address::times_1, -oopSize * 2));
+      // next to last obj on lock_stack is also this oop, recursive unlock
+#else
+      // TODO: Fix x86_32
+      stop("fix 32");
+#endif
+      jcc(Assembler::equal, success);
+    }
+    movptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));
+    testptr(tmpReg, markWord::monitor_value);
+    jcc(Assembler::zero, Stacked);
+  }
 
   fast_unlock_inflated(objReg, boxReg, tmpReg, DONE_LABEL, Stacked, COUNT, NO_COUNT);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // Stacked bound here.
+    movptr(boxReg, tmpReg);
+    orptr(tmpReg, markWord::unlocked_value);
+    lock(); cmpxchgptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes()));
+    jcc(Assembler::notEqual, NO_COUNT);
+    bind(success);
+#ifdef _LP64
+    const Register thread = r15_thread;
+#else
+    const Register thread = rax;
+    get_thread(thread);
+#endif
+    subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
+#ifdef ASSERT
+    movl(tmpReg, Address(thread, JavaThread::lock_stack_top_offset()));
+    movptr(Address(thread, tmpReg), 0);
+#endif
+    jmp(COUNT);
+  }
 
   bind(DONE_LABEL);
 

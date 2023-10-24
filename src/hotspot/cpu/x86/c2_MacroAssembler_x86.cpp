@@ -866,6 +866,11 @@ void C2_MacroAssembler::fast_unlock_inflated(Register objReg, Register boxReg, R
   // each other and there's no need for an explicit barrier (fence).
   // See also http://gee.cs.oswego.edu/dl/jmm/cookbook.html.
 #ifndef _LP64
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // If the owner is ANONYMOUS, we need to fix it -- take slow path.
+    testb(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), (int32_t) ObjectMonitor::ANONYMOUS_OWNER);
+    jcc(Assembler::notEqual, NO_COUNT);
+  }
   // Note that we could employ various encoding schemes to reduce
   // the number of loads below (currently 4) to just 2 or 3.
   // Refer to the comments in synchronizer.cpp.

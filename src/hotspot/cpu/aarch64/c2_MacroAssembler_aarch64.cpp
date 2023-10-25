@@ -221,133 +221,254 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   bind(no_count);
 }
 
-void C2_MacroAssembler::fast_lock_lightweight(Register objectReg, Register boxReg, Register tmpReg,
-                                              Register tmp2Reg, Register tmp3Reg) {
-  Register oop = objectReg;
-  Register box = boxReg;
-  Register disp_hdr = tmpReg;
-  Register tmp = tmp2Reg;
-  Label cont;
-  Label object_has_monitor;
-  Label count, no_count;
+void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Register t1,
+                                              Register t2, Register t3) {
+  assert(LockingMode == LM_LIGHTWEIGHT, "must be");
+  // TODO: Current implementation does not use the box, consider removing.
+  assert_different_registers(obj, box, t1, t2, t3);
 
-  assert_different_registers(oop, box, tmp, disp_hdr);
-
-  // Load markWord from object into displaced_header.
-  ldr(disp_hdr, Address(oop, oopDesc::mark_offset_in_bytes()));
+  // Handle inflated monitor.
+  Label inflated;
+  // Finish fast lock successfully. MUST reach to with flag == EQ
+  Label locked;
+  // Finish fast lock unsuccessfully. MUST branch to with flag == NE
+  Label slow_path;
 
   if (DiagnoseSyncOnValueBasedClasses != 0) {
-    load_klass(tmp, oop);
-    ldrw(tmp, Address(tmp, Klass::access_flags_offset()));
-    tstw(tmp, JVM_ACC_IS_VALUE_BASED_CLASS);
-    br(Assembler::NE, cont);
+    load_klass(t1, obj);
+    ldrw(t1, Address(t1, Klass::access_flags_offset()));
+    tstw(t1, JVM_ACC_IS_VALUE_BASED_CLASS);
+    br(Assembler::NE, slow_path);
   }
 
-  // Check for existing monitor
-  tbnz(disp_hdr, exact_log2(markWord::monitor_value), object_has_monitor);
+  const Register mark = t1;
 
-  lightweight_lock(oop, disp_hdr, tmp, tmp3Reg, no_count);
-  b(count);
+  { // Lightweight locking
 
-  // Handle existing monitor.
-  bind(object_has_monitor);
+    // Push lock to the lock stack and finish successfully. MUST reach to with flag == EQ
+    Label push;
 
-  // The object's monitor m is unlocked iff m->owner == NULL,
-  // otherwise m->owner may contain a thread or a stack address.
-  //
-  // Try to CAS m->owner from NULL to current thread.
-  add(tmp, disp_hdr, (in_bytes(ObjectMonitor::owner_offset())-markWord::monitor_value));
-  cmpxchg(tmp, zr, rthread, Assembler::xword, /*acquire*/ true,
-          /*release*/ true, /*weak*/ false, tmp3Reg); // Sets flags for result
+    const Register top = t2;
+    const Register t = t3;
 
-  br(Assembler::EQ, cont); // CAS success means locking succeeded
+    // current->lock_stack().can_push()
+    ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+    cmpw(top, (unsigned)LockStack::end_offset() - 1);
+    br(Assembler::GT, slow_path);
 
-  cmp(tmp3Reg, rthread);
-  br(Assembler::NE, cont); // Check for recursive locking
+    if (OMRecursiveLightweight) {
+      subw(t, top, oopSize);
+      ldr(t, Address(rthread, t));
+      cmp(obj, t);
+      br(Assembler::EQ, push);
+    }
 
-  // Recursive lock case
-  increment(Address(disp_hdr, in_bytes(ObjectMonitor::recursions_offset()) - markWord::monitor_value), 1);
-  // flag == EQ still from the cmp above, checking if this is a reentrant lock
+    // Relaxed normal load to check for monitor. Optimization for monitor case
+    ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
+    tbnz(mark, exact_log2(markWord::monitor_value), inflated);
 
-  bind(cont);
-  // flag == EQ indicates success
-  // flag == NE indicates failure
-  br(Assembler::NE, no_count);
+    // Not inflated
+    assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid a lea");
+    // Load-Acquire Exclusive Register to match Store Exclusive Register below
+    // Acquire to satisfy the JMM
+    ldaxr(mark, obj);
+    // Recheck for monitor
+    tbnz(mark, exact_log2(markWord::monitor_value), inflated);
+    // Check that obj is unlocked
+    orr(t, mark, markWord::unlocked_value);
+    cmp(mark, t);
+    br(Assembler::NE, slow_path);
 
-  bind(count);
+    // Clear unlock bit
+    andr(mark, mark, ~markWord::unlocked_value);
+    stxr(rscratch1, mark, obj);
+    cmpw(rscratch1, 0u);
+    br(Assembler::NE, slow_path);
+
+    bind(push);
+
+    // After successful lock, push object on lock-stack
+    str(obj, Address(rthread, top));
+    addw(top, top, oopSize);
+    strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+    b(locked);
+  }
+
+  { // Handle inflated monitor.
+    bind(inflated);
+
+    // mark contains the tagged ObjectMonitor*.
+    const Register tagged_monitor = mark;
+    const uintptr_t monitor_tag = markWord::monitor_value;
+    const Register t = t2;
+    const Register owner = t3;
+
+    // Load owner address
+    add(t, tagged_monitor, (in_bytes(ObjectMonitor::owner_offset()) - monitor_tag));
+
+    // CAS owner with NULL
+    cmpxchg(t, zr, rthread, Assembler::xword, /*acquire*/ true,
+            /*release*/ false, /*weak*/ false, owner);
+    br(Assembler::EQ, locked);
+
+    // Check if recursive
+    cmp(owner, rthread);
+    br(Assembler::NE, slow_path);
+
+    increment(Address(tagged_monitor, in_bytes(ObjectMonitor::recursions_offset()) - monitor_tag), 1);
+  }
+
+  bind(locked);
   increment(Address(rthread, JavaThread::held_monitor_count_offset()));
 
-  bind(no_count);
+#ifdef ASSERT
+  Label flag_correct;
+  br(Assembler::EQ, flag_correct);
+  stop("Fast Lock Flag != EQ");
+#endif
+
+  bind(slow_path);
+#ifdef ASSERT
+  br(Assembler::NE, flag_correct);
+  stop("Fast Lock Flag != NE");
+  bind(flag_correct);
+#endif
 }
 
-void C2_MacroAssembler::fast_unlock_lightweight(Register objectReg, Register boxReg, Register tmpReg,
-                                                Register tmp2Reg) {
+void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register box, Register t1,
+                                                Register t2) {
   assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-  Register oop = objectReg;
-  Register box = boxReg;
-  Register disp_hdr = tmpReg;
-  Register tmp = tmp2Reg;
-  Label cont;
-  Label object_has_monitor;
-  Label count, no_count;
+  // TODO: Current implementation uses box only as a TEMP, consider renaming.
+  assert_different_registers(obj, box, t1, t2);
 
-  assert_different_registers(oop, box, tmp, disp_hdr);
+  // Handle inflated monitor.
+  Label inflated, inflated_load_monitor;
+  // Finish fast unlock successfully. MUST reach to with flag == EQ
+  Label unlocked;
+  // Finish fast unlock unsuccessfully. MUST branch to with flag == NE
+  Label slow_path;
 
-  // Handle existing monitor.
-  ldr(tmp, Address(oop, oopDesc::mark_offset_in_bytes()));
-  tbnz(tmp, exact_log2(markWord::monitor_value), object_has_monitor);
+  const Register mark = t1;
 
-  lightweight_unlock(oop, tmp, box, disp_hdr, no_count);
-  b(count);
+  { // Lightweight unlock
+    const Register top = box;
+    const Register t = t2;
 
-  assert(oopDesc::mark_offset_in_bytes() == 0, "offset of _mark is not 0");
+    ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+    subw(top, top, oopSize);
+    ldr(t, Address(rthread, top));
+    cmp(obj, t);
+    // Top of lock stack was not oop, must be monitor
+    br(Assembler::NE, inflated_load_monitor);
+  #ifdef ASSERT
+    str(zr, Address(rthread, top));
+  #endif
+    strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
 
-  // Handle existing monitor.
-  bind(object_has_monitor);
-  STATIC_ASSERT(markWord::monitor_value <= INT_MAX);
-  add(tmp, tmp, -(int)markWord::monitor_value); // monitor
+    if (OMRecursiveLightweight) {
+      subw(t, top, oopSize);
+      ldr(t, Address(rthread, t));
+      cmp(obj, t);
+      //
+      br(Assembler::EQ, unlocked);
+    }
 
-  // If the owner is anonymous, we need to fix it -- in an outline stub.
-  Register tmp2 = disp_hdr;
-  ldr(tmp2, Address(tmp, ObjectMonitor::owner_offset()));
-  // We cannot use tbnz here, the target might be too far away and cannot
-  // be encoded.
-  tst(tmp2, (uint64_t)ObjectMonitor::ANONYMOUS_OWNER);
-  C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmp, tmp2);
-  Compile::current()->output()->add_stub(stub);
-  br(Assembler::NE, stub->entry());
-  bind(stub->continuation());
+    // Not inflated
+    assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid a lea");
+    // Load Exclusive Register to match Store-Release Exclusive Register below
+    ldxr(mark, obj);
+    // Recheck for monitor
+    tbnz(mark, exact_log2(markWord::monitor_value), inflated);
+    // Set unlock bit
+    orr(t, mark, markWord::unlocked_value);
+    // Release to satisfy the JMM
+    stlxr(rscratch1, t, obj);
+    cmpw(rscratch1, 0u);
+    br(Assembler::NE, slow_path);
+    b(unlocked);
+  }
 
-  ldr(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));
 
-  Label notRecursive;
-  cbz(disp_hdr, notRecursive);
+  { // Handle inflated monitor.
+    bind(inflated_load_monitor);
+    ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
+#ifdef ASSERT
+    tbnz(mark, exact_log2(markWord::monitor_value), inflated);
+    stop("Fast Unlock not monitor");
+#endif
+    bind(inflated);
 
-  // Recursive lock
-  sub(disp_hdr, disp_hdr, 1u);
-  str(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));
-  cmp(disp_hdr, disp_hdr); // Sets flags for result
-  b(cont);
+    // mark contains the tagged ObjectMonitor*.
+    const Register monitor = mark;
+    const uintptr_t monitor_tag = markWord::monitor_value;
+    // untag the monitor
+    sub(monitor, mark, monitor_tag);
 
-  bind(notRecursive);
-  ldr(rscratch1, Address(tmp, ObjectMonitor::EntryList_offset()));
-  ldr(disp_hdr, Address(tmp, ObjectMonitor::cxq_offset()));
-  orr(rscratch1, rscratch1, disp_hdr); // Will be 0 if both are 0.
-  cmp(rscratch1, zr); // Sets flags for result
-  cbnz(rscratch1, cont);
-  // need a release store here
-  lea(tmp, Address(tmp, ObjectMonitor::owner_offset()));
-  stlr(zr, tmp); // set unowned
+    const Register recursions = t1;
 
-  bind(cont);
-  // flag == EQ indicates success
-  // flag == NE indicates failure
-  br(Assembler::NE, no_count);
+    ldr(recursions, Address(monitor, ObjectMonitor::recursions_offset()));
 
-  bind(count);
+    Label final_exit;
+    cbz(recursions, final_exit);
+
+    // Recursive lock
+    sub(recursions, recursions, 1u);
+    str(recursions, Address(monitor, ObjectMonitor::recursions_offset()));
+    // Set flag == EQ
+    cmp(recursions, recursions);
+    b(unlocked);
+
+    bind(final_exit);
+
+    const Register t = t1;
+    const Register owner_field = t2;
+    Label release;
+
+    // Check if the entry lists are empty
+    ldr(rscratch1, Address(monitor, ObjectMonitor::EntryList_offset()));
+    ldr(t, Address(monitor, ObjectMonitor::cxq_offset()));
+    orr(rscratch1, rscratch1, t);
+    cmp(rscratch1, zr);
+
+    // Loader the owner field address
+    lea(owner_field, Address(monitor, ObjectMonitor::owner_offset()));
+    br(Assembler::EQ, release);
+
+    // The owner may be anonymous and the lock stack is empty.
+    // TODO: For now just store the thread so the runtime does
+    //       not get confused. In the future maybe implement,
+    //       the successor protocol.
+    //       May also make the ObjectSynchronize::exit handle
+    //       the lock stack being empty, and just accept that
+    //       it may find an anonymously owned monitor, which
+    //       and it can just set the owner_field to the current
+    //       thread there, instead of in here.
+    str(rthread, Address(owner_field));
+    b(slow_path);
+
+
+    bind(release);
+    // Set owner to NULL
+    // Release to satisfy the JMM
+    stlr(zr, owner_field);
+
+  }
+
+  bind(unlocked);
   decrement(Address(rthread, JavaThread::held_monitor_count_offset()));
 
-  bind(no_count);
+#ifdef ASSERT
+  Label flag_correct;
+  br(Assembler::EQ, flag_correct);
+  stop("Fast Unlock Flag != EQ");
+#endif
+
+  bind(slow_path);
+#ifdef ASSERT
+  br(Assembler::NE, flag_correct);
+  stop("Fast Unlock Flag != NE");
+  bind(flag_correct);
+#endif
 }
 
 // Search for str1 in str2 and return index or -1

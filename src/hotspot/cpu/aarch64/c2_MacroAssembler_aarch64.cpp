@@ -348,10 +348,10 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register box, Regi
   // Finish fast unlock unsuccessfully. MUST branch to with flag == NE
   Label slow_path;
 
-  const Register mark = t1;
+  const Register mark = box;
 
   { // Lightweight unlock
-    const Register top = box;
+    const Register top = t1;
     const Register t = t2;
 
     ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
@@ -384,8 +384,13 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register box, Regi
     // Release to satisfy the JMM
     stlxr(rscratch1, t, obj);
     cmpw(rscratch1, 0u);
-    br(Assembler::NE, slow_path);
-    b(unlocked);
+    br(Assembler::EQ, unlocked);
+    // Push back to stack on failure.
+    // TODO: Move this to the runtime.
+    str(obj, Address(rthread, top));
+    addw(top, top, oopSize);
+    str(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+    b(slow_path);
   }
 
 

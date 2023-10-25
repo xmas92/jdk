@@ -35,6 +35,7 @@ class OopClosure;
 class outputStream;
 
 class LockStack {
+  friend class LockStackTest;
   friend class VMStructs;
   JVMCI_ONLY(friend class JVMCIVMStructs;)
 private:
@@ -51,6 +52,7 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
+  const oop null_sentinel = nullptr;
   oop _base[CAPACITY];
 
   // Get the owning thread of this lock-stack.
@@ -84,8 +86,23 @@ public:
   // Pops an oop from this lock-stack.
   inline oop pop();
 
+  // Get the oldest oop from this lock-stack.
+  inline oop bottom();
+
+  // Is the lock-stack empty
+  inline bool is_empty() const;
+
+  // Check if object is recursive
+  inline bool is_recursive(oop o);
+
+  // Try recursive exit
+  inline bool try_recursive_exit(oop o);
+
+  // Try recursive enter
+  inline bool try_recursive_enter(oop o);
+
   // Removes an oop from an arbitrary location of this lock-stack.
-  inline void remove(oop o);
+  inline size_t remove(oop o);
 
   // Tests whether the oop is on this lock-stack.
   inline bool contains(oop o) const;

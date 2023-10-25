@@ -26,14 +26,17 @@
 #ifndef SHARE_RUNTIME_LOCKSTACK_INLINE_HPP
 #define SHARE_RUNTIME_LOCKSTACK_INLINE_HPP
 
+#include "runtime/lockStack.hpp"
+
 #include "memory/iterator.hpp"
 #include "runtime/javaThread.hpp"
-#include "runtime/lockStack.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
+#include "utilities/align.hpp"
 
 inline int LockStack::to_index(uint32_t offset) {
+  assert(is_aligned(offset, oopSize), "Weird offset: %u", offset);
   return (offset - lock_stack_base_offset) / oopSize;
 }
 
@@ -81,25 +84,97 @@ inline oop LockStack::pop() {
   return o;
 }
 
-inline void LockStack::remove(oop o) {
+inline oop LockStack::bottom() {
+  assert(to_index(_top) > 0, "must contain an oop");
+  return _base[0];
+}
+
+inline bool LockStack::is_empty() const {
+  return to_index(_top) == 0;
+}
+
+inline bool LockStack::is_recursive(oop o) {
+  if (!OMRecursiveLightweight) {
+    return false;
+  }
+
+  assert(contains(o), "entries must exist");
+  int end = to_index(_top);
+  for (int i = 1; i < end; i++) {
+    if (_base[i-1] == o && _base[i] == o) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+inline bool LockStack::try_recursive_exit(oop o) {
+  if (!OMRecursiveLightweight) {
+    return false;
+  }
+
+  assert(contains(o), "entries must exist");
+  int end = to_index(_top);
+  if (end > 1 &&  _base[end-1] == o && _base[end-2] == o) {
+    _top -= oopSize;
+#ifdef ASSERT
+    _base[to_index(_top)] = nullptr;
+#endif
+    return true;
+  }
+
+  return false;
+}
+
+inline bool LockStack::try_recursive_enter(oop o) {
+  if (!OMRecursiveLightweight) {
+    return false;
+  }
+  int end = to_index(_top);
+  if (end > 0 && can_push() && _base[end-1] == o) {
+    _base[end] = o;
+    _top += oopSize;
+    return true;
+  }
+
+  return false;
+}
+
+inline size_t LockStack::remove(oop o) {
   verify("pre-remove");
   assert(contains(o), "entry must be present: " PTR_FORMAT, p2i(o));
+
   int end = to_index(_top);
+  uint32_t recursions = 0;
+
   for (int i = 0; i < end; i++) {
     if (_base[i] == o) {
       int last = end - 1;
-      for (; i < last; i++) {
-        _base[i] = _base[i + 1];
+      if (OMRecursiveLightweight) {
+        for (; i < last; i++) {
+          if (_base[i + 1] == o) {
+            recursions++;
+          } else {
+            break;
+          }
+        }
       }
-      _top -= oopSize;
+      for (; i < last; i++) {
+        _base[i - recursions] = _base[i + 1];
+      }
+      _top -= (oopSize + recursions * oopSize);
 #ifdef ASSERT
-      _base[to_index(_top)] = nullptr;
+      for (i = to_index(_top); i < end; i++) {
+        _base[i] = nullptr;
+      }
 #endif
       break;
     }
   }
   assert(!contains(o), "entries must be unique: " PTR_FORMAT, p2i(o));
   verify("post-remove");
+  return recursions;
 }
 
 inline bool LockStack::contains(oop o) const {

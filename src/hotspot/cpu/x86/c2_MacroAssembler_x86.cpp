@@ -1103,12 +1103,12 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
   // In practice the chain of fetches doesn't seem to impact performance, however.
   xorptr(boxReg, boxReg);
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
-  jccb  (Assembler::notZero, DONE_LABEL);
+  jcc  (Assembler::notZero, DONE_LABEL);
   movptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
   orptr(boxReg, Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
-  jccb  (Assembler::notZero, DONE_LABEL);
+  jcc  (Assembler::notZero, DONE_LABEL);
   movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 #else // _LP64
   // It's inflated
   Label CheckSucc, LNotRecursive, LSuccess, LGoSlowPath;
@@ -1126,7 +1126,7 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
   jccb  (Assembler::notZero, CheckSucc);
   // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
   movptr(Address(tmpReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
   // Try to avoid passing control into the slow_path ...
   bind  (CheckSucc);
@@ -1178,11 +1178,11 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register objReg, Register boxReg
 
   bind  (LGoSlowPath);
   orl   (boxReg, 1);                      // set ICC.ZF=0 to indicate failure
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
   bind  (LSuccess);
   testl (boxReg, 0);                      // set ICC.ZF=1 to indicate success
-  jmpb  (DONE_LABEL);
+  jmp  (DONE_LABEL);
 
 #endif
 

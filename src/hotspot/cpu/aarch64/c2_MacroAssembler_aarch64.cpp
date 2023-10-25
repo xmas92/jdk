@@ -387,7 +387,10 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register box, Regi
     br(Assembler::EQ, unlocked);
     // Push back to stack on failure.
     // TODO: Move this to the runtime.
+#ifdef ASSERT
+    // The obj was only cleared in debug
     str(obj, Address(rthread, top));
+#endif
     addw(top, top, oopSize);
     str(top, Address(rthread, JavaThread::lock_stack_top_offset()));
     b(slow_path);

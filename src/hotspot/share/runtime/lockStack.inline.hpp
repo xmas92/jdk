@@ -68,6 +68,10 @@ inline void LockStack::push(oop o) {
   verify("post-push");
 }
 
+inline bool LockStack::is_empty() const {
+  return to_index(_top) == 0;
+}
+
 inline void LockStack::remove(oop o) {
   verify("pre-remove");
   assert(contains(o), "entry must be present: " PTR_FORMAT, p2i(o));

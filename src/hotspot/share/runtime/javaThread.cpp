@@ -95,6 +95,7 @@
 #include "runtime/vmOperations.hpp"
 #include "services/threadService.hpp"
 #include "utilities/copy.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/defaultStream.hpp"
 #include "utilities/dtrace.hpp"
 #include "utilities/events.hpp"
@@ -871,6 +872,9 @@ void JavaThread::exit(bool destroy_vm, ExitType exit_type) {
     ObjectSynchronizer::release_monitors_owned_by_thread(this);
     assert(!this->has_pending_exception(), "release_monitors should have cleared");
   }
+
+  // The lock stack is never used by JNI monitors. It must be empty.
+  guarantee(_lock_stack.is_empty(), "must be");
 
   // Since above code may not release JNI monitors and if someone forgot to do an
   // JNI monitorexit, held count should be equal jni count.

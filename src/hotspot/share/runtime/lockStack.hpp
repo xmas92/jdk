@@ -81,6 +81,9 @@ public:
   // Pushes an oop on this lock-stack.
   inline void push(oop o);
 
+  // Is the lock-stack empty
+  inline bool is_empty() const;
+
   // Removes an oop from an arbitrary location of this lock-stack.
   inline void remove(oop o);
 

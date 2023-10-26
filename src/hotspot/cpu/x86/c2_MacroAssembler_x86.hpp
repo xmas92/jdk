@@ -45,7 +45,7 @@ public:
 
   void fast_lock_lightweight(Register objReg, Register boxReg, Register tmpReg,
                              Register scrReg,Register thread);
-  void fast_unlock_lightweight(Register objReg, Register boxReg, Register tmpReg);
+  void fast_unlock_lightweight(Register objReg, Register boxReg, Register tmpReg, Register thread);
 
 #if INCLUDE_RTM_OPT
   void rtm_counters_update(Register abort_status, Register rtm_counters);

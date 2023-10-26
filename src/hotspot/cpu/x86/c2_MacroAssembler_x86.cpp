@@ -988,9 +988,9 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     jcc(Assembler::notZero, inflated);
 
     // CAS 0b01 to 0b00
-    andptr(mark, ~(int32_t)markWord::unlocked_value);
     movptr(rax_reg, mark);
     orptr(rax_reg, markWord::unlocked_value);
+    andptr(mark, ~(int32_t)markWord::unlocked_value);
     lock(); cmpxchgptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
     jcc(Assembler::notEqual, slow_path);
 

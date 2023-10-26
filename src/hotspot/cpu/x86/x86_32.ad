@@ -13819,7 +13819,7 @@ instruct cmpFastLockLightweight(eFlagsReg cr, eRegP object, eBXRegP box, eAXRegI
 instruct cmpFastUnlockLightweight(eFlagsReg cr, eRegP object, eAXRegP box, eRegP tmp, eRegP thread) %{
   predicate(LockingMode == LM_LIGHTWEIGHT);
   match(Set cr (FastUnlock object box));
-  effect(TEMP tmp, USE_KILL box);
+  effect(TEMP tmp, USE_KILL box, TEMP thread);
   ins_cost(300);
   format %{ "FASTUNLOCK $object,$box\t! kills $box,$tmp" %}
   ins_encode %{

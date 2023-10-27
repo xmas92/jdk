@@ -62,6 +62,7 @@
 #include "utilities/events.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/preserveException.hpp"
+#include "utilities/spinYield.hpp"
 
 class ObjectMonitorsHashtable::PtrList :
   public LinkedListImpl<ObjectMonitor*,
@@ -385,9 +386,37 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
     return false;
   }
 
-  if (LockingMode == LM_LIGHTWEIGHT && !current->lock_stack().can_push()) {
-    // Always go into runtime if the lock stack is full.
-    return false;
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    LockStack& lock_stack = current->lock_stack();
+    if (!lock_stack.can_push()) {
+      // Always go into runtime if the lock stack is full.
+      return false;
+    }
+    if (lock_stack.try_recursive_enter(obj)) {
+      // Recursive lock successful
+      current->inc_held_monitor_count();
+      return true;
+    }
+    if (!lock_stack.contains(obj)) {
+      // try a some spinning on the fast_lock before going into runtime
+      const uint pre_spin = 100;
+      SpinYield spin_yield(pre_spin);
+      markWord mark = obj->mark_acquire();
+      for (uint i = 0; !mark.has_monitor() && i < pre_spin; i++, mark = obj->mark()) {
+        if (mark.is_unlocked()) {
+          const markWord new_mark = mark.set_fast_locked();
+          const markWord old_mark = mark;
+          mark = obj->cas_set_mark(new_mark, old_mark);
+          if (old_mark == mark) {
+            // Successfully fast-locked, push object to lock-stack and return.
+            lock_stack.push(obj);
+            current->inc_held_monitor_count();
+            return true;
+          }
+        }
+        spin_yield.wait();
+    }
+    }
   }
 
   const markWord mark = obj->mark();
@@ -538,6 +567,24 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
       } else if (mark.is_fast_locked() && lock_stack.try_recursive_enter(obj())) {
         // Recursive lock successful
         return;
+      }
+      if (!lock_stack.contains(obj())) {
+        // try a some spinning on the fast_lock before inflating
+        const uint pre_spin = 100;
+        SpinYield spin_yield(pre_spin);
+        for (uint i = 0; !mark.has_monitor() && i < pre_spin; i++, mark = obj->mark()) {
+          if (mark.is_unlocked()) {
+            const markWord new_mark = mark.set_fast_locked();
+            const markWord old_mark = mark;
+            mark = obj()->cas_set_mark(new_mark, old_mark);
+            if (old_mark == mark) {
+              // Successfully fast-locked, push object to lock-stack and return.
+              lock_stack.push(obj());
+              return;
+            }
+          }
+          spin_yield.wait();
+        }
       }
       // All other paths fall-through to inflate-enter.
     } else if (LockingMode == LM_LEGACY) {

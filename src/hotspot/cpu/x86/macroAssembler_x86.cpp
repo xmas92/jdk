@@ -9845,56 +9845,63 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
 }
 
 // Implements lightweight-unlocking.
-// Branches to slow upon failure, with ZF cleared.
-// Falls through upon success, with unspecified ZF.
 //
 // obj: the object to be unlocked
-// hdr: the (pre-loaded) header of the object, must be rax
+// reg_rax: rax
+// thread: the thread, may be EAX on x86_32
 // tmp: a temporary register
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp, Label& slow) {
-  assert(hdr == rax, "header must be in rax for cmpxchg");
-  assert_different_registers(obj, hdr, tmp);
-  Label success;
+void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow) {
+  assert(reg_rax == rax, "");
+  assert_different_registers(obj, reg_rax, tmp);
+  LP64_ONLY(assert_different_registers(obj, reg_rax, thread, tmp);)
 
-  if (OMRecursiveLightweight) {
-#ifdef _LP64
-    movl(tmp, Address(r15_thread, JavaThread::lock_stack_top_offset()));
-    // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
-    cmpptr(obj, Address(r15_thread, tmp, Address::times_1, -oopSize * 2));
-    // next to last obj on lock_stack is also this oop, recursive unlock
-#else
-    get_thread(tmp);
-    addptr(tmp, Address(tmp, JavaThread::lock_stack_top_offset()));
-    cmpptr(obj, Address(tmp, -oopSize * 2));
-#endif
-    jccb(Assembler::equal, success);
+  Label unlocked, push_and_slow;
+  const Register top = tmp;
 
-    // TODO: x86 we can push tmp (ptr to top of lock stack) onto the stack here
-    //       and pop it after the CAS to avoid reloading the thread
-  }
-
-  // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
-  movptr(tmp, hdr); // The expected old value
-  orptr(tmp, markWord::unlocked_value);
-  lock();
-  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+  // Check and pop the top of stack
+  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+  cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+  // Either the lock is inflated or we have unmatched locking.
   jcc(Assembler::notEqual, slow);
-  // Pop the lock object from the lock-stack.
-  bind(success);
-#ifdef _LP64
-  const Register thread = r15_thread;
-#else
-  const Register thread = rax;
-  get_thread(thread);
-#endif
+  // Pop value
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 #ifdef ASSERT
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-  Label correct;
-  cmpptr(obj, Address(thread, tmp));
-  jccb(Assembler::equal, correct);
-  stop("Wrong oop popped from LockStack");
-  bind(correct);
-  movptr(Address(thread, tmp), 0);
+  movptr(Address(thread, top, Address::times_1, -oopSize), 0);
 #endif
+
+  if (OMRecursiveLightweight) {
+    cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
+    jcc(Assembler::equal, unlocked);
+  }
+
+  movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));
+  testptr(reg_rax, markWord::monitor_value);
+  jcc(Assembler::notZero, push_and_slow);
+
+#ifdef ASSERT
+  Label not_unlocked;
+  testptr(reg_rax, markWord::unlocked_value);
+  jcc(Assembler::zero, not_unlocked);
+  stop("lightweight_unlock already unlocked");
+  bind(not_unlocked);
+#endif
+
+  // CAS 0b00 -> 0b01
+  movptr(tmp, reg_rax);
+  orptr(tmp, markWord::unlocked_value);
+  lock(); cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+  jcc(Assembler::equal, unlocked);
+
+  bind(push_and_slow);
+  if (thread == reg_rax) {
+    // On x86_32 we may lose the thread.
+    get_thread(thread);
+  }
+#ifdef ASSERT
+  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+  movptr(Address(thread, top), obj);
+#endif
+  addl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
+  jmp(slow);
+  bind(unlocked);
 }

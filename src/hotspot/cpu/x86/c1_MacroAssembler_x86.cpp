@@ -133,9 +133,14 @@ void C1_MacroAssembler::unlock_object(Register hdr, Register obj, Register disp_
   verify_oop(obj);
 
   if (LockingMode == LM_LIGHTWEIGHT) {
-    movptr(disp_hdr, Address(obj, hdr_offset));
-    andptr(disp_hdr, ~(int32_t)markWord::lock_mask_in_place);
-    lightweight_unlock(obj, disp_hdr, hdr, slow_case);
+#ifdef _LP64
+    lightweight_unlock(obj, disp_hdr, r15_thread, hdr, slow_case);
+#else
+    // This relies on the implementation of lightweight_unlock, know that it
+    // clobbers its thread when using EAX.
+    get_thread(disp_hdr);
+    lightweight_unlock(obj, disp_hdr, disp_hdr, hdr, slow_case);
+#endif
   } else if (LockingMode == LM_LEGACY) {
     // test if object header is pointing to the displaced header, and if so, restore
     // the displaced header in the object - if the object header is not pointing to

@@ -2328,9 +2328,7 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
       __ dec_held_monitor_count();
     } else {
       assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-      __ movptr(swap_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
-      __ andptr(swap_reg, ~(int32_t)markWord::lock_mask_in_place);
-      __ lightweight_unlock(obj_reg, swap_reg, lock_reg, slow_path_unlock);
+      __ lightweight_unlock(obj_reg, swap_reg, r15_thread, lock_reg, slow_path_unlock);
       __ dec_held_monitor_count();
     }
 

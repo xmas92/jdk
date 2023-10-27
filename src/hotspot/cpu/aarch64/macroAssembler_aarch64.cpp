@@ -55,6 +55,7 @@
 #include "runtime/jniHandles.inline.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
 #ifdef COMPILER1
 #include "c1/c1_LIRAssembler.hpp"
@@ -6355,78 +6356,71 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
 }
 
 // Implements lightweight-unlocking.
-// Branches to slow upon failure, with ZF cleared.
-// Falls through upon success, with ZF set.
 //
 // - obj: the object to be unlocked
-// - hdr: the (pre-loaded) header of the object
-// - t1, t2: temporary registers
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& slow) {
+// - t1, t2, t3: temporary registers
+void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, Register t3, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, hdr, t1, t2, rscratch1);
+  assert_different_registers(obj, t3, t1, t2, rscratch1);
 
 #ifdef ASSERT
   {
-    // The following checks rely on the fact that LockStack is only ever modified by
-    // its owning thread, even if the lock got inflated concurrently; removal of LockStack
-    // entries after inflation will happen delayed in that case.
-
     // Check for lock-stack underflow.
     Label stack_ok;
     ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
     cmpw(t1, (unsigned)LockStack::start_offset());
-    br(Assembler::GT, stack_ok);
+    br(Assembler::GE, stack_ok);
     STOP("Lock-stack underflow");
     bind(stack_ok);
   }
-  {
-    // Check if the top of the lock-stack matches the unlocked object.
-    Label tos_ok;
-    subw(t1, t1, oopSize);
-    ldr(t1, Address(rthread, t1));
-    cmpoop(t1, obj);
-    br(Assembler::EQ, tos_ok);
-    STOP("Top of lock-stack does not match the unlocked object");
-    bind(tos_ok);
-  }
-  {
-    // Check that hdr is fast-locked.
-    Label hdr_ok;
-    tst(hdr, markWord::lock_mask_in_place);
-    br(Assembler::EQ, hdr_ok);
-    STOP("Header is not fast-locked");
-    bind(hdr_ok);
-  }
 #endif
 
-  Label success;
+  Label unlocked, push_and_slow;
+  const Register top = t1;
+  const Register mark = t2;
+  const Register t = t3;
 
-  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+  ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+  subw(top, top, oopSize);
+  ldr(t, Address(rthread, top));
+  cmp(obj, t);
+  br(Assembler::NE, slow);
+#ifdef ASSERT
+  str(zr, Address(rthread, top));
+#endif
+  strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
 
   if (OMRecursiveLightweight) {
-    // oopSize * 2 may underflow but is _top and padding, probably does not look like this oop. TODO: ensure this.
-    subw(t2, t1, oopSize * 2);
-    ldr(t2, Address(rthread, t2));
-    cmp(obj, t2);
-    // next to last obj on lock_stack is also this oop, recursive unlock
-    br(Assembler::EQ, success);
+    subw(t, top, oopSize);
+    ldr(t, Address(rthread, t));
+    cmp(obj, t);
+    br(Assembler::EQ, unlocked);
   }
 
-  // Load the new header (unlocked) into t1
-  orr(t2, hdr, markWord::unlocked_value);
+  ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
+  tst(mark, markWord::monitor_value);
+  br(Assembler::NE, push_and_slow);
 
-  // Try to swing header from locked to unlocked
-  // Clobbers rscratch1 when UseLSE is false
-  cmpxchg(obj, hdr, t2, Assembler::xword,
-          /*acquire*/ true, /*release*/ true, /*weak*/ false, noreg);
-  br(Assembler::NE, slow);
-
-  bind(success);
-
-  // After successful unlock, pop object from lock-stack
-  subw(t1, t1, oopSize);
 #ifdef ASSERT
-  str(zr, Address(rthread, t1));
+  Label not_unlocked;
+  tbz(mark, log2i_exact(markWord::unlocked_value), not_unlocked);
+  stop("lightweight_unlock already unlocked");
+  bind(not_unlocked);
 #endif
-  strw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+
+  // CAS 0b00 -> 0b01
+  assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid lea");
+  orr(t, mark, markWord::unlocked_value);
+  cmpxchg(obj, mark, t, Assembler::xword,
+          /*acquire*/ false, /*release*/ true, /*weak*/ false, noreg);
+  br(Assembler::EQ, unlocked);
+
+  bind(push_and_slow);
+#ifdef ASSERT
+  str(obj, Address(rthread, top));
+#endif
+  addw(top, top, oopSize);
+  strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+  b(slow);
+  bind(unlocked);
 }

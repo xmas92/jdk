@@ -6311,69 +6311,47 @@ void MacroAssembler::double_move(VMRegPair src, VMRegPair dst, Register tmp) {
 }
 
 // Implements lightweight-locking.
-// Branches to slow upon failure to lock the object, with ZF cleared.
-// Falls through upon success with ZF set.
 //
 //  - obj: the object to be locked
-//  - hdr: the header, already loaded from obj, will be destroyed
-//  - t1, t2: temporary registers, will be destroyed
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, Register t2, Label& slow) {
+//  - t1, t2, t3: temporary registers, will be destroyed
+void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Register t3, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, hdr, t1, t2, rscratch1);
-  Label success, recursion;
+  assert_different_registers(obj, t1, t2, t3, rscratch1);
+
+  Label push;
+  const Register top = t1;
+  const Register mark = t2;
+  const Register t = t3;
 
   // Check if we would have space on lock-stack for the object.
-  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
-  cmpw(t1, (unsigned)LockStack::end_offset() - 1);
-  br(Assembler::GT, slow);
-
-  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    tbz(hdr, exact_log2(markWord::unlocked_value), recursion);
-  }
-
-  // Load (object->mark() | 1) into hdr
-  orr(hdr, hdr, markWord::unlocked_value);
-  // Clear lock-bits, into t1
-  eor(t1, hdr, markWord::unlocked_value);
-  // Try to swing header from unlocked to locked
-  cmpxchg(/*addr*/ obj, /*expected*/ hdr, /*new*/ t1, Assembler::xword,
-          /*acquire*/ true, /*release*/ true, /*weak*/ false, t2);
-
-  // Reload top
-  ldrw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+  ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
+  cmpw(top, (unsigned)LockStack::end_offset());
+  br(Assembler::GE, slow);
 
   if (OMRecursiveLightweight) {
-    // CAS successful
-    br(Assembler::EQ, success);
-
-    if (OMRecursiveFastPath2) {
-      // NE set after failed CAS
-      b(slow);
-    } else {
-      // Check if fast locked
-      tst(t2, markWord::monitor_value | markWord::unlocked_value);
-      br(Assembler::NE, slow);
-    }
-
-    // TODO: Evaluate doing the recursion check first and then look at the
-    //       markWord, OMRecursiveFastPath2 effectivly goes away then
-    bind(recursion);
-
-    // Check if the lock is lightweight-lock recursive
-    subw(t2, t1, oopSize);
-    ldr(t2, Address(rthread, t2));
-    cmp(obj, t2);
-    br(Assembler::NE, slow);
-  } else {
-    br(Assembler::NE, slow);
+    // Check for recursion
+    subw(t, top, oopSize);
+    ldr(t, Address(rthread, t));
+    cmp(obj, t);
+    br(Assembler::EQ, push);
   }
 
-  bind(success);
+  ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
+  tst(mark, markWord::monitor_value);
+  br(Assembler::NE, slow);
 
+  assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid lea");
+  orr(mark, mark, markWord::unlocked_value);
+  eor(t, mark, markWord::unlocked_value);
+  cmpxchg(/*addr*/ obj, /*expected*/ mark, /*new*/ t, Assembler::xword,
+          /*acquire*/ true, /*release*/ false, /*weak*/ false, noreg);
+  br(Assembler::NE, slow);
+
+  bind(push);
   // After successful lock, push object on lock-stack
-  str(obj, Address(rthread, t1));
-  addw(t1, t1, oopSize);
-  strw(t1, Address(rthread, JavaThread::lock_stack_top_offset()));
+  str(obj, Address(rthread, top));
+  addw(top, top, oopSize);
+  strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
 }
 
 // Implements lightweight-unlocking.

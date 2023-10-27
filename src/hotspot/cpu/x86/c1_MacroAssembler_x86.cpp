@@ -60,9 +60,6 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
     jcc(Assembler::notZero, slow_case);
   }
 
-  // Load object header
-  movptr(hdr, Address(obj, hdr_offset));
-
   if (LockingMode == LM_LIGHTWEIGHT) {
 #ifdef _LP64
     const Register thread = r15_thread;
@@ -73,6 +70,8 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
     lightweight_lock(obj, hdr, thread, tmp, slow_case);
   } else  if (LockingMode == LM_LEGACY) {
     Label done;
+    // Load object header
+    movptr(hdr, Address(obj, hdr_offset));
     // and mark it as unlocked
     orptr(hdr, markWord::unlocked_value);
     // save unlocked object header into the displaced header location on the stack

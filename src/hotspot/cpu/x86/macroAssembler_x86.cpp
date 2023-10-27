@@ -9801,70 +9801,47 @@ void MacroAssembler::check_stack_alignment(Register sp, const char* msg, unsigne
 }
 
 // Implements lightweight-locking.
-// Branches to slow upon failure to lock the object, with ZF cleared.
-// Falls through upon success with unspecified ZF.
 //
 // obj: the object to be locked
-// hdr: the (pre-loaded) header of the object, must be rax
+// reg_rax: rax
 // thread: the thread which attempts to lock obj
 // tmp: a temporary register
-void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Label& slow) {
-  assert(hdr == rax, "header must be in rax for cmpxchg");
-  assert_different_registers(obj, hdr, thread, tmp);
-  Label success;
+void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow) {
+  assert(reg_rax == rax, "");
+  assert_different_registers(obj, reg_rax, thread, tmp);
+
+  Label push;
+  const Register top = tmp;
 
   // First we need to check if the lock-stack has room for pushing the object reference.
-  // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
-  // of 'greaterEqual' below, which readily clears the ZF. This makes C2 code a little simpler and
-  // avoids one branch.
-  cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
-  jcc(Assembler::greater, slow);
-
-  Label recursion;
-  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    testptr(hdr, markWord::unlocked_value);
-    jccb(Assembler::zero, recursion);
-  }
-
-  // Now we attempt to take the fast-lock.
-  // Clear lock_mask bits (locked state).
-  andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
-  movptr(tmp, hdr);
-  // Set unlocked_value bit.
-  orptr(hdr, markWord::unlocked_value);
-  lock();
-  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+  cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset());
+  jcc(Assembler::greaterEqual, slow);
 
   if (OMRecursiveLightweight) {
-    // CAS successful
-    jccb(Assembler::equal, success);
-
-    if (OMRecursiveFastPath2) {
-      // NE set after failed CAS
-      jmp(slow);
-    } else {
-      // Check if fast locked
-      testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
-      jcc(Assembler::notZero, slow);
-    }
-
-    // TODO: Evaluate doing the recursion check first and then look at the
-    //       markWord, OMRecursiveFastPath2 effectivly goes away then
-    bind(recursion);
-
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-    cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
-    jcc(Assembler::notEqual, slow);
-  } else {
-    jcc(Assembler::notEqual, slow);
+    // Check for recursion
+    movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+    cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+    jcc(Assembler::equal, push);
   }
 
-  bind(success);
-  // If successful, push object to lock-stack.
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-  movptr(Address(thread, tmp), obj);
-  incrementl(tmp, oopSize);
-  movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
+  movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));
+  testptr(reg_rax, markWord::monitor_value);
+  jcc(Assembler::notZero, slow);
+
+  // CAS from 0b01 -> 0b00
+  movptr(tmp, reg_rax);
+  andptr(tmp, ~(int32_t)markWord::unlocked_value);
+  orptr(reg_rax, markWord::unlocked_value);
+  lock(); cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
+  jcc(Assembler::notEqual, slow);
+
+  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+
+  bind(push);
+  // Push object to lock-stack.
+  movptr(Address(thread, top), obj);
+  incrementl(top, oopSize);
+  movl(Address(thread, JavaThread::lock_stack_top_offset()), top);
 }
 
 // Implements lightweight-unlocking.

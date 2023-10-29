@@ -549,7 +549,9 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
         // The emitted code always goes into the runtime incase the lock stack
         // is full. We unconditionally make room on the lock stack by inflating
         // the least recently locked object on the lock stack.
-        inflate(current, lock_stack.bottom(), inflate_cause_vm_internal);
+        ObjectMonitor* monitor = inflate(current, lock_stack.bottom(), inflate_cause_vm_internal);
+        assert(monitor->owner() == current, "must be owner=" PTR_FORMAT " current=" PTR_FORMAT " mark=" PTR_FORMAT,
+               p2i(monitor->owner()), p2i(current), monitor->object()->mark_acquire().value());
       }
 
       markWord mark = obj()->mark_acquire();

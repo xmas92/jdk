@@ -37,6 +37,7 @@
 #include "runtime/stubRoutines.hpp"
 #include "utilities/checkedCast.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/sizes.hpp"
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -1050,9 +1051,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
   Label slow_path;
 
   const Register mark = t;
+  const Register top = reg_rax;
 
   { // Lightweight Unlock
-    const Register top = reg_rax;
 
     movptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
 
@@ -1092,6 +1093,16 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
   { // Handle inflated monitor.
     bind(inflated_load_monitor);
+#ifdef ASSERT
+    Label check_done;
+    subl(top, oopSize);
+    cmpl(top, in_bytes(JavaThread::lock_stack_base_offset()));
+    jcc(Assembler::below, check_done);
+    cmpptr(obj, Address(thread, top));
+    jccb(Assembler::notEqual, inflated_load_monitor);
+    stop("Fast Unlock lock on stack");
+    bind(check_done);
+#endif
     movptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
 #ifdef ASSERT
     testptr(mark, markWord::monitor_value);

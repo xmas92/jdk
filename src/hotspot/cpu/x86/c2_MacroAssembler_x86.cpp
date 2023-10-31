@@ -938,21 +938,6 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   assert(rax_reg == rax, "Used for CAS");
   assert_different_registers(obj, box, rax_reg, t, thread);
 
-  // Possible cases that we'll encounter in fast_lock
-  // ------------------------------------------------
-  // * Inflated
-  //    -- unlocked
-  //    -- Locked
-  //       = by self
-  //       = by other
-  // * neutral
-  // * stack-locked
-  //    -- by self
-  //       = sp-proximity test hits
-  //       = sp-proximity test generates false-negative
-  //    -- by other
-  //
-
   // Handle inflated monitor.
   Label inflated;
   // Finish fast lock successfully. ZF value is irrelevant
@@ -1045,9 +1030,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
   // Handle inflated monitor.
   Label inflated, inflated_load_monitor;
-  // Finish fast unlock successfully. MUST reach to with flag == EQ
+  // Finish fast unlock successfully. ZF value is irrelevant
   Label unlocked;
-  // Finish fast unlock unsuccessfully. MUST branch to with flag == NE
+  // Finish fast unlock unsuccessfully. MUST jump with ZF == 0
   Label slow_path;
 
   const Register mark = t;

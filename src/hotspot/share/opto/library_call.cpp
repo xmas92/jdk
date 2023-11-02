@@ -4544,6 +4544,7 @@ bool LibraryCallKit::inline_native_hashcode(bool is_virtual, bool is_static) {
   Node* no_ctrl = nullptr;
   Node* header = make_load(no_ctrl, header_addr, TypeX_X, TypeX_X->basic_type(), MemNode::unordered);
 
+  // TODO: Split out
   // Test the header to see if it is safe to read w.r.t. locking.
   if (LockingMode == LM_LIGHTWEIGHT) {
     Node *lock_mask      = _gvn.MakeConX(markWord::lock_mask_in_place);

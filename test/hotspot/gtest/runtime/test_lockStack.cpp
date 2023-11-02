@@ -261,8 +261,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0
   {
-    size_t rec = ls.remove(obj0);
-    EXPECT_EQ(rec, 0u);
+    size_t removed = ls.remove(obj0);
+    EXPECT_EQ(removed, 1u);
     EXPECT_FALSE(ls.contains(obj0));
   }
 
@@ -271,8 +271,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0, 0
   {
-    size_t rec = ls.remove(obj0);
-    EXPECT_EQ(rec, 1u);
+    size_t removed = ls.remove(obj0);
+    EXPECT_EQ(removed, 2u);
     EXPECT_FALSE(ls.contains(obj0));
   }
 
@@ -281,8 +281,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0, 1
   {
-    size_t rec = ls.remove(obj0);
-    EXPECT_EQ(rec, 0u);
+    size_t removed = ls.remove(obj0);
+    EXPECT_EQ(removed, 1u);
     EXPECT_FALSE(ls.contains(obj0));
     EXPECT_TRUE(ls.contains(obj1));
 
@@ -295,8 +295,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0, 1
   {
-    size_t rec = ls.remove(obj1);
-    EXPECT_EQ(rec, 0u);
+    size_t removed = ls.remove(obj1);
+    EXPECT_EQ(removed, 1u);
     EXPECT_FALSE(ls.contains(obj1));
     EXPECT_TRUE(ls.contains(obj0));
 
@@ -310,8 +310,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0, 0, 1
   {
-    size_t rec = ls.remove(obj0);
-    EXPECT_EQ(rec, 1u);
+    size_t removed = ls.remove(obj0);
+    EXPECT_EQ(removed, 2u);
     EXPECT_FALSE(ls.contains(obj0));
     EXPECT_TRUE(ls.contains(obj1));
 
@@ -325,8 +325,8 @@ TEST_VM_F(LockStackTest, remove) {
 
   // 0, 1, 1
   {
-    size_t rec = ls.remove(obj1);
-    EXPECT_EQ(rec, 1u);
+    size_t removed = ls.remove(obj1);
+    EXPECT_EQ(removed, 2u);
     EXPECT_FALSE(ls.contains(obj1));
     EXPECT_TRUE(ls.contains(obj0));
 
@@ -347,8 +347,8 @@ TEST_VM_F(LockStackTest, remove) {
   {
     EXPECT_EQ(size(ls), 8u);
 
-    size_t rec = ls.remove(obj1);
-    EXPECT_EQ(rec, 1u);
+    size_t removed = ls.remove(obj1);
+    EXPECT_EQ(removed, 2u);
 
     EXPECT_TRUE(ls.contains(obj0));
     EXPECT_FALSE(ls.contains(obj1));
@@ -363,8 +363,8 @@ TEST_VM_F(LockStackTest, remove) {
     EXPECT_EQ(at(ls, 5), obj3);
     EXPECT_EQ(size(ls), 6u);
 
-    rec = ls.remove(obj2);
-    EXPECT_EQ(rec, 3u);
+    removed = ls.remove(obj2);
+    EXPECT_EQ(removed, 4u);
 
     EXPECT_TRUE(ls.contains(obj0));
     EXPECT_FALSE(ls.contains(obj1));
@@ -375,8 +375,8 @@ TEST_VM_F(LockStackTest, remove) {
     EXPECT_EQ(at(ls, 1), obj3);
     EXPECT_EQ(size(ls), 2u);
 
-    rec = ls.remove(obj0);
-    EXPECT_EQ(rec, 0u);
+    removed = ls.remove(obj0);
+    EXPECT_EQ(removed, 1u);
 
     EXPECT_FALSE(ls.contains(obj0));
     EXPECT_FALSE(ls.contains(obj1));
@@ -386,8 +386,8 @@ TEST_VM_F(LockStackTest, remove) {
     EXPECT_EQ(at(ls, 0), obj3);
     EXPECT_EQ(size(ls), 1u);
 
-    rec = ls.remove(obj3);
-    EXPECT_EQ(rec, 0u);
+    removed = ls.remove(obj3);
+    EXPECT_EQ(removed, 1u);
 
     EXPECT_TRUE(ls.is_empty());
     EXPECT_EQ(size(ls), 0u);

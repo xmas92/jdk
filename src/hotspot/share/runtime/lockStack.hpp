@@ -52,6 +52,7 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
+  // TODO: move null_sentinel into _base array
   const oop null_sentinel = nullptr;
   oop _base[CAPACITY];
 
@@ -77,31 +78,33 @@ public:
   static uint32_t start_offset();
   static uint32_t end_offset();
 
-  // Return true if we have room to push onto this lock-stack, false otherwise.
-  inline bool can_push() const;
+  // Returns true if the lock-stack is full. False otherwise.
+  inline bool is_full() const;
 
   // Pushes an oop on this lock-stack.
   inline void push(oop o);
 
-  // Pops an oop from this lock-stack.
-  inline oop pop();
-
   // Get the oldest oop from this lock-stack.
-  inline oop bottom();
+  // Precondition: This lock-stack must not be empty.
+  inline oop bottom() const;
 
-  // Is the lock-stack empty
+  // Is the lock-stack empty.
   inline bool is_empty() const;
 
-  // Check if object is recursive
-  inline bool is_recursive(oop o);
+  // Check if object is recursive.
+  // Precondition: This lock-stack must contain the oop.
+  inline bool is_recursive(oop o) const;
 
-  // Try recursive exit
-  inline bool try_recursive_exit(oop o);
-
-  // Try recursive enter
+  // Try recursive enter.
   inline bool try_recursive_enter(oop o);
 
+  // Try recursive exit.
+  // Precondition: This lock-stack must contain the oop.
+  inline bool try_recursive_exit(oop o);
+
   // Removes an oop from an arbitrary location of this lock-stack.
+  // Precondition: This lock-stack must contain the oop.
+  // Returns the number of oops removed.
   inline size_t remove(oop o);
 
   // Tests whether the oop is on this lock-stack.

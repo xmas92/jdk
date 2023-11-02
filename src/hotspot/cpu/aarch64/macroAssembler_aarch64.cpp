@@ -23,8 +23,6 @@
  *
  */
 
-#include <sys/types.h>
-
 #include "precompiled.hpp"
 #include "asm/assembler.hpp"
 #include "asm/assembler.inline.hpp"
@@ -66,6 +64,8 @@
 #include "opto/node.hpp"
 #include "opto/output.hpp"
 #endif
+
+#include <sys/types.h>
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -6324,23 +6324,23 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
   const Register mark = t2;
   const Register t = t3;
 
-  // Check if we would have space on lock-stack for the object.
+  // Check if the lock-stack is full.
   ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
   cmpw(top, (unsigned)LockStack::end_offset());
   br(Assembler::GE, slow);
 
-  if (OMRecursiveLightweight) {
-    // Check for recursion
-    subw(t, top, oopSize);
-    ldr(t, Address(rthread, t));
-    cmp(obj, t);
-    br(Assembler::EQ, push);
-  }
+  // Check for recursion.
+  subw(t, top, oopSize);
+  ldr(t, Address(rthread, t));
+  cmp(obj, t);
+  br(Assembler::EQ, push);
 
+  // Check header for monitor (0b01).
   ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
   tst(mark, markWord::monitor_value);
   br(Assembler::NE, slow);
 
+  // Try to lock. Transition lock bits 0b01 => 0b00
   assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid lea");
   orr(mark, mark, markWord::unlocked_value);
   eor(t, mark, markWord::unlocked_value);
@@ -6349,7 +6349,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
   br(Assembler::NE, slow);
 
   bind(push);
-  // After successful lock, push object on lock-stack
+  // After successful lock, push object on lock-stack.
   str(obj, Address(rthread, top));
   addw(top, top, oopSize);
   strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
@@ -6361,7 +6361,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
 // - t1, t2, t3: temporary registers
 void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, Register t3, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, t3, t1, t2, rscratch1);
+  assert_different_registers(obj, t1, t2, t3, rscratch1);
 
 #ifdef ASSERT
   {
@@ -6380,35 +6380,36 @@ void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, 
   const Register mark = t2;
   const Register t = t3;
 
+  // Check if obj is top of lock-stack.
   ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
   subw(top, top, oopSize);
   ldr(t, Address(rthread, top));
   cmp(obj, t);
   br(Assembler::NE, slow);
-#ifdef ASSERT
-  str(zr, Address(rthread, top));
-#endif
+
+  // Pop lock-stack.
+  DEBUG_ONLY(str(zr, Address(rthread, top));)
   strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
 
-  if (OMRecursiveLightweight) {
-    subw(t, top, oopSize);
-    ldr(t, Address(rthread, t));
-    cmp(obj, t);
-    br(Assembler::EQ, unlocked);
-  }
+  // Check if recursive.
+  subw(t, top, oopSize);
+  ldr(t, Address(rthread, t));
+  cmp(obj, t);
+  br(Assembler::EQ, unlocked);
 
+  // Not recursive. Check header for monitor (0b10).
   ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
-  tst(mark, markWord::monitor_value);
-  br(Assembler::NE, push_and_slow);
+  tbnz(mark, log2i_exact(markWord::monitor_value), push_and_slow);
 
 #ifdef ASSERT
+  // Check header not unlocked (0b01).
   Label not_unlocked;
   tbz(mark, log2i_exact(markWord::unlocked_value), not_unlocked);
   stop("lightweight_unlock already unlocked");
   bind(not_unlocked);
 #endif
 
-  // CAS 0b00 -> 0b01
+  // Try to unlock. Transition lock bits 0b00 => 0b01
   assert(oopDesc::mark_offset_in_bytes() == 0, "required to avoid lea");
   orr(t, mark, markWord::unlocked_value);
   cmpxchg(obj, mark, t, Assembler::xword,
@@ -6416,11 +6417,11 @@ void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, 
   br(Assembler::EQ, unlocked);
 
   bind(push_and_slow);
-#ifdef ASSERT
-  str(obj, Address(rthread, top));
-#endif
+  // Restore lock-stack and handle the unlock in runtime.
+  DEBUG_ONLY(str(obj, Address(rthread, top));)
   addw(top, top, oopSize);
   strw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
   b(slow);
+
   bind(unlocked);
 }

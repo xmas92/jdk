@@ -83,9 +83,9 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
   if (LockingMode == LM_LIGHTWEIGHT) {
     lightweight_lock(obj, hdr, temp, rscratch2, slow_case);
   } else if (LockingMode == LM_LEGACY) {
+    Label done;
     // Load object header
     ldr(hdr, Address(obj, hdr_offset));
-    Label done;
     // and mark it as unlocked
     orr(hdr, hdr, markWord::unlocked_value);
     // save unlocked object header into the displaced header location on the stack

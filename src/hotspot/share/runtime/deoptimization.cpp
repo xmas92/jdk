@@ -1639,6 +1639,7 @@ bool Deoptimization::relock_objects(JavaThread* thread, GrowableArray<MonitorInf
           }
         }
         if (LockingMode == LM_LIGHTWEIGHT) {
+          // TODO: Split out
           // We have lost information about the correct state of the lock stack.
           // Inflate the locks instead. Enter then inflate to avoid races with
           // deflation.

@@ -60,7 +60,7 @@ void SharedRuntime::inline_check_hashcode_from_object_header(MacroAssembler* mas
 
   __ movptr(result, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
 
-
+  // TODO: Split out
   if (LockingMode == LM_LIGHTWEIGHT) {
     // check if monitor
     __ testptr(result, markWord::monitor_value);

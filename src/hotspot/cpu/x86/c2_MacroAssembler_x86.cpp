@@ -558,6 +558,7 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
                                  RTMLockingCounters* stack_rtm_counters,
                                  Metadata* method_data,
                                  bool use_rtm, bool profile_rtm) {
+  assert(LockingMode != LM_LIGHTWEIGHT, "uses fast_lock_lightweight");
   // Ensure the register assignments are disjoint
   assert(tmpReg == rax, "");
 
@@ -755,6 +756,7 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
 // Xcheck:jni is enabled.
 
 void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register tmpReg, bool use_rtm) {
+  assert(LockingMode != LM_LIGHTWEIGHT, "uses fast_unlock_lightweight");
   assert(boxReg == rax, "");
   assert_different_registers(objReg, boxReg, tmpReg);
 
@@ -942,7 +944,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
 
   // Handle inflated monitor.
   Label inflated;
-  // Finish fast lock successfully. ZF value is irrelevant
+  // Finish fast lock successfully. ZF value is irrelevant.
   Label locked;
   // Finish fast lock unsuccessfully. MUST jump with ZF == 0
   Label slow_path;
@@ -959,24 +961,26 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   { // Lightweight Lock
 
     Label push;
+
     const Register top = box;
 
+    // Prefetch the mark.
     movptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
 
+    // Check if lock-stack is full.
     cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
     jcc(Assembler::greater, slow_path);
 
-    if (OMRecursiveLightweight) {
-      movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
-      cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
-      jccb(Assembler::equal, push);
-    }
+    // Check if recursive.
+    movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+    cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+    jccb(Assembler::equal, push);
 
-    // Check for inflated
+    // Check for monitor (0b10).
     testptr(mark, markWord::monitor_value);
     jcc(Assembler::notZero, inflated);
 
-    // CAS 0b01 to 0b00
+    // Try to lock. Transition lock bits 0b01 => 0b00
     movptr(rax_reg, mark);
     orptr(rax_reg, markWord::unlocked_value);
     andptr(mark, ~(int32_t)markWord::unlocked_value);
@@ -984,13 +988,9 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     jcc(Assembler::notEqual, slow_path);
 
     bind(push);
-    // If successful, push object to lock-stack.
-    if (!OMRecursiveLightweight) {
-      movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
-    }
+    // After successful lock, push object on lock-stack.
     movptr(Address(thread, top), obj);
-    incrementl(top, oopSize);
-    movl(Address(thread, JavaThread::lock_stack_top_offset()), top);
+    addl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
     jmpb(locked);
   }
 
@@ -998,11 +998,17 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     bind(inflated);
 
     const Register tagged_monitor = mark;
+
+    // CAS owner (null => current thread).
     xorptr(rax_reg, rax_reg);
     lock(); cmpxchgptr(thread, Address(tagged_monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
     jccb(Assembler::equal, locked);
+
+    // Check if recursive.
     cmpptr(thread, rax_reg);
     jccb(Assembler::notEqual, slow_path);
+
+    // Recursive.
     increment(Address(tagged_monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
   }
 
@@ -1012,6 +1018,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   xorl(rax_reg, rax_reg);
 
 #ifdef ASSERT
+  // Check that locked label is reached with ZF set.
   Label zf_correct;
   jccb(Assembler::zero, zf_correct);
   stop("Fast Lock ZF != 1");
@@ -1019,10 +1026,12 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
 
   bind(slow_path);
 #ifdef ASSERT
+  // Check that slow_path label is reached with ZF not set.
   jccb(Assembler::notZero, zf_correct);
   stop("Fast Lock ZF != 0");
   bind(zf_correct);
 #endif
+  // C2 uses the value of ZF to determine the continuation.
 }
 
 void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, Register t, Register thread) {
@@ -1034,10 +1043,8 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
   Label inflated, inflated_check_lock_stack;
   // Finish fast unlock successfully.  MUST jump with ZF == 1
   Label unlocked;
-  // Finish fast unlock unsuccessfully. MUST jump with ZF == 0
-  Label slow_path;
 
-  // Assume success
+  // Assume success.
   decrement(Address(thread, JavaThread::held_monitor_count_offset()));
 
   const Register mark = t;
@@ -1051,34 +1058,36 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
     Compile::current()->output()->add_stub(stub);
   }
 
-  Label& slow_path_1 = stub == nullptr ? dummy : stub->slow_path_1();
-  Label& slow_path_2 = stub == nullptr ? dummy : stub->slow_path_2();
-  Label& slow_path_3 = stub == nullptr ? dummy : stub->slow_path_3();
+  Label& push_and_slow_path = stub == nullptr ? dummy : stub->push_and_slow_path();
+  Label& check_successor = stub == nullptr ? dummy : stub->check_successor();
 
   { // Lightweight Unlock
 
+    // Prefetch mark.
     movptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
 
+    // Check if obj is top of lock-stack.
     movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
     cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+    // Top of lock stack was not obj. Must be monitor.
     jcc(Assembler::notEqual, inflated_check_lock_stack);
-#ifdef ASSERT
-    movptr(Address(thread, top, Address::times_1, -oopSize), 0);
-#endif
+
+    // Pop lock-stack.
+    DEBUG_ONLY(movptr(Address(thread, top, Address::times_1, -oopSize), 0);)
     subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 
-    if (OMRecursiveLightweight) {
-      cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
-      jcc(Assembler::equal, unlocked);
-    }
+    // Check if recursive.
+    cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
+    jcc(Assembler::equal, unlocked);
 
-    // CAS 0b00 to 0b01
-    // (may also attempt 0b00 -> 0b11, but will always fail as markWord will be 0b10 and it cannot go back to 0b00 while locked)
+    // We elide the monitor check, let the CAS fail instead.
+
+    // Try to unlock. Transition lock bits 0b00 => 0b01
     movptr(reg_rax, mark);
     andptr(reg_rax, ~(int32_t)markWord::lock_mask);
     orptr(mark, markWord::unlocked_value);
     lock(); cmpxchgptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
-    jcc(Assembler::notEqual, slow_path_1);
+    jcc(Assembler::notEqual, push_and_slow_path);
     jmp(unlocked);
   }
 
@@ -1098,6 +1107,7 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
     jccb(Assembler::notZero, inflated);
     stop("Fast Unlock not monitor");
 #endif
+
     bind(inflated);
 
     // mark contains the tagged ObjectMonitor*.
@@ -1106,52 +1116,64 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 #ifndef _LP64
     // The owner may be anonymous and the lock stack is empty.
     // See comment in x86_64 section
+
+    // Check if recursive.
     xorptr(reg_rax, reg_rax);
     orptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
-    jcc(Assembler::notZero, slow_path_3);
+    jcc(Assembler::notZero, check_successor);
+
+    // Check if the entry lists are empty.
     movptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
     orptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
-    jcc(Assembler::notZero, slow_path_3);
+    jcc(Assembler::notZero, check_successor);
+
+    // Release lock.
     movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
 #else // _LP64
     Label recursive;
+
+    // Check if recursive.
     cmpptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)), 0);
     jccb(Assembler::notEqual, recursive);
 
+    // Check if the entry lists are empty.
     movptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));
     orptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(EntryList)));
-    jcc(Assembler::notZero, slow_path_3);
+    jcc(Assembler::notZero, check_successor);
 
-    // Release lock
+    // Release lock.
     movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
     jmpb(unlocked);
 
-    // Recursive inflated unlock
+    // Recursive unlock.
     bind(recursive);
     decrement(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
     xorl(t, t);
 #endif
   }
+
   bind(unlocked);
   if (stub != nullptr) {
     bind(stub->unlocked());
   }
 
 #ifdef ASSERT
+  // Check that unlocked label is reached with ZF set.
   Label zf_correct;
   jccb(Assembler::zero, zf_correct);
   stop("Fast Unlock ZF != 1");
 #endif
 
-  bind(slow_path);
   if (stub != nullptr) {
     bind(stub->continuation());
   }
 #ifdef ASSERT
+  // Check that stub->continuation() label is reached with ZF not set.
   jccb(Assembler::notZero, zf_correct);
   stop("Fast Unlock ZF != 0");
   bind(zf_correct);
 #endif
+  // C2 uses the value of ZF to determine the continuation.
 }
 
 //-------------------------------------------------------------------------------------------

@@ -872,7 +872,7 @@ void JavaThread::exit(bool destroy_vm, ExitType exit_type) {
     ObjectSynchronizer::release_monitors_owned_by_thread(this);
     assert(!this->has_pending_exception(), "release_monitors should have cleared");
   }
-
+  // TODO: deoptimize prefix
   guarantee(_lock_stack.is_empty(), "Must be");
 
   // Since above code may not release JNI monitors and if someone forgot to do an

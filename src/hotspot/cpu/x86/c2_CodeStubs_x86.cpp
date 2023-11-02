@@ -74,7 +74,7 @@ void C2EntryBarrierStub::emit(C2_MacroAssembler& masm) {
 }
 
 int C2FastUnlockLightweightStub::max_size() const {
-  return DEBUG_ONLY(86) NOT_DEBUG(75);
+  return 128;
 }
 
 void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
@@ -100,7 +100,7 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
   Label fix_zf_and_unlocked;
 #ifndef _LP64
   // The owner may be anonymous, see comment in x86_64 section.
-  __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), thread);
+  __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
   __ jmpb(_slow_path_2);
 #else // _LP64
   // The owner may be anonymous and the lock stack is empty.

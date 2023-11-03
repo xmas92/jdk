@@ -29,6 +29,7 @@
 #include "oops/oopsHierarchy.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
+#include <cstdint>
 
 class JavaThread;
 class OopClosure;
@@ -52,8 +53,9 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
-  // TODO: move null_sentinel into _base array
-  const oop null_sentinel = nullptr;
+  // The _bad_oop_sentinel acts as a sentinel value to elide underflow checks in generated code.
+  // The correct layout is statically asserted in the constructor.
+  const uintptr_t _bad_oop_sentinel = badOopVal;
   oop _base[CAPACITY];
 
   // Get the owning thread of this lock-stack.

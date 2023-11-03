@@ -26,13 +26,18 @@
 #include "precompiled.hpp"
 #include "memory/allocation.hpp"
 #include "runtime/globals.hpp"
+#include "runtime/lockStack.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
 #include "runtime/thread.hpp"
 #include "utilities/copy.hpp"
+#include "utilities/debug.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/ostream.hpp"
+
+#include <type_traits>
 
 const int LockStack::lock_stack_offset =      in_bytes(JavaThread::lock_stack_offset());
 const int LockStack::lock_stack_top_offset =  in_bytes(JavaThread::lock_stack_top_offset());
@@ -40,6 +45,11 @@ const int LockStack::lock_stack_base_offset = in_bytes(JavaThread::lock_stack_ba
 
 LockStack::LockStack(JavaThread* jt) :
   _top(lock_stack_base_offset), _base() {
+  // Make sure the layout of the object is compatable with the emitted codes assumptions.
+  STATIC_ASSERT(sizeof(_bad_oop_sentinel) == oopSize);
+  STATIC_ASSERT(sizeof(_base[0]) == oopSize);
+  STATIC_ASSERT(std::is_standard_layout<LockStack>::value);
+  STATIC_ASSERT(offsetof(LockStack, _bad_oop_sentinel) == offsetof(LockStack, _base) - oopSize);
 #ifdef ASSERT
   for (int i = 0; i < CAPACITY; i++) {
     _base[i] = nullptr;

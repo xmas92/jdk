@@ -12367,7 +12367,7 @@ instruct jmpConUCF2_short(cmpOpUCF2 cop, rFlagsRegUCF cmp, label labl) %{
 // inlined locking and unlocking
 
 instruct cmpFastLockRTM(rFlagsReg cr, rRegP object, rbx_RegP box, rax_RegI tmp, rdx_RegI scr, rRegI cx1, rRegI cx2) %{
-  predicate(Compile::current()->use_rtm());
+  predicate(LockingMode != LM_LIGHTWEIGHT && Compile::current()->use_rtm());
   match(Set cr (FastLock object box));
   effect(TEMP tmp, TEMP scr, TEMP cx1, TEMP cx2, USE_KILL box);
   ins_cost(300);
@@ -12407,8 +12407,32 @@ instruct cmpFastUnlock(rFlagsReg cr, rRegP object, rax_RegP box, rRegP tmp) %{
   ins_pipe(pipe_slow);
 %}
 
+instruct cmpFastLockLightweightRTM(rFlagsReg cr, rRegP object, rbx_RegP box, rax_RegI tmp, rdx_RegI scr, rRegI cx1, rRegI cx2) %{
+  predicate(LockingMode == LM_LIGHTWEIGHT && Compile::current()->use_rtm());
+  match(Set cr (FastLock object box));
+  effect(TEMP tmp, TEMP scr, TEMP cx1, TEMP cx2, USE_KILL box);
+  ins_cost(300);
+  format %{ "fastlock $object,$box\t! kills $box,$tmp,$scr,$cx1,$cx2" %}
+  ins_encode %{
+#if INCLUDE_RTM_OPT
+    C2_MacroAssembler::RTMContext rtm_context = {
+      $cx1$$Register,
+      $cx2$$Register,
+      _rtm_counters,
+      _stack_rtm_counters,
+      ((Method*)(ra_->C->method()->constant_encoding()))->method_data(),
+      ra_->C->profile_rtm()
+    };
+    __ fast_lock_lightweight($object$$Register, $box$$Register, $tmp$$Register, $scr$$Register, r15_thread, &rtm_context);
+#else
+    ShouldNotReachHere();
+#endif
+  %}
+  ins_pipe(pipe_slow);
+%}
+
 instruct cmpFastLockLightweight(rFlagsReg cr, rRegP object, rbx_RegP box, rax_RegI rax_reg, rRegP tmp) %{
-  predicate(LockingMode == LM_LIGHTWEIGHT);
+  predicate(LockingMode == LM_LIGHTWEIGHT && !Compile::current()->use_rtm());
   match(Set cr (FastLock object box));
   effect(TEMP rax_reg, TEMP tmp, USE_KILL box);
   ins_cost(300);
@@ -12426,7 +12450,15 @@ instruct cmpFastUnlockLightweight(rFlagsReg cr, rRegP object, rax_RegP rax_reg, 
   ins_cost(300);
   format %{ "fastunlock $object,$rax_reg\t! kills $rax_reg,$tmp" %}
   ins_encode %{
-    __ fast_unlock_lightweight($object$$Register, $rax_reg$$Register, $tmp$$Register, r15_thread);
+#if INCLUDE_RTM_OPT
+    if(Compile::current()->use_rtm()) {
+      C2_MacroAssembler::RTMContext rtm_context;
+      __ fast_unlock_lightweight($object$$Register, $rax_reg$$Register, $tmp$$Register, r15_thread, &rtm_context);
+    } else
+#endif
+    {
+      __ fast_unlock_lightweight($object$$Register, $rax_reg$$Register, $tmp$$Register, r15_thread);
+    }
   %}
   ins_pipe(pipe_slow);
 %}

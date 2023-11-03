@@ -407,7 +407,9 @@ void C2_MacroAssembler::rtm_inflated_locking(Register objReg, Register boxReg, R
   Label L_rtm_retry, L_decrement_retry, L_on_abort;
   int owner_offset = OM_OFFSET_NO_MONITOR_VALUE_TAG(owner);
 
-  movptr(Address(boxReg, 0), checked_cast<int32_t>(markWord::unused_mark().value()));
+  if (LockingMode != LM_LIGHTWEIGHT) {
+    movptr(Address(boxReg, 0), checked_cast<int32_t>(markWord::unused_mark().value()));
+  }
   movptr(boxReg, tmpReg); // Save ObjectMonitor address
 
   if (RTMRetryCount > 0) {
@@ -937,7 +939,7 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
 }
 
 void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Register rax_reg,
-                                              Register t, Register thread) {
+                                              Register t, Register thread, RTMContext* rtm_context) {
   assert(LockingMode == LM_LIGHTWEIGHT, "must be");
   assert(rax_reg == rax, "Used for CAS");
   assert_different_registers(obj, box, rax_reg, t, thread);
@@ -996,6 +998,19 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     jmpb(locked);
   }
 
+#if INCLUDE_RTM_OPT
+  if (rtm_context != nullptr) {
+    assert_different_registers(obj, box, rax_reg, t, rtm_context->_cx1, rtm_context->_cx2);
+    Label rtm_done;
+    bind(inflated);
+    rtm_inflated_locking(obj, box, rax_reg, t,
+                         rtm_context->_cx1, rtm_context->_cx2,
+                         rtm_context->_rtm_counters, rtm_context->_method_data,
+                         rtm_context->_profile_rtm, rtm_done);
+    bind(rtm_done);
+    jccb(Assembler::notZero, slow_path);
+  } else
+#endif
   { // Handle inflated monitor.
     bind(inflated);
 
@@ -1036,7 +1051,8 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   // C2 uses the value of ZF to determine the continuation.
 }
 
-void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, Register t, Register thread) {
+void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, Register t,
+                                                Register thread, RTMContext* rtm_context) {
   assert(LockingMode == LM_LIGHTWEIGHT, "must be");
   assert(reg_rax == rax, "Used for CAS");
   assert_different_registers(obj, reg_rax, t);
@@ -1116,6 +1132,18 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
     // mark contains the tagged ObjectMonitor*.
     const Register monitor = mark;
+
+#if INCLUDE_RTM_OPT
+  if (rtm_context != nullptr) {
+    Label regular_inflated_unlock;
+    movptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
+    testptr(reg_rax, reg_rax);
+    jccb(Assembler::notZero, regular_inflated_unlock);
+    xend();
+    jmp(unlocked);
+    bind(regular_inflated_unlock);
+  }
+#endif
 
 #ifndef _LP64
     // Check if recursive.

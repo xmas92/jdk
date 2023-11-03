@@ -30,7 +30,7 @@
 class LockStackTest : public ::testing::Test {
 public:
   static void push_raw(LockStack& ls, oop obj) {
-    ls._base[ls.to_index(ls._top)] = obj;
+    ls.base()[ls.to_index(ls._top)] = obj;
     ls._top += oopSize;
 
   }
@@ -38,12 +38,12 @@ public:
   static void pop_raw(LockStack& ls) {
     ls._top -= oopSize;
 #ifdef ASSERT
-    ls._base[ls.to_index(ls._top)] = nullptr;
+    ls.base()[ls.to_index(ls._top)] = nullptr;
 #endif
   }
 
   static oop at(LockStack& ls, int index) {
-    return ls._base[index];
+    return ls.base()[index];
   }
 
   static size_t size(LockStack& ls) {

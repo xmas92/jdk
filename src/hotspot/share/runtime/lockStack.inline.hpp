@@ -34,6 +34,7 @@
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
 #include "utilities/align.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 inline int LockStack::to_index(uint32_t offset) {
@@ -44,6 +45,14 @@ inline int LockStack::to_index(uint32_t offset) {
 JavaThread* LockStack::get_thread() const {
   char* addr = reinterpret_cast<char*>(const_cast<LockStack*>(this));
   return reinterpret_cast<JavaThread*>(addr - lock_stack_offset);
+}
+
+inline  oop* LockStack::base() {
+  return &_data[1];
+}
+
+inline const oop* LockStack::base() const {
+  return &_data[1];
 }
 
 inline bool LockStack::is_full() const {
@@ -66,15 +75,15 @@ inline void LockStack::push(oop o) {
   assert(oopDesc::is_oop(o), "must be");
   assert(!contains(o), "entries must be unique");
   assert(!is_full(), "must have room");
-  assert(_base[to_index(_top)] == nullptr, "expect zapped entry");
-  _base[to_index(_top)] = o;
+  assert(base()[to_index(_top)] == nullptr, "expect zapped entry");
+  base()[to_index(_top)] = o;
   _top += oopSize;
   verify("post-push");
 }
 
 inline oop LockStack::bottom() const {
   assert(to_index(_top) > 0, "must contain an oop");
-  return _base[0];
+  return base()[0];
 }
 
 inline bool LockStack::is_empty() const {
@@ -89,7 +98,7 @@ inline bool LockStack::is_recursive(oop o) const {
   assert(contains(o), "entries must exist");
   int end = to_index(_top);
   for (int i = 1; i < end; i++) {
-    if (_base[i - 1] == o && _base[i] == o) {
+    if (base()[i - 1] == o && base()[i] == o) {
       return true;
     }
   }
@@ -105,12 +114,12 @@ inline bool LockStack::try_recursive_enter(oop o) {
   assert(!is_full(), "precond");
 
   int end = to_index(_top);
-  if (end == 0 || _base[end - 1] != o) {
+  if (end == 0 || base()[end - 1] != o) {
     // Topmost oop does not match o.
     return false;
   }
 
-  _base[end] = o;
+  base()[end] = o;
   _top += oopSize;
   return true;
 }
@@ -123,13 +132,13 @@ inline bool LockStack::try_recursive_exit(oop o) {
   assert(contains(o), "entries must exist");
 
   int end = to_index(_top);
-  if (end <= 1 || _base[end - 1] != o ||  _base[end - 2] != o) {
+  if (end <= 1 || base()[end - 1] != o ||  base()[end - 2] != o) {
     // The two topmost oop does not match o.
     return false;
   }
 
   _top -= oopSize;
-  DEBUG_ONLY(_base[to_index(_top)] = nullptr;)
+  DEBUG_ONLY(base()[to_index(_top)] = nullptr;)
   return true;
 }
 
@@ -140,14 +149,14 @@ inline size_t LockStack::remove(oop o) {
   int end = to_index(_top);
   int inserted = 0;
   for (int i = 0; i < end; i++) {
-    if (_base[i] != o) {
-      _base[inserted++] = _base[i];
+    if (base()[i] != o) {
+      base()[inserted++] = base()[i];
     }
   }
 
 #ifdef ASSERT
   for (int i = inserted; i < end; i++) {
-    _base[i] = nullptr;
+    base()[i] = nullptr;
   }
 #endif
 
@@ -172,7 +181,7 @@ inline bool LockStack::contains(oop o) const {
   }
   int end = to_index(_top);
   for (int i = end - 1; i >= 0; i--) {
-    if (_base[i] == o) {
+    if (base()[i] == o) {
       verify("post-contains");
       return true;
     }
@@ -185,7 +194,7 @@ inline void LockStack::oops_do(OopClosure* cl) {
   verify("pre-oops-do");
   int end = to_index(_top);
   for (int i = 0; i < end; i++) {
-    cl->do_oop(&_base[i]);
+    cl->do_oop(&base()[i]);
   }
   verify("post-oops-do");
 }

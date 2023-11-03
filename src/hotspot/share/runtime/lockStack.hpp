@@ -52,9 +52,9 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
-  // TODO: move null_sentinel into _base array
-  const oop null_sentinel = nullptr;
-  oop _base[CAPACITY];
+  // The first element is always null and acts as a sentinel value
+  // to elide underflow checks in generated code.
+  oop _data[CAPACITY + 1];
 
   // Get the owning thread of this lock-stack.
   inline JavaThread* get_thread() const;
@@ -68,9 +68,15 @@ private:
   // Given an offset (in bytes) calculate the index into the lock-stack.
   static inline int to_index(uint32_t offset);
 
+  // Returns the base of stack.
+  oop* base();
+
+  // Returns the base of stack.
+  const oop* base() const;
+
 public:
   static ByteSize top_offset()  { return byte_offset_of(LockStack, _top); }
-  static ByteSize base_offset() { return byte_offset_of(LockStack, _base); }
+  static ByteSize base_offset() { return byte_offset_of(LockStack, _data) + in_ByteSize(oopSize); }
 
   LockStack(JavaThread* jt);
 

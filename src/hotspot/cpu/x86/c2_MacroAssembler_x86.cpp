@@ -958,6 +958,17 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     jcc(Assembler::notZero, slow_path);
   }
 
+#if INCLUDE_RTM_OPT
+  if (UseRTMForStackLocks && rtm_context != nullptr) {
+    Label regular_lock;
+    rtm_stack_locking(obj, rax, t, rtm_context->_cx1,
+                      rtm_context->_stack_rtm_counters,
+                      rtm_context->_method_data, rtm_context->_profile_rtm,
+                      locked, regular_lock);
+    bind(regular_lock);
+  }
+#endif // INCLUDE_RTM_OPT
+
   const Register mark = t;
 
   { // Lightweight Lock
@@ -1078,6 +1089,19 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
   Label& push_and_slow_path = stub == nullptr ? dummy : stub->push_and_slow_path();
   Label& check_successor = stub == nullptr ? dummy : stub->check_successor();
+
+#if INCLUDE_RTM_OPT
+  if (UseRTMForStackLocks && rtm_context != nullptr) {
+    Label regular_unlock;
+    movptr(t, Address(obj, oopDesc::mark_offset_in_bytes())); // fetch markword
+    andptr(t, markWord::lock_mask_in_place);                  // look at 2 lock bits
+    cmpptr(t, markWord::unlocked_value);                      // bits = 01 unlocked
+    jccb(Assembler::notEqual, regular_unlock);                  // if !HLE RegularLock
+    xend();                                                       // otherwise end...
+    jmp(unlocked);                                                // ... and we're done
+    bind(regular_unlock);
+  }
+#endif
 
   { // Lightweight Unlock
 

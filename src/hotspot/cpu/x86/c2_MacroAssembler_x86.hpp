@@ -43,11 +43,21 @@ public:
                  bool use_rtm, bool profile_rtm);
   void fast_unlock(Register obj, Register box, Register tmp, bool use_rtm);
 
-  void fast_lock_lightweight(Register objReg, Register boxReg, Register tmpReg,
-                             Register scrReg,Register thread);
-  void fast_unlock_lightweight(Register objReg, Register boxReg, Register tmpReg, Register thread);
+  struct RTMContext;
+  void fast_lock_lightweight(Register obj, Register box, Register rax_reg,
+                             Register t, Register thread, RTMContext* rtm_context = nullptr);
+  void fast_unlock_lightweight(Register obj, Register reg_rax, Register t,
+                               Register thread, RTMContext* rtm_context = nullptr);
 
 #if INCLUDE_RTM_OPT
+  struct RTMContext {
+    Register _cx1;
+    Register _cx2;
+    RTMLockingCounters* _rtm_counters;
+    RTMLockingCounters* _stack_rtm_counters;
+    Metadata* _method_data;
+    bool _profile_rtm;
+  };
   void rtm_counters_update(Register abort_status, Register rtm_counters);
   void branch_on_random_using_rdtsc(Register tmp, Register scr, int count, Label& brLabel);
   void rtm_abort_ratio_calculation(Register tmp, Register rtm_counters_reg,

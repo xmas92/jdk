@@ -9813,6 +9813,9 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
   Label push;
   const Register top = tmp;
 
+  // null check obj.
+  testptr(reg_rax, Address(obj));
+
   // Check if the lock-stack is full.
   cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset());
   jcc(Assembler::greaterEqual, slow);
@@ -9857,6 +9860,9 @@ void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register
 
   Label unlocked, push_and_slow;
   const Register top = tmp;
+
+  // null check obj.
+  testptr(reg_rax, Address(obj));
 
   // Check if obj is top of lock-stack.
   movl(top, Address(thread, JavaThread::lock_stack_top_offset()));

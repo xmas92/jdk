@@ -6324,6 +6324,9 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
   const Register mark = t2;
   const Register t = t3;
 
+  // null check obj.
+  ldr(t, Address(obj));
+
   // Check if the lock-stack is full.
   ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));
   cmpw(top, (unsigned)LockStack::end_offset());
@@ -6379,6 +6382,9 @@ void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, 
   const Register top = t1;
   const Register mark = t2;
   const Register t = t3;
+
+  // null check obj.
+  ldr(t, Address(obj));
 
   // Check if obj is top of lock-stack.
   ldrw(top, Address(rthread, JavaThread::lock_stack_top_offset()));

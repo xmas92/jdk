@@ -9825,7 +9825,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
   cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
   jcc(Assembler::equal, push);
 
-  // Check header for monitor (0b01).
+  // Check header for monitor (0b10).
   movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));
   testptr(reg_rax, markWord::monitor_value);
   jcc(Assembler::notZero, slow);

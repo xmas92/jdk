@@ -6338,7 +6338,7 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
   cmp(obj, t);
   br(Assembler::EQ, push);
 
-  // Check header for monitor (0b01).
+  // Check header for monitor (0b10).
   ldr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
   tst(mark, markWord::monitor_value);
   br(Assembler::NE, slow);

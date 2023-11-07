@@ -64,6 +64,7 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/preserveException.hpp"
+#include "utilities/spinYield.hpp"
 
 class ObjectMonitorsHashtable::PtrList :
   public LinkedListImpl<ObjectMonitor*,
@@ -398,6 +399,13 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
       current->inc_held_monitor_count();
       return true;
     }
+    // TODO: Tune the quick_enter_spins.
+    const uint quick_enter_spins = 100;
+    if (lightweight_try_spin_enter(obj, current, quick_enter_spins)) {
+      // Lock successful.
+      current->inc_held_monitor_count();
+      return true;
+    }
   }
 
   const markWord mark = obj->mark();
@@ -450,6 +458,33 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
   // -- reach a safepoint
 
   return false;        // revert to slow-path
+}
+
+bool ObjectSynchronizer::lightweight_try_spin_enter(oop obj, JavaThread* current, uint max_spins) {
+  assert(LockingMode == LM_LIGHTWEIGHT, "must be");
+  // If this thread does not hold the lock, try spinning.
+  LockStack& lock_stack = current->lock_stack();
+  markWord mark = obj->mark();
+
+  if (!mark.has_monitor() && !lock_stack.contains(obj)) {
+    // Try some spinning on the fast_lock.
+    SpinYield spin_yield(max_spins);
+    for (uint i = 0; !mark.has_monitor() && i < max_spins; i++, mark = obj->mark()) {
+      if (mark.is_unlocked()) {
+        const markWord new_mark = mark.set_fast_locked();
+        const markWord old_mark = mark;
+        mark = obj->cas_set_mark(new_mark, old_mark);
+        if (old_mark == mark) {
+          // Successfully fast-locked, push object to lock-stack and return.
+          lock_stack.push(obj);
+          return true;
+        }
+      }
+      spin_yield.wait();
+    }
+  }
+
+  return false;
 }
 
 // Handle notifications when synchronizing on value based classes
@@ -582,6 +617,15 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
     }
   } else if (VerifyHeavyMonitors) {
     guarantee((obj->mark().value() & markWord::lock_mask_in_place) != markWord::locked_value, "must not be lightweight/stack-locked");
+  }
+
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // Try some lightweight locking spinning before inflating.
+    // TODO: Tune the lightweight_enter_spins.
+    const uint lightweight_enter_spins = 100;
+    if (lightweight_try_spin_enter(obj(), current, lightweight_enter_spins)) {
+      return;
+    }
   }
 
   // An async deflation can race after the inflate() call and before

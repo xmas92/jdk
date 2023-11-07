@@ -154,6 +154,9 @@ class ObjectSynchronizer : AllStatic {
   static bool quick_notify(oopDesc* obj, JavaThread* current, bool All);
   static bool quick_enter(oop obj, JavaThread* current, BasicLock* Lock);
 
+  // Does some lightweight lock spinning on the obj.
+  static bool lightweight_try_spin_enter(oop obj, JavaThread* current, uint max_spins);
+
   // Inflate light weight monitor to heavy weight monitor
   static ObjectMonitor* inflate(Thread* current, oop obj, const InflateCause cause);
   // This version is only for internal use

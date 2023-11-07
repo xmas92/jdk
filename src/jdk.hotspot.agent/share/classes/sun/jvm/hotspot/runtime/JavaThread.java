@@ -103,7 +103,7 @@ public class JavaThread extends Thread {
     activeHandlesField = type.getAddressField("_active_handles");
 
     lockStackTopOffset = type.getField("_lock_stack").getOffset() + typeLockStack.getField("_top").getOffset();
-    lockStackBaseOffset = type.getField("_lock_stack").getOffset() + typeLockStack.getField("_data[1]").getOffset();
+    lockStackBaseOffset = type.getField("_lock_stack").getOffset() + typeLockStack.getField("_base[0]").getOffset();
     oopPtrSize = VM.getVM().getAddressSize();
 
     UNINITIALIZED     = db.lookupIntConstant("_thread_uninitialized").intValue();

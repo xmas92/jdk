@@ -29,6 +29,7 @@
 #include "oops/oopsHierarchy.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
+#include <cstdint>
 
 class JavaThread;
 class OopClosure;
@@ -52,9 +53,10 @@ private:
   // We do this instead of a simple index into the array because this allows for
   // efficient addressing in generated code.
   uint32_t _top;
-  // The first element is always null and acts as a sentinel value
-  // to elide underflow checks in generated code.
-  oop _data[CAPACITY + 1];
+  // The _bad_oop_sentinel acts as a sentinel value to elide underflow checks in generated code.
+  // The correct layout is statically asserted in the constructor.
+  const uintptr_t _bad_oop_sentinel = badOopVal;
+  oop _base[CAPACITY];
 
   // Get the owning thread of this lock-stack.
   inline JavaThread* get_thread() const;
@@ -68,15 +70,9 @@ private:
   // Given an offset (in bytes) calculate the index into the lock-stack.
   static inline int to_index(uint32_t offset);
 
-  // Returns the base of stack.
-  oop* base();
-
-  // Returns the base of stack.
-  const oop* base() const;
-
 public:
   static ByteSize top_offset()  { return byte_offset_of(LockStack, _top); }
-  static ByteSize base_offset() { return byte_offset_of(LockStack, _data) + in_ByteSize(oopSize); }
+  static ByteSize base_offset() { return byte_offset_of(LockStack, _base); }
 
   LockStack(JavaThread* jt);
 

@@ -25,6 +25,7 @@
 
 #include "precompiled.hpp"
 #include "memory/allocation.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/stackWatermark.hpp"
@@ -67,6 +68,16 @@ void LockStack::verify(const char* msg) const {
     int top = to_index(_top);
     for (int i = 0; i < top; i++) {
       assert(_base[i] != nullptr, "no zapped before top");
+      if (VM_Version::supports_recursive_lightweight_locking()) {
+        oop o = _base[i];
+        for (;i < top - 1; i++) {
+          // Consecutive entries may be the same
+          if (_base[i + 1] != o) {
+            break;
+          }
+        }
+      }
+
       for (int j = i + 1; j < top; j++) {
         assert(_base[i] != _base[j], "entries must be unique: %s", msg);
       }

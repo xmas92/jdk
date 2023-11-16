@@ -106,6 +106,9 @@ private:
   Label _push_and_slow_path;
   Label _check_successor;
   Label _unlocked;
+
+  Label _fix_anonymous_owner;
+  Label _fix_anonymous_owner_continuation;
 public:
   C2FastUnlockLightweightStub(Register obj, Register mark, Register t, Register thread) : C2CodeStub(),
     _obj(obj), _mark(mark), _t(t), _thread(thread) {}
@@ -114,6 +117,8 @@ public:
   Label& push_and_slow_path() { return _push_and_slow_path; }
   Label& check_successor() { return _check_successor; }
   Label& unlocked() { return _unlocked; }
+  Label& fix_anonymous_owner() { return _fix_anonymous_owner; }
+  Label& fix_anonymous_owner_continuation() { return _fix_anonymous_owner_continuation; }
 };
 
 #ifdef _LP64

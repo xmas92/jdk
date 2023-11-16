@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "opto/c2_MacroAssembler.hpp"
 #include "opto/c2_CodeStubs.hpp"
+#include "runtime/javaThread.hpp"
 #include "runtime/objectMonitor.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
@@ -111,14 +112,9 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
     const Register monitor = _mark;
 
 #ifndef _LP64
-    // The owner may be anonymous, see comment in x86_64 section.
-    __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
+    // _check_successor not implemented on 32 bit
     __ jmpb(restore_held_monitor_count_and_slow_path);
 #else // _LP64
-    // The owner may be anonymous and we removed the last obj entry in
-    // the lock-stack. This loses the information about the owner.
-    // Write the thread to the owner field so the runtime knows the owner.
-    __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
 
     // successor null check.
     __ cmpptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
@@ -147,6 +143,28 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
     __ bind(fix_zf_and_unlocked);
     __ xorl(rax, rax);
     __ jmp(unlocked());
+  }
+
+  { // Fix anonymous owner
+    Label done;
+    const Register monitor = _mark;
+    const Register top = _t;
+    __ bind(_fix_anonymous_owner);
+
+    // Pop lock-stack.
+    DEBUG_ONLY(__ movptr(Address(_thread, top, Address::times_1, -oopSize), 0);)
+    __ subl(top, oopSize);
+    __ cmpptr(_obj, Address(_thread, top, Address::times_1, -oopSize));
+    __ jcc(Assembler::notEqual, done);
+    __ increment(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
+    __ jmpb(_fix_anonymous_owner);
+    // The owner may be anonymous and we removed the last obj entry in
+    // the lock-stack. This loses the information about the owner.
+    // Write the thread to the owner field so the runtime knows the owner.
+    __ bind(done);
+    __ movl(Address(_thread, JavaThread::lock_stack_top_offset()), top);
+    __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
+    __ jmp(fix_anonymous_owner_continuation());
   }
 }
 

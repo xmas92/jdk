@@ -1062,6 +1062,7 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
   Label& push_and_slow_path = stub == nullptr ? dummy : stub->push_and_slow_path();
   Label& check_successor = stub == nullptr ? dummy : stub->check_successor();
+  Label& fix_anonymous_owner = stub == nullptr ? dummy : stub->fix_anonymous_owner();
 
   { // Lightweight Unlock
 
@@ -1071,10 +1072,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
     // Prefetch mark.
     movptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
 
-    // Check if obj is top of lock-stack.
-    cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
-    // Top of lock stack was not obj. Must be monitor.
-    jcc(Assembler::notEqual, inflated_check_lock_stack);
+    // Check for monitor (0b10).
+    testptr(mark, markWord::monitor_value);
+    jcc(Assembler::notZero, inflated_check_lock_stack);
 
     // Pop lock-stack.
     DEBUG_ONLY(movptr(Address(thread, top, Address::times_1, -oopSize), 0);)
@@ -1083,8 +1083,6 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
     // Check if recursive.
     cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
     jcc(Assembler::equal, unlocked);
-
-    // We elide the monitor check, let the CAS fail instead.
 
     // Try to unlock. Transition lock bits 0b00 => 0b01
     movptr(reg_rax, mark);
@@ -1098,6 +1096,15 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
   { // Handle inflated monitor.
     bind(inflated_check_lock_stack);
+
+    // Check if obj is top of lock-stack.
+    cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+    // Top of lock stack was obj. Must anonymous owner.
+    jcc(Assembler::equal, fix_anonymous_owner);
+    if (stub != nullptr) {
+      bind(stub->fix_anonymous_owner_continuation());
+    }
+
 #ifdef ASSERT
     Label check_done;
     subl(top, oopSize);

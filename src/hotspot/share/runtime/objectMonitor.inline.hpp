@@ -206,6 +206,14 @@ inline void ObjectMonitor::set_next_om(ObjectMonitor* new_value) {
   Atomic::store(&_next_om, new_value);
 }
 
+inline ObjectMonitor* ObjectMonitor::next_delete_om() const {
+  return _next_delete_om;
+}
+
+inline void ObjectMonitor::set_next_delete_om(ObjectMonitor* new_value) {
+  _next_delete_om = new_value;
+}
+
 inline ObjectMonitorContentionMark::ObjectMonitorContentionMark(ObjectMonitor* monitor)
   : _monitor(monitor) {
   _monitor->add_to_contentions(1);

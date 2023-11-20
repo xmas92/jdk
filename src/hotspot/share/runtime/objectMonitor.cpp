@@ -252,6 +252,7 @@ ObjectMonitor::ObjectMonitor(oop object) :
   _object(_oop_storage, object),
   _owner(nullptr),
   _previous_owner_tid(0),
+  _next_delete_om(nullptr),
   _next_om(nullptr),
   _recursions(0),
   _EntryList(nullptr),
@@ -2235,6 +2236,7 @@ void ObjectMonitor::print() const { print_on(tty); }
 //   }
 //   _owner = 0x0000000000000000
 //   _previous_owner_tid = 0
+//   _next_delete_om = 0x0000000000000000
 //   _pad_buf1 = {
 //     [0] = '\0'
 //     ...
@@ -2264,6 +2266,7 @@ void ObjectMonitor::print_debug_style_on(outputStream* st) const {
   st->print_cr("  }");
   st->print_cr("  _owner = " INTPTR_FORMAT, p2i(owner_raw()));
   st->print_cr("  _previous_owner_tid = " UINT64_FORMAT, _previous_owner_tid);
+  st->print_cr("  _next_delete_om = " INTPTR_FORMAT, p2i(next_delete_om()));
   st->print_cr("  _pad_buf1 = {");
   st->print_cr("    [0] = '\\0'");
   st->print_cr("    ...");

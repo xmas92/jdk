@@ -117,12 +117,55 @@ ObjectMonitor* MonitorList::Iterator::next() {
   return current;
 }
 
+void MonitorList::Unlinker::unlink_batch() {
+  if (_last_unlink_batch == nullptr) {
+    // No batch exists.
+    return;
+  }
+
+  ObjectMonitor* const unlink = _last_unlink_batch;
+  _last_unlink_batch = nullptr;
+  ObjectMonitor* const next = unlink->next_om();
+
+  if (_prev == nullptr) {
+    // Unlinking list head
+    if (_list.cas_head(_head, next)) {
+      _head = next;
+      return;
+    }
+
+    Iterator iter = _list.iterator();
+    while (iter.has_next()) {
+      ObjectMonitor* const mon = iter.next();
+      if (mon->next_om() == _head) {
+        _prev = mon;
+        break;
+      }
+    }
+  }
+
+  assert([&](){
+          Iterator iter(_prev);
+          while (iter.has_next()) {
+            if (iter.next() == unlink) {
+              return true;
+            }
+          }
+          return false;
+        }(), "must be");
+
+  _prev->set_next_om(next);
+}
+
 MonitorList::Unlinker::~Unlinker() {
+  // TODO: maybe assert that the deleter was called.
+  unlink_batch();
   _list.update_count(_unlink_count);
 }
 
 ObjectMonitor* MonitorList::Unlinker::next() {
   if (_current != nullptr) {
+    unlink_batch();
     _prev = _current;
   }
   _current = _next;
@@ -141,28 +184,12 @@ void MonitorList::Unlinker::unlink() {
   unlink->set_next_delete_om(_delete_head);
   _delete_head = unlink;
 
-  if (_prev == nullptr) {
-    // Unlinking list head
-    if (_list.cas_head(unlink, _next)) {
-      return;
-    }
-
-    Iterator iter = _list.iterator();
-    while (iter.has_next()) {
-      ObjectMonitor* const mon = iter.next();
-      if (mon->next_om() == unlink) {
-        _prev = mon;
-        break;
-      }
-    }
-  }
-
-  assert(_prev->next_om() == unlink, "must be");
-
-  _prev->set_next_om(_next);
+  // Set as new last unlink batch.
+  _last_unlink_batch = unlink;
 }
 
 MonitorList::Deleter MonitorList::Unlinker::deleter() {
+  unlink_batch();
   return MonitorList::Deleter(_delete_head, _unlink_count);
 }
 
@@ -1646,10 +1673,12 @@ MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectM
   }
 
 #ifdef ASSERT
+  unlinker.unlink_batch();
   MonitorList::Iterator iter = _in_use_list.iterator();
   JavaThread* current = JavaThread::current();
   while (iter.has_next()) {
-    assert(!iter.next()->is_being_async_deflated(), "unlink missed");
+    auto mon = iter.next();
+    assert(!mon->is_being_async_deflated(), "unlink missed " PTR_FORMAT " next " PTR_FORMAT, p2i(mon), p2i(mon->next_om()));
     if (SafepointMechanism::should_process(current)) {
       ThreadBlockInVM tbivm(current);
     }

@@ -76,6 +76,8 @@ class MonitorList::Unlinker : StackObj {
 private:
   MonitorList& _list;
   size_t _unlink_count;
+  ObjectMonitor* _head;
+  ObjectMonitor* _last_unlink_batch;
   ObjectMonitor* _prev;
   ObjectMonitor* _current;
   ObjectMonitor* _next;
@@ -87,9 +89,11 @@ public:
   Unlinker(MonitorList& list) :
     _list(list),
     _unlink_count(0),
+    _head(Atomic::load_acquire(&_list._head)),
+    _last_unlink_batch(nullptr),
     _prev(nullptr),
     _current(nullptr),
-    _next(Atomic::load_acquire(&_list._head)),
+    _next(_head),
     _delete_head(nullptr) {}
   ~Unlinker();
 
@@ -97,6 +101,7 @@ public:
   ObjectMonitor* next();
 
   void unlink();
+  void unlink_batch();
   size_t unlink_count() const { return _unlink_count; }
 
   Deleter deleter();

@@ -167,8 +167,13 @@ private:
   // both can have busy multi-threaded access. _previous_owner_tid is only
   // changed by ObjectMonitor::exit() so it is a good choice to share the
   // cache line with _owner.
+
+  // Delete ObjectMonitor* linkage. Shares cacheline with _owner as it is only
+  // ever used after the monitor has been deflated.
+  ObjectMonitor* _next_delete_om;
   DEFINE_PAD_MINUS_SIZE(1, OM_CACHE_LINE_SIZE, sizeof(void* volatile) +
-                        sizeof(volatile uint64_t));
+                        sizeof(volatile uint64_t) +
+                        sizeof(ObjectMonitor*));
   ObjectMonitor* _next_om;          // Next ObjectMonitor* linkage
   volatile intx _recursions;        // recursion count, 0 for first entry
   ObjectWaiter* volatile _EntryList;  // Threads blocked on entry or reentry.
@@ -294,6 +299,9 @@ private:
   // Simply set _next_om field to new_value.
   void set_next_om(ObjectMonitor* new_value);
 
+  ObjectMonitor* next_delete_om() const;
+  void set_next_delete_om(ObjectMonitor* new_value);
+
   int       waiters() const;
 
   int       contentions() const;
@@ -364,7 +372,6 @@ private:
   // Deflation support
   bool      deflate_monitor();
   void      install_displaced_markword_in_object(const oop obj);
-  void      release_object() { _object.release(_oop_storage); }
 };
 
 #endif // SHARE_RUNTIME_OBJECTMONITOR_HPP

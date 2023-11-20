@@ -25,11 +25,13 @@
 #ifndef SHARE_RUNTIME_SYNCHRONIZER_HPP
 #define SHARE_RUNTIME_SYNCHRONIZER_HPP
 
+#include "memory/allocation.hpp"
 #include "memory/padded.hpp"
 #include "oops/markWord.hpp"
 #include "runtime/basicLock.hpp"
 #include "runtime/handles.hpp"
 #include "runtime/javaThread.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/resourceHash.hpp"
 
 template <typename T> class GrowableArray;
@@ -41,31 +43,101 @@ class ThreadsList;
 class MonitorList {
   friend class VMStructs;
 
-private:
+ private:
   ObjectMonitor* volatile _head;
   volatile size_t _count;
   volatile size_t _max;
 
-public:
+  bool cas_head(ObjectMonitor* old_head, ObjectMonitor* new_head);
+  bool cas_head_relaxed(ObjectMonitor* old_head, ObjectMonitor* new_head);
+  void update_count(size_t unlink_count);
+
+ public:
   MonitorList() : _head(nullptr), _count(0), _max(0) {};
   void add(ObjectMonitor* monitor);
-  size_t unlink_deflated(size_t deflated_count,
-                         GrowableArray<ObjectMonitor*>* unlinked_list,
-                         ObjectMonitorDeflationSafepointer* safepointer);
   size_t count() const;
   size_t max() const;
 
   class Iterator;
   Iterator iterator() const;
+
+  class Unlinker;
+  class Deleter;
 };
 
 class MonitorList::Iterator {
+ private:
   ObjectMonitor* _current;
 
-public:
+ public:
   Iterator(ObjectMonitor* head) : _current(head) {}
   bool has_next() const { return _current != nullptr; }
   ObjectMonitor* next();
+};
+
+class MonitorList::Unlinker : StackObj {
+ private:
+  MonitorList& _list;
+  size_t _unlink_count;
+  size_t _batch_count;
+  ObjectMonitor* _head;
+  ObjectMonitor* _last_unlink_batch;
+  ObjectMonitor* _prev;
+  ObjectMonitor* _current;
+  ObjectMonitor* _next;
+  ObjectMonitor* _delete_head;
+  bool _observed_head_change;
+
+  NONCOPYABLE(Unlinker);
+
+  void check_head_change();
+  ObjectMonitor* find_prev_on_head_change() const;
+
+ public:
+  Unlinker(MonitorList& list);
+  ~Unlinker();
+
+  bool has_next() const { return _next != nullptr; }
+  ObjectMonitor* next();
+
+  void unlink();
+  void unlink_batch();
+  size_t unlink_count() const { return _unlink_count; }
+
+  Deleter deleter();
+};
+
+class MonitorList::Deleter {
+ private:
+  ObjectMonitor* _next;
+  size_t _delete_count;
+  const size_t _size;
+
+ public:
+  Deleter(ObjectMonitor* head, size_t size) :
+    _next(head),
+    _delete_count(0),
+    _size(size) {}
+
+  bool has_more() const { return _next != nullptr; }
+  void delete_one_monitor();
+
+  size_t size() const { return _size; }
+  size_t delete_count() const { return _delete_count; }
+
+#ifdef ASSERT
+  class Iterator {
+   private:
+    ObjectMonitor* _current;
+
+   public:
+    Iterator(ObjectMonitor* head) : _current(head) {}
+    bool has_next() const { return _current != nullptr; }
+    ObjectMonitor* next();
+  };
+
+  Iterator iterator() const { return Iterator(_next); }
+#endif
 };
 
 class ObjectSynchronizer : AllStatic {
@@ -184,10 +256,11 @@ public:
 
   // We currently use aggressive monitor deflation policy;
   // basically we try to deflate all monitors that are not busy.
-  static size_t deflate_idle_monitors();
+  static void deflate_idle_monitors();
 
   // Deflate idle monitors:
-  static size_t deflate_monitor_list(ObjectMonitorDeflationSafepointer* safepointer);
+  static MonitorList::Deleter deflate_and_unlink_monitor_list(ObjectMonitorDeflationSafepointer* safepointer);
+  static void delete_monitor_list(MonitorList::Deleter& deleter, ObjectMonitorDeflationSafepointer* safepointer);
   static size_t in_use_list_count();
   static size_t in_use_list_max();
   static size_t in_use_list_ceiling();

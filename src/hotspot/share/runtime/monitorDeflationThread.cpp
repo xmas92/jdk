@@ -88,7 +88,7 @@ void MonitorDeflationThread::monitor_deflation_thread_entry(JavaThread* jt, TRAP
       }
     }
 
-    (void)ObjectSynchronizer::deflate_idle_monitors();
+    ObjectSynchronizer::deflate_idle_monitors();
 
     if (log_is_enabled(Debug, monitorinflation)) {
       // The VMThread calls do_final_audit_and_print_stats() which calls

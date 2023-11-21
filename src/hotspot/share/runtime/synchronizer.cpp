@@ -36,6 +36,7 @@
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/frame.inline.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/handshake.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
@@ -58,6 +59,7 @@
 #include "runtime/vframe.hpp"
 #include "runtime/vmThread.hpp"
 #include "utilities/align.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/dtrace.hpp"
 #include "utilities/events.hpp"
 #include "utilities/linkedlist.hpp"
@@ -625,6 +627,7 @@ void ObjectSynchronizer::jni_enter(Handle obj, JavaThread* current) {
   while (true) {
     ObjectMonitor* monitor = inflate(current, obj(), inflate_cause_jni_enter);
     if (monitor->enter(current)) {
+      monitor->inc_jni_counter();
       current->inc_held_monitor_count(1, true);
       break;
     }
@@ -643,6 +646,14 @@ void ObjectSynchronizer::jni_exit(oop obj, TRAPS) {
   // intentionally do not use CHECK on check_owner because we must exit the
   // monitor even if an exception was already pending.
   if (monitor->check_owner(THREAD)) {
+    if (monitor->jni_counter() == 0) {
+      // Unlocking a byte code or synchronized enter. Disallowed.
+      if (CheckJNICalls) {
+        fatal("Native code must not use MonitorExit to exit a monitor entered through a synchronized method or a monitorenter Java virtual machine instruction.");
+      }
+      return;
+    }
+    monitor->dec_jni_counter();
     monitor->exit(current);
     current->dec_held_monitor_count(1, true);
   }
@@ -1083,7 +1094,7 @@ void ObjectSynchronizer::owned_monitors_iterate_filtered(MonitorClosure* closure
     // ObjectMonitor cannot be async deflated.
     if (monitor->has_owner() && filter(monitor->owner_raw())) {
       assert(!monitor->is_being_async_deflated(), "Owned monitors should not be deflating");
-      assert(monitor->object_peek() != nullptr, "Owned monitors should not have a dead object");
+      assert(monitor->jni_counter() != 0 || monitor->object_peek() != nullptr, "Owned monitors should not have a dead object");
 
       closure->do_monitor(monitor);
     }
@@ -1725,6 +1736,7 @@ class ReleaseJavaMonitorsClosure: public MonitorClosure {
  public:
   ReleaseJavaMonitorsClosure(JavaThread* thread) : _thread(thread) {}
   void do_monitor(ObjectMonitor* mid) {
+    assert(mid->jni_counter() > 0, "Only JNI locked monitors should appear here.");
     intx rec = mid->complete_exit(_thread);
     _thread->dec_held_monitor_count(rec + 1);
   }

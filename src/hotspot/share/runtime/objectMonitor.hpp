@@ -163,12 +163,14 @@ private:
 
   void* volatile _owner;            // pointer to owning thread OR BasicLock
   volatile uint64_t _previous_owner_tid;  // thread id of the previous owner of the monitor
+  intx _jni_counter;
   // Separate _owner and _next_om on different cache lines since
   // both can have busy multi-threaded access. _previous_owner_tid is only
   // changed by ObjectMonitor::exit() so it is a good choice to share the
   // cache line with _owner.
   DEFINE_PAD_MINUS_SIZE(1, OM_CACHE_LINE_SIZE, sizeof(void* volatile) +
-                        sizeof(volatile uint64_t));
+                        sizeof(volatile uint64_t) +
+                        sizeof(intx));
   ObjectMonitor* _next_om;          // Next ObjectMonitor* linkage
   volatile intx _recursions;        // recursion count, 0 for first entry
   ObjectWaiter* volatile _EntryList;  // Threads blocked on entry or reentry.
@@ -314,6 +316,10 @@ private:
   // Returns true if the specified thread owns the ObjectMonitor. Otherwise
   // returns false and throws IllegalMonitorStateException (IMSE).
   bool      check_owner(TRAPS);
+
+  void inc_jni_counter() { _jni_counter++; }
+  void dec_jni_counter() { _jni_counter--; }
+  intx jni_counter() { return _jni_counter; }
 
  private:
   class ExitOnSuspend {

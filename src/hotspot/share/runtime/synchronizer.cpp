@@ -608,6 +608,12 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
     assert(popped == object, "must be owned by this thread");
     monitor->set_owner_from_anonymous(current);
   }
+
+  if (monitor->jni_counter() >= monitor->recursions() + 1) {
+    // not checked in emitted code.
+    fatal("A monitor entered through a MonitorEnter JNI function call cannot be exited using the monitorexit Java virtual machine instruction or a synchronized method return.");
+  }
+
   monitor->exit(current);
 }
 
@@ -627,6 +633,12 @@ void ObjectSynchronizer::jni_enter(Handle obj, JavaThread* current) {
   while (true) {
     ObjectMonitor* monitor = inflate(current, obj(), inflate_cause_jni_enter);
     if (monitor->enter(current)) {
+      if (monitor->jni_counter() > monitor->recursions()) {
+        if (CheckJNICalls) {
+          fatal("A monitor entered through a MonitorEnter JNI function call cannot be exited using the monitorexit Java virtual machine instruction or a synchronized method return.");
+        }
+        monitor->reset_jni_counter();
+      }
       monitor->inc_jni_counter();
       current->inc_held_monitor_count(1, true);
       break;

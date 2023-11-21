@@ -320,6 +320,7 @@ private:
   void inc_jni_counter() { _jni_counter++; }
   void dec_jni_counter() { _jni_counter--; }
   intx jni_counter() { return _jni_counter; }
+  void reset_jni_counter() { _jni_counter = 0; }
 
  private:
   class ExitOnSuspend {

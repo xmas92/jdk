@@ -621,8 +621,8 @@ bool ObjectMonitor::deflate_anon_monitor(JavaThread* current) {
 
   LockStack& lock_stack = current->lock_stack();
 
-  if (!OMRecursiveLightweight && _recursions > 0) {
-    // !OMRecursiveLightweight, lightweight locking cannot handle recursive locks.
+  if (!VM_Version::supports_recursive_lightweight_locking() && _recursions > 0) {
+    // !VM_Version::supports_recursive_lightweight_locking(), lightweight locking cannot handle recursive locks.
     return false;
   }
 

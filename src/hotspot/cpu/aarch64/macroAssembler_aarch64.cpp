@@ -6379,12 +6379,6 @@ void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1,
   }
 #endif
 
-  if (OMRecursiveLightweight) {
-    ldrb(t1, Address(rthread, JavaThread::lock_stack_has_recu_offset()));
-    cmp(t1, zr);
-    br(Assembler::NE, recur);
-  }
-
   Label unlocked, push_and_slow;
   const Register top = t1;
   const Register mark = t2;

@@ -1647,14 +1647,6 @@ size_t ObjectSynchronizer::deflate_idle_monitors() {
       // This is not a monitor deflation thread.
       // No handshake or rendezvous is needed when we are already at safepoint.
       assert_at_safepoint();
-      if (OMRegenerateCache) {
-        assert(LockingMode == LM_LIGHTWEIGHT, "");
-        // The cache is cleared when JavaThreads enter a safepoint. But monitors may be left.
-        // As this deflation happened during a safepoint, deflating monitors must be cleared before deleting.
-        for (JavaThreadIteratorWithHandle jtiwh; JavaThread *jt = jtiwh.next(); ) {
-          jt->om_clear_monitor_cache();
-        }
-      }
     }
 
     // After the handshake, safely free the ObjectMonitors that were
@@ -2341,7 +2333,7 @@ class LockStackInflateContendedLocks : private OopClosure {
     oop obj = *o;
     if (obj->mark_acquire().has_monitor()) {
       if (_length > 0 && _contended_oops[_length-1] == obj) {
-        assert(OMRecursiveLightweight, "must be");
+        assert(VM_Version::supports_recursive_lightweight_locking(), "must be");
         // Recursive
         return;
       }
@@ -2489,9 +2481,9 @@ void LightweightSynchronizer::exit(oop object, JavaThread* current) {
       // This is a recursive exit which succeeded
       return;
     }
-    if (OMRecursiveLightweight && lock_stack.is_recursive(object)) {
+    if (VM_Version::supports_recursive_lightweight_locking() && lock_stack.is_recursive(object)) {
       // Must inflate recursive locks if try_recursive_exit fails
-      // This happens for unbalanced unlocks, could potentially
+      // This happens for un-structured unlocks, could potentially
       // fix try_recursive_exit to handle these.
       inflate_fast_locked_object(object, current, current, ObjectSynchronizer::inflate_cause_vm_internal);
     }

@@ -1997,17 +1997,7 @@ const int ObjectAlignmentInBytes = 8;
   product(int, OMCacheSize, 8, "")                                          \
           range(0, OMCache::CAPACITY)                                       \
                                                                             \
-  product(bool, OMRegenerateCache, false, "")                               \
-                                                                            \
   product(bool, OMShrinkCHT, false, "")                                     \
-                                                                            \
-  product(bool, OMRecursiveLightweight, true, "")                           \
-                                                                            \
-  product(bool, OMRecursiveFastPath, true, "")                              \
-                                                                            \
-  product(bool, OMRecursiveFastPath2, true, "")                             \
-                                                                            \
-  product(bool, OMRetryLock, false, "")                                     \
                                                                             \
   product(int, OMSpins, 20, "")                                             \
                                                                             \

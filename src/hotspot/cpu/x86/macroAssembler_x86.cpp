@@ -9947,65 +9947,6 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
   movl(Address(thread, JavaThread::lock_stack_top_offset()), top);
 }
 
-void MacroAssembler::lightweight_lock_WIP(Register obj, Register hdr, Register box, Register thread, Register tmp, Label& slow) {
-  assert(hdr == rax, "header must be in rax for cmpxchg");
-  assert_different_registers(obj, hdr, thread, tmp);
-  Label success, retry;
-
-  // First we need to check if the lock-stack has room for pushing the object reference.
-  // Note: we subtract 1 from the end-offset so that we can do a 'greater' comparison, instead
-  // of 'greaterEqual' below, which readily clears the ZF. This makes C2 code a little simpler and
-  // avoids one branch.
-  cmpl(Address(thread, JavaThread::lock_stack_top_offset()), LockStack::end_offset() - 1);
-  jcc(Assembler::greater, slow);
-
-  Label recursion;
-  if (OMRecursiveLightweight && OMRecursiveFastPath2) {
-    testptr(hdr, markWord::unlocked_value);
-    jccb(Assembler::zero, recursion);
-  }
-
-  // Now we attempt to take the fast-lock.
-  // Clear lock_mask bits (locked state).
-  bind(retry);
-  andptr(hdr, ~(int32_t)markWord::lock_mask_in_place);
-  movptr(tmp, hdr);
-  // Set unlocked_value bit.
-  orptr(hdr, markWord::unlocked_value);
-  lock();
-  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
-
-  if (OMRecursiveLightweight) {
-    // Load lock_stack_top, this is only not used in the slowest of paths
-    // CAS successful
-    jccb(Assembler::equal, success);
-
-    if (OMRetryLock) {
-      // Retry lock if failed due to non-lock bits changed
-      testptr(hdr, markWord::unlocked_value);
-      jccb(Assembler::notZero, retry);
-    }
-    // Check if fast locked
-    testptr(hdr, markWord::monitor_value | markWord::unlocked_value);
-    jcc(Assembler::notZero, slow);
-
-    bind(recursion);
-    movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-    cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize));
-    jcc(Assembler::notEqual, slow);
-    movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
-  } else {
-    jcc(Assembler::notEqual, slow);
-  }
-
-  bind(success);
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-  // If successful, push object to lock-stack.
-  movptr(Address(thread, tmp), obj);
-  incrementl(tmp, oopSize);
-  movl(Address(thread, JavaThread::lock_stack_top_offset()), tmp);
-}
-
 // Implements lightweight-unlocking.
 //
 // obj: the object to be unlocked
@@ -10067,53 +10008,4 @@ void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register
   jmp(slow);
 
   bind(unlocked);
-}
-
-void MacroAssembler::lightweight_unlock_WIP(Register obj, Register hdr, Register box, Register tmp, Label& slow) {
-  assert(hdr == rax, "header must be in rax for cmpxchg");
-  assert_different_registers(obj, hdr, tmp);
-  Label success, recursive_success;
-
-  if (OMRecursiveLightweight) {
-    cmpptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 1);
-    jccb(Assembler::equal, recursive_success);
-  }
-  movptr(hdr, tmp);
-
-  // Mark-word must be lock_mask now, try to swing it back to unlocked_value.
-  orptr(tmp, markWord::unlocked_value);
-  lock();
-  cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
-  jcc(Assembler::notEqual, slow);
-  // Pop the lock object from the lock-stack.
-#ifdef _LP64
-  const Register thread = r15_thread;
-#else
-  const Register thread = rax;
-  get_thread(thread);
-#endif
-#ifdef ASSERT
-  jmpb(success);
-#endif
-  bind(recursive_success);
-#ifdef ASSERT
-#ifndef _LP64
-  get_thread(thread);
-#endif
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-  cmpptr(obj, Address(thread, tmp, Address::times_1, -oopSize * 2));
-  jccb(Assembler::equal, success);
-  stop("C2 Invalid recursive");
-#endif
-  bind(success);
-  subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
-#ifdef ASSERT
-  movl(tmp, Address(thread, JavaThread::lock_stack_top_offset()));
-  Label correct;
-  cmpptr(obj, Address(thread, tmp));
-  jccb(Assembler::equal, correct);
-  stop("C2 Wrong oop popped from LockStack");
-  bind(correct);
-  movptr(Address(thread, tmp), 0);
-#endif
 }

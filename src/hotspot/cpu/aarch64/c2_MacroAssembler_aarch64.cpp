@@ -71,19 +71,8 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
     br(Assembler::NE, cont);
   }
 
-  if (LockingMode == LM_LIGHTWEIGHT) {
-    // Null markWord
-    str(zr, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-  }
-
-  if (LockingMode == LM_LIGHTWEIGHT && !OMUseC2Cache) {
-    // Always slow path for monitors
-    tst(disp_hdr, markWord::monitor_value);
-    br(Assembler::NE, no_count);
-  } else {
-    // Check for existing monitor
-    tbnz(disp_hdr, exact_log2(markWord::monitor_value), object_has_monitor);
-  }
+  // Check for existing monitor
+  tbnz(disp_hdr, exact_log2(markWord::monitor_value), object_has_monitor);
 
   if (LockingMode == LM_MONITOR) {
     tst(oop, oop); // Set NE to indicate 'failure' -> take slow-path. We know that oop != 0.
@@ -123,52 +112,11 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   // Handle existing monitor.
   bind(object_has_monitor);
 
-  if (LockingMode != LM_LIGHTWEIGHT) {
-    // Store a non-null value into the box to avoid looking like a re-entrant
-    // lock. The fast-path monitor unlock code checks for
-    // markWord::monitor_value so use markWord::unused_mark which has the
-    // relevant bit set, and also matches ObjectSynchronizer::enter.
-    mov(tmp, (address)markWord::unused_mark().value());
-    str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-  }
-
-  // Fetch the monitor
-  if (LockingMode == LM_LIGHTWEIGHT && OMUseC2Cache) {
-    if (OMCacheHitRate) increment(Address(rthread, JavaThread::lock_lookup_offset()));
-
-    Label monitor_found, loop;
-    lea(tmp, Address(rthread, JavaThread::om_cache_oops_offset()));
-    bind(loop);
-    ldr(disp_hdr, Address(tmp));
-    cmp(oop, disp_hdr);
-    br(Assembler::EQ, monitor_found);
-    increment(tmp, oopSize);
-    cbnz(disp_hdr, loop);
-    b(no_count); // Cache Miss, NE set from cmp above, cbnz does not set flags
-    bind(monitor_found);
-    ldr(disp_hdr, Address(tmp, OMCache::oop_to_monitor_difference()));
-    if (OMCacheHitRate) increment(Address(rthread, JavaThread::lock_hit_offset()));
-
-  } else {
-    // Convert markWord to ObjectMonitor
-    sub(disp_hdr, disp_hdr, markWord::monitor_value);
-  }
-
-  // Materialize owner field address.
-  // disp_hdr contains the ObjectMonitor
-  add(tmp, disp_hdr, in_bytes(ObjectMonitor::owner_offset()));
-
-  if (OMRecursiveFastPath) {
-    // Check for recursive locking without the expensive cmpxchg
-    ldr(rscratch1, Address(tmp, 0));
-    cmp(rscratch1, rthread);
-    br(Assembler::EQ, recursive);
-  }
-
   // The object's monitor m is unlocked iff m->owner == NULL,
   // otherwise m->owner may contain a thread or a stack address.
   //
   // Try to CAS m->owner from NULL to current thread.
+  add(tmp, disp_hdr, (in_bytes(ObjectMonitor::owner_offset())-markWord::monitor_value));
   cmpxchg(tmp, zr, rthread, Assembler::xword, /*acquire*/ true,
           /*release*/ true, /*weak*/ false, tmp3Reg); // Sets flags for result
 
@@ -181,21 +129,12 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
 
   br(Assembler::EQ, cont); // CAS success means locking succeeded
 
-  // Check for recursive locking
   cmp(tmp3Reg, rthread);
-  br(Assembler::NE, cont);
+  br(Assembler::NE, cont); // Check for recursive locking
 
   // Recursive lock case
-  bind(recursive);
-
-  increment(Address(disp_hdr, in_bytes(ObjectMonitor::recursions_offset())), 1);
-
+  increment(Address(disp_hdr, in_bytes(ObjectMonitor::recursions_offset()) - markWord::monitor_value), 1);
   // flag == EQ still from the cmp above, checking if this is a reentrant lock
-
-  bind(mon_count);
-  if (LockingMode == LM_LIGHTWEIGHT) {
-    str(disp_hdr, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-  }
 
   bind(cont);
   // flag == EQ indicates success
@@ -205,12 +144,7 @@ void C2_MacroAssembler::fast_lock(Register objectReg, Register boxReg, Register 
   bind(count);
   increment(Address(rthread, JavaThread::held_monitor_count_offset()));
 
-  DEBUG_ONLY(Label check_exit;)
-  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
-  DEBUG_ONLY(br(Assembler::NE, check_exit);)
-  DEBUG_ONLY(stop("C2 FastLock SlowPath without NE");)
-  DEBUG_ONLY(bind(check_exit);)
 }
 
 void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Register tmpReg,
@@ -237,13 +171,7 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
 
   // Handle existing monitor.
   ldr(tmp, Address(oop, oopDesc::mark_offset_in_bytes()));
-  if (LockingMode == LM_LIGHTWEIGHT && !OMUseC2Cache) {
-    // Always slow path for monitors
-    tst(tmp, markWord::monitor_value);
-    br(Assembler::NE, no_count);
-  } else {
-    tbnz(tmp, exact_log2(markWord::monitor_value), object_has_monitor);
-  }
+  tbnz(tmp, exact_log2(markWord::monitor_value), object_has_monitor);
 
   if (LockingMode == LM_MONITOR) {
     tst(oop, oop); // Set NE to indicate 'failure' -> take slow-path. We know that oop != 0.
@@ -295,8 +223,6 @@ void C2_MacroAssembler::fast_unlock(Register objectReg, Register boxReg, Registe
   bind(count);
   decrement(Address(rthread, JavaThread::held_monitor_count_offset()));
 
-  DEBUG_ONLY(Label check_exit;)
-  DEBUG_ONLY(b(check_exit);)
   bind(no_count);
 }
 

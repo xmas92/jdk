@@ -216,20 +216,6 @@ inline void OMCache::set_monitor(ObjectMonitor *monitor) {
       _monitors[i] = monitor;
       return;
     }
-#if 1
-    if (OMRegenerateCache &&
-        _monitors[i] != nullptr &&
-        _oops[i] == nullptr) {
-      oop woop = _monitors[i]->object_peek();
-      if (woop == nullptr || woop == cmp_obj) {
-        _oops[i] = obj;
-        _monitors[i] = monitor;
-        return;
-      } else {
-        _oops[i] = woop;
-      }
-    }
-#endif
     // Remember Most Recent Values
     oop tmp_oop = obj;
     ObjectMonitor* tmp_mon = monitor;
@@ -269,17 +255,7 @@ inline ObjectMonitor* OMCache::get_monitor(oop o) {
 inline void OMCache::clear() {
   for (size_t i = 0 , r = 0; i < CAPACITY; ++i) {
     _oops[i] = nullptr;
-#if 1
-    if (!OMRegenerateCache ||
-        (_monitors[i] != nullptr &&
-         _monitors[i]->is_being_async_deflated())) {
-      _monitors[i] = nullptr;
-    } else {
-      _monitors[r++] = _monitors[i];
-    }
-#else
     _om_cache_monitor[i] = nullptr;
-#endif
   }
 }
 

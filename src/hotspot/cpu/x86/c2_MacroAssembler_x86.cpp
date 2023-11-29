@@ -615,7 +615,6 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   if (LockingMode == LM_MONITOR) {
     // Clear ZF so that we take the slow path at the DONE label. objReg is known to be not 0.
     testptr(objReg, objReg);
-    jmp(SLOW_PATH);
   } else {
     assert(LockingMode == LM_LEGACY, "");
     // Attempt stack-locking ...
@@ -636,19 +635,18 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   jmp(DONE_LABEL);
 
   bind(IsInflated);
+  // The object is inflated. tmpReg contains pointer to ObjectMonitor* + markWord::monitor_value
+
+#if INCLUDE_RTM_OPT
+  // Use the same RTM locking code in 32- and 64-bit VM.
+  if (use_rtm) {
+    rtm_inflated_locking(objReg, boxReg, tmpReg, scrReg, cx1Reg, cx2Reg,
+                         rtm_counters, method_data, profile_rtm, DONE_LABEL);
+  } else {
+#endif // INCLUDE_RTM_OPT
 
 #ifndef _LP64
   // The object is inflated.
-
-#ifndef _LP64
-  if (LockingMode == LM_LIGHTWEIGHT) {
-    // ObjectMonitor* is *not* in the header and no cache has been implemented.
-    // Take the slow-path into the runtime.
-    // ObjectMonitor* is *not* in the header in lightweight mode and and no
-    // cache has been implemented. Take the slow-path into the runtime.
-    // ZFlag = 0 after the earlier markWord::monitor_value test.
-    jmpb(NO_COUNT);
-  }
 
   // boxReg refers to the on-stack BasicLock in the current frame.
   // We'd like to write:
@@ -657,6 +655,9 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   // additional latency as we have another ST in the store buffer that must drain.
 
   // avoid ST-before-CAS
+  // register juggle because we need tmpReg for cmpxchgptr below
+  movptr(scrReg, boxReg);
+  movptr(boxReg, tmpReg);                   // consider: LEA box, [tmp-2]
 
   // Optimistic form: consider XORL tmpReg,tmpReg
   movptr(tmpReg, NULL_WORD);
@@ -665,43 +666,44 @@ void C2_MacroAssembler::fast_lock(Register objReg, Register boxReg, Register tmp
   // Ideally, I'd manifest "Self" with get_thread and then attempt
   // to CAS the register containing Self into m->Owner.
   // But we don't have enough registers, so instead we can either try to CAS
-  // rsp or the address of the box into &m->owner.  If the CAS succeeds
+  // rsp or the address of the box (in scr) into &m->owner.  If the CAS succeeds
   // we later store "Self" into m->Owner.  Transiently storing a stack address
   // (rsp or the address of the box) into  m->owner is harmless.
   // Invariant: tmpReg == 0.  tmpReg is EAX which is the implicit cmpxchg comparand.
   lock();
-  cmpxchgptr(boxReg, Address(monReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
-  movptr(Address(boxReg, 0), 3);          // box->_displaced_header = 3
+  cmpxchgptr(scrReg, Address(boxReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
+  movptr(Address(scrReg, 0), 3);          // box->_displaced_header = 3
   // If we weren't able to swing _owner from null to the BasicLock
   // then take the slow path.
-  jccb  (Assembler::notZero, SLOW_PATH);
+  jccb  (Assembler::notZero, NO_COUNT);
   // update _owner from BasicLock to thread
-  get_thread (boxReg);                    // beware: clobbers ICCs
-  movptr(Address(monReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), boxReg);
+  get_thread (scrReg);                    // beware: clobbers ICCs
+  movptr(Address(boxReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), scrReg);
+  xorptr(boxReg, boxReg);                 // set icc.ZFlag = 1 to indicate success
 
-  // Fallthrough == Success
-}
-
-#else
-
-void C2_MacroAssembler::fast_lock_inflated(Register boxReg, Register tmpReg, Register monReg, Register thread, Label& SUCCESS, Label &SLOW_PATH) {
-  // x86_64
-  xorq(rax, rax);
+  // If the CAS fails we can either retry or pass control to the slow path.
+  // We use the latter tactic.
+  // Pass the CAS result in the icc.ZFlag into DONE_LABEL
+  // If the CAS was successful ...
+  //   Self has acquired the lock
+  //   Invariant: m->_recursions should already be 0, so we don't need to explicitly set it.
+  // Intentional fall-through into DONE_LABEL ...
+#else // _LP64
+  // It's inflated and we use scrReg for ObjectMonitor* in this section.
+  movq(scrReg, tmpReg);
+  xorq(tmpReg, tmpReg);
   lock();
-  cmpxchgptr(thread, Address(monReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
-  if (LockingMode != LM_LIGHTWEIGHT) {
-    // Unconditionally set box->_displaced_header = markWord::unused_mark().
-    // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
-    movptr(Address(boxReg, 0), checked_cast<int32_t>(markWord::unused_mark().value()));
-  }
-  // Propagate ICC.ZF from CAS above into SUCCESS.
-  jccb(Assembler::equal, SUCCESS);          // CAS above succeeded;
+  cmpxchgptr(thread, Address(scrReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
+  // Unconditionally set box->_displaced_header = markWord::unused_mark().
+  // Without cast to int32_t this style of movptr will destroy r10 which is typically obj.
+  movptr(Address(boxReg, 0), checked_cast<int32_t>(markWord::unused_mark().value()));
+  // Propagate ICC.ZF from CAS above into DONE_LABEL.
+  jccb(Assembler::equal, COUNT);          // CAS above succeeded; propagate ZF = 1 (success)
 
-  cmpptr(thread, rax);                      // Check if we are already the owner (recursive lock)
-  jccb(Assembler::notEqual, SLOW_PATH);     // If not recursive, ZF = 0 at this point (fail)
-  incq(Address(monReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
-  // Fallthrough == Success
-}
+  cmpptr(thread, rax);                // Check if we are already the owner (recursive lock)
+  jccb(Assembler::notEqual, NO_COUNT);    // If not recursive, ZF = 0 at this point (fail)
+  incq(Address(scrReg, OM_OFFSET_NO_MONITOR_VALUE_TAG(recursions)));
+  xorq(rax, rax); // Set ZF = 1 (success) for recursive lock, denoting locking success
 #endif // _LP64
 #if INCLUDE_RTM_OPT
   } // use_rtm()
@@ -909,6 +911,7 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
   bind  (LSuccess);
   testl (boxReg, 0);                      // set ICC.ZF=1 to indicate success
   jmpb  (DONE_LABEL);
+
 #endif
   if (LockingMode != LM_MONITOR) {
     bind  (Stacked);
@@ -917,7 +920,6 @@ void C2_MacroAssembler::fast_unlock(Register objReg, Register boxReg, Register t
     cmpxchgptr(tmpReg, Address(objReg, oopDesc::mark_offset_in_bytes())); // Uses RAX which is box
     // Intentional fall-thru into DONE_LABEL
   }
-
   bind(DONE_LABEL);
 
   // ZFlag == 1 count in fast path

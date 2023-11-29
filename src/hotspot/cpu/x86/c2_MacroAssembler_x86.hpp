@@ -61,7 +61,7 @@ public:
                          Register retry_on_abort_count,
                          RTMLockingCounters* stack_rtm_counters,
                          Metadata* method_data, bool profile_rtm,
-                         Label& SUCCESS, Label& INFLATED);
+                         Label& DONE_LABEL, Label& IsInflated);
   void rtm_inflated_locking(Register obj, Register box, Register tmp,
                             Register scr, Register retry_on_busy_count,
                             Register retry_on_abort_count,

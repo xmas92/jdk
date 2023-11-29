@@ -2743,7 +2743,7 @@ bool LightweightSynchronizer::inflate_and_enter(oop object, BasicLock* lock, Jav
         // The lock is fast-locked by the locking thread,
         // convert it to a held monitor with a known owner.
         monitor->set_owner_from_anonymous(locking_thread);
-        monitor->set_recursions(locking_thread->lock_stack().remove(object));
+        monitor->set_recursions(locking_thread->lock_stack().remove(object) - 1);
         locking_thread->_recursive_inflation++;
       }
 

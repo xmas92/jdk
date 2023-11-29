@@ -26,12 +26,12 @@
 #ifndef SHARE_RUNTIME_JAVATHREAD_INLINE_HPP
 #define SHARE_RUNTIME_JAVATHREAD_INLINE_HPP
 
-#include "logging/log.hpp"
-#include "memory/resourceArea.hpp"
 #include "runtime/javaThread.hpp"
 
 #include "classfile/javaClasses.hpp"
 #include "gc/shared/tlab_globals.hpp"
+#include "logging/log.hpp"
+#include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
 #include "oops/instanceKlass.hpp"
 #include "oops/oopHandle.inline.hpp"

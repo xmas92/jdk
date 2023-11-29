@@ -75,7 +75,6 @@ void LockStack::verify(const char* msg) const {
   assert((_top >= start_offset()), "lockstack underflow: _top %d end_offset %d", _top, start_offset());
   if (SafepointSynchronize::is_at_safepoint() || (Thread::current()->is_Java_thread() && is_owning_thread())) {
     int top = to_index(_top);
-    bool found_recu = false;
     for (int i = 0; i < top; i++) {
       assert(_base[i] != nullptr, "no zapped before top");
       if (VM_Version::supports_recursive_lightweight_locking()) {

@@ -82,6 +82,7 @@ public:
   static uint32_t start_offset();
   static uint32_t end_offset();
 
+  // Return true if we have room to push n oops onto this lock-stack, false otherwise.
   inline bool can_push(int n) const;
 
   // Returns true if the lock-stack is full. False otherwise.
@@ -145,7 +146,7 @@ public:
   static ByteSize monitors_offset() { return byte_offset_of(OMCache, _monitors); }
   static ByteSize oop_to_monitor_difference() { return monitors_offset() - oops_offset(); }
 
-  OMCache(JavaThread* jt) : _oops(), _null_sentinel(nullptr), _monitors() {};
+  explicit OMCache(JavaThread* jt) : _oops(), _null_sentinel(nullptr), _monitors() {};
 
   inline ObjectMonitor* get_monitor(oop o);
   inline void set_monitor(ObjectMonitor* monitor);

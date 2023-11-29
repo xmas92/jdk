@@ -369,10 +369,8 @@ void ZPhysicalMemoryManager::map(zoffset offset, const ZPhysicalMemory& pmem) co
   for (int i = 0; i < pmem.nsegments(); i++) {
     const ZPhysicalMemorySegment& segment = pmem.segment(i);
     _backing.map(addr + size, segment.size(), segment.start());
+    ZNMT::map(addr + size, segment.size(), segment.start());
     size += segment.size();
-  }
-  if (pmem.nsegments() > 0) {
-    ZNMT::map(addr, size, pmem.segment(0).start());
   }
 
   // Setup NUMA interleaving for large pages

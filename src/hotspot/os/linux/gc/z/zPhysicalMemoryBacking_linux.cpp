@@ -29,7 +29,6 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zMountPoint_linux.hpp"
-#include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPhysicalMemoryBacking_linux.hpp"
 #include "gc/z/zSyscall_linux.hpp"
@@ -41,7 +40,6 @@
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
-#include "nmt/memTracker.hpp"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -126,6 +124,7 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
     _block_size(0),
     _available(0),
     _initialized(false) {
+
   // Create backing file
   _fd = create_fd(ZFILENAME_HEAP);
   if (_fd == -1) {
@@ -614,6 +613,7 @@ retry:
       sleep(1);
       goto retry;
     }
+
     // Failed
     log_error_p(gc)("Failed to commit memory (%s)", err.to_string());
     return false;
@@ -701,6 +701,7 @@ size_t ZPhysicalMemoryBacking::uncommit(zoffset offset, size_t length) const {
     log_error(gc)("Failed to uncommit memory (%s)", err.to_string());
     return 0;
   }
+
   return length;
 }
 

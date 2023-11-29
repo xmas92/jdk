@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zLock.hpp"
 #include "gc/z/zMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "memory/allStatic.hpp"
@@ -37,6 +38,8 @@
 class ZNMT : public AllStatic {
 private:
   static VirtualMemoryView::PhysicalMemorySpace _space;
+  static ZLock _report_lock;
+  static void report(bool print_stack = false);
 public:
   static void init();
   static void map(zaddress_unsafe addr, size_t size, zoffset offset);

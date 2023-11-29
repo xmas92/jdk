@@ -77,17 +77,24 @@ void NativeCallStack::print_on(outputStream* out) const {
 
 // Decode and print this call path
 void NativeCallStack::print_on(outputStream* out, int indent) const {
+  print_on(out, "", indent);
+}
+
+// Decode and print this call path
+void NativeCallStack::print_on(outputStream* out, const char* prefix, int indent) const {
   DEBUG_ONLY(assert_not_fake();)
   address pc;
   char    buf[1024];
   int     offset;
   if (is_empty()) {
+    out->print("%s", prefix);
     for (int index = 0; index < indent; index ++) out->print(" ");
     out->print("[BOOTSTRAP]");
   } else {
     for (int frame = 0; frame < NMT_TrackingStackDepth; frame ++) {
       pc = get_frame(frame);
       if (pc == nullptr) break;
+      out->print("%s", prefix);
       // Print indent
       for (int index = 0; index < indent; index ++) out->print(" ");
       if (os::dll_address_to_function_name(pc, buf, sizeof(buf), &offset)) {

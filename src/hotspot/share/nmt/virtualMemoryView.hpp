@@ -115,8 +115,12 @@ private:
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
 
   // Utilities
-  static bool overlaps(Range a, Range b);
   static bool adjacent(Range a, Range b);
+  static bool overlaps(Range a, Range b);
+  static bool disjoint(Range a, Range b);
+  static bool is_same(Range a, Range b);
+  static Range overlap_of(Range a, Range b);
+  static Range union_of(Range a, Range b);
 
   // Pre-condition: ranges is sorted in a left-aligned fashion
   // That is: (a,b) comes before (c,d) if a <= c
@@ -195,7 +199,7 @@ public:
                                          size_t size);
 
   // Produce a report on output.
-  static void report(outputStream* output, size_t scale = K);
+  static void report(outputStream* output, size_t scale = K, bool skip_stack = false);
 
   // Record reserved and committed memory for
   // snapshotting in summary mode.

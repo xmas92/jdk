@@ -89,10 +89,20 @@ public:
   }
 
   void increment(int idx) {
+    if (!is_detailed_mode) {
+      // TODO: Bug, stack.length() is 1 here. Will just push unused_indices forever
+      //       and eventually crash in compact();
+      return;
+    }
     stacks.at(idx).ref_count++;
   }
 
   void decrement(int idx) {
+    if (!is_detailed_mode) {
+      // TODO: Bug, stack.length() is 1 here. Will just push unused_indices forever
+      //       and eventually crash in compact();
+      return;
+    }
     RefCountedNCS& rncs = stacks.at(idx);
     if (rncs.ref_count == 0) {
       return;

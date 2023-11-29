@@ -213,6 +213,7 @@ class MemTracker : AllStatic {
       VMV::remove_view_into_space(space, base_addr, size);
     }
   }
+
   static inline void commit_memory_into_space(const VMV::PhysicalMemorySpace space,
                                               address offset, size_t size, const NativeCallStack& stack) {
     assert_post_init();
@@ -220,6 +221,7 @@ class MemTracker : AllStatic {
     ThreadCritical tc;
     VMV::commit_memory_into_space(space, offset, size, stack);
   }
+
   static inline void uncommit_memory_into_space(const VMV::PhysicalMemorySpace space, address offset, size_t size) {
     assert_post_init();
     if (!enabled()) return;

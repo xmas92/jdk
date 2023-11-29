@@ -255,7 +255,7 @@ inline ObjectMonitor* OMCache::get_monitor(oop o) {
 inline void OMCache::clear() {
   for (size_t i = 0 , r = 0; i < CAPACITY; ++i) {
     _oops[i] = nullptr;
-    _om_cache_monitor[i] = nullptr;
+    _monitors[i] = nullptr;
   }
 }
 

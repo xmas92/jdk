@@ -102,6 +102,7 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
   { // Restore held monitor and slow path.
 
     __ bind(restore_held_monitor_count_and_slow_path);
+    __ bind(_slow_path);
     // Restore held monitor count.
     __ increment(Address(_thread, JavaThread::held_monitor_count_offset()));
     // increment will always result in ZF = 0 (no overflows).
@@ -114,7 +115,7 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
     __ bind(_check_successor);
 
     Label fix_zf_and_unlocked;
-    const Register monitor = _mark;
+    const Register monitor = _monitor;
 
 #ifndef _LP64
     // The owner may be anonymous, see comment in x86_64 section.

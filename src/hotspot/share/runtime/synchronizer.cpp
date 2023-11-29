@@ -1919,7 +1919,7 @@ void ObjectSynchronizer::log_in_use_monitor_details(outputStream* out, bool log_
     monitors_iterate([&](ObjectMonitor* monitor) {
       if (is_interesting(monitor)) {
         const oop obj = monitor->object_peek();
-        const intptr_t hash = LockingMode == LM_LIGHTWEIGHT ? mid->hash_lightweight() : monitor->header().hash();
+        const intptr_t hash = LockingMode == LM_LIGHTWEIGHT ? monitor->hash_lightweight() : monitor->header().hash();
         ResourceMark rm;
         out->print(INTPTR_FORMAT "  %d%d%d  " INTPTR_FORMAT "  %s", p2i(monitor),
                    monitor->is_busy(), hash != 0, monitor->owner() != nullptr,
@@ -2363,10 +2363,10 @@ void LightweightSynchronizer::ensure_lock_stack_space(JavaThread* locking_thread
   LockStack& lock_stack = locking_thread->lock_stack();
 
   // Make room on lock_stack
-  if (!lock_stack.can_push()) {
+  if (lock_stack.is_full()) {
     // Inflate contented objects
     LockStackInflateContendedLocks().inflate(locking_thread, current);
-    if (!lock_stack.can_push()) {
+    if (lock_stack.is_full()) {
       // Inflate the oldest object
       inflate_fast_locked_object(lock_stack.bottom(), locking_thread, current, ObjectSynchronizer::inflate_cause_vm_internal);
     }
@@ -2404,7 +2404,7 @@ void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* loc
     return;
   }
 
-  if (lock_stack.try_recursive_enter(obj())) {
+  if (!lock_stack.is_full() && lock_stack.try_recursive_enter(obj())) {
     // TODO: Maybe guard this by the value in the markWord (only is fast locked)
     //       Currently this is done when exiting. Doing it early could remove,
     //       LockStack::CAPACITY - 1 slow paths in the best case. But need to fix
@@ -2437,7 +2437,7 @@ void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* loc
     for (int attempts = spins + yields; try_spin && attempts > 0; attempts--) {
       while (mark.is_unlocked()) {
         ensure_lock_stack_space(locking_thread, current);
-        assert(lock_stack.can_push(), "must have made room on the lock stack");
+        assert(!lock_stack.is_full(), "must have made room on the lock stack");
         assert(!lock_stack.contains(obj()), "thread must not already hold the lock");
         // Try to swing into 'fast-locked' state.
         markWord locked_mark = mark.set_fast_locked();
@@ -2497,8 +2497,8 @@ retry:
     mark = object->cas_set_mark(unlocked_mark, old_mark);
     if (old_mark == mark) {
       // CAS successful, remove from lock_stack
-      size_t recu = lock_stack.remove(object);
-      assert(recu == 0, "Should not have unlocked here");
+      size_t recursion = lock_stack.remove(object) - 1;
+      assert(recursion == 0, "Should not have unlocked here");
       return;
     }
   }
@@ -2509,7 +2509,7 @@ retry:
   if (monitor->is_owner_anonymous()) {
     assert(is_lock_owned(current, object), "current must have object on its lock stack");
     monitor->set_owner_from_anonymous(current);
-    monitor->set_recursions(current->lock_stack().remove(object));
+    monitor->set_recursions(current->lock_stack().remove(object) - 1);
     current->_contended_inflation++;
   }
 
@@ -2560,7 +2560,7 @@ ObjectMonitor* LightweightSynchronizer::inflate_locked_or_imse(oop obj, const Ob
           // Current thread owns the lock but someone else inflated
           // fix owner and pop lock stack
           monitor->set_owner_from_anonymous(current);
-          monitor->set_recursions(lock_stack.remove(obj));
+          monitor->set_recursions(lock_stack.remove(obj) - 1);
           current->_contended_inflation++;
         } else {
           // Fast locked (and inflated) by other thread, or deflation in progress, IMSE.
@@ -2609,7 +2609,7 @@ ObjectMonitor* LightweightSynchronizer::inflate_fast_locked_object(oop object, J
   monitor->set_owner_from_anonymous(locking_thread);
 
   // Remove the entry from the thread's lock stack
-  monitor->set_recursions(locking_thread->lock_stack().remove(object));
+  monitor->set_recursions(locking_thread->lock_stack().remove(object) - 1);
 
   locking_thread->om_set_monitor_cache(monitor);
 
@@ -2713,7 +2713,7 @@ bool LightweightSynchronizer::inflate_and_enter(oop object, BasicLock* lock, Jav
         // The lock is fast-locked by the locking thread,
         // convert it to a held monitor with a known owner.
         monitor->set_owner_from_anonymous(locking_thread);
-        monitor->set_recursions(locking_thread->lock_stack().remove(object));
+        monitor->set_recursions(locking_thread->lock_stack().remove(object) - 1);
         locking_thread->_contended_recursive_inflation++;
       }
 

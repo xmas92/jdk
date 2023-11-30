@@ -80,7 +80,7 @@ public class LockUnlock {
 
     /** Perform a synchronized on a local object within a loop. */
     @Benchmark
-    public void testSimpleLockUnlockLocal() {
+    public void testBasicSimpleLockUnlockLocal() {
         Object localObject = lockObject1;
         for (int i = 0; i < innerCount; i++) {
             synchronized (localObject) {
@@ -92,7 +92,7 @@ public class LockUnlock {
 
     /** Perform a synchronized on an object within a loop. */
     @Benchmark
-    public void testSimpleLockUnlock() {
+    public void testBasicSimpleLockUnlock() {
         for (int i = 0; i < innerCount; i++) {
             synchronized (lockObject1) {
                 dummyInt1++;
@@ -101,9 +101,32 @@ public class LockUnlock {
         }
     }
 
+    /** Perform a synchronized on a local object within a loop. */
+    @Benchmark
+    public void testInflatedSimpleLockUnlockLocal() {
+        Object localObject = lockObject3Inflated;
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (localObject) {
+                dummyInt1++;
+                dummyInt2++;
+            }
+        }
+    }
+
+    /** Perform a synchronized on an object within a loop. */
+    @Benchmark
+    public void testInflatedSimpleLockUnlock() {
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (lockObject3Inflated) {
+                dummyInt1++;
+                dummyInt2++;
+            }
+        }
+    }
+
     /** Perform a recursive synchronized on a local object within a loop. */
     @Benchmark
-    public void testRecursiveLockUnlockLocal() {
+    public void testBasicRecursiveLockUnlockLocal() {
         Object localObject = lockObject1;
         for (int i = 0; i < innerCount; i++) {
             synchronized (localObject) {
@@ -117,7 +140,7 @@ public class LockUnlock {
 
     /** Perform a recursive synchronized on an object within a loop. */
     @Benchmark
-    public void testRecursiveLockUnlock() {
+    public void testBasicRecursiveLockUnlock() {
         for (int i = 0; i < innerCount; i++) {
             synchronized (lockObject1) {
                 synchronized (lockObject1) {
@@ -130,7 +153,7 @@ public class LockUnlock {
 
     /** Perform two synchronized after each other on the same local object. */
     @Benchmark
-    public void testSerialLockUnlockLocal() {
+    public void testBasicSerialLockUnlockLocal() {
         Object localObject = lockObject1;
         for (int i = 0; i < innerCount; i++) {
             synchronized (localObject) {
@@ -144,7 +167,7 @@ public class LockUnlock {
 
   /** Perform two synchronized after each other on the same local object. */
     @Benchmark
-    public void testSerialLockUnlock() {
+    public void testBasicSerialLockUnlock() {
         for (int i = 0; i < innerCount; i++) {
             synchronized (lockObject1) {
                 dummyInt1++;
@@ -155,9 +178,36 @@ public class LockUnlock {
         }
     }
 
+    /** Perform two synchronized after each other on the same local object. */
+    @Benchmark
+    public void testInflatedSerialLockUnlockLocal() {
+        Object localObject = lockObject3Inflated;
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (localObject) {
+                dummyInt1++;
+            }
+            synchronized (localObject) {
+                dummyInt2++;
+            }
+        }
+    }
+
+  /** Perform two synchronized after each other on the same local object. */
+    @Benchmark
+    public void testInflatedSerialLockUnlock() {
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (lockObject3Inflated) {
+                dummyInt1++;
+            }
+            synchronized (lockObject3Inflated) {
+                dummyInt2++;
+            }
+        }
+    }
+
       /** Perform a recursive-only synchronized on an object within a loop. */
     @Benchmark
-    public void testMonitorRecursiveOnlyLockUnlockLocal() {
+    public void testInflatedRecursiveOnlyLockUnlockLocal() {
         Object localObject = lockObject3Inflated;
         synchronized (localObject) {
             for (int i = 0; i < innerCount; i++) {
@@ -171,7 +221,7 @@ public class LockUnlock {
 
     /** Perform a recursive-only synchronized on an object within a loop. */
     @Benchmark
-    public void testMonitorRecursiveOnlyLockUnlock() {
+    public void testInflatedRecursiveOnlyLockUnlock() {
         synchronized (lockObject3Inflated) {
             for (int i = 0; i < innerCount; i++) {
                 synchronized (lockObject3Inflated) {
@@ -184,7 +234,7 @@ public class LockUnlock {
 
     /** Perform a recursive-only synchronized on an object within a loop. */
     @Benchmark
-    public void testMonitorRecursiveLockUnlockLocal() {
+    public void testInflatedRecursiveLockUnlockLocal() {
         Object localObject = lockObject3Inflated;
         for (int i = 0; i < innerCount; i++) {
             synchronized (localObject) {
@@ -198,7 +248,7 @@ public class LockUnlock {
 
     /** Perform a recursive-only synchronized on an object within a loop. */
     @Benchmark
-    public void testMonitorRecursiveLockUnlock() {
+    public void testInflatedRecursiveLockUnlock() {
         for (int i = 0; i < innerCount; i++) {
             synchronized (lockObject3Inflated) {
                 synchronized (lockObject3Inflated) {

@@ -6360,10 +6360,6 @@ void MacroAssembler::lightweight_lock(Register obj, Register t1, Register t2, Re
 // - obj: the object to be unlocked
 // - t1, t2, t3: temporary registers
 void MacroAssembler::lightweight_unlock(Register obj, Register t1, Register t2, Register t3, Label& slow) {
-  lightweight_unlock(obj, hdr, t1, t2, slow, slow);
-}
-
-void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register t1, Register t2, Label& recur, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, t1, t2, t3, rscratch1);
 

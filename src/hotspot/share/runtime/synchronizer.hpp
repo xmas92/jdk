@@ -48,6 +48,7 @@ private:
   volatile size_t _max;
 
   bool cas_head(ObjectMonitor* old_head, ObjectMonitor* new_head);
+  bool cas_head_relaxed(ObjectMonitor* old_head, ObjectMonitor* new_head);
   void update_count(size_t unlink_count);
 
 public:

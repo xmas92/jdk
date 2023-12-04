@@ -68,7 +68,11 @@
 class ObjectMonitorDeflationLogging;
 
 bool MonitorList::cas_head(ObjectMonitor* old_head, ObjectMonitor* new_head) {
-  return Atomic::cmpxchg(&_head, old_head, new_head) == old_head;
+  return Atomic::cmpxchg(&_head, old_head, new_head, memory_order_release) == old_head;
+}
+
+bool MonitorList::cas_head_relaxed(ObjectMonitor* old_head, ObjectMonitor* new_head) {
+  return Atomic::cmpxchg(&_head, old_head, new_head, memory_order_relaxed) == old_head;
 }
 
 void MonitorList::add(ObjectMonitor* m) {
@@ -129,7 +133,7 @@ void MonitorList::Unlinker::unlink_batch() {
 
   if (_prev == nullptr) {
     // Unlinking list head
-    if (_list.cas_head(_head, next)) {
+    if (_list.cas_head_relaxed(_head, next)) {
       _head = next;
       return;
     }

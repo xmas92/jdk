@@ -2027,7 +2027,7 @@ class ObjectMonitorWorld : public CHeapObj<mtThread> {
   }
 
   static size_t initial_log_size() {
-    const size_t estimate = log2i(os::processor_count() + 1) + log2i(AvgMonitorsPerThreadEstimate + 1);
+    const size_t estimate = log2i(MAX2(os::processor_count(), 1)) + log2i(MAX2(AvgMonitorsPerThreadEstimate, size_t(1)));
     return clamp_log_size(estimate);
   }
 
@@ -2105,7 +2105,7 @@ public:
     const size_t log_size = _table->get_size_log2(current);
     const int log_ceiling = log2i_graceful(ceiling);
     const int log_max = log2i_graceful(max);
-    const size_t log_count = log2i(count + 1);
+    const size_t log_count = log2i(MAX2(count, size_t(1)));
     const size_t log_target = clamp_log_size(MAX2(log_ceiling, log_max) + 2);
 
     return needs_grow(log_target, log_size) || needs_shrink(log_target, log_size) || Atomic::load(&_resize);
@@ -2115,7 +2115,7 @@ public:
     const size_t log_size = _table->get_size_log2(current);
     const int log_ceiling = log2i_graceful(ceiling);
     const int log_max = log2i_graceful(max);
-    const size_t log_count = log2i(count + 1);
+    const size_t log_count = log2i(MAX2(count, size_t(1)));
     const size_t log_target = clamp_log_size(MAX2(log_ceiling, log_max) + 2);
     LogTarget(Info, monitorinflation) lt;
 

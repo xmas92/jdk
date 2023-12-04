@@ -1649,9 +1649,8 @@ ObjectMonitor* ObjectSynchronizer::inflate_impl(JavaThread* inflating_thread, oo
   }
 }
 
-// Walk the in-use list and deflate and unlink (at most MonitorDeflationMax) idle
-// ObjectMonitors. Returns a MonitorList::Deleter which is used to delete unlinked
-// ObjectMonitors.
+// Walk the in-use list and deflate and unlink idle ObjectMonitors.
+// Returns a MonitorList::Deleter which is used to delete unlinked ObjectMonitors.
 //
 MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectMonitorDeflationSafepointer* safepointer) {
   MonitorList::Unlinker unlinker(_in_use_list);
@@ -1660,12 +1659,6 @@ MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectM
     ObjectMonitor* mid = unlinker.next();
     if (mid->deflate_monitor()) {
       unlinker.unlink();
-
-      if (unlinker.unlink_count() == checked_cast<size_t>(MonitorDeflationMax)) {
-        // TODO: Is this only for transient producer consumer issues?
-        //       Remove it? No more GrowableArray.
-        break;
-      }
     }
     // Must check for a safepoint/handshake and honor it.
     safepointer->block_for_safepoint("deflate_and_unlink_monitor_list", "deflated_and_unlink_count", unlinker.unlink_count());

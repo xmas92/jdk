@@ -131,8 +131,19 @@ void MonitorList::Unlinker::unlink_batch() {
   _last_unlink_batch = nullptr;
   ObjectMonitor* const next = unlink->next_om();
 
+  auto unlink_reachable_from = [&](ObjectMonitor* from){
+    Iterator iter(from);
+    while (iter.has_next()) {
+      if (iter.next() == unlink) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   if (_prev == nullptr) {
     // Unlinking list head
+    assert(unlink_reachable_from(_head), "must be");
     if (_list.cas_head_relaxed(_head, next)) {
       _head = next;
       return;
@@ -148,23 +159,13 @@ void MonitorList::Unlinker::unlink_batch() {
     }
   }
 
-  assert([&](){
-          Iterator iter(_prev);
-          while (iter.has_next()) {
-            if (iter.next() == unlink) {
-              return true;
-            }
-          }
-          return false;
-        }(), "must be");
-
+  assert(unlink_reachable_from(_prev), "must be");
   _prev->set_next_om(next);
 }
 
 MonitorList::Unlinker::~Unlinker() {
-  // TODO: maybe assert that the deleter was called.
-  unlink_batch();
-  _list.update_count(_unlink_count);
+  assert(_last_unlink_batch == nullptr, "must have unlinked batch");
+  assert(_delete_head == nullptr && _unlink_count == 0, "must have claimed deleter");
 }
 
 ObjectMonitor* MonitorList::Unlinker::next() {
@@ -178,13 +179,13 @@ ObjectMonitor* MonitorList::Unlinker::next() {
 }
 
 void MonitorList::Unlinker::unlink() {
-  // Remove current
+  // Remove current.
   ObjectMonitor* const unlink = _current;
   _current = nullptr;
   assert(unlink->next_om() == _next, "must be");
   _unlink_count++;
 
-  // Add the link to delete list
+  // Add the link to delete list.
   unlink->set_next_delete_om(_delete_head);
   _delete_head = unlink;
 
@@ -193,8 +194,19 @@ void MonitorList::Unlinker::unlink() {
 }
 
 MonitorList::Deleter MonitorList::Unlinker::deleter() {
+  // Unlink the last batch.
   unlink_batch();
-  return MonitorList::Deleter(_delete_head, _unlink_count);
+
+  // Take the current list.
+  ObjectMonitor* const head = _delete_head;
+  _delete_head = nullptr;
+  const size_t size = _unlink_count;
+  _unlink_count = 0;
+
+  // Update the unlink count.
+  _list.update_count(size);
+
+  return MonitorList::Deleter(head, size);
 }
 
 void MonitorList::Deleter::delete_one_monitor() {
@@ -1742,13 +1754,13 @@ public:
     }
   }
 
-  void before_handshake(size_t unlinked_count) {
+  void before_handshake(size_t deflated_and_unlinked_count) {
     if (_stream != nullptr) {
       _timer.stop();
-      _stream->print_cr("before handshaking: unlinked_count=" SIZE_FORMAT
+      _stream->print_cr("before handshaking: {deflated,unlinked}_count=" SIZE_FORMAT
                         ", in_use_list stats: ceiling=" SIZE_FORMAT ", count="
                         SIZE_FORMAT ", max=" SIZE_FORMAT,
-                        unlinked_count, ceiling(), count(), max());
+                        deflated_and_unlinked_count, ceiling(), count(), max());
     }
   }
 
@@ -1761,12 +1773,12 @@ public:
     }
   }
 
-  void end(size_t deflated_count, size_t unlinked_count) {
+  void end(size_t deflated_unlinked_and_deleted_count) {
     if (_stream != nullptr) {
       _timer.stop();
-      if (deflated_count != 0 || unlinked_count != 0 || _debug.is_enabled()) {
-        _stream->print_cr("deflated_count=" SIZE_FORMAT ", {unlinked,deleted}_count=" SIZE_FORMAT " monitors in %3.7f secs",
-                          deflated_count, unlinked_count, _timer.seconds());
+      if (deflated_unlinked_and_deleted_count != 0 || _debug.is_enabled()) {
+        _stream->print_cr("{deflated,unlinked,deleted}_count=" SIZE_FORMAT " monitors in %3.7f secs",
+                          deflated_unlinked_and_deleted_count, _timer.seconds());
       }
       _stream->print_cr("end deflating: in_use_list stats: ceiling=" SIZE_FORMAT ", count=" SIZE_FORMAT ", max=" SIZE_FORMAT,
                         ceiling(), count(), max());
@@ -1822,7 +1834,6 @@ void ObjectSynchronizer::deflate_idle_monitors() {
   ObjectMonitorDeflationSafepointer safepointer(current, &log);
 
   log.begin();
-  // TODO: Cleanup all this logging. The deflated count, unlinked count and delete count are all the same.
 
   // Deflate some idle ObjectMonitors.
   MonitorList::Deleter deleter = deflate_and_unlink_monitor_list(&safepointer);
@@ -1848,13 +1859,12 @@ void ObjectSynchronizer::deflate_idle_monitors() {
     delete_monitor_list(deleter, &safepointer);
   }
 
-  log.end(deleter.size(), deleter.size());
+  log.end(deleter.size());
 
   OM_PERFDATA_OP(MonExtant, set_value(_in_use_list.count()));
   OM_PERFDATA_OP(Deflations, inc(deleter.size()));
 
   GVars.stw_random = os::random();
-
 
   if (deleter.size() != 0) {
     _no_progress_cnt = 0;

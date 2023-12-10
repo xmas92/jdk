@@ -69,10 +69,11 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
 #ifdef _LP64
     const Register thread = r15_thread;
 #else
+    assert(false, "broken");
     const Register thread = disp_hdr;
     get_thread(thread);
 #endif
-    lightweight_lock(obj, hdr, thread, tmp, slow_case);
+    lightweight_lock(obj, disp_hdr, hdr, thread, tmp, slow_case);
   } else  if (LockingMode == LM_LEGACY) {
     Label done;
     // Load object header
@@ -139,12 +140,13 @@ void C1_MacroAssembler::unlock_object(Register hdr, Register obj, Register disp_
 
   if (LockingMode == LM_LIGHTWEIGHT) {
 #ifdef _LP64
-    lightweight_unlock(obj, disp_hdr, r15_thread, hdr, slow_case);
+    lightweight_unlock(obj, disp_hdr, disp_hdr, r15_thread, hdr, slow_case);
 #else
     // This relies on the implementation of lightweight_unlock knowing that it
     // will clobber its thread when using EAX.
+    assert(false, "broken");
     get_thread(disp_hdr);
-    lightweight_unlock(obj, disp_hdr, disp_hdr, hdr, slow_case);
+    lightweight_unlock(obj, disp_hdr, disp_hdr, disp_hdr, hdr, slow_case);
 #endif
   } else if (LockingMode == LM_LEGACY) {
     // test if object header is pointing to the displaced header, and if so, restore

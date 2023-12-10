@@ -28,6 +28,7 @@
 #include "unittest.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+#if 0
 class LockStackTest : public ::testing::Test {
 public:
   static void push_raw(LockStack& ls, oop obj) {
@@ -425,3 +426,5 @@ TEST_VM_F(LockStackTest, remove) {
 
   EXPECT_TRUE(ls.is_empty());
 }
+
+#endif

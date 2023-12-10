@@ -2005,6 +2005,14 @@ const int ObjectAlignmentInBytes = 8;
                                                                             \
   product(bool, ProfileExceptionHandlers, true,                             \
           "Profile exception handlers")                                     \
+                                                                            \
+  product(bool, LSC1Lock, true, "")                                         \
+                                                                            \
+  product(bool, LSC1Unlock, true, "")                                       \
+                                                                            \
+  product(bool, LSC2Lock, true, "")                                         \
+                                                                            \
+  product(bool, LSC2Unlock, true, "")                                       \
 
 // end of RUNTIME_FLAGS
 

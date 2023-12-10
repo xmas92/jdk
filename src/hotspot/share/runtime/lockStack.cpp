@@ -23,89 +23,60 @@
  *
  */
 
+#include "runtime/lockStack.hpp"
 #include "precompiled.hpp"
-#include "memory/allocation.hpp"
-#include "runtime/globals.hpp"
+#include "runtime/javaThread.hpp"
 #include "runtime/lockStack.inline.hpp"
-#include "runtime/safepoint.hpp"
-#include "runtime/stackWatermark.hpp"
-#include "runtime/stackWatermarkSet.inline.hpp"
-#include "runtime/thread.hpp"
-#include "utilities/copy.hpp"
-#include "utilities/debug.hpp"
-#include "utilities/globalDefinitions.hpp"
-#include "utilities/ostream.hpp"
+#include "utilities/macros.hpp"
+#include <cstdint>
 
-#include <type_traits>
-
-const int LockStack::lock_stack_offset =      in_bytes(JavaThread::lock_stack_offset());
-const int LockStack::lock_stack_top_offset =  in_bytes(JavaThread::lock_stack_top_offset());
-const int LockStack::lock_stack_base_offset = in_bytes(JavaThread::lock_stack_base_offset());
+const int LockStack::lock_stack_offset = in_bytes(JavaThread::lock_stack_offset());
 
 LockStack::LockStack(JavaThread* jt) :
-  _top(lock_stack_base_offset), _base() {
-  // Make sure the layout of the object is compatible with the emitted code's assumptions.
-  STATIC_ASSERT(sizeof(_bad_oop_sentinel) == oopSize);
-  STATIC_ASSERT(sizeof(_base[0]) == oopSize);
-  STATIC_ASSERT(std::is_standard_layout<LockStack>::value);
-  STATIC_ASSERT(offsetof(LockStack, _bad_oop_sentinel) == offsetof(LockStack, _base) - oopSize);
-#ifdef ASSERT
-  for (int i = 0; i < CAPACITY; i++) {
-    _base[i] = nullptr;
-  }
-#endif
+  _next_index(Index::first_index), _last_index(Index::empty_index), _storage(nullptr) {
 }
 
-uint32_t LockStack::start_offset() {
-  int offset = lock_stack_base_offset;
-  assert(offset > 0, "must be positive offset");
-  return static_cast<uint32_t>(offset);
-}
-
-uint32_t LockStack::end_offset() {
-  int offset = lock_stack_base_offset + CAPACITY * oopSize;
-  assert(offset > 0, "must be positive offset");
-  return static_cast<uint32_t>(offset);
-}
-
-#ifndef PRODUCT
-void LockStack::verify(const char* msg) const {
-  assert(LockingMode == LM_LIGHTWEIGHT, "never use lock-stack when light weight locking is disabled");
-  assert((_top <= end_offset()), "lockstack overflow: _top %d end_offset %d", _top, end_offset());
-  assert((_top >= start_offset()), "lockstack underflow: _top %d end_offset %d", _top, start_offset());
-  if (SafepointSynchronize::is_at_safepoint() || (Thread::current()->is_Java_thread() && is_owning_thread())) {
-    int top = to_index(_top);
-    for (int i = 0; i < top; i++) {
-      assert(_base[i] != nullptr, "no zapped before top");
-      if (VM_Version::supports_recursive_lightweight_locking()) {
-        oop o = _base[i];
-        for (; i < top - 1; i++) {
-          // Consecutive entries may be the same
-          if (_base[i + 1] != o) {
-            break;
-          }
-        }
-      }
-
-      for (int j = i + 1; j < top; j++) {
-        assert(_base[i] != _base[j], "entries must be unique: %s", msg);
-      }
-    }
-    for (int i = top; i < CAPACITY; i++) {
-      assert(_base[i] == nullptr, "only zapped entries after top: i: %d, top: %d, entry: " PTR_FORMAT, i, top, p2i(_base[i]));
-    }
+LockStack::~LockStack() {
+  if (_storage != nullptr) {
+    LockStackStorage::destroy(_storage, to_array_index(_last_index) + 1);
   }
 }
-#endif
 
-void LockStack::print_on(outputStream* st) {
-  for (int i = to_index(_top); (--i) >= 0;) {
-    st->print("LockStack[%d]: ", i);
-    oop o = _base[i];
+JavaThread* LockStack::get_thread() const {
+  char* addr = reinterpret_cast<char*>(const_cast<LockStack*>(this));
+  return reinterpret_cast<JavaThread*>(addr - lock_stack_offset);
+}
+
+void LockStack::print_on(outputStream* st) const {
+  auto print_index = [&](const char* s, LockStack::Index index) {
+    if (index >= LockStack::Index::first_index) {
+      st->print_cr("%s: %u[%u]", s, static_cast<uint32_t>(index), LockStack::to_array_index(index));
+    } else {
+      st->print_cr("%s: %u", s, static_cast<uint32_t>(index));
+    }
+  };
+  st->print_cr("_storage: " PTR_FORMAT, p2i(_storage));
+  st->print_cr("capacity: %u", capacity());
+  print_index("_next_index", _next_index);
+  print_index("_last_index", _last_index);
+
+  if (_storage == nullptr) {
+    return;
+  }
+
+  uint32_t end = DEBUG_ONLY(to_array_index(_last_index) + 1)
+                 NOT_DEBUG(to_array_index(_next_index));
+  for (uint32_t i = end; i != 0; i--) {
+    st->print("LockStack[%d]: ", i - 1);
+    oop o = _storage->stack()[i - 1];
     if (oopDesc::is_oop(o)) {
       o->print_on(st);
     } else {
       st->print_cr("not an oop: " PTR_FORMAT, p2i(o));
     }
   }
+}
+
+void LockStack::verify() const {
+  Verifier v(*this, "verify");
 }

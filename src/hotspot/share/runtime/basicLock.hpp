@@ -28,6 +28,9 @@
 #include "oops/markWord.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/handles.hpp"
+#include "runtime/lockStack.hpp"
+#include "utilities/checkedCast.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
 
 class BasicLock {
@@ -42,6 +45,36 @@ class BasicLock {
 
   void set_displaced_header(markWord header) {
     Atomic::store(&_displaced_header, header);
+  }
+
+  static const size_t lightweight_monitor_signal_num_bits = 1;
+  static const uintptr_t lightweight_monitor_signal_bits =  (1 << lightweight_monitor_signal_num_bits) - 1;
+  static const size_t lightweight_monitor_signal_shift = (BitsPerWord - lightweight_monitor_signal_num_bits);
+  static const uintptr_t lightweight_monitor_signal_value = lightweight_monitor_signal_bits << lightweight_monitor_signal_shift;
+  static const uintptr_t recursive_lightweight_value = 0x0;
+
+  void set_displaced_header_recursive_lightweight() {
+    Atomic::store(&_displaced_header, markWord(recursive_lightweight_value));
+  }
+
+  bool is_displaced_header_monitor_lightweight() {
+    return Atomic::load(&_displaced_header).value() == lightweight_monitor_signal_value;
+  }
+
+  void set_displaced_header_monitor_lightweight() {
+    Atomic::store(&_displaced_header, markWord(lightweight_monitor_signal_value));
+  }
+
+  bool is_displaced_header_recursive_lightweight() {
+    return Atomic::load(&_displaced_header).value() == recursive_lightweight_value;
+  }
+
+  void set_displaced_header_lightweight_stack_index(LockStack::Index index) {
+    Atomic::store(&_displaced_header, markWord(static_cast<uint32_t>(index) >> lightweight_monitor_signal_num_bits));
+  }
+
+  LockStack::Index get_displaced_header_lightweight_stack_index() {
+    return static_cast<LockStack::Index>(checked_cast<uint32_t>(Atomic::load(&_displaced_header).value() << lightweight_monitor_signal_num_bits));
   }
 
   void print_on(outputStream* st, oop owner) const;

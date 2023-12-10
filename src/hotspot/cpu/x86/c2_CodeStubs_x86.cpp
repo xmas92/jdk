@@ -82,17 +82,6 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
 
   Label restore_held_monitor_count_and_slow_path;
 
-  { // Restore lock-stack and handle the unlock in runtime.
-
-    __ bind(_push_and_slow_path);
-#ifdef ASSERT
-    // The obj was only cleared in debug.
-    __ movl(_t, Address(_thread, JavaThread::lock_stack_top_offset()));
-    __ movptr(Address(_thread, _t), _obj);
-#endif
-    __ addl(Address(_thread, JavaThread::lock_stack_top_offset()), oopSize);
-  }
-
   { // Restore held monitor and slow path.
 
     __ bind(restore_held_monitor_count_and_slow_path);
@@ -110,15 +99,19 @@ void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
     Label fix_zf_and_unlocked;
     const Register monitor = _mark;
 
+  // We should have identified all paths which lead here with an anonymous owner
+  // and have dealt with them already.
+#ifdef ASSERT
+  Label owner_is_thread;
+  __ cmpptr(_thread, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)));
+  __ jcc(Assembler::equal, owner_is_thread);
+  __ stop("Owner is anonymous/bad in unlock stub");
+  __ bind(owner_is_thread);
+#endif
+
 #ifndef _LP64
-    // The owner may be anonymous, see comment in x86_64 section.
-    __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
     __ jmpb(restore_held_monitor_count_and_slow_path);
 #else // _LP64
-    // The owner may be anonymous and we removed the last obj entry in
-    // the lock-stack. This loses the information about the owner.
-    // Write the thread to the owner field so the runtime knows the owner.
-    __ movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), _thread);
 
     // successor null check.
     __ cmpptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(succ)), NULL_WORD);
@@ -163,9 +156,9 @@ void C2HandleAnonOMOwnerStub::emit(C2_MacroAssembler& masm) {
   Register mon = monitor();
   Register t = tmp();
   __ movptr(Address(mon, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), r15_thread);
-  __ subl(Address(r15_thread, JavaThread::lock_stack_top_offset()), oopSize);
+  __ subl(Address(r15_thread, JavaThread::lock_stack_next_index_offset()), oopSize);
 #ifdef ASSERT
-  __ movl(t, Address(r15_thread, JavaThread::lock_stack_top_offset()));
+  __ movl(t, Address(r15_thread, JavaThread::lock_stack_next_index_offset()));
   __ movptr(Address(r15_thread, t), 0);
 #endif
   __ jmp(continuation());

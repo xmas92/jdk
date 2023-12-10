@@ -41,8 +41,12 @@
 #include "oops/compressedKlass.inline.hpp"
 #include "oops/compressedOops.inline.hpp"
 #include "oops/klass.inline.hpp"
+#include "oops/markWord.hpp"
+#include "oops/oop.hpp"
 #include "prims/methodHandles.hpp"
+#include "runtime/basicLock.hpp"
 #include "runtime/continuation.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/jniHandles.hpp"
@@ -53,7 +57,10 @@
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "utilities/checkedCast.hpp"
+#include "utilities/globalDefinitions.hpp"
+#include "utilities/globalDefinitions_gcc.hpp"
 #include "utilities/macros.hpp"
+#include <cstdint>
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) /* nothing */
@@ -9955,44 +9962,51 @@ void MacroAssembler::check_stack_alignment(Register sp, const char* msg, unsigne
 // reg_rax: rax
 // thread: the thread which attempts to lock obj
 // tmp: a temporary register
-void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_lock(Register obj, Register box, Register reg_rax, Register thread, Register tmp, Label& slow) {
   assert(reg_rax == rax, "");
-  assert_different_registers(obj, reg_rax, thread, tmp);
+  assert_different_registers(obj, box, reg_rax, thread, tmp);
 
-  Label push;
-  const Register top = tmp;
+  // Load header
+  const Register header = reg_rax;
+  movptr(header, Address(obj, oopDesc::mark_offset_in_bytes()));
 
-  // Load top.
-  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+  if (!LSC1Lock) {
+    jmp(slow);
+  }
+
+  // TODO: Maybe add recursive check if this is a consecutive enter.
+  //       Unsure if worth it as the lack of registers makes it cumbersome.
+
+  // Check if unlocked (Ob01)
+  testptr(header, markWord::unlocked_value);
+  jcc(Assembler::zero, slow);
+
+  const Register next_index = tmp;
+
+  // next_index is one-indexed.
+  // Load next_index.
+  movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
 
   // Check if the lock-stack is full.
-  cmpl(top, LockStack::end_offset());
+  cmpl(next_index, Address(thread, JavaThread::lock_stack_last_index_offset()));
   jcc(Assembler::greaterEqual, slow);
 
-  // Check for recursion.
-  cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
-  jcc(Assembler::equal, push);
+  // Assume success
+  shrptr(next_index, BasicLock::lightweight_monitor_signal_num_bits);
+  movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), next_index);
 
-  // Check header for monitor (0b10).
-  movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));
-  testptr(reg_rax, markWord::monitor_value);
-  jcc(Assembler::notZero, slow);
-
-  // Try to lock. Transition lock bits 0b01 => 0b00
+  // Try lock
   movptr(tmp, reg_rax);
   andptr(tmp, ~(int32_t)markWord::unlocked_value);
-  orptr(reg_rax, markWord::unlocked_value);
   lock(); cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
   jcc(Assembler::notEqual, slow);
 
-  // Restore top, CAS clobbers register.
-  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
+  const Register next_addr = tmp;
+  movl(next_addr, Address(thread, JavaThread::lock_stack_next_index_offset()));
+  addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
 
-  bind(push);
-  // After successful lock, push object on lock-stack.
-  movptr(Address(thread, top), obj);
-  incrementl(top, oopSize);
-  movl(Address(thread, JavaThread::lock_stack_top_offset()), top);
+  movptr(Address(next_addr), obj);
+  addl(Address(thread, JavaThread::lock_stack_next_index_offset()), oopSize);
 }
 
 // Implements lightweight-unlocking.
@@ -10001,59 +10015,69 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
 // reg_rax: rax
 // thread: the thread, may be EAX on x86_32
 // tmp: a temporary register
-void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow) {
+void MacroAssembler::lightweight_unlock(Register obj, Register box, Register reg_rax, Register thread, Register tmp, Label& slow) {
   assert(reg_rax == rax, "");
   assert_different_registers(obj, reg_rax, tmp);
   LP64_ONLY(assert_different_registers(obj, reg_rax, thread, tmp);)
 
-  Label unlocked, push_and_slow;
-  const Register top = tmp;
+  Label unlocked, try_unlock;
+  const Register box_state = tmp;
 
-  // Check if obj is top of lock-stack.
-  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
-  cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
-  jcc(Assembler::notEqual, slow);
+  if (!LSC1Unlock) {
+    jmp(slow);
+  }
 
-  // Pop lock-stack.
-  DEBUG_ONLY(movptr(Address(thread, top, Address::times_1, -oopSize), 0);)
-  subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
+  // Load the box state.
+  movptr(box_state, Address(box, BasicLock::displaced_header_offset_in_bytes()));
+  shlptr(box_state, BasicLock::lightweight_monitor_signal_num_bits);
 
-  // Check if recursive.
-  cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
-  jcc(Assembler::equal, unlocked);
+  // Inflated box_state msb = 0b1;
+  jcc(Assembler::carrySet, slow);
+  // Recursive lightweight box_state = 0x0;
+  jcc(Assembler::zero, unlocked);
 
-  // Not recursive. Check header for monitor (0b10).
+  // Remove from lock stack. (May be unstructured)
+  Label unstructured;
+  addl(box_state, oopSize);
+  cmpl(box_state, Address(thread, JavaThread::lock_stack_next_index_offset()));
+  jccb(Assembler::notEqual, unstructured);
+
+  // Decrement next_index
+  subl(Address(thread, JavaThread::lock_stack_next_index_offset()), oopSize);
+  NOT_DEBUG(jmpb(try_unlock);)
+
+  bind(unstructured);
+  // Unstructured must clear
+  subl(box_state, oopSize);
+  addptr(box_state, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+#ifdef ASSERT
+  Label correct_obj;
+  cmpptr(obj, Address(box_state));
+  jccb(Assembler::equal, correct_obj);
+  stop("Incorrect obj");
+  bind(correct_obj);
+#endif
+  movptr(Address(box_state), NULL_WORD);
+
+  bind(try_unlock);
+  // Load markWord
   movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));
-  testptr(reg_rax, markWord::monitor_value);
-  jcc(Assembler::notZero, push_and_slow);
 
 #ifdef ASSERT
   // Check header not unlocked (0b01).
   Label not_unlocked;
   testptr(reg_rax, markWord::unlocked_value);
-  jcc(Assembler::zero, not_unlocked);
+  jccb(Assembler::zero, not_unlocked);
   stop("lightweight_unlock already unlocked");
   bind(not_unlocked);
 #endif
 
   // Try to unlock. Transition lock bits 0b00 => 0b01
   movptr(tmp, reg_rax);
+  andptr(reg_rax, ~(uint32_t)markWord::lock_mask_in_place);
   orptr(tmp, markWord::unlocked_value);
   lock(); cmpxchgptr(tmp, Address(obj, oopDesc::mark_offset_in_bytes()));
-  jcc(Assembler::equal, unlocked);
-
-  bind(push_and_slow);
-  // Restore lock-stack and handle the unlock in runtime.
-  if (thread == reg_rax) {
-    // On x86_32 we may lose the thread.
-    get_thread(thread);
-  }
-#ifdef ASSERT
-  movl(top, Address(thread, JavaThread::lock_stack_top_offset()));
-  movptr(Address(thread, top), obj);
-#endif
-  addl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
-  jmp(slow);
+  jcc(Assembler::notEqual, slow);
 
   bind(unlocked);
 }

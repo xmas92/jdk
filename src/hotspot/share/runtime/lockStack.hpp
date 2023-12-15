@@ -156,6 +156,10 @@ public:
   inline Index top_index() const;
   Index next_index() const { return _next_index; }
 
+  bool is_full() const {
+    return _next_index > _last_index;
+  }
+
   LockStack(JavaThread* jt);
   ~LockStack();
 

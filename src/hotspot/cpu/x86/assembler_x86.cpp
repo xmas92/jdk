@@ -4112,6 +4112,15 @@ void Assembler::orw(Register dst, Register src) {
   emit_arith(0x0B, 0xC0, dst, src);
 }
 
+void Assembler::btrl(Address dst, int imm8) {
+  assert(isByte(imm8), "not a byte");
+  InstructionMark im(this);
+  emit_int16(0x0F,
+             (unsigned char)0xBA);
+  emit_operand(rsi /* 6 */, dst, 1);
+  emit_int8(imm8);
+}
+
 void Assembler::orl(Address dst, int32_t imm32) {
   InstructionMark im(this);
   prefix(dst);

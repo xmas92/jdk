@@ -1736,6 +1736,8 @@ private:
 
   void orw(Register dst, Register src);
 
+  void btrl(Address dst, int imm8);
+
   void orl(Address dst, int32_t imm32);
   void orl(Register dst, int32_t imm32);
   void orl(Register dst, Address src);

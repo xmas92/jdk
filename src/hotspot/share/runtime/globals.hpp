@@ -2013,6 +2013,8 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, LSC2Lock, true, "")                                         \
                                                                             \
   product(bool, LSC2Unlock, true, "")                                       \
+                                                                            \
+  product(bool, LSC2UseBTR, true, "")                                       \
 
 // end of RUNTIME_FLAGS
 

@@ -950,7 +950,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   // Finish fast lock successfully. ZF value is irrelevant.
   Label locked;
   // Finish fast lock unsuccessfully. MUST jump with ZF == 0
-  Label slow_path;
+  Label slow_path, slow_path_exit;
 
   if (DiagnoseSyncOnValueBasedClasses != 0) {
     load_klass(rax_reg, obj, t);
@@ -972,27 +972,32 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   { // Lightweight Lock
 
     Label recursive_check;
+    if (LSC2UseBTR) {
+      lock(); btrptr(Address(obj, oopDesc::mark_offset_in_bytes()), exact_log2(markWord::unlocked_value));
+      jcc(Assembler::carryClear, recursive_check);
+    } else {
+      testptr(mark, markWord::unlocked_value);
+      jcc(Assembler::zero, recursive_check);
+
+      // Try to lock. Transition lock bits 0b01 => 0b00
+      movptr(rax_reg, mark);
+      andptr(mark, ~(int32_t)markWord::unlocked_value);
+      lock(); cmpxchgptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
+      jcc(Assembler::notEqual, slow_path);
+    }
 
     const Register next_index = rax_reg;
     // next_index is one-indexed.
     // Load next_index.
     movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
 
-    testptr(mark, markWord::unlocked_value);
-    jcc(Assembler::zero, recursive_check);
-
+    Label slow_path_signal_locked;
     cmpl(next_index, Address(thread, JavaThread::lock_stack_last_index_offset()));
-    jcc(Assembler::above, slow_path);
+    jcc(Assembler::above, slow_path_signal_locked);
 
-    // Assume success.
+    // Store next index.
     shrptr(next_index, BasicLock::lightweight_monitor_signal_num_bits);
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), next_index);
-
-    // Try to lock. Transition lock bits 0b01 => 0b00
-    movptr(rax_reg, mark);
-    andptr(mark, ~(int32_t)markWord::unlocked_value);
-    lock(); cmpxchgptr(mark, Address(obj, oopDesc::mark_offset_in_bytes()));
-    jcc(Assembler::notEqual, slow_path);
 
     // Load next slot address.
     const Register next_addr = rax_reg;
@@ -1004,11 +1009,17 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     addl(Address(thread, JavaThread::lock_stack_next_index_offset()), oopSize);
     jmp(locked);
 
+    bind(slow_path_signal_locked);
+    movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), -1);
+    jmp(slow_path_exit);
+
     // Check if recuirsive
     bind(recursive_check);
 
+    movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
     // Get storage address.
     const Register storage_addr = t;
+    assert_different_registers(next_index, storage_addr);
     movl(storage_addr, next_index);
     addptr(storage_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
 
@@ -1024,6 +1035,12 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     // Recursive locked.
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::recursive_lightweight_value);
     jmp(locked);
+  }
+  {
+    bind(slow_path);
+    // Clear disp header before slowpath
+    movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 0);
+    jmp(slow_path_exit);
   }
 
   { // Handle inflated monitor.
@@ -1062,7 +1079,7 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   stop("Fast Lock ZF != 1");
 #endif
 
-  bind(slow_path);
+  bind(slow_path_exit);
 #ifdef ASSERT
   // Check that slow_path label is reached with ZF not set.
   jccb(Assembler::notZero, zf_correct);

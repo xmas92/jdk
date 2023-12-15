@@ -402,6 +402,14 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
       current->inc_held_monitor_count();
       return true;
     }
+    if (lock->is_displaced_header_signal_locked_lightweight()) {
+      assert(lock_stack.is_full(), "must be");
+      assert(obj->is_locked(), "must be");
+      LockStack::Index index = lock_stack.enter(obj);
+      lock->set_displaced_header_lightweight_stack_index(index);
+      current->inc_held_monitor_count();
+      return true;
+    }
     lock->set_displaced_header_monitor_lightweight();
   }
 
@@ -550,6 +558,14 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
       if (mark.is_fast_locked() && lock_stack.contains(obj())) {
         // Recursive lock successful.
         lock->set_displaced_header_recursive_lightweight();
+        return;
+      }
+
+      if (lock->is_displaced_header_signal_locked_lightweight()) {
+        assert(lock_stack.is_full(), "must be");
+        assert(obj->is_locked(), "must be");
+        LockStack::Index index = lock_stack.enter(obj());
+        lock->set_displaced_header_lightweight_stack_index(index);
         return;
       }
 

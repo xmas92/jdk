@@ -32,6 +32,7 @@
 #include "utilities/checkedCast.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
+#include <cstdint>
 
 class BasicLock {
   friend class VMStructs;
@@ -59,6 +60,10 @@ class BasicLock {
 
   bool is_displaced_header_monitor_lightweight() {
     return Atomic::load(&_displaced_header).value() == lightweight_monitor_signal_value;
+  }
+
+  bool is_displaced_header_signal_locked_lightweight() {
+    return Atomic::load(&_displaced_header).value() == (uintptr_t)-1;
   }
 
   void set_displaced_header_monitor_lightweight() {

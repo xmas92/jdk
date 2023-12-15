@@ -9970,6 +9970,9 @@ void MacroAssembler::lightweight_lock(Register obj, Register box, Register reg_r
   const Register header = reg_rax;
   movptr(header, Address(obj, oopDesc::mark_offset_in_bytes()));
 
+  // Clear box
+  movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), 0);
+
   if (!LSC1Lock) {
     jmp(slow);
   }

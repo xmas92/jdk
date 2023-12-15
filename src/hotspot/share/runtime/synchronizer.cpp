@@ -397,7 +397,10 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
 
   if (LockingMode == LM_LIGHTWEIGHT) {
     LockStack& lock_stack = current->lock_stack();
-    if (lock_stack.contains(obj)) {
+    if ((!LSInflateNonConsecutive && lock_stack.contains(obj)) ||
+        (LSInflateNonConsecutive &&
+         lock_stack.next_index() != LockStack::Index::first_index &&
+         lock_stack.contains(obj, lock_stack.top_index()))) {
       lock->set_displaced_header_recursive_lightweight();
       current->inc_held_monitor_count();
       return true;
@@ -555,7 +558,11 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
         mark = old_mark;
       }
 
-      if (mark.is_fast_locked() && lock_stack.contains(obj())) {
+    if (mark.is_fast_locked() &&
+        ((!LSInflateNonConsecutive && lock_stack.contains(obj())) ||
+         (LSInflateNonConsecutive &&
+          lock_stack.next_index() != LockStack::Index::first_index &&
+          lock_stack.contains(obj(), lock_stack.top_index())))) {
         // Recursive lock successful.
         lock->set_displaced_header_recursive_lightweight();
         return;

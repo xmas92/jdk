@@ -1017,20 +1017,27 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     bind(recursive_check);
 
     movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
-    // Get storage address.
-    const Register storage_addr = t;
-    assert_different_registers(next_index, storage_addr);
-    movl(storage_addr, next_index);
-    addptr(storage_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    if (LSInflateNonConsecutive) {
+      const Register next_addr = next_index;
+      addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+      cmpptr(obj, Address(next_addr, -oopSize));
+      jcc(Assembler::notEqual, slow_path);
+    } else {
+      // Get storage address.
+      const Register storage_addr = t;
+      assert_different_registers(next_index, storage_addr);
+      movl(storage_addr, next_index);
+      addptr(storage_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
 
-    Label loop;
-    bind(loop);
-    // Check next_index is == oopsize with ZF = 0
-    cmpl(next_index, oopSize + 1);
-    jcc(Assembler::below, slow_path);
-    subl(next_index, oopSize);
-    cmpptr(obj, Address(storage_addr, next_index, Address::times_1, 0));
-    jccb(Assembler::notEqual, loop);
+      Label loop;
+      bind(loop);
+      // Check next_index is == oopsize with ZF = 0
+      cmpl(next_index, oopSize + 1);
+      jcc(Assembler::below, slow_path);
+      subl(next_index, oopSize);
+      cmpptr(obj, Address(storage_addr, next_index, Address::times_1, 0));
+      jccb(Assembler::notEqual, loop);
+    }
 
     // Recursive locked.
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), BasicLock::recursive_lightweight_value);

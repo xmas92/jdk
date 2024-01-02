@@ -992,7 +992,11 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
 
     Label slow_path_signal_locked;
-    cmpl(next_index, Address(thread, JavaThread::lock_stack_last_index_offset()));
+    if (LSRecursiveFixedSize) {
+      cmpl(next_index, LockStack::CAPACITY * oopSize);
+    } else {
+      cmpl(next_index, Address(thread, JavaThread::lock_stack_last_index_offset()));
+    }
     jcc(Assembler::above, slow_path_signal_locked);
 
     // Store next index.
@@ -1000,12 +1004,20 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
     movptr(Address(box, BasicLock::displaced_header_offset_in_bytes()), next_index);
 
     // Load next slot address.
-    const Register next_addr = rax_reg;
-    movl(next_addr, Address(thread, JavaThread::lock_stack_next_index_offset()));
-    addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    const Register next_addr = next_index;
+    shlptr(next_addr, BasicLock::lightweight_monitor_signal_num_bits);
+    if (LSRecursiveFixedSize) {
+      addptr(next_addr, in_bytes(JavaThread::lock_stack_base_offset()) - oopSize);
+    } else {
+      addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    }
 
     // Push object onto lock stack.
-    movptr(Address(next_addr), obj);
+    if (LSRecursiveFixedSize) {
+      movptr(Address(thread, next_addr), obj);
+    } else {
+      movptr(Address(next_addr), obj);
+    }
     addl(Address(thread, JavaThread::lock_stack_next_index_offset()), oopSize);
     jmp(locked);
 
@@ -1018,16 +1030,26 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
 
     movl(next_index, Address(thread, JavaThread::lock_stack_next_index_offset()));
     if (LSInflateNonConsecutive) {
-      const Register next_addr = next_index;
-      addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
-      cmpptr(obj, Address(next_addr, -oopSize));
+      if (LSRecursiveFixedSize) {
+        const Register next_offset = next_addr;
+        addptr(next_offset, in_bytes(JavaThread::lock_stack_base_offset()) - 2 * oopSize);
+        cmpptr(obj, Address(thread, next_offset));
+      } else {
+        const Register next_addr = next_index;
+        addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+        cmpptr(obj, Address(next_addr, -oopSize));
+      }
       jcc(Assembler::notEqual, slow_path);
     } else {
       // Get storage address.
       const Register storage_addr = t;
       assert_different_registers(next_index, storage_addr);
-      movl(storage_addr, next_index);
-      addptr(storage_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+      if (LSRecursiveFixedSize) {
+        lea(storage_addr, Address(thread, next_index, Address::times_1, in_bytes(JavaThread::lock_stack_base_offset()) - oopSize));
+      } else {
+        movl(storage_addr, next_index);
+        addptr(storage_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+      }
 
       Label loop;
       bind(loop);
@@ -1149,7 +1171,11 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
 
 #ifdef ASSERT
     Label correct_obj;
-    addptr(box_state, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    if (LSRecursiveFixedSize) {
+      lea(box_state, Address(thread, box_state, Address::times_1, in_bytes(JavaThread::lock_stack_base_offset()) - oopSize));
+    } else {
+      addptr(box_state, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    }
     cmpptr(obj, Address(box_state));
     jccb(Assembler::equal, correct_obj);
     stop("C2: Incorrect obj");

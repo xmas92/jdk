@@ -1157,6 +1157,8 @@ public:
   static ByteSize lock_stack_next_index_offset() { return lock_stack_offset() + LockStack::next_index_offset(); }
   static ByteSize lock_stack_storage_addr_offset() { return lock_stack_offset() + LockStack::storage_addr_offset(); }
   static ByteSize lock_stack_last_index_offset() { return lock_stack_offset() + LockStack::last_index_offset(); }
+  static ByteSize lock_stack_top_offset()  { return lock_stack_offset() + LockStack::top_offset(); }
+  static ByteSize lock_stack_base_offset() { return lock_stack_offset() + LockStack::base_offset(); }
 
   static OopStorage* thread_oop_storage();
 

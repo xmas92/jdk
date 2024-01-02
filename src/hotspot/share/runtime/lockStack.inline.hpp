@@ -43,7 +43,71 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/ostream.hpp"
+#include "runtime/vm_version.hpp"
 #include <cstdint>
+
+inline oop* LockStack::stack() {
+  if (LSRecursiveFixedSize) {
+    return _base;
+  }
+
+  if (_storage == nullptr) {
+    return nullptr;
+  }
+
+  return _storage->stack();
+}
+
+inline const oop* LockStack::stack() const {
+  if (LSRecursiveFixedSize) {
+    return _base;
+  }
+
+  if (_storage == nullptr) {
+    return nullptr;
+  }
+
+  return _storage->stack();
+}
+
+inline int LockStack::to_index(uint32_t offset) {
+  return (offset - lock_stack_base_offset) / oopSize;
+}
+
+inline bool LockStack::can_push() const {
+  assert(!VM_Version::supports_recursive_lightweight_locking(), "does not use");
+  return to_index(_top) < CAPACITY;
+}
+
+inline void LockStack::push(oop o) {
+  assert(!VM_Version::supports_recursive_lightweight_locking(), "does not use");
+  assert(oopDesc::is_oop(o), "must be");
+  assert(!contains(o), "entries must be unique");
+  assert(can_push(), "must have room");
+  assert(_base[to_index(_top)] == nullptr, "expect zapped entry");
+  _base[to_index(_top)] = o;
+  _top += oopSize;
+}
+
+inline void LockStack::remove(oop o) {
+  assert(!VM_Version::supports_recursive_lightweight_locking(), "does not use");
+  assert(contains(o), "entry must be present: " PTR_FORMAT, p2i(o));
+  int end = to_index(_top);
+  for (int i = 0; i < end; i++) {
+    if (_base[i] == o) {
+      int last = end - 1;
+      for (; i < last; i++) {
+        _base[i] = _base[i + 1];
+      }
+      _top -= oopSize;
+#ifdef ASSERT
+      _base[to_index(_top)] = nullptr;
+#endif
+      break;
+    }
+  }
+  assert(!contains(o), "entries must be unique: " PTR_FORMAT, p2i(o));
+}
 
 static const uint32_t index_shift = LogBytesPerWord;
 
@@ -113,7 +177,8 @@ private:
   void verify() {
     invariant(LockingMode == LM_LIGHTWEIGHT, "LockStack used with wrong LockingMode");
 
-    if (!(SafepointSynchronize::is_at_safepoint() || _ls.get_thread() == Thread::current())) {
+    const bool lock_stack_is_stable = SafepointSynchronize::is_at_safepoint() || _ls.get_thread() == Thread::current();
+    if (!lock_stack_is_stable) {
       return;
     }
 
@@ -121,21 +186,33 @@ private:
               "Bad [to|from]_array_index");
 
     if (_ls._storage == nullptr) {
-      // Empty lock stack.
-      invariant(_ls._next_index == Index::first_index,
-                "Bad _next_index", _ls._next_index);
-      invariant(_ls._last_index == Index::empty_index,
-                "Bad _last_index", _ls._last_index);
-      invariant(_ls.capacity() == 0, "Bad capacity", _ls.capacity());
-      return;
+      if (LSRecursiveFixedSize) {
+        invariant(_ls._last_index == from_array_index(CAPACITY - 1),
+                  "Bad _last_index", _ls._last_index);
+        invariant(_ls.capacity() == CAPACITY, "Bad capacity", _ls.capacity());
+      } else {
+        // Empty lock stack.
+        invariant(_ls._next_index == Index::first_index,
+                  "Bad _next_index", _ls._next_index);
+        invariant(_ls._last_index == Index::empty_index,
+                  "Bad _last_index", _ls._last_index);
+        invariant(_ls.capacity() == 0, "Bad capacity", _ls.capacity());
+        return;
+      }
     }
 
     invariant(_ls._last_index == from_array_index(to_array_index(_ls._last_index)),
               "Bad [to|from]_array_index");
 
-    const oop* const stack = _ls._storage->stack();
-    invariant(Atomic::load(&_ls._storage->_bad_oop_sentinel) == badOopVal,
-              "Bad _bad_oop_sentinel", Atomic::load(&_ls._storage->_bad_oop_sentinel));
+    const oop* const stack = _ls.stack();
+    if (LSRecursiveFixedSize) {
+      invariant(Atomic::load(&_ls._bad_oop_sentinel) == badOopVal,
+                "Bad _bad_oop_sentinel", Atomic::load(&_ls._bad_oop_sentinel));
+    } else {
+      invariant(Atomic::load(&_ls._storage->_bad_oop_sentinel) == badOopVal,
+                "Bad _bad_oop_sentinel", Atomic::load(&_ls._storage->_bad_oop_sentinel));
+
+    }
     invariant(_ls.capacity() > 0, "Bad capacity", _ls.capacity());
     invariant(to_array_index(_ls._next_index) <= _ls.capacity(),
               "Bad _next_index", _ls._next_index);
@@ -184,6 +261,7 @@ public:
 };
 
 inline uint32_t LockStack::capacity() const {
+  precond(VM_Version::supports_recursive_lightweight_locking());
   if (_last_index == Index::empty_index) {
     return 0;
   }
@@ -191,18 +269,24 @@ inline uint32_t LockStack::capacity() const {
 }
 
 inline LockStack::Index LockStack::enter(oop o) {
+  precond(VM_Version::supports_recursive_lightweight_locking());
   precond(!contains(o));
   DEBUG_ONLY(Verifier v(*this, "enter");)
 
   uint32_t i = to_array_index(_next_index);
 
   // Reclaim unstructured exits
-  while (i > 0 && _storage->stack()[i - 1] == nullptr) {
+  while (i > 0 && stack()[i - 1] == nullptr) {
     i--;
   }
 
   // Allocate stack slot
   if (i == capacity()) {
+    if (LSRecursiveFixedSize) {
+      // We cannot enter. The lock stack is fixed and full.
+      return Index::empty_index;
+    }
+
     if (_storage == nullptr) {
       ResourceMark rm;
       log_debug(fastlock)("LS[" PTR_FORMAT "] Inital: " PTR_FORMAT " @ %u(%u) TN: %s", p2i(get_thread()),
@@ -221,7 +305,7 @@ inline LockStack::Index LockStack::enter(oop o) {
     }
   }
   // Fill stack slot
-  _storage->stack()[i] = o;
+  stack()[i] = o;
   _next_index = from_array_index(i + 1);
   log_trace(fastlock)("LS[" PTR_FORMAT "]  Enter: " PTR_FORMAT " @ %u(%u)", p2i(get_thread()),
                       p2i(o), static_cast<uint32_t>(from_array_index(i)), i);
@@ -230,38 +314,41 @@ inline LockStack::Index LockStack::enter(oop o) {
 }
 
 inline LockStack::Index LockStack::top_index() const {
+  precond(VM_Version::supports_recursive_lightweight_locking());
   precond(_next_index != Index::first_index);
   return from_array_index(to_array_index(_next_index) - 1);
 }
 
 inline bool LockStack::exit(oop o, Index at) {
-  precond(o == _storage->stack()[to_array_index(at)]);
+  precond(VM_Version::supports_recursive_lightweight_locking());
+  precond(o == stack()[to_array_index(at)]);
   DEBUG_ONLY(Verifier v(*this, "exit");)
 
   if (at == top_index()) {
     // Top of stack.
     log_trace(fastlock)("LS[" PTR_FORMAT "]   Exit: " PTR_FORMAT " @ %u(%u)", p2i(get_thread()),
                        p2i(o), static_cast<uint32_t>(at), to_array_index(at));
-    DEBUG_ONLY(_storage->stack()[to_array_index(at)] = nullptr;)
+    DEBUG_ONLY(stack()[to_array_index(at)] = nullptr;)
     _next_index = at;
     return false;
   } else {
     // Unstructured exit.
     log_trace(fastlock)("LS[" PTR_FORMAT "]  UExit: " PTR_FORMAT " @ %u(%u)", p2i(get_thread()),
                        p2i(o), static_cast<uint32_t>(at), to_array_index(at));
-    _storage->stack()[to_array_index(at)] = nullptr;
+    stack()[to_array_index(at)] = nullptr;
     return true;
   }
 }
 
 inline bool LockStack::exit(oop o) {
   precond(contains(o));
+  precond(VM_Version::supports_recursive_lightweight_locking());
   DEBUG_ONLY(Verifier v(*this, "exit");)
 
   const uint32_t next_index = to_array_index(_next_index);
 
   for (uint32_t i = next_index; i > 0; i--) {
-    if (_storage->stack()[i - 1] == o) {
+    if (stack()[i - 1] == o) {
       return exit(o, from_array_index(i - 1));
     }
   }
@@ -273,12 +360,13 @@ inline bool LockStack::exit(oop o) {
 inline bool LockStack::contains(oop o, Index at) const {
   assert(at < _next_index, "%u(%u)", static_cast<uint32_t>(at), to_array_index(at));
   precond(at < _next_index);
+  precond(VM_Version::supports_recursive_lightweight_locking());
   DEBUG_ONLY(Verifier v(*this, "contains");)
 
   if (at == Index::empty_index) {
     return false;
   }
-  return _storage->stack()[to_array_index(at)] == o;
+  return stack()[to_array_index(at)] == o;
 }
 
 inline bool LockStack::contains(oop o) const {
@@ -286,8 +374,18 @@ inline bool LockStack::contains(oop o) const {
   assert(StackWatermarkSet::processing_started(get_thread()), "Processing must have started!");
   DEBUG_ONLY(Verifier v(*this, "contains");)
 
+  if (!VM_Version::supports_recursive_lightweight_locking()) {
+    int end = to_index(_top);
+    for (int i = end - 1; i >= 0; i--) {
+      if (_base[i] == o) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   for (uint32_t i = to_array_index(_next_index); i > 0; i--) {
-    if (_storage->stack()[i - 1] == o) {
+    if (stack()[i - 1] == o) {
       return true;
     }
   }
@@ -296,8 +394,16 @@ inline bool LockStack::contains(oop o) const {
 
 inline void LockStack::oops_do(OopClosure* cl) {
   DEBUG_ONLY(Verifier v(*this, "oops_do", true);)
+
+  if (!VM_Version::supports_recursive_lightweight_locking()) {
+    int end = to_index(_top);
+    for (int i = 0; i < end; i++) {
+      cl->do_oop(&_base[i]);
+    }
+  }
+
   for (uint32_t i = to_array_index(_next_index); i > 0; i--) {
-    cl->do_oop(&_storage->stack()[i - 1]);
+    cl->do_oop(&stack()[i - 1]);
   }
 }
 

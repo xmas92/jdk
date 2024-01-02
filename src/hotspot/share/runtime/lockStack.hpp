@@ -49,9 +49,19 @@ public:
     first_index = BytesPerWord ,
   };
 
+  static const int CAPACITY = 8;
 private:
   static const uint32_t INITIAL_CAPACITY = 1;
   static const int lock_stack_offset;
+  static const int lock_stack_top_offset;
+  static const int lock_stack_base_offset;
+
+  // The offset of the next element, in bytes, relative to the JavaThread structure.
+  // We do this instead of a simple index into the array because this allows for
+  // efficient addressing in generated code.
+  uint32_t _top;
+  const intptr_t _bad_oop_sentinel = badOopVal;
+  oop _base[CAPACITY];
 
   // one-indexed.
   Index _next_index;
@@ -148,7 +158,12 @@ private:
   inline uint32_t capacity() const;
 
   class Verifier;
+
+  // Given an offset (in bytes) calculate the index into the lock-stack.
+  static inline int to_index(uint32_t offset);
 public:
+  static ByteSize top_offset()  { return byte_offset_of(LockStack, _top); }
+  static ByteSize base_offset() { return byte_offset_of(LockStack, _base); }
   static ByteSize next_index_offset()  { return byte_offset_of(LockStack, _next_index); }
   static ByteSize storage_addr_offset() { return byte_offset_of(LockStack, _storage); }
   static ByteSize last_index_offset() { return byte_offset_of(LockStack, _last_index); }
@@ -162,6 +177,22 @@ public:
 
   LockStack(JavaThread* jt);
   ~LockStack();
+
+  inline oop* stack();
+  inline const oop* stack() const;
+
+  // The boundary indicies of the lock-stack.
+  static uint32_t start_offset();
+  static uint32_t end_offset();
+
+  // Return true if we have room to push onto this lock-stack, false otherwise.
+  inline bool can_push() const;
+
+  // Pushes an oop on this lock-stack.
+  inline void push(oop o);
+
+  // Removes an oop from an arbitrary location of this lock-stack.
+  inline void remove(oop o);
 
   // Pushes an oop on this lock-stack.
   inline Index enter(oop o);

@@ -23,17 +23,30 @@
  *
  */
 
-#include "runtime/lockStack.hpp"
 #include "precompiled.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/lockStack.inline.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/macros.hpp"
+
 #include <cstdint>
 
 const int LockStack::lock_stack_offset = in_bytes(JavaThread::lock_stack_offset());
+const int LockStack::lock_stack_top_offset =  in_bytes(JavaThread::lock_stack_top_offset());
+const int LockStack::lock_stack_base_offset = in_bytes(JavaThread::lock_stack_base_offset());
 
 LockStack::LockStack(JavaThread* jt) :
-  _next_index(Index::first_index), _last_index(Index::empty_index), _storage(nullptr) {
+  _top(lock_stack_base_offset), _base(), _next_index(Index::first_index), _last_index(Index::empty_index), _storage(nullptr) {
+#ifdef ASSERT
+  for (int i = 0; i < CAPACITY; i++) {
+    _base[i] = nullptr;
+  }
+#endif
+  if (LSRecursiveFixedSize) {
+    STATIC_ASSERT(sizeof(_base) / sizeof(*_base) == CAPACITY);
+    _last_index = from_array_index(CAPACITY - 1);
+  }
 }
 
 LockStack::~LockStack() {
@@ -45,6 +58,18 @@ LockStack::~LockStack() {
 JavaThread* LockStack::get_thread() const {
   char* addr = reinterpret_cast<char*>(const_cast<LockStack*>(this));
   return reinterpret_cast<JavaThread*>(addr - lock_stack_offset);
+}
+
+uint32_t LockStack::start_offset() {
+  int offset = lock_stack_base_offset;
+  assert(offset > 0, "must be positive offset");
+  return static_cast<uint32_t>(offset);
+}
+
+uint32_t LockStack::end_offset() {
+  int offset = lock_stack_base_offset + CAPACITY * oopSize;
+  assert(offset > 0, "must be positive offset");
+  return static_cast<uint32_t>(offset);
 }
 
 void LockStack::print_on(outputStream* st) const {

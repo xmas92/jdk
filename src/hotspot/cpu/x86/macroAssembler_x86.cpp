@@ -60,6 +60,7 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/globalDefinitions_gcc.hpp"
 #include "utilities/macros.hpp"
+#include "utilities/sizes.hpp"
 #include <cstdint>
 
 #ifdef PRODUCT
@@ -10006,9 +10007,14 @@ void MacroAssembler::lightweight_lock(Register obj, Register box, Register reg_r
 
   const Register next_addr = tmp;
   movl(next_addr, Address(thread, JavaThread::lock_stack_next_index_offset()));
-  addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+  if (LSRecursiveFixedSize) {
+    addptr(next_addr, in_bytes(JavaThread::lock_stack_base_offset()) - oopSize);
+    movptr(Address(thread, next_addr), obj);
+  } else {
+    addptr(next_addr, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+    movptr(Address(next_addr), obj);
+  }
 
-  movptr(Address(next_addr), obj);
   addl(Address(thread, JavaThread::lock_stack_next_index_offset()), oopSize);
 }
 
@@ -10051,8 +10057,13 @@ void MacroAssembler::lightweight_unlock(Register obj, Register box, Register reg
 
   bind(unstructured);
   // Unstructured must clear
-  subl(box_state, oopSize);
-  addptr(box_state, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+
+  if (LSRecursiveFixedSize) {
+    lea(box_state, Address(thread, box_state, Address::times_1, in_bytes(JavaThread::lock_stack_base_offset()) - 2 * oopSize));
+  } else {
+    subl(box_state, oopSize);
+    addptr(box_state, Address(thread, JavaThread::lock_stack_storage_addr_offset()));
+  }
 #ifdef ASSERT
   Label correct_obj;
   cmpptr(obj, Address(box_state));

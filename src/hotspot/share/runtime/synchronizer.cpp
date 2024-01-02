@@ -41,7 +41,6 @@
 #include "runtime/handshake.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.hpp"
-#include "runtime/lockStack.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/objectMonitor.hpp"
@@ -58,6 +57,7 @@
 #include "runtime/timer.hpp"
 #include "runtime/trimNativeHeap.hpp"
 #include "runtime/vframe.hpp"
+#include "runtime/vm_version.hpp"
 #include "runtime/vmThread.hpp"
 #include "utilities/align.hpp"
 #include "utilities/dtrace.hpp"
@@ -65,7 +65,6 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/preserveException.hpp"
-#include <cstdint>
 
 class ObjectMonitorDeflationLogging;
 
@@ -395,7 +394,7 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
     return false;
   }
 
-  if (LockingMode == LM_LIGHTWEIGHT) {
+  if (LockingMode == LM_LIGHTWEIGHT && VM_Version::supports_recursive_lightweight_locking()) {
     LockStack& lock_stack = current->lock_stack();
     if ((!LSInflateNonConsecutive && lock_stack.contains(obj)) ||
         (LSInflateNonConsecutive &&
@@ -408,6 +407,10 @@ bool ObjectSynchronizer::quick_enter(oop obj, JavaThread* current,
     if (lock->is_displaced_header_signal_locked_lightweight()) {
       assert(lock_stack.is_full(), "must be");
       assert(obj->is_locked(), "must be");
+      if (LSRecursiveFixedSize) {
+        // We cannot grow, go into runtime and inflate.
+        return false;
+      }
       LockStack::Index index = lock_stack.enter(obj);
       lock->set_displaced_header_lightweight_stack_index(index);
       current->inc_held_monitor_count();
@@ -539,7 +542,7 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
   current->inc_held_monitor_count();
 
   if (!useHeavyMonitors()) {
-    if (LockingMode == LM_LIGHTWEIGHT) {
+    if (LockingMode == LM_LIGHTWEIGHT && VM_Version::supports_recursive_lightweight_locking()) {
       LockStack& lock_stack = current->lock_stack();
 
       markWord mark = obj()->mark_acquire();
@@ -552,15 +555,22 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
         if (old_mark == mark) {
           // Successfully fast-locked, push object to lock-stack and return.
           LockStack::Index index = lock_stack.enter(obj());
-          lock->set_displaced_header_lightweight_stack_index(index);
+          if (index == LockStack::Index::empty_index) {
+            // Failed to enter, but locked, must inflate.
+            ObjectMonitor *mon = inflate(current, obj(), inflate_cause_monitor_enter);
+            mon->set_owner_from_anonymous(current);
+            lock->set_displaced_header_monitor_lightweight();
+          } else {
+            lock->set_displaced_header_lightweight_stack_index(index);
+          }
           return;
         }
         mark = old_mark;
       }
 
-    if (mark.is_fast_locked() &&
-        ((!LSInflateNonConsecutive && lock_stack.contains(obj())) ||
-         (LSInflateNonConsecutive &&
+      if (mark.is_fast_locked() &&
+          ((!LSInflateNonConsecutive && lock_stack.contains(obj())) ||
+          (LSInflateNonConsecutive &&
           lock_stack.next_index() != LockStack::Index::first_index &&
           lock_stack.contains(obj(), lock_stack.top_index())))) {
         // Recursive lock successful.
@@ -572,11 +582,39 @@ void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current)
         assert(lock_stack.is_full(), "must be");
         assert(obj->is_locked(), "must be");
         LockStack::Index index = lock_stack.enter(obj());
-        lock->set_displaced_header_lightweight_stack_index(index);
+        if (index == LockStack::Index::empty_index) {
+          // Failed to enter, but locked, must inflate.
+          ObjectMonitor *mon = inflate(current, obj(), inflate_cause_monitor_enter);
+          mon->set_owner_from_anonymous(current);
+          lock->set_displaced_header_monitor_lightweight();
+        } else {
+          lock->set_displaced_header_lightweight_stack_index(index);
+        }
         return;
       }
 
       lock->set_displaced_header_monitor_lightweight();
+      // All other paths fall-through to inflate-enter.
+    } else if (LockingMode == LM_LIGHTWEIGHT) {
+      assert(!VM_Version::supports_recursive_lightweight_locking(), "must be");
+       // Fast-locking does not use the 'lock' argument.
+      LockStack& lock_stack = current->lock_stack();
+      if (lock_stack.can_push()) {
+        markWord mark = obj()->mark_acquire();
+        while (mark.is_neutral()) {
+          // Retry until a lock state change has been observed.  cas_set_mark() may collide with non lock bits modifications.
+          // Try to swing into 'fast-locked' state.
+          assert(!lock_stack.contains(obj()), "thread must not already hold the lock");
+          const markWord locked_mark = mark.set_fast_locked();
+          const markWord old_mark = obj()->cas_set_mark(locked_mark, mark);
+          if (old_mark == mark) {
+              // Successfully fast-locked, push object to lock-stack and return.
+              lock_stack.push(obj());
+              return;
+            }
+          mark = old_mark;
+        }
+      }
       // All other paths fall-through to inflate-enter.
     } else if (LockingMode == LM_LEGACY) {
       markWord mark = obj->mark();
@@ -622,7 +660,7 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
 
   if (!useHeavyMonitors()) {
     markWord mark = object->mark();
-    if (LockingMode == LM_LIGHTWEIGHT) {
+    if (LockingMode == LM_LIGHTWEIGHT && VM_Version::supports_recursive_lightweight_locking()) {
       // Fast-locking does not use the 'lock' argument.
       LockStack& lock_stack = current->lock_stack();
       if (lock->is_displaced_header_recursive_lightweight()) {
@@ -666,6 +704,23 @@ void ObjectSynchronizer::exit(oop object, BasicLock* lock, JavaThread* current) 
       if (mark.monitor()->is_owner_anonymous()) {
         mark.monitor()->set_owner_from_anonymous(current);
       }
+    } else if (LockingMode == LM_LIGHTWEIGHT) {
+      assert(!VM_Version::supports_recursive_lightweight_locking(), "must be");
+      // Fast-locking does not use the 'lock' argument.
+
+      while (mark.is_fast_locked()) {
+        // Retry until a lock state change has been observed.  cas_set_mark() may collide with non lock bits modifications.
+        const markWord unlocked_mark = mark.set_unlocked();
+        const markWord old_mark = object->cas_set_mark(unlocked_mark, mark);
+        if (old_mark == mark) {
+          LockStack& lock_stack = current->lock_stack();
+          lock_stack.remove(object);
+          return;
+        }
+        mark = old_mark;
+      }
+
+      assert(mark.has_monitor(), "must be");
     } else if (LockingMode == LM_LEGACY) {
       markWord dhw = lock->displaced_header();
       if (dhw.value() == 0) {

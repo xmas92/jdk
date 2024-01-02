@@ -2017,6 +2017,8 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, LSC2UseBTR, true, "")                                       \
                                                                             \
   product(bool, LSInflateNonConsecutive, true, "")                          \
+                                                                            \
+  product(bool, LSRecursiveFixedSize, true, "")                             \
 
 // end of RUNTIME_FLAGS
 

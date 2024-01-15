@@ -737,7 +737,7 @@ public class VMProps implements Callable<Map<String, String>> {
                                       ? "true" // -Xnoclassgc
                                       : (a[1].equals(":")
                                          ? a[2]            // ["-XshowSettings", ":", "system"]
-                                         : a[1] + a[2]))); // ["-Xmx", "4", "g"]
+                                         : a[1] + a[2]),(a,b)->b)); // ["-Xmx", "4", "g"]
     }
 
     /*

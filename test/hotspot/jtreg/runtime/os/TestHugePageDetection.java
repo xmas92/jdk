@@ -34,6 +34,7 @@
  */
 
 import java.util.*;
+import jdk.test.lib.os.linux.HugePageConfiguration;
 import jdk.test.lib.process.OutputAnalyzer;
 import jdk.test.lib.process.ProcessTools;
 

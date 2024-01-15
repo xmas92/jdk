@@ -32,6 +32,7 @@
 #include "runtime/os.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/ostream.hpp"
 
 #include <dirent.h>
@@ -167,6 +168,130 @@ void StaticHugePageSupport::scan_os() {
     LogStream ls(lt);
     print_on(&ls);
   }
+}
+
+bool StaticHugePageSupport::scan_os_proc_meminfo_stats(Stats *stats) {
+  FILE *fp = os::fopen("/proc/meminfo", "r");
+  if (fp == nullptr) {
+    return false;
+  }
+
+  int num_stats_scanned = 0;
+  while (!::feof(fp)) {
+    size_t value;
+    char buf[16];
+    if (::fscanf(fp, "HugePages_%s %zu", buf, &value) == 2) {
+      if (::strstr(buf, "Total") != nullptr) {
+        num_stats_scanned++;
+        stats->_total = value;
+      } else if (::strstr(buf, "Free") != nullptr) {
+        num_stats_scanned++;
+        stats->_free = value;
+      } else if (::strstr(buf, "Rsvd") != nullptr) {
+        num_stats_scanned++;
+        stats->_rsvd = value;
+      } else if (::strstr(buf, "Surp") != nullptr) {
+        num_stats_scanned++;
+        stats->_surp = value;
+      }
+    } else {
+      // skip to next line
+      for (;;) {
+        int ch = ::fgetc(fp);
+        if (ch == EOF || ch == (int)'\n') break;
+      }
+    }
+  }
+  ::fclose(fp);
+
+  return num_stats_scanned == 4;
+}
+
+static const char* const sys_nodes = "/sys/devices/system/node";
+
+bool StaticHugePageSupport::scan_os_node_stats(Stats *stats, int node) {
+  if (!HugePages::supports_static_hugepages()) {
+    return false;
+  }
+
+  // buffer which may contain "/sys/devices/system/node/node[0-9]{0-19}/hugepages/hugepages-[0-9]{0-16}kB"
+  const size_t len = 100;
+  char buf[len];
+
+  size_t pagesize = HugePages::default_static_hugepage_size() / K;
+
+  if (os::snprintf(buf, len, "%s/node%d/hugepages/hugepages-%zukB/", sys_nodes, node, pagesize) < 0) {
+    return false;
+  }
+
+  const size_t dir_len = strnlen(buf, len);
+  assert(dir_len < len - sizeof("surplus_hugepages"), "must fit the path");
+
+  const char* const nr_hugepages = "nr_hugepages";
+  const char* const free_hugepages = "free_hugepages";
+  const char* const surplus_hugepages = "surplus_hugepages";
+
+  const char* const files[] = {
+    nr_hugepages,
+    free_hugepages,
+    surplus_hugepages,
+  };
+
+  stats->_rsvd = 0;
+
+  for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
+    if (os::snprintf(buf + dir_len, len - dir_len, "%s", files[i]) < 0) {
+      return false;
+    }
+
+    FILE *fp = os::fopen(buf, "r");
+
+    if (fp == nullptr) {
+      return false;
+    }
+
+    size_t value;
+    int num_scanned = ::fscanf(fp, "%zu", &value);
+    ::fclose(fp);
+
+    if (num_scanned != 1) {
+      return false;
+    }
+
+    if (files[i] == nr_hugepages) {
+      stats->_total = value;
+    } else if (files[i] == free_hugepages) {
+      stats->_free = value;
+    } else {
+      assert(files[i] == surplus_hugepages, "must be");
+      stats->_surp = value;
+    }
+  }
+
+  return true;
+}
+
+void StaticHugePageSupport::scan_os_nodes_stats(GrowableArray<Stats> *nodes_stats) {
+  DIR* dir = os::opendir(sys_nodes);
+
+  if (dir == nullptr) {
+    return;
+  }
+
+  struct dirent *entry;
+  int node;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_type == DT_DIR &&
+        sscanf(entry->d_name, "node%d", &node) == 1) {
+      Stats stats;
+      if (scan_os_node_stats(&stats, node)) {
+        nodes_stats->at_put_grow(node, stats);
+      } else {
+        nodes_stats->at_grow(node);
+      }
+    }
+  }
+  os::closedir(dir);
 }
 
 THPSupport::THPSupport() :

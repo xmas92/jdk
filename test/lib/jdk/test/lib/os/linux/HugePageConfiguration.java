@@ -22,6 +22,8 @@
  * questions.
  */
 
+package jdk.test.lib.os.linux;
+
 import jdk.test.lib.process.OutputAnalyzer;
 
 import java.io.*;
@@ -33,7 +35,50 @@ import java.util.regex.Pattern;
 // - a) the Operating System (the truth)
 // - b) the JVM log (-Xlog:pagesize)
 // This is used e.g. in TestHugePageDetection to determine if the JVM detects the correct settings from the OS.
-class HugePageConfiguration {
+public class HugePageConfiguration {
+
+    public static class StaticHugePageStats {
+        public long total = -1;
+        public long free = -1;
+        public long rsvd = -1;
+        public long surp = -1;
+
+        @Override
+        public String toString() {
+            return "StaticHugePageStats{" +
+                    "Total=" + total +
+                    ", free=" + free +
+                    ", rsvd=" + rsvd +
+                    ", surp=" + surp +
+                    '}';
+        }
+    }
+
+    public static StaticHugePageStats readStaticHugePageStatsFromOS() {
+        Pattern pat = Pattern.compile("HugePages_(\\w+): *(\\d+)");
+        StaticHugePageStats stats = new StaticHugePageStats();
+        try (Scanner scanner = new Scanner(new File("/proc/meminfo"))) {
+            while (scanner.hasNextLine()) {
+                Matcher mat = pat.matcher(scanner.nextLine());
+                if (mat.matches()) {
+                    long value = Long.parseLong(mat.group(2));
+                    switch (mat.group(1)) {
+                        case "Total": stats.total = value; break;
+                        case "Free": stats.free = value; break;
+                        case "Rsvd": stats.rsvd = value; break;
+                        case "Surp": stats.surp = value; break;
+                        default:
+                        throw new RuntimeException("Unknown HugePages_" + mat.group(1) + " option in /proc/meminfo");
+                    }
+                }
+            }
+        } catch (FileNotFoundException e) {
+            System.out.println("Could not open /proc/meminfo");
+            return null;
+        }
+        // TODO: fix partial stats/FileNotFound
+        return stats;
+    }
 
     public static class StaticHugePageConfig implements Comparable<StaticHugePageConfig> {
         public long pageSize = -1;
@@ -117,6 +162,16 @@ class HugePageConfiguration {
                 ", _thpPageSize=" + _thpPageSize +
                 ", _shmemThpMode=" + _shmemThpMode +
                 '}';
+    }
+
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(_staticDefaultHugePageSize,
+                            _thpPageSize,
+                            _staticHugePageConfigurations,
+                            _thpMode,
+                            _shmemThpMode);
     }
 
     @Override

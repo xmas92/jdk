@@ -121,6 +121,12 @@ ObjectMonitor* MonitorList::Iterator::next() {
   return current;
 }
 
+void MonitorList::Unlinker::check_head_change() {
+  if (_new_head != nullptr && _head != Atomic::load(&_list._head)) {
+    _new_head = Atomic::load_acquire(&_list._head);
+  }
+}
+
 void MonitorList::Unlinker::unlink_batch() {
   if (_last_unlink_batch == nullptr) {
     // No batch exists.
@@ -144,12 +150,14 @@ void MonitorList::Unlinker::unlink_batch() {
   if (_prev == nullptr) {
     // Unlinking list head
     assert(unlink_reachable_from(_head), "must be");
-    if (_list.cas_head_relaxed(_head, next)) {
+    assert(_new_head != _head, "must be");
+    const bool has_new_head = _new_head != nullptr;
+    if (!has_new_head && _list.cas_head_relaxed(_head, next)) {
       _head = next;
       return;
     }
 
-    Iterator iter = _list.iterator();
+    Iterator iter = has_new_head ? Iterator(_new_head) : _list.iterator();
     while (iter.has_next()) {
       ObjectMonitor* const mon = iter.next();
       if (mon->next_om() == _head) {
@@ -169,6 +177,7 @@ MonitorList::Unlinker::~Unlinker() {
 }
 
 ObjectMonitor* MonitorList::Unlinker::next() {
+  check_head_change();
   if (_current != nullptr) {
     unlink_batch();
     _prev = _current;

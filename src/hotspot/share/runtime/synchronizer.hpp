@@ -83,8 +83,11 @@ private:
   ObjectMonitor* _current;
   ObjectMonitor* _next;
   ObjectMonitor* _delete_head;
+  ObjectMonitor* _new_head;
 
   NONCOPYABLE(Unlinker);
+
+  void check_head_change();
 
 public:
   Unlinker(MonitorList& list) :
@@ -95,7 +98,8 @@ public:
     _prev(nullptr),
     _current(nullptr),
     _next(_head),
-    _delete_head(nullptr) {}
+    _delete_head(nullptr),
+    _new_head(nullptr) {}
   ~Unlinker();
 
   bool has_next() const { return _next != nullptr; }

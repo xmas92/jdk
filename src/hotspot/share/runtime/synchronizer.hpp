@@ -231,6 +231,7 @@ public:
 
   // Deflate idle monitors:
   static MonitorList::Deleter deflate_and_unlink_monitor_list(ObjectMonitorDeflationSafepointer* safepointer);
+  static void unlink_batch_during_final_audit();
   static void delete_monitor_list(MonitorList::Deleter& deleter, ObjectMonitorDeflationSafepointer* safepointer);
   static size_t in_use_list_ceiling();
   static void dec_in_use_list_ceiling();
@@ -258,6 +259,7 @@ public:
   friend class SynchronizerTest;
 
   static MonitorList _in_use_list;
+  static MonitorList::Unlinker* volatile _unlinker;
   static volatile bool _is_async_deflation_requested;
   static volatile bool _is_final_audit;
   static jlong         _last_async_deflation_time_ns;

@@ -298,6 +298,7 @@ void ObjectSynchronizer::initialize() {
 }
 
 MonitorList ObjectSynchronizer::_in_use_list;
+MonitorList::Unlinker* volatile ObjectSynchronizer::_unlinker = nullptr;
 // monitors_used_above_threshold() policy is as follows:
 //
 // The ratio of the current _in_use_list count to the ceiling is used
@@ -1671,6 +1672,9 @@ ObjectMonitor* ObjectSynchronizer::inflate_impl(JavaThread* inflating_thread, oo
 MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectMonitorDeflationSafepointer* safepointer) {
   MonitorList::Unlinker unlinker(_in_use_list);
 
+  // Make the state accessible to final audit incase the unlinking gets interrupted by a VM exit.
+  Atomic::store(&_unlinker, &unlinker);
+
   while (unlinker.has_next()) {
     ObjectMonitor* mid = unlinker.next();
     if (mid->deflate_monitor()) {
@@ -1680,6 +1684,9 @@ MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectM
     safepointer->block_for_safepoint("deflate_and_unlink_monitor_list", "deflated_and_unlink_count", unlinker.unlink_count());
 
   }
+
+  // Clear the state.
+  Atomic::store(&_unlinker, static_cast<MonitorList::Unlinker*>(nullptr));
 
 #ifdef ASSERT
   unlinker.unlink_batch();
@@ -1695,6 +1702,15 @@ MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectM
 #endif
 
   return unlinker.deleter();
+}
+
+void ObjectSynchronizer::unlink_batch_during_final_audit() {
+  assert(is_final_audit(), "only call during final audit");
+  MonitorList::Unlinker* const unlinker = Atomic::load(&_unlinker);
+  if (unlinker != nullptr) {
+    log_info(monitorinflation)("Final audit during monitor unlinking.");
+    unlinker->unlink_batch();
+  }
 }
 
 void ObjectSynchronizer::delete_monitor_list(MonitorList::Deleter& deleter, ObjectMonitorDeflationSafepointer *safepointer) {
@@ -1963,6 +1979,8 @@ void ObjectSynchronizer::do_final_audit_and_print_stats() {
   log_info(monitorinflation)("Starting the final audit.");
 
   if (log_is_enabled(Info, monitorinflation)) {
+    // Finish last unlink batch incase deflation is inflight.
+    unlink_batch_during_final_audit();
     // The other audit_and_print_stats() call is done at the Debug
     // level at a safepoint in SafepointSynchronize::do_cleanup_tasks.
     audit_and_print_stats(true /* on_exit */);

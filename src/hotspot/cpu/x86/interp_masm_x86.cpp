@@ -1308,14 +1308,7 @@ void InterpreterMacroAssembler::unlock_object(Register lock_reg) {
     movptr(Address(lock_reg, BasicObjectLock::obj_offset()), NULL_WORD);
 
     if (LockingMode == LM_LIGHTWEIGHT) {
-#ifdef _LP64
-      lightweight_unlock(obj_reg, swap_reg, r15_thread, header_reg, slow_case);
-#else
-      // This relies on the implementation of lightweight_unlock knowing that it
-      // will clobber its thread when using EAX.
-      get_thread(swap_reg);
-      lightweight_unlock(obj_reg, swap_reg, swap_reg, header_reg, slow_case);
-#endif
+      lightweight_unlock(obj_reg, swap_reg, header_reg, slow_case);
     } else if (LockingMode == LM_LEGACY) {
       // Load the old header from BasicLock structure
       movptr(header_reg, Address(swap_reg,

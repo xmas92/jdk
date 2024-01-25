@@ -9923,6 +9923,16 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
   movl(Address(thread, JavaThread::lock_stack_top_offset()), top);
 }
 
+
+void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register tmp, Label& slow) {
+#ifdef _LP64
+  lightweight_unlock(obj, reg_rax, r15_thread, tmp, slow);
+#else
+  get_thread(reg_rax);
+  lightweight_unlock(obj, reg_rax, reg_rax, tmp, slow);
+#endif
+}
+
 // Implements lightweight-unlocking.
 //
 // obj: the object to be unlocked

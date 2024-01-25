@@ -63,13 +63,7 @@ int C1_MacroAssembler::lock_object(Register hdr, Register obj, Register disp_hdr
   }
 
   if (LockingMode == LM_LIGHTWEIGHT) {
-#ifdef _LP64
-    const Register thread = r15_thread;
-#else
-    const Register thread = disp_hdr;
-    get_thread(thread);
-#endif
-    lightweight_lock(obj, hdr, thread, tmp, slow_case);
+    lightweight_lock(obj, hdr, &disp_hdr, tmp, slow_case);
   } else  if (LockingMode == LM_LEGACY) {
     Label done;
     // Load object header

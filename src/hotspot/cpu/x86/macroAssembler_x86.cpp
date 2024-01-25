@@ -9874,6 +9874,16 @@ void MacroAssembler::check_stack_alignment(Register sp, const char* msg, unsigne
   bind(L_stack_ok);
 }
 
+void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register* thread_tmp, Register tmp, Label& slow) {
+#ifdef _LP64
+  lightweight_lock(obj, reg_rax, r15_thread, tmp, slow);
+#else
+  Register thread = *thread_tmp;
+  get_thread(thread);
+  lightweight_lock(obj, reg_rax, thread, tmp, slow);
+#endif
+}
+
 // Implements lightweight-locking.
 //
 // obj: the object to be locked

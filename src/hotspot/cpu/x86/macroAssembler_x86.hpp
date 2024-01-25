@@ -2031,6 +2031,7 @@ public:
 
   void check_stack_alignment(Register sp, const char* msg, unsigned bias = 0, Register tmp = noreg);
 
+  void lightweight_lock(Register obj, Register reg_rax, Register* thread_tmp, Register tmp, Label& slow);
   void lightweight_lock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow);
   void lightweight_unlock(Register obj, Register reg_rax, Register tmp, Label& slow);
   void lightweight_unlock(Register obj, Register reg_rax, Register thread, Register tmp, Label& slow);

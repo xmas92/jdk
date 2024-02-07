@@ -104,6 +104,8 @@ public:
   ObjectMonitorDeflationSafepointer(JavaThread* current, ObjectMonitorDeflationLogging* log)
     : _current(current), _log(log) {}
 
+  bool should_block_for_safepoint();
+
   void block_for_safepoint(const char* op_name, const char* count_name, size_t counter);
 };
 
@@ -147,6 +149,11 @@ void MonitorList::Unlinker::unlink_batch() {
     return false;
   };
 
+  // Update the unlink count.
+  _list.update_count(_batch_count);
+  _unlink_count += _batch_count;
+  _batch_count = 0;
+
   if (_prev == nullptr) {
     // Unlinking list head
     assert(unlink_reachable_from(_head), "must be");
@@ -172,7 +179,7 @@ void MonitorList::Unlinker::unlink_batch() {
 }
 
 MonitorList::Unlinker::~Unlinker() {
-  assert(_last_unlink_batch == nullptr, "must have unlinked batch");
+  assert(_last_unlink_batch == nullptr && _batch_count == 0, "must have unlinked batch");
   assert(_delete_head == nullptr && _unlink_count == 0, "must have claimed deleter");
 }
 
@@ -192,7 +199,9 @@ void MonitorList::Unlinker::unlink() {
   ObjectMonitor* const unlink = _current;
   _current = nullptr;
   assert(unlink->next_om() == _next, "must be");
-  _unlink_count++;
+
+  // Update batch count.
+  _batch_count++;
 
   // Add the link to delete list.
   unlink->set_next_delete_om(_delete_head);
@@ -211,9 +220,6 @@ MonitorList::Deleter MonitorList::Unlinker::deleter() {
   _delete_head = nullptr;
   const size_t size = _unlink_count;
   _unlink_count = 0;
-
-  // Update the unlink count.
-  _list.update_count(size);
 
   return MonitorList::Deleter(head, size);
 }
@@ -1685,8 +1691,13 @@ MonitorList::Deleter ObjectSynchronizer::deflate_and_unlink_monitor_list(ObjectM
     if (mid->deflate_monitor()) {
       unlinker.unlink();
     }
-    // Must check for a safepoint/handshake and honor it.
-    safepointer->block_for_safepoint("deflate_and_unlink_monitor_list", "deflated_and_unlink_count", unlinker.unlink_count());
+    if (safepointer->should_block_for_safepoint()) {
+      // Verification may walk the monitor in_use list during safepoints
+      // Keep the deflated monitors unlinked as an invariant while blocked.
+      unlinker.unlink_batch();
+      // Must check for a safepoint/handshake and honor it.
+      safepointer->block_for_safepoint("deflate_and_unlink_monitor_list", "deflated_and_unlink_count", unlinker.unlink_count());
+    }
 
   }
 
@@ -1711,6 +1722,7 @@ void ObjectSynchronizer::delete_monitor_list(MonitorList::Deleter& deleter, Obje
 
   while (deleter.has_more()) {
     deleter.delete_one_monitor();
+    // Must check for a safepoint/handshake and honor it.
     safepointer->block_for_safepoint("delete_monitor_list", "delete_count", deleter.delete_count());
   }
 }
@@ -1813,8 +1825,12 @@ public:
   }
 };
 
+bool ObjectMonitorDeflationSafepointer::should_block_for_safepoint() {
+  return SafepointMechanism::should_process(_current);
+}
+
 void ObjectMonitorDeflationSafepointer::block_for_safepoint(const char* op_name, const char* count_name, size_t counter) {
-  if (!SafepointMechanism::should_process(_current)) {
+  if (!should_block_for_safepoint()) {
     return;
   }
 

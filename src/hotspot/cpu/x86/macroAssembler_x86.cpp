@@ -9934,9 +9934,11 @@ void MacroAssembler::lightweight_lock(Register obj, Register reg_rax, Register t
   cmpl(top, LockStack::end_offset());
   jcc(Assembler::greaterEqual, slow);
 
-  // Check for recursion.
-  cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
-  jcc(Assembler::equal, push);
+  if (VM_Version::supports_recursive_lightweight_locking()) {
+    // Check for recursion.
+    cmpptr(obj, Address(thread, top, Address::times_1, -oopSize));
+    jcc(Assembler::equal, push);
+  }
 
   // Check header for monitor (0b10).
   testptr(reg_rax, markWord::monitor_value);
@@ -9985,9 +9987,11 @@ void MacroAssembler::lightweight_unlock(Register obj, Register reg_rax, Register
   DEBUG_ONLY(movptr(Address(thread, top, Address::times_1, -oopSize), 0);)
   subl(Address(thread, JavaThread::lock_stack_top_offset()), oopSize);
 
-  // Check if recursive.
-  cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
-  jcc(Assembler::equal, unlocked);
+  if (VM_Version::supports_recursive_lightweight_locking()) {
+    // Check if recursive.
+    cmpptr(obj, Address(thread, top, Address::times_1, -2 * oopSize));
+    jcc(Assembler::equal, unlocked);
+  }
 
   // Not recursive. Check header for monitor (0b10).
   movptr(reg_rax, Address(obj, oopDesc::mark_offset_in_bytes()));

@@ -3244,3 +3244,9 @@ bool VM_Version::is_intrinsic_supported(vmIntrinsicID id) {
   }
   return true;
 }
+
+#if INCLUDE_JVMCI
+bool VM_Version::supports_recursive_lightweight_locking() {
+    return !CompilerConfig::is_jvmci_compiler();
+}
+#endif

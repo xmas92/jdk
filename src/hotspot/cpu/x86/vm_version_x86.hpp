@@ -777,9 +777,7 @@ public:
     return true;
   }
 
-  constexpr static bool supports_recursive_lightweight_locking() {
-    return true;
-  }
+  static bool supports_recursive_lightweight_locking() NOT_JVMCI_RETURN_(true);
 
   // For AVX CPUs only. f16c support is disabled if UseAVX == 0.
   static bool supports_float16() {

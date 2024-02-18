@@ -24,6 +24,7 @@
  */
 
 #include "precompiled.hpp"
+#include "compiler/compilerDefinitions.inline.hpp"
 #include "pauth_aarch64.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/globals_extension.hpp"
@@ -661,3 +662,9 @@ void VM_Version::initialize_cpu_information(void) {
 
   _initialized = true;
 }
+
+#if INCLUDE_JVMCI
+bool VM_Version::supports_recursive_lightweight_locking() {
+    return !CompilerConfig::is_jvmci_compiler();
+}
+#endif

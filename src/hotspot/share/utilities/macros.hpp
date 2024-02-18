@@ -273,10 +273,12 @@
 #define JVMCI_ONLY(code) code
 #define NOT_JVMCI(code)
 #define NOT_JVMCI_RETURN /* next token must be ; */
+#define NOT_JVMCI_RETURN_(code) /* next token must be ; */
 #else
 #define JVMCI_ONLY(code)
 #define NOT_JVMCI(code) code
 #define NOT_JVMCI_RETURN {}
+#define NOT_JVMCI_RETURN_(code) { return code; }
 #endif // INCLUDE_JVMCI
 
 // COMPILER1 variant

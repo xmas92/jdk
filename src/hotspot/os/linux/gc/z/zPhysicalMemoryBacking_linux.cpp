@@ -127,6 +127,19 @@ static const char* z_preferred_hugetlbfs_mountpoints[] = {
 static int z_fallocate_hugetlbfs_attempts = 3;
 static bool z_fallocate_supported = true;
 
+char* ZPhysicalMemoryBacking::_reserved_anon_memory_mapping = nullptr;
+
+bool ZPhysicalMemoryBacking::reserve_anon_memory_mapping(size_t max_capacity) {
+  _reserved_anon_memory_mapping = (char*)mmap(0, max_capacity, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+
+  if (_reserved_anon_memory_mapping == MAP_FAILED) {
+    _reserved_anon_memory_mapping = nullptr;
+    return false;
+  }
+
+  return true;
+}
+
 ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
   : _fd(-1),
     _filesystem(0),
@@ -136,12 +149,9 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
     _initialized(false){
 
   if (ZAnonymousMemoryBacking) {
+    guarantee(_reserved_anon_memory_mapping != nullptr, "anonymous memory backing does not exist");
     // Use anonymous memory backing when available, no filesystem needed
-    _physical_mapping = (char*)mmap(0, max_capacity, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-    if (_physical_mapping == MAP_FAILED) {
-      ZErrno err;
-      fatal("Failed to map memory (%s)", err.to_string());
-    }
+    _physical_mapping = _reserved_anon_memory_mapping;
 
     _block_size = ZGranuleSize;
 

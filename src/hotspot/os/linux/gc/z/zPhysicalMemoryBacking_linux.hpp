@@ -38,6 +38,8 @@ private:
   char*    _physical_mapping;
   bool     _initialized;
 
+  static char* _reserved_anon_memory_mapping;
+
   void warn_available_space(size_t max_capacity) const;
   void warn_max_map_count(size_t max_capacity) const;
 
@@ -76,6 +78,8 @@ public:
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;
   void unmap(zaddress_unsafe addr, size_t size, const ZPhysicalMemory* pmem) const;
+
+  static bool reserve_anon_memory_mapping(size_t max_capacity);
 };
 
 #endif // OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP

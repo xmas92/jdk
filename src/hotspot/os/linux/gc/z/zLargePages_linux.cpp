@@ -26,6 +26,7 @@
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zErrno.hpp"
 #include "gc/z/zLargePages.hpp"
+#include "gc/z/zPhysicalMemoryBacking_linux.hpp"
 #include "hugepages.hpp"
 #include "logging/log.hpp"
 #include "os_linux.hpp"
@@ -71,13 +72,18 @@ static bool supports_anonymous_backing() {
 }
 
 static bool should_select_anonymous_backing() {
-  // Can't use anonymous memory with explicit large pages
   if (UseLargePages && !UseTransparentHugePages) {
+    // Can't use anonymous memory with explicit large pages
     return false;
   }
 
   if (AllocateHeapAt != nullptr) {
     // Explicit file backing requires non-anonymous heap
+    return false;
+  }
+
+  if (!FLAG_IS_DEFAULT(ZAnonymousMemoryBacking) && !ZAnonymousMemoryBacking) {
+    // Explicitly disabled
     return false;
   }
 
@@ -90,13 +96,20 @@ static bool should_select_anonymous_backing() {
     return false;
   }
 
-  if (FLAG_IS_DEFAULT(ZAnonymousMemoryBacking)) {
-    // If we have support for anonymous memory, let's use it by default
-    return true;
+  // Try to map the backing virtual memory space
+  if (!ZPhysicalMemoryBacking::reserve_anon_memory_mapping(MaxHeapSize)) {
+    // Failed; falling back to shared memory
+    ZErrno err;
+    if (ZAnonymousMemoryBacking) {
+      log_warning_p(gc)("Failed to map anonymous backing memory (%s); falling back to shared memory", err.to_string());
+    } else {
+      log_info_p(gc, init)("Failed to map anonymous backing memory (%s); falling back to shared memory", err.to_string());
+    }
+    return false;
   }
 
-  // Otherwise, let the user decide what to do
-  return ZAnonymousMemoryBacking;
+  // If we have support for anonymous memory, let's use it by default
+  return true;
 }
 
 void ZLargePages::pd_initialize() {

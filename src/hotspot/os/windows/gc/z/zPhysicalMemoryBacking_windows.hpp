@@ -30,6 +30,7 @@
 #include <Windows.h>
 
 class ZPhysicalMemoryBackingImpl;
+class ZPhysicalMemory;
 
 class ZPhysicalMemoryBacking {
 private:
@@ -46,7 +47,7 @@ public:
   size_t uncommit(zoffset offset, size_t length);
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;
-  void unmap(zaddress_unsafe addr, size_t size, zoffset offset) const;
+  void unmap(zaddress_unsafe addr, size_t size, const ZPhysicalMemory* pmem) const;
 };
 
 #endif // OS_WINDOWS_GC_Z_ZPHYSICALMEMORYBACKING_WINDOWS_HPP

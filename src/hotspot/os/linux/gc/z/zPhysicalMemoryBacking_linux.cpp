@@ -30,7 +30,7 @@
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zMountPoint_linux.hpp"
 #include "gc/z/zNUMA.inline.hpp"
-#include "gc/z/zPhysicalMemoryBacking_linux.hpp"
+#include "gc/z/zPhysicalMemory.inline.hpp"
 #include "gc/z/zSyscall_linux.hpp"
 #include "hugepages.hpp"
 #include "logging/log.hpp"
@@ -767,13 +767,24 @@ size_t ZPhysicalMemoryBacking::uncommit(zoffset offset, size_t length) const {
   return length;
 }
 
+static void do_mremap(char* from, char* to, size_t size) {
+  const size_t granule_size = ZGranuleSize;
+  assert(size % granule_size == 0, "%zu", size);
+
+  char* old_addr = from;
+  char* new_addr = to;
+  for (char* const end = to + size; new_addr != end; new_addr += granule_size, old_addr += granule_size) {
+    if (mremap(old_addr, granule_size, granule_size, MREMAP_MAYMOVE | MREMAP_DONTUNMAP | MREMAP_FIXED, new_addr) == MAP_FAILED) {
+      ZErrno err;
+      fatal("Failed to map memory (%s) " PTR_FORMAT ", " PTR_FORMAT, err.to_string(), p2i(old_addr), p2i(new_addr));
+    }
+  }
+}
+
 void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zoffset offset) const {
   if (is_anonymous()) {
-    void* const file_addr = _physical_mapping + untype(offset);
-    if (mremap(file_addr, size, size, MREMAP_MAYMOVE | MREMAP_DONTUNMAP | MREMAP_FIXED, (void*)untype(addr)) == MAP_FAILED) {
-      ZErrno err;
-      fatal("Failed to map memory (%s) " PTR_FORMAT ", " PTR_FORMAT, err.to_string(), untype(addr), p2i(file_addr));
-    }
+    char* const file_addr = _physical_mapping + untype(offset);
+    do_mremap(file_addr, (char*)untype(addr), size);
   } else {
     const void* const res = mmap((void*)untype(addr), size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, _fd, untype(offset));
     if (res == MAP_FAILED) {
@@ -783,16 +794,35 @@ void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zoffset offs
   }
 }
 
-void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size, zoffset offset) const {
+void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size, const ZPhysicalMemory* pmem) const {
   // Note that we must keep the address space reservation intact and just detach
   // the backing memory. For this reason we map a new anonymous, non-accessible
   // and non-reserved page over the mapping instead of actually unmapping.
 
   if (is_anonymous()) {
-    void* const file_addr = _physical_mapping + untype(offset);
-    if (mremap((void*)untype(addr), size, size, MREMAP_MAYMOVE | MREMAP_DONTUNMAP | MREMAP_FIXED, file_addr) == MAP_FAILED) {
-      ZErrno err;
-      fatal("Failed to map memory (%s) " PTR_FORMAT ", " PTR_FORMAT, err.to_string(), untype(addr), p2i(file_addr));
+    const bool protect = size != ZGranuleSize;
+    if (protect) {
+      if (mprotect((void*)untype(addr), size, PROT_NONE) != 0) {
+        ZErrno err;
+        fatal("Failed to protect memory (%s) " PTR_FORMAT " PROT_NONE", err.to_string(), untype(addr));
+      }
+    }
+
+    size_t segment_offset = 0;
+
+    // remap segments
+    for (int i = 0; i < pmem->nsegments(); i++) {
+      const ZPhysicalMemorySegment& segment = pmem->segment(i);
+      char* const file_addr = _physical_mapping + untype(segment.start());
+      do_mremap((char*)untype(addr) + segment_offset, file_addr, segment.size());
+      segment_offset += segment.size();
+
+      if (protect) {
+        if (mprotect(file_addr, segment.size(), PROT_READ | PROT_WRITE) != 0) {
+          ZErrno err;
+          fatal("Failed to protect memory (%s) " PTR_FORMAT " PROT_READ | PROT_WRITE", err.to_string(), p2i(file_addr));
+        }
+      }
     }
   } else {
     const void* const res = mmap((void*)untype(addr), size, PROT_NONE, MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, -1, 0);

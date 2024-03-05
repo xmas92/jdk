@@ -26,6 +26,8 @@
 
 #include "gc/z/zAddress.hpp"
 
+class ZPhysicalMemory;
+
 class ZPhysicalMemoryBacking {
 private:
   uintptr_t _base;
@@ -44,7 +46,7 @@ public:
   size_t uncommit(zoffset offset, size_t length) const;
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;
-  void unmap(zaddress_unsafe addr, size_t size, zoffset offset) const;
+  void unmap(zaddress_unsafe addr, size_t size, const ZPhysicalMemory* pmem) const;
 };
 
 #endif // OS_BSD_GC_Z_ZPHYSICALMEMORYBACKING_BSD_HPP

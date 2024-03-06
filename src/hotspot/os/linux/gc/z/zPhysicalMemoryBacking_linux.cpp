@@ -824,7 +824,11 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size, const ZPhy
     for (int i = 0; i < pmem->nsegments(); i++) {
       const ZPhysicalMemorySegment& segment = pmem->segment(i);
       char* const file_addr = _physical_mapping + untype(segment.start());
-      do_mremap((char*)untype(addr) + segment_offset, file_addr, segment.size());
+      // do_mremap((char*)untype(addr) + segment_offset, file_addr, segment.size());
+      if (mremap((char*)untype(addr) + segment_offset, segment.size(), segment.size(), MREMAP_MAYMOVE | MREMAP_DONTUNMAP | MREMAP_FIXED, file_addr) == MAP_FAILED) {
+        ZErrno err;
+        fatal("Failed to map memory (%s) " PTR_FORMAT ", " PTR_FORMAT, err.to_string(), p2i((char*)untype(addr) + segment_offset), p2i(file_addr));
+      }
       segment_offset += segment.size();
 
       if (protect) {

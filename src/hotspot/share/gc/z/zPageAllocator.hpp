@@ -66,8 +66,8 @@ class ZPageAllocator {
 private:
   mutable ZLock              _lock;
   ZPageCache                 _cache;
-  ZPhysicalMemoryManager     _physical;
   ZVirtualMemoryManager      _virtual;
+  ZPhysicalMemoryManager     _physical;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;

@@ -54,11 +54,12 @@ private:
 public:
   ZPageCache();
 
-  ZPage* alloc_page(ZPageType type, size_t size);
+  ZPage* alloc_page(ZPageType type, size_t size, bool oversized);
   void free_page(ZPage* page);
 
   void flush_for_allocation(size_t requested, ZList<ZPage>* to);
-  size_t flush_for_uncommit(size_t requested, ZList<ZPage>* to, uint64_t* timeout);
+  size_t flush_for_uncommit(uint64_t now, size_t requested, ZList<ZPage>* to, uint64_t* timeout);
+  bool should_flush(uint64_t now, size_t requested, uint64_t* timeout) const;
 
   void set_last_commit();
 };

@@ -275,6 +275,9 @@ size_t ZHeap::free_empty_pages(const ZArray<ZPage*>* pages) {
 
   return freed;
 }
+bool ZHeap::harvest_large_page(ZPage* page) {
+  return _page_allocator.harvest_large_page(page);
+}
 
 void ZHeap::keep_alive(oop obj) {
   const zaddress addr = to_zaddress(obj);

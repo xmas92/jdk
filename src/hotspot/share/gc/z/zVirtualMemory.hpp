@@ -51,14 +51,20 @@ private:
   static size_t calculate_min_range(size_t size);
 
   ZMemoryManager _manager;
+  ZMemoryManager _small_manager;
+  zoffset_end    _small_end;
+  ZMemoryManager _medium_manager;
+  zoffset_end    _medium_end;
   size_t         _reserved;
   bool           _initialized;
+  bool           _split_on_page_size;
 
   // Platform specific implementation
   void pd_initialize_before_reserve();
   void pd_initialize_after_reserve();
   bool pd_reserve(zaddress_unsafe addr, size_t size);
   void pd_unreserve(zaddress_unsafe addr, size_t size);
+  bool split_on_page_size(size_t max_capacity, bool use_medium);
 
   bool reserve_contiguous(zoffset start, size_t size);
   bool reserve_contiguous(size_t size);
@@ -72,11 +78,15 @@ public:
   ZVirtualMemoryManager(size_t max_capacity);
 
   bool is_initialized() const;
+  bool is_split_on_page_size() const;
 
   size_t reserved() const;
   zoffset lowest_available_address() const;
 
   ZVirtualMemory alloc(size_t size, bool force_low_address);
+  ZVirtualMemory alloc_small();
+  ZVirtualMemory alloc_medium();
+  ZVirtualMemory alloc_large(size_t size, bool force_low_address);
   void free(const ZVirtualMemory& vmem);
 };
 

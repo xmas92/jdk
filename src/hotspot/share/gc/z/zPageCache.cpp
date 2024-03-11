@@ -151,7 +151,7 @@ ZPage* ZPageCache::alloc_oversized_page(size_t size) {
   return page;
 }
 
-ZPage* ZPageCache::alloc_page(ZPageType type, size_t size) {
+ZPage* ZPageCache::alloc_page(ZPageType type, size_t size, bool oversized) {
   ZPage* page;
 
   // Try allocate exact page
@@ -163,7 +163,7 @@ ZPage* ZPageCache::alloc_page(ZPageType type, size_t size) {
     page = alloc_large_page(size);
   }
 
-  if (page == nullptr) {
+  if (page == nullptr && oversized) {
     // Try allocate potentially oversized page
     ZPage* const oversized = alloc_oversized_page(size);
     if (oversized != nullptr) {
@@ -194,7 +194,9 @@ void ZPageCache::free_page(ZPage* page) {
   } else if (type == ZPageType::medium) {
     _medium.insert_first(page);
   } else {
-    _large.insert_first(page);
+    if (!ZHeap::heap()->harvest_large_page(page)) {
+      _large.insert_first(page);
+    }
   }
 }
 
@@ -307,18 +309,25 @@ public:
   }
 };
 
-size_t ZPageCache::flush_for_uncommit(size_t requested, ZList<ZPage>* to, uint64_t* timeout) {
-  const uint64_t now = os::elapsedTime();
+bool ZPageCache::should_flush(uint64_t now, size_t requested, uint64_t* timeout) const {
   const uint64_t expires = _last_commit + ZUncommitDelay;
   if (expires > now) {
     // Delay uncommit, set next timeout
     *timeout = expires - now;
-    return 0;
+    log_trace(gc, heap)("Update timeout: %lu", *timeout);
+    return false;
   }
-
   if (requested == 0) {
     // Nothing to flush, set next timeout
     *timeout = ZUncommitDelay;
+    log_trace(gc, heap)("Update timeout: %lu", *timeout);
+    return false;
+  }
+  return true;
+}
+
+size_t ZPageCache::flush_for_uncommit(uint64_t now, size_t requested, ZList<ZPage>* to, uint64_t* timeout) {
+  if (requested == 0) {
     return 0;
   }
 

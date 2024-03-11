@@ -101,6 +101,18 @@ zoffset ZMemoryManager::peek_low_address() const {
   return zoffset(UINTPTR_MAX);
 }
 
+zoffset_end ZMemoryManager::peek_high_address_end() const {
+  ZLocker<ZLock> locker(&_lock);
+
+  const ZMemory* const area = _freelist.first();
+  if (area != nullptr) {
+    return area->end();
+  }
+
+  // Out of memory
+  return zoffset_end(UINTPTR_MAX);
+}
+
 zoffset ZMemoryManager::alloc_low_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
 

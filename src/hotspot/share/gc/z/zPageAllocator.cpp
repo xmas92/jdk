@@ -108,6 +108,7 @@ private:
   size_t                     _flushed;
   size_t                     _committed;
   ZList<ZPage>               _pages;
+  ZPhysicalMemory            _pmem;
   ZListNode<ZPageAllocation> _node;
   ZFuture<bool>              _stall_result;
 
@@ -168,6 +169,10 @@ public:
     return &_pages;
   }
 
+  ZPhysicalMemory& pmem() {
+    return _pmem;
+  }
+
   void satisfy(bool result) {
     _stall_result.set(result);
   }
@@ -199,10 +204,16 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _uncommitter(new ZUncommitter(this)),
     _safe_destroy(),
     _safe_recycle(this),
-    _initialized(false) {
+    _initialized(false),
+    _cache_large(true) {
 
   if (!_virtual.is_initialized() || !_physical.is_initialized()) {
     return;
+  }
+
+  if (_virtual.is_split_on_page_size()) {
+    _cache_large = false;
+    log_info_p(gc, init)("Split Virtual Space Into Page Sizes");
   }
 
   log_info_p(gc, init)("Min Capacity: " SIZE_FORMAT "M", min_capacity / M);
@@ -455,8 +466,14 @@ void ZPageAllocator::destroy_page(ZPage* page) {
   // Free virtual memory
   _virtual.free(page->virtual_memory());
 
-  // Free physical memory
-  _physical.free(page->physical_memory());
+  if (_cache_large || page->type() != ZPageType::large) {
+    // Free physical memory
+    _physical.free(page->physical_memory());
+  } else {
+    ZPhysicalMemory& pmem = page->physical_memory();
+    _pmem.add_segments(pmem.split_committed());
+    _physical.free(pmem);
+  }
 
   // Destroy page safely
   safe_destroy_page(page);
@@ -467,27 +484,59 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-bool ZPageAllocator::alloc_page_common_inner(ZPageType type, size_t size, ZList<ZPage>* pages) {
+bool ZPageAllocator::alloc_page_common_inner(ZPageType type, size_t size, ZList<ZPage>* pages, ZPhysicalMemory& pmem) {
   if (!is_alloc_allowed(size)) {
     // Out of memory
     return false;
   }
 
-  // Try allocate from the page cache
-  ZPage* const page = _cache.alloc_page(type, size);
-  if (page != nullptr) {
-    // Success
-    pages->insert_last(page);
-    return true;
+  if (_cache_large || (type != ZPageType::large)) {
+    // Try allocate from the page cache
+    ZPage* const page = _cache.alloc_page(type, size, _cache_large);
+    if (page != nullptr) {
+      // Success
+      pages->insert_last(page);
+      return true;
+    }
   }
 
-  // Try increase capacity
-  const size_t increased = increase_capacity(size);
-  if (increased < size) {
-    // Could not increase capacity enough to satisfy the allocation
-    // completely. Flush the page cache to satisfy the remainder.
-    const size_t remaining = size - increased;
-    _cache.flush_for_allocation(remaining, pages);
+  if (!_cache_large) {
+    pmem = _pmem.split(size);
+    if (pmem.is_null() && type == ZPageType::small) {
+      // Harvest medium page physical pages
+      ZPage* const page = _cache.alloc_page(ZPageType::medium, ZPageSizeMedium, false);
+      if (page != nullptr) {
+        // TODO: Medium having a fixed space makes this ugly
+        ZPage* const small_page = page->split(ZPageType::small, ZPageSizeSmall);
+        // Cannot recycle_page, may be small if ZPageSizeMedium == 2 * ZPageSizeSmall
+        unmap_page(page);
+        destroy_page(page);
+        if (ZAnonymousMemoryBacking) {
+          unmap_page(small_page);
+        }
+        ZPhysicalMemory& fmem = small_page->physical_memory();
+        pmem.add_segments(fmem);
+        fmem.remove_segments();
+        if (ZAnonymousMemoryBacking) {
+          destroy_page(small_page);
+        } else {
+          _unmapper->unmap_and_destroy_page(small_page);
+        }
+        return true;
+      }
+    }
+    size -= pmem.size();
+  }
+
+  if (size > 0) {
+    // Try increase capacity
+    const size_t increased = increase_capacity(size);
+    if (increased < size) {
+      // Could not increase capacity enough to satisfy the allocation
+      // completely. Flush the page cache to satisfy the remainder.
+      const size_t remaining = size - increased;
+      _cache.flush_for_allocation(remaining, pages);
+    }
   }
 
   // Success
@@ -499,8 +548,9 @@ bool ZPageAllocator::alloc_page_common(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
   const ZAllocationFlags flags = allocation->flags();
   ZList<ZPage>* const pages = allocation->pages();
+  ZPhysicalMemory& pmem = allocation->pmem();
 
-  if (!alloc_page_common_inner(type, size, pages)) {
+  if (!alloc_page_common_inner(type, size, pages, pmem)) {
     // Out of memory
     return false;
   }
@@ -579,27 +629,54 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   // forward, we allocate virtual memory before destroying flushed pages.
   // Flushed pages are also unmapped and destroyed asynchronously, so we
   // can't immediately reuse that part of the address space anyway.
-  const ZVirtualMemory vmem = _virtual.alloc(size, allocation->flags().low_address());
+  const ZVirtualMemory vmem = [&]() {
+    if (_virtual.is_split_on_page_size()) {
+      const ZPageType type = allocation->type();
+      if (type == ZPageType::small) {
+        log_trace(gc, page)("Create small page");
+        return _virtual.alloc_small();
+      }
+      if (type == ZPageType::medium) {
+        log_trace(gc, page)("Create medium page");
+        return _virtual.alloc_medium();
+      }
+      log_trace(gc, page)("Create large page %zuMB", size >> 20);
+      return _virtual.alloc_large(size, allocation->flags().low_address());
+    }
+    return _virtual.alloc(size, allocation->flags().low_address());
+  }();
+
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");
     return nullptr;
   }
 
-  ZPhysicalMemory pmem;
-  size_t flushed = 0;
+  ZPhysicalMemory& pmem = allocation->pmem();
+  size_t flushed = pmem.size();
+  if (flushed) log_trace(gc, page)("Harvest %zuMB pmem", flushed >> 20);
 
   // Harvest physical memory from flushed pages
   ZListRemoveIterator<ZPage> iter(allocation->pages());
   for (ZPage* page; iter.next(&page);) {
     flushed += page->size();
+    log_trace(gc, page)("Harvest %zuMB page", page->size() >> 20);
+
+    if (ZAnonymousMemoryBacking) {
+      // Must unmap before we remove segments
+      unmap_page(page);
+    }
 
     // Harvest flushed physical memory
     ZPhysicalMemory& fmem = page->physical_memory();
     pmem.add_segments(fmem);
     fmem.remove_segments();
 
-    // Unmap and destroy page
-    _unmapper->unmap_and_destroy_page(page);
+    if (ZAnonymousMemoryBacking) {
+      destroy_page(page);
+    } else {
+      // Unmap and destroy page
+      _unmapper->unmap_and_destroy_page(page);
+    }
   }
 
   if (flushed > 0) {
@@ -639,6 +716,11 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // even if the allocation is immediately satisfied we might still want to
   // return false here to force the page to be remapped to fight address
   // space fragmentation.
+
+  if (!allocation->pmem().is_null()) {
+    // Using unmapped memory
+    return false;
+  }
 
   if (allocation->pages()->size() != 1) {
     // Not a single page
@@ -769,11 +851,18 @@ void ZPageAllocator::satisfy_stalled() {
 }
 
 void ZPageAllocator::recycle_page(ZPage* page) {
-  // Set time when last used
-  page->set_last_used();
+  if (_cache_large || page->type() != ZPageType::large) {
+    // Set time when last used
+    page->set_last_used();
 
-  // Cache page
-  _cache.free_page(page);
+    // Cache page
+    _cache.free_page(page);
+  } else {
+    // TODO: Aggregate this unmapping with other large pages to reduce
+    //       number of TLB shot-downs.
+    unmap_page(page);
+    destroy_page(page);
+  }
 }
 
 void ZPageAllocator::free_page(ZPage* page) {
@@ -827,6 +916,17 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   satisfy_stalled();
 }
 
+bool ZPageAllocator::harvest_large_page(ZPage* page) {
+  precond(page->is_large());
+
+  if (_cache_large) {
+    return false;
+  }
+
+  recycle_page(page);
+  return true;
+}
+
 void ZPageAllocator::free_pages_alloc_failed(ZPageAllocation* allocation) {
   ZArray<ZPage*> to_recycle;
 
@@ -863,6 +963,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   // used, to make sure GC safepoints will have a consistent view.
   ZList<ZPage> pages;
   size_t flushed;
+  ZPhysicalMemory pmem;
 
   {
     SuspendibleThreadSetJoiner sts_joiner;
@@ -876,8 +977,16 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
     const size_t limit = MIN2(align_up(_current_max_capacity >> 7, ZGranuleSize), 256 * M);
     const size_t flush = MIN2(release, limit);
 
+    const uint64_t now = os::elapsedTime();
+    if (!_cache.should_flush(now, flush, timeout)) {
+      return 0;
+    }
+
+    pmem = _pmem.split(flush);
+    flushed = pmem.size();
+
     // Flush pages to uncommit
-    flushed = _cache.flush_for_uncommit(flush, &pages, timeout);
+    flushed += _cache.flush_for_uncommit(now, flush - flushed, &pages, timeout);
     if (flushed == 0) {
       // Nothing flushed
       return 0;
@@ -887,9 +996,17 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
     Atomic::add(&_claimed, flushed);
   }
 
+  log_trace(gc, heap)("flushed claimed: %zuMB", flushed >> 20);
+  log_trace(gc, heap)("           pmem: %zuMB", pmem.size() >> 20);
+
+  // Uncommit and free page-less memory
+  _physical.uncommit(pmem);
+  _physical.free(pmem);
+
   // Unmap, uncommit, and destroy flushed pages
   ZListRemoveIterator<ZPage> iter(&pages);
   for (ZPage* page; iter.next(&page);) {
+    log_trace(gc, heap)("           page: %zuMB", page->size() >> 20);
     unmap_page(page);
     uncommit_page(page);
     destroy_page(page);

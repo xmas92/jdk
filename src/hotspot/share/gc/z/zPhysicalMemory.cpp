@@ -189,6 +189,8 @@ ZPhysicalMemory ZPhysicalMemory::split(size_t size) {
   ZPhysicalMemory pmem;
   int nsegments = 0;
 
+  // TODO: Keep track of pmem.size() instead of looping over already inserted segments
+
   for (int i = 0; i < _segments.length(); i++) {
     const ZPhysicalMemorySegment& segment = _segments.at(i);
     if (pmem.size() < size) {

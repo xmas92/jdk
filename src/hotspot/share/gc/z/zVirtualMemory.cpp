@@ -34,8 +34,13 @@
 
 ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   : _manager(),
+    _small_manager(),
+    _small_end(zoffset_end(0)),
+    _medium_manager(),
+    _medium_end(zoffset_end(0)),
     _reserved(0),
-    _initialized(false) {
+    _initialized(false),
+    _split_on_page_size(false) {
 
   assert(max_capacity <= ZAddressOffsetMax, "Too large max_capacity");
 
@@ -46,6 +51,12 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   if (!reserve(max_capacity)) {
     log_error_pd(gc)("Failed to reserve enough address space for Java heap");
     return;
+  }
+
+  if (!ZForceLargePageCache) {
+    // TODO: Decouple LargePageCache from this split.
+    _split_on_page_size = split_on_page_size(max_capacity, ZPageSizeMedium > 0);
+    log_info_p(gc, init)("Split Virtual Space Into Page Sizes: %s", _split_on_page_size ? "true" : "false");
   }
 
   // Initialize platform specific parts after reserving address space
@@ -212,6 +223,70 @@ bool ZVirtualMemoryManager::is_initialized() const {
   return _initialized;
 }
 
+bool ZVirtualMemoryManager::is_split_on_page_size() const {
+  return _split_on_page_size;
+}
+
+bool ZVirtualMemoryManager::split_on_page_size(size_t max_capacity, bool use_medium) {
+  if (_reserved < max_capacity * (use_medium ? 3 : 2)) {
+    return false;
+  }
+
+  const auto setup_end = [&] {
+    _small_end = _small_manager.peek_high_address_end();
+    if (use_medium) {
+      _medium_end = _medium_manager.peek_high_address_end();
+    }
+  };
+
+  if (_manager.free_is_contiguous()) {
+    const auto split_into_manager = [&](ZMemoryManager& manager) {
+      const zoffset start = _manager.alloc_low_address(max_capacity);
+      assert(start != zoffset(UINTPTR_MAX), "must succeed");
+      manager.free(start, max_capacity);
+    };
+
+    split_into_manager(_small_manager);
+
+    if (use_medium) {
+      split_into_manager(_medium_manager);
+    }
+
+    setup_end();
+    return true;
+  }
+
+  // Discontiguous case.
+  if (use_medium && (_reserved < max_capacity * 4 || ZPageSizeMedium < calculate_min_range(max_capacity))) {
+    // TODO: Maybe just never split the space in the discontiguous case.
+    //       Or require at least a full reservation.
+    return false;
+  }
+
+  auto split_into_manager = [&](ZMemoryManager& manager, size_t granule) {
+    size_t left = align_down(max_capacity, granule);
+    while (left != 0) {
+      size_t allocated = 0;
+      const zoffset start = _manager.alloc_low_address_at_most(left, &allocated);
+      // Waste some address space
+      allocated = align_down(allocated, granule);
+      assert(start != zoffset(UINTPTR_MAX), "must succeed");
+      assert(allocated > 0, "must succeed");
+      manager.free(start, allocated);
+      left -= allocated;
+    }
+  };
+
+  split_into_manager(_small_manager, ZPageSizeSmall);
+
+  if (use_medium) {
+    split_into_manager(_medium_manager, ZPageSizeMedium);
+  }
+
+  setup_end();
+  return true;
+}
+
 ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, bool force_low_address) {
   zoffset start;
 
@@ -230,6 +305,41 @@ ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, bool force_low_address)
   return ZVirtualMemory(start, size);
 }
 
+ZVirtualMemory  ZVirtualMemoryManager::alloc_small() {
+  precond(is_split_on_page_size());
+  const zoffset start = _small_manager.alloc_low_address(ZPageSizeSmall);
+
+  if (start == zoffset(UINTPTR_MAX)) {
+    return ZVirtualMemory();
+  }
+
+  return ZVirtualMemory(start, ZPageSizeSmall);
+}
+
+ZVirtualMemory  ZVirtualMemoryManager::alloc_medium() {
+  precond(is_split_on_page_size());
+  const zoffset start = _medium_manager.alloc_low_address(ZPageSizeMedium);
+
+  if (start == zoffset(UINTPTR_MAX)) {
+    return ZVirtualMemory();
+  }
+
+  return ZVirtualMemory(start, ZPageSizeMedium);
+}
+
+ZVirtualMemory  ZVirtualMemoryManager::alloc_large(size_t size, bool force_low_address) {
+  return alloc(size, force_low_address);
+}
+
+
 void ZVirtualMemoryManager::free(const ZVirtualMemory& vmem) {
+  if (_split_on_page_size) {
+    if (vmem.start() < _small_end) {
+      return _small_manager.free(vmem.start(), vmem.size());
+    }
+    if (vmem.start() < _medium_end) {
+      return _medium_manager.free(vmem.start(), vmem.size());
+    }
+  }
   _manager.free(vmem.start(), vmem.size());
 }

@@ -58,6 +58,7 @@ private:
 
 public:
   ZPhysicalMemory();
+  // TODO: Add Move Constructor, (requires move ctor for GrowableArray)
   ZPhysicalMemory(const ZPhysicalMemorySegment& segment);
   ZPhysicalMemory(const ZPhysicalMemory& pmem);
   const ZPhysicalMemory& operator=(const ZPhysicalMemory& pmem);

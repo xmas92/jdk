@@ -53,6 +53,9 @@
   product(bool, ZAnonymousMemoryBacking, false, DIAGNOSTIC,                 \
           "Back the Java heap with MAP_ANONYMOUS pages")                    \
                                                                             \
+  product(bool, ZForceLargePageCache, false, DIAGNOSTIC,                    \
+          "Force the large page cache")                                     \
+                                                                            \
   product(uint, ZYoungGCThreads, 0, DIAGNOSTIC,                             \
           "Number of GC threads for the young generation")                  \
                                                                             \

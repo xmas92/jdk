@@ -28,6 +28,7 @@
 #include "gc/z/zAllocator.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zGeneration.hpp"
+#include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zPageTable.hpp"
@@ -106,6 +107,8 @@ public:
   void undo_alloc_page(ZPage* page);
   void free_page(ZPage* page);
   size_t free_empty_pages(const ZArray<ZPage*>* pages);
+
+  bool harvest_large_page(ZPage* page);
 
   // Object allocation
   bool is_alloc_stalling() const;

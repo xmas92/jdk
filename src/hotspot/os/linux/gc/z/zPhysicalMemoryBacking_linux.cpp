@@ -810,6 +810,7 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size, const ZPhy
   // and non-reserved page over the mapping instead of actually unmapping.
 
   if (is_anonymous()) {
+    assert(size == pmem->size(), "must be");
     const bool protect = size != ZGranuleSize;
     if (protect) {
       if (mprotect((void*)untype(addr), size, PROT_NONE) != 0) {

@@ -593,13 +593,22 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   for (ZPage* page; iter.next(&page);) {
     flushed += page->size();
 
+    if (ZAnonymousMemoryBacking) {
+      // Must unmap before we remove segments
+      unmap_page(page);
+    }
+
     // Harvest flushed physical memory
     ZPhysicalMemory& fmem = page->physical_memory();
     pmem.add_segments(fmem);
     fmem.remove_segments();
 
-    // Unmap and destroy page
-    _unmapper->unmap_and_destroy_page(page);
+    if (ZAnonymousMemoryBacking) {
+      destroy_page(page);
+    } else {
+      // Unmap and destroy page
+      _unmapper->unmap_and_destroy_page(page);
+    }
   }
 
   if (flushed > 0) {

@@ -53,6 +53,7 @@
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/threadSMR.hpp"
+#include "runtime/threadWXSetters.inline.hpp"
 #include "runtime/vmOperations.hpp"
 #include "runtime/vm_version.hpp"
 #include "services/threadService.hpp"
@@ -179,9 +180,12 @@ jlong Unsafe_field_offset_from_byte_offset(jlong byte_offset) {
  */
 class GuardUnsafeAccess {
   JavaThread* _thread;
+  MACOS_AARCH64_ONLY(ThreadWXEnable _sigkill_workaround;)
 
 public:
-  GuardUnsafeAccess(JavaThread* thread) : _thread(thread) {
+  GuardUnsafeAccess(JavaThread* thread) :
+      _thread(thread)
+      MACOS_AARCH64_ONLY(COMMA _sigkill_workaround(WXExec, thread)) {
     // native/off-heap access which may raise SIGBUS if accessing
     // memory mapped file data in a region of the file which has
     // been truncated and is now invalid.

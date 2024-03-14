@@ -411,6 +411,9 @@ void Threads::initialize_jsr292_core_classes(TRAPS) {
 }
 
 jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
+  // When thread current does not exist we are assumed to be WXExec
+  MACOS_AARCH64_ONLY(os::current_thread_enable_wx(WXExec));
+
   extern void JDK_Version_init();
 
   // Preinitialize version info.
@@ -430,8 +433,6 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Initialize the os module
   os::init();
-
-  MACOS_AARCH64_ONLY(os::current_thread_enable_wx(WXWrite));
 
   // Record VM creation timing statistics
   TraceVmCreationTime create_vm_timer;
@@ -527,11 +528,11 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   JavaThread* main_thread = new JavaThread();
   main_thread->set_thread_state(_thread_in_vm);
   main_thread->initialize_thread_current();
+  MACOS_AARCH64_ONLY(main_thread->init_wx());
   // must do this before set_active_handles
   main_thread->record_stack_base_and_size();
   main_thread->register_thread_stack_with_NMT();
   main_thread->set_active_handles(JNIHandleBlock::allocate_block());
-  MACOS_AARCH64_ONLY(main_thread->init_wx());
 
   if (!main_thread->set_as_starting_thread()) {
     vm_shutdown_during_initialization(

@@ -3752,6 +3752,8 @@ jint JNICALL jni_DestroyJavaVM(JavaVM *vm) {
 }
 
 static jint attach_current_thread(JavaVM *vm, void **penv, void *_args, bool daemon) {
+  MACOS_AARCH64_ONLY(os::current_thread_enable_wx(WXExec));
+
   JavaVMAttachArgs *args = (JavaVMAttachArgs *) _args;
 
   // Check below commented out from JDK1.2fcs as well
@@ -3781,10 +3783,10 @@ static jint attach_current_thread(JavaVM *vm, void **penv, void *_args, bool dae
   // initializing the Java level thread object. Hence, the correct state must
   // be set in order for the Safepoint code to deal with it correctly.
   thread->set_thread_state(_thread_in_vm);
-  thread->record_stack_base_and_size();
-  thread->register_thread_stack_with_NMT();
   thread->initialize_thread_current();
   MACOS_AARCH64_ONLY(thread->init_wx());
+  thread->record_stack_base_and_size();
+  thread->register_thread_stack_with_NMT();
 
   if (!os::create_attached_thread(thread)) {
     thread->smr_delete();

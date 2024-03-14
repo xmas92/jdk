@@ -26,6 +26,7 @@
 #ifndef SHARE_RUNTIME_SAFEFETCH_HPP
 #define SHARE_RUNTIME_SAFEFETCH_HPP
 
+#include "runtime/threadWXSetters.inline.hpp"
 #include "utilities/macros.hpp"
 
 // Safefetch allows to load a value from a location that's not known
@@ -48,10 +49,14 @@
 
 
 inline int SafeFetch32(int* adr, int errValue) {
+  // SafeFetch could read non-accessible memory and therefore provoke the SIGKILL bug.
+  MACOS_AARCH64_ONLY(ThreadWXEnable sigkill_workaround(WXExec, Thread::current_or_null_safe());)
   return SafeFetch32_impl(adr, errValue);
 }
 
 inline intptr_t SafeFetchN(intptr_t* adr, intptr_t errValue) {
+  // SafeFetch could read non-accessible memory and therefore provoke the SIGKILL bug.
+  MACOS_AARCH64_ONLY(ThreadWXEnable sigkill_workaround(WXExec, Thread::current_or_null_safe());)
   return SafeFetchN_impl(adr, errValue);
 }
 

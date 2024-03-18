@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "asm/assembler.hpp"
 #include "asm/assembler.inline.hpp"
+#include "opto/c2_CodeStubs.hpp"
 #include "opto/c2_MacroAssembler.hpp"
 #include "opto/intrinsicnode.hpp"
 #include "runtime/vm_version.hpp"
@@ -44,7 +45,17 @@ void C2_MacroAssembler::fast_lock_lightweight(ConditionRegister flag, Register o
 
 void C2_MacroAssembler::fast_unlock_lightweight(ConditionRegister flag, Register obj, Register box,
                                                 Register tmp1, Register tmp2, Register tmp3) {
-  compiler_fast_unlock_lightweight_object(flag, obj, tmp1, tmp2, tmp3);
+  if (!Compile::current()->output()->in_scratch_emit_size()) {
+    // TODO: The input registers are tightly coupled to their use in compiler_fast_unlock_lightweight_object. Fix this.
+    C2FastUnlockLightweightStub* stub = new (Compile::current()->comp_arena()) C2FastUnlockLightweightStub(obj, tmp1, tmp2, tmp3, flag);
+    Compile::current()->output()->add_stub(stub);
+    compiler_fast_unlock_lightweight_object(flag, obj, tmp1, tmp2, tmp3, stub->entry(), stub->slow_path_continuation(), stub->unlocked_continuation());
+  } else {
+    Label dummy_entry;
+    Label dummy_slow_path_continuation;
+    Label dummy_unlocked_continuation;
+    compiler_fast_unlock_lightweight_object(flag, obj, tmp1, tmp2, tmp3, dummy_entry, dummy_slow_path_continuation, dummy_unlocked_continuation);
+  }
 }
 
 // Intrinsics for CompactStrings

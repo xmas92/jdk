@@ -641,7 +641,11 @@ class MacroAssembler: public Assembler {
                                              Register tmp2, Register tmp3);
 
   void compiler_fast_unlock_lightweight_object(ConditionRegister flag, Register oop, Register tmp1,
-                                               Register tmp2, Register tmp3);
+                                               Register tmp2, Register tmp3,
+                                               Label& entry, Label& slow_path_continuation, Label& unlocked_continuation);
+
+  void compiler_fast_unlock_lightweight_medium_path(ConditionRegister flag, Register monitor, Register tmp1, Register tmp2,
+                                                    Label& entry, Label& slow_path_continuation, Label& unlocked_continuation);
 
   // Check if safepoint requested and if so branch
   void safepoint_poll(Label& slow_path, Register temp, bool at_return, bool in_nmethod);

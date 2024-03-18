@@ -57,4 +57,19 @@ void C2SafepointPollStub::emit(C2_MacroAssembler& masm) {
   __ mtctr(R0);
   __ bctr();
 }
+
+int C2FastUnlockLightweightStub::max_size() const {
+  // FIXME
+  return 256;
+}
+
+void C2FastUnlockLightweightStub::emit(C2_MacroAssembler& masm) {
+
+  __ compiler_fast_unlock_lightweight_medium_path(_flag, _mark_or_monitor, _t, _t2,
+                                                  _inflated_medium_path,
+                                                  slow_path_continuation(),
+                                                  unlocked_continuation());
+
+}
+
 #undef __

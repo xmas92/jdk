@@ -2618,7 +2618,16 @@ nmethod *SharedRuntime::generate_native_wrapper(MacroAssembler *masm,
 
     // Try fastpath for unlocking.
     if (LockingMode == LM_LIGHTWEIGHT) {
-      __ compiler_fast_unlock_lightweight_object(CCR0, r_oop, r_temp_1, r_temp_2, r_temp_3);
+      Label entry;
+      Label slow_path_continuation;
+      Label unlocked_continuation;
+      Label jump;
+      __ b(jump);
+      __ compiler_fast_unlock_lightweight_medium_path(CCR0, r_temp_1, r_temp_2, r_temp_3,
+                                                      entry, slow_path_continuation, unlocked_continuation);
+      __ bind(jump);
+      __ compiler_fast_unlock_lightweight_object(CCR0, r_oop, r_temp_1, r_temp_2, r_temp_3,
+                                                 entry, slow_path_continuation, unlocked_continuation);
     } else {
       __ compiler_fast_unlock_object(CCR0, r_oop, r_box, r_temp_1, r_temp_2, r_temp_3);
     }

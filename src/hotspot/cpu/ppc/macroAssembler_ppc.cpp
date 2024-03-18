@@ -50,6 +50,7 @@
 #include "runtime/vm_version.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/powerOfTwo.hpp"
+#include "utilities/sizes.hpp"
 
 #ifdef PRODUCT
 #define BLOCK_COMMENT(str) // nothing
@@ -2563,7 +2564,8 @@ void MacroAssembler::compiler_fast_lock_lightweight_object(ConditionRegister fla
 }
 
 void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister flag, Register obj, Register tmp1,
-                                                             Register tmp2, Register tmp3) {
+                                                             Register tmp2, Register tmp3,
+                                                             Label& entry, Label& slow_path_continuation, Label& unlocked_continuation) {
   assert_different_registers(obj, tmp1, tmp2, tmp3);
   assert(flag == CCR0, "bad condition register");
 
@@ -2573,6 +2575,8 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
   Label unlocked;
   // Finish fast unlock unsuccessfully. MUST branch to with flag == NE.
   Label slow_path;
+
+  Label& inflated_medium_path = entry;
 
   const Register mark = tmp1;
   const Register top = tmp2;
@@ -2676,7 +2680,13 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
 
     bind(not_recursive);
 
-    Label release_;
+    // Set owner to null.
+    release();
+    li(t, 0);
+    std(t, in_bytes(ObjectMonitor::owner_offset()), monitor);
+
+    fence();
+
     const Register t2 = tmp2;
 
     // Check if the entry lists are empty.
@@ -2684,22 +2694,17 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
     ld(t2, in_bytes(ObjectMonitor::cxq_offset()), monitor);
     orr(t, t, t2);
     cmpdi(flag, t, 0);
-    beq(flag, release_);
+    beq(flag, unlocked);
 
-    // The owner may be anonymous and we removed the last obj entry in
-    // the lock-stack. This loses the information about the owner.
-    // Write the thread to the owner field so the runtime knows the owner.
-    std(R16_thread, in_bytes(ObjectMonitor::owner_offset()), monitor);
-    b(slow_path);
-
-    bind(release_);
-    // Set owner to null.
-    release();
-    // t contains 0
-    std(t, in_bytes(ObjectMonitor::owner_offset()), monitor);
+    // Check successor.
+    ld(t, in_bytes(ObjectMonitor::succ_offset()), monitor);
+    cmpdi(flag, t, 0);
+    beq(flag, inflated_medium_path);
+    crorc(flag, Assembler::equal, flag, Assembler::equal);
   }
 
   bind(unlocked);
+  bind(unlocked_continuation);
   dec_held_monitor_count(t);
 
 #ifdef ASSERT
@@ -2709,6 +2714,7 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
   stop("Fast Lock Flag != EQ");
 #endif
   bind(slow_path);
+  bind(slow_path_continuation);
 #ifdef ASSERT
   // Check that slow_path label is reached with flag == NE.
   bne(flag, flag_correct);
@@ -2716,6 +2722,108 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
   bind(flag_correct);
 #endif
   // C2 uses the value of flag (NE vs EQ) to determine the continuation.
+}
+
+void MacroAssembler::compiler_fast_unlock_lightweight_medium_path(ConditionRegister flag, Register monitor, Register tmp1,
+                                                                  Register tmp2, Label& entry,
+                                                                  Label& slow_path_continuation, Label& unlocked_continuation) {
+  Label restore_contentions_slow_path;
+  Label restore_contentions_fast_path;
+
+  Label fix_flag_fast_path;
+  Label fix_flag_slow_path;
+
+  // The cancellation requires that we first increment and then decrement the contentions.
+  // Instead we can simply go to the slow path without changing contentions.
+  Label& canceled_deflation_slow_path = fix_flag_slow_path;
+
+
+  const Register t1 = tmp1;
+  const Register t2 = tmp2;
+  const Register contentions_addr = monitor;
+
+  { // Handle monitor medium path.
+
+    bind(entry);
+    const Register owner_addr = monitor;
+
+    const int owner_to_contentions_offset = in_bytes(ObjectMonitor::contentions_offset() - ObjectMonitor::owner_offset());
+
+    // Compute owner address.
+    addi(owner_addr, monitor, in_bytes(ObjectMonitor::owner_offset()));
+
+    cmpxchgd(/*flag=*/flag,
+            /*current_value=*/t1,
+            /*compare_value=*/(intptr_t)0,
+            /*exchange_value=*/R16_thread,
+            /*where=*/owner_addr,
+            MacroAssembler::MemBarAcq,
+            MacroAssembler::cmpxchgx_hint_acquire_lock());
+    beq(flag, fix_flag_slow_path);
+
+    cmpdi(flag, t1, reinterpret_cast<intptr_t>(DEFLATER_MARKER));
+    bne(flag, fix_flag_fast_path);
+
+    addi(contentions_addr, owner_addr, owner_to_contentions_offset);
+
+    li(t2, 1);
+    getandaddw(t1, t2, contentions_addr, R11_scratch1, false);
+
+    cmpwi(flag, t1, 0);
+    blt(flag, restore_contentions_fast_path);
+
+    subi(owner_addr, contentions_addr, owner_to_contentions_offset);
+    cmpxchgd(/*flag=*/flag,
+            /*current_value=*/t1,
+            /*compare_value=*/reinterpret_cast<intptr_t>(DEFLATER_MARKER),
+            /*exchange_value=*/R16_thread,
+            /*where=*/owner_addr,
+            MacroAssembler::MemBarAcq,
+            MacroAssembler::cmpxchgx_hint_acquire_lock());
+    beq(flag, canceled_deflation_slow_path);
+
+    // TODO: Add t1 owner check to avoid another CAS.
+    //       Could to a t1 & ~nullptr to branch on eq to unlocked
+    // cmpdi(flag, t1, reinterpret_cast<intptr_t>(nullptr));
+    // bnq(flag, ...)
+
+    cmpxchgd(/*flag=*/flag,
+            /*current_value=*/t1,
+            /*compare_value=*/(intptr_t)0,
+            /*exchange_value=*/R16_thread,
+            /*where=*/owner_addr,
+            MacroAssembler::MemBarAcq,
+            MacroAssembler::cmpxchgx_hint_acquire_lock());
+    addi(contentions_addr, owner_addr, owner_to_contentions_offset);
+    beq(flag, restore_contentions_slow_path);
+
+    li(t2, -1);
+    getandaddw(t1, t2, contentions_addr, R11_scratch1, false);
+
+    b(fix_flag_fast_path);
+  }
+  {
+    bind (restore_contentions_slow_path);
+    li(t2, -1);
+    getandaddw(t1, t2, contentions_addr, R11_scratch1, false);
+    // Fallthrough to fix_flag_slow_path
+  }
+  {
+    bind (fix_flag_slow_path);
+    crxor(flag, Assembler::equal, flag, Assembler::equal);
+    b(slow_path_continuation);
+  }
+  {
+    bind (restore_contentions_fast_path);
+    li(t2, -1);
+    getandaddw(t1, t2, contentions_addr, R11_scratch1, false);
+    // Fallthrough to fix_flag_fast_path
+  }
+  {
+    bind (fix_flag_fast_path);
+    crorc(flag, Assembler::equal, flag, Assembler::equal);
+    b(unlocked_continuation);
+  }
 }
 
 void MacroAssembler::safepoint_poll(Label& slow_path, Register temp, bool at_return, bool in_nmethod) {

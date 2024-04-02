@@ -36,6 +36,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.concurrent.TimeUnit;
+import java.lang.Math;
 
 
 /**
@@ -133,6 +134,32 @@ public class LockUnlock {
     public void testContendedLock() {
         synchronized (lockObject1) {
             dummyInt1++;
+        }
+    }
+
+    @Threads(2)
+    @Benchmark
+    public void testWaitNotify() {
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (lockObject1) {
+                try { lockObject1.wait(1); } catch (InterruptedException ie) {}
+                lockObject1.notify();
+            }
+        }
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void testWaitEnterNotify() {
+        for (int i = 0; i < innerCount; i++) {
+            synchronized (lockObject1) {
+                if (Math.random() < .25) {
+                    try { lockObject1.wait(1); } catch (InterruptedException ie) {}
+                    lockObject1.notify();
+                } else {
+                    dummyInt1++;
+                }
+            }
         }
     }
 }

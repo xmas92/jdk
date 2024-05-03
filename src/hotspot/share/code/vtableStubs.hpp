@@ -28,7 +28,6 @@
 #include "asm/macroAssembler.hpp"
 #include "code/vmreg.hpp"
 #include "memory/allStatic.hpp"
-#include "sanitizers/ub.hpp"
 #include "utilities/checkedCast.hpp"
 
 // A VtableStub holds an individual code stub for a pair (vtable index, #args) for either itables or vtables
@@ -94,6 +93,7 @@ class VtableStubs : AllStatic {
   static VtableStub* lookup            (bool is_vtable_stub, int vtable_index);
   static void        enter             (bool is_vtable_stub, int vtable_index, VtableStub* s);
   static inline uint hash              (bool is_vtable_stub, int vtable_index);
+  static inline uint unsafe_hash       (address entry_point);
   static address     find_stub         (bool is_vtable_stub, int vtable_index);
   static void        bookkeeping(MacroAssembler* masm, outputStream* out, VtableStub* s,
                                  address npe_addr, address ame_addr,   bool is_vtable_stub,
@@ -174,9 +174,6 @@ class VtableStub {
  public:
   // Query
   bool is_itable_stub()                          { return !_is_vtable_stub; }
-  // We reinterpret arbitrary memory as VtableStub. This does not cause failures because the lookup/equality
-  // check will reject false objects. Disabling UBSan is a temporary workaround until JDK-8331725 is fixed.
-  ATTRIBUTE_NO_UBSAN
   bool is_vtable_stub()                          { return  _is_vtable_stub; }
   bool is_abstract_method_error(address epc)     { return epc == code_begin()+_ame_offset; }
   bool is_null_pointer_exception(address epc)    { return epc == code_begin()+_npe_offset; }

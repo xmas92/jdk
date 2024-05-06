@@ -213,6 +213,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.concurrent.CountDownLatch;
 
 import jdk.test.lib.Asserts;
 import jdk.test.whitebox.WhiteBox;
@@ -2485,6 +2486,7 @@ class EARelockingWhileTargetOnMonitorenter extends EATestCaseBaseDebugger {
 
 class EARelockingWhileTargetOnMonitorenterTarget extends EATestCaseBaseTarget {
 
+    public CountDownLatch started = new CountDownLatch(1);
     public Object sharedLock = new Object();
     public volatile boolean releaseLock;
     public int counter;
@@ -2494,10 +2496,16 @@ class EARelockingWhileTargetOnMonitorenterTarget extends EATestCaseBaseTarget {
         super.warmupDone();
         Thread t = new Thread(() -> contendOnLock());
         t.start();
+        try {
+            started.await();
+        } catch(Exception e) {
+            Asserts.fail("Unexpected exception");
+        }
     }
 
     public void contendOnLock() {
         synchronized (sharedLock) {
+            started.countDown();
             while (!releaseLock) {
                 try {
                     Thread.sleep(100);

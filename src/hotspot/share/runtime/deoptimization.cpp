@@ -395,6 +395,8 @@ static void restore_eliminated_locks(JavaThread* thread, GrowableArray<compiledV
 #ifndef PRODUCT
   bool first = true;
 #endif // !PRODUCT
+  DEBUG_ONLY(GrowableArray<oop> lock_order{0};)
+  DEBUG_ONLY(bool last_vframe_has_monitor = false;)
   // Start locking from outermost/oldest frame
   for (int i = (chunk->length() - 1); i >= 0; i--) {
     compiledVFrame* cvf = chunk->at(i);
@@ -404,6 +406,16 @@ static void restore_eliminated_locks(JavaThread* thread, GrowableArray<compiledV
       bool relocked = Deoptimization::relock_objects(thread, monitors, deoptee_thread, deoptee,
                                                      exec_mode, realloc_failures);
       deoptimized_objects = deoptimized_objects || relocked;
+#ifdef ASSERT
+      if (LockingMode == LM_LIGHTWEIGHT && !realloc_failures) {
+        for (MonitorInfo* mi : *monitors) {
+          lock_order.push(mi->owner());
+        }
+        if (i == 0) {
+          last_vframe_has_monitor = monitors->is_nonempty();
+        }
+      }
+#endif // ASSERT
 #ifndef PRODUCT
       if (PrintDeoptimizationDetails) {
         ResourceMark rm;
@@ -435,6 +447,19 @@ static void restore_eliminated_locks(JavaThread* thread, GrowableArray<compiledV
 #endif // !PRODUCT
     }
   }
+#ifdef ASSERT
+  if (lock_order.is_nonempty()) {
+    RegisterMap reg_map(deoptee_thread,
+                        RegisterMap::UpdateMap::skip,
+                        RegisterMap::ProcessFrames::skip,
+                        RegisterMap::WalkContinuation::skip);
+    javaVFrame* last_java_vframe = deoptee_thread->last_java_vframe(&reg_map);
+    const bool includes_last_java_vframe = last_java_vframe->fr().id() == deoptee.id();
+    deoptee_thread->lock_stack().verify_consistent_lock_order(lock_order,
+                                                              includes_last_java_vframe,
+                                                              last_vframe_has_monitor);
+  }
+#endif // ASSERT
 }
 
 // Deoptimize objects, that is reallocate and relock them, just before they escape through JVMTI.

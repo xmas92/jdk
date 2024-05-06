@@ -125,3 +125,76 @@ OMCache::OMCache(JavaThread* jt) : _entries() {
                 offsetof(OMCache::OMCacheEntry, _oop) +
                 OMCache::CAPACITY * in_bytes(oop_to_oop_difference()));
 }
+
+#ifdef ASSERT
+void LockStack::verify_consistent_lock_order(GrowableArray<oop>& lock_order,
+                                             bool includes_last_java_vframe,
+                                             bool last_vframe_has_monitor) const {
+  // There are three assumptions made about deoptimization and entering on a monitor
+  //   1. No safepoint polls are made from the point that ScopeDesc reports a
+  //      MonitorInfo until the point that the thread enters the corrsponding
+  //      monitor or is parked pending on the corrsponding monitor.
+  //   2. No safepoint polls are made from the point that ScopeDesc stops reporting
+  //      a MonitorInfo until that thread exits the corrsponding.
+  //   3. The order of events are always:
+  //      * ScopeDesc reports a MonitorInfo
+  //        * [Assumption 1. No Safepoints]
+  //      * The thread enters the corrsponding monitor
+  //      * ScopeDesc stops reporting a MonitorInfo
+  //        * [Assumption 2. No Safepoints]
+  //      * The thread exits the corrsponding monitor
+
+  int top_index = to_index(_top);
+  int lock_index = lock_order.length();
+
+  if (!includes_last_java_vframe) {
+    // If the lock_order does not include the last java vframe we must search
+    // for the top_index which fits with the most recent fast_locked objects
+    // in the lock stack. As there may be vframes bellow which have fast_locked
+    // monitors.
+    while (lock_index-- > 0) {
+      const oop obj = lock_order.at(lock_index);
+      if (contains(obj)) {
+        for (int index = 0; index < top_index; index++) {
+          if (_base[index] == obj) {
+            // Found top index
+            top_index = index + 1;
+            break;
+          }
+        }
+
+        if (VM_Version::supports_recursive_lightweight_locking()) {
+          // With recursive looks there may be more of the same object
+          while (lock_index-- > 0 && lock_order.at(lock_index) == obj) {
+            top_index++;
+          }
+          assert(top_index <= to_index(_top), "too many obj in lock_order");
+        }
+
+        break;
+      }
+    }
+
+    lock_index = lock_order.length();
+  }
+
+  while (lock_index-- > 0) {
+    const oop obj = lock_order.at(lock_index);
+    const markWord mark = obj->mark_acquire();
+    assert(obj->is_locked(), "must be locked");
+    if (top_index > 0 && obj == _base[top_index - 1]) {
+      assert(mark.is_fast_locked() || mark.monitor()->is_owner_anonymous(),
+             "must be fast_locked or inflated by other thread");
+      top_index--;
+    } else {
+      assert(!mark.is_fast_locked(), "must be inflated");
+      assert(mark.monitor()->owner_raw() == get_thread() ||
+            get_thread()->current_waiting_monitor() == mark.monitor() ||
+            (lock_index == lock_order.length() - 1 && includes_last_java_vframe &&
+             last_vframe_has_monitor && get_thread()->current_pending_monitor() == mark.monitor()),
+            "must be owned by (or waited/pending on by) thread");
+      assert(!contains(obj), "must not be on lock_stack");
+    }
+  }
+}
+#endif

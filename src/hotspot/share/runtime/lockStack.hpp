@@ -123,6 +123,11 @@ class LockStack {
 
   // Printing
   void print_on(outputStream* st);
+
+  // Verify Lock Stack consistent with lock order
+  void verify_consistent_lock_order(GrowableArray<oop>& lock_order,
+                                    bool includes_last_java_vframe,
+                                    bool last_vframe_has_monitor) const NOT_DEBUG_RETURN;
 };
 
 class OMCache {

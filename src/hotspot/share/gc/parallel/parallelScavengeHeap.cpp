@@ -65,12 +65,12 @@ jint ParallelScavengeHeap::initialize() {
 
   ReservedHeapSpace heap_rs = Universe::reserve_heap(reserved_heap_size, HeapAlignment);
 
-  trace_actual_reserved_page_size(reserved_heap_size, heap_rs);
+  trace_actual_reserved_page_size(reserved_heap_size, heap_rs.view());
 
   initialize_reserved_region(heap_rs);
   // Layout the reserved space for the generations.
-  ReservedSpace old_rs   = heap_rs.first_part(MaxOldSize);
-  ReservedSpace young_rs = heap_rs.last_part(MaxOldSize);
+  ReservedSpaceView old_rs   = heap_rs.view().first_part(MaxOldSize);
+  ReservedSpaceView young_rs = heap_rs.view().last_part(MaxOldSize);
   assert(young_rs.size() == MaxNewSize, "Didn't reserve all of the heap");
 
   PSCardTable* card_table = new PSCardTable(heap_rs.region());
@@ -791,7 +791,7 @@ void ParallelScavengeHeap::verify(VerifyOption option /* ignored */) {
   }
 }
 
-void ParallelScavengeHeap::trace_actual_reserved_page_size(const size_t reserved_heap_size, const ReservedSpace rs) {
+void ParallelScavengeHeap::trace_actual_reserved_page_size(const size_t reserved_heap_size, const ReservedSpaceView& rs) {
   // Check if Info level is enabled, since os::trace_page_sizes() logs on Info level.
   if(log_is_enabled(Info, pagesize)) {
     const size_t page_size = rs.page_size();

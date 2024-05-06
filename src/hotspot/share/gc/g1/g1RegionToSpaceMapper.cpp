@@ -35,7 +35,7 @@
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/powerOfTwo.hpp"
 
-G1RegionToSpaceMapper::G1RegionToSpaceMapper(ReservedSpace rs,
+G1RegionToSpaceMapper::G1RegionToSpaceMapper(const ReservedSpaceView& rs,
                                              size_t used_size,
                                              size_t page_size,
                                              size_t region_granularity,
@@ -65,7 +65,7 @@ class G1RegionsLargerThanCommitSizeMapper : public G1RegionToSpaceMapper {
   size_t _pages_per_region;
 
  public:
-  G1RegionsLargerThanCommitSizeMapper(ReservedSpace rs,
+  G1RegionsLargerThanCommitSizeMapper(const ReservedSpaceView& rs,
                                       size_t actual_size,
                                       size_t page_size,
                                       size_t alloc_granularity,
@@ -157,7 +157,7 @@ class G1RegionsSmallerThanCommitSizeMapper : public G1RegionToSpaceMapper {
   }
 
  public:
-  G1RegionsSmallerThanCommitSizeMapper(ReservedSpace rs,
+  G1RegionsSmallerThanCommitSizeMapper(const ReservedSpaceView& rs,
                                        size_t actual_size,
                                        size_t page_size,
                                        size_t alloc_granularity,
@@ -256,7 +256,7 @@ void G1RegionToSpaceMapper::fire_on_commit(uint start_idx, size_t num_regions, b
   }
 }
 
-G1RegionToSpaceMapper* G1RegionToSpaceMapper::create_mapper(ReservedSpace rs,
+G1RegionToSpaceMapper* G1RegionToSpaceMapper::create_mapper(const ReservedSpaceView& rs,
                                                             size_t actual_size,
                                                             size_t page_size,
                                                             size_t region_granularity,

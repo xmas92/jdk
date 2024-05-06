@@ -88,7 +88,7 @@ class ParallelScavengeHeap : public CollectedHeap {
 
   void initialize_serviceability() override;
 
-  void trace_actual_reserved_page_size(const size_t reserved_heap_size, const ReservedSpace rs);
+  void trace_actual_reserved_page_size(const size_t reserved_heap_size, const ReservedSpaceView& rs);
   void trace_heap(GCWhen::Type when, const GCTracer* tracer) override;
 
   // Allocate in oldgen and record the allocation with the size_policy.

@@ -54,7 +54,7 @@ class G1RegionToSpaceMapper : public CHeapObj<mtGC> {
 
   MEMFLAGS _memory_type;
 
-  G1RegionToSpaceMapper(ReservedSpace rs, size_t used_size, size_t page_size, size_t region_granularity, size_t commit_factor, MEMFLAGS type);
+  G1RegionToSpaceMapper(const ReservedSpaceView& rs, size_t used_size, size_t page_size, size_t region_granularity, size_t commit_factor, MEMFLAGS type);
 
   void fire_on_commit(uint start_idx, size_t num_regions, bool zero_filled);
  public:
@@ -80,7 +80,7 @@ class G1RegionToSpaceMapper : public CHeapObj<mtGC> {
   // a single byte in the data structure this mapper is for.
   // Eg. in the card table, this value corresponds to the size a single card
   // table entry corresponds to in the heap.
-  static G1RegionToSpaceMapper* create_mapper(ReservedSpace rs,
+  static G1RegionToSpaceMapper* create_mapper(const ReservedSpaceView& rs,
                                               size_t actual_size,
                                               size_t page_size,
                                               size_t region_granularity,

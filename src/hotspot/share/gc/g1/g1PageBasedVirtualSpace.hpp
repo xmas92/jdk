@@ -98,7 +98,7 @@ class G1PageBasedVirtualSpace {
   // Returns true if the entire area is not backed by committed memory.
   bool is_area_uncommitted(size_t start_page, size_t size_in_pages) const;
 
-  void initialize_with_page_size(ReservedSpace rs, size_t used_size, size_t page_size);
+  void initialize_with_page_size(const ReservedSpaceView& rs, size_t used_size, size_t page_size);
  public:
 
   // Commit the given area of pages starting at start being size_in_pages large.
@@ -113,7 +113,7 @@ class G1PageBasedVirtualSpace {
   // Initialize the given reserved space with the given base address and the size
   // actually used.
   // Prefer to commit in page_size chunks.
-  G1PageBasedVirtualSpace(ReservedSpace rs, size_t used_size, size_t page_size);
+  G1PageBasedVirtualSpace(const ReservedSpaceView& rs, size_t used_size, size_t page_size);
 
   // Destruction
   ~G1PageBasedVirtualSpace();

@@ -25,6 +25,7 @@
 #ifndef SHARE_MEMORY_VIRTUALSPACE_HPP
 #define SHARE_MEMORY_VIRTUALSPACE_HPP
 
+#include "memory/allocation.hpp"
 #include "memory/memRegion.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -32,31 +33,74 @@ class outputStream;
 
 // ReservedSpace is a data structure for reserving a contiguous address range.
 
-class ReservedSpace {
-  friend class VMStructs;
+class ReservedSpaceView {
  protected:
   char*    _base;
   size_t   _size;
-  size_t   _noaccess_prefix;
-  size_t   _alignment;
   size_t   _page_size;
-  int      _fd_for_heap;
+  size_t   _alignment;
   bool     _special;
   bool     _executable;
   MEMFLAGS _flag;
- private:
 
+  ReservedSpaceView() {}
+
+private:
+  ReservedSpaceView(char *base, size_t size, size_t alignment, size_t page_size,
+                    bool special, bool executable, MEMFLAGS flag)
+      : _base(base), _size(size), _page_size(page_size), _alignment(alignment),
+        _special(special), _executable(executable), _flag(flag) {};
+
+public:
+  // Splitting
+  // This splits the space into two spaces, the first part of which will be returned.
+  ReservedSpaceView first_part(size_t partition_size, size_t alignment) const;
+  ReservedSpaceView last_part (size_t partition_size, size_t alignment) const;
+  ReservedSpaceView partition (size_t offset, size_t partition_size, size_t alignment) const;
+
+  // These simply call the above using the default alignment.
+  inline ReservedSpaceView first_part(size_t partition_size) const;
+  inline ReservedSpaceView last_part (size_t partition_size) const;
+  inline ReservedSpaceView partition (size_t offset, size_t partition_size) const;
+
+
+public:
+  // Accessors
+  char*    base()        const { return _base;            }
+  size_t   size()        const { return _size;            }
+  char*    end()         const { return _base + _size;    }
+  size_t   alignment()   const { return _alignment;       }
+  size_t   page_size()   const { return _page_size;       }
+  bool     special()     const { return _special;         }
+  bool     executable()  const { return _executable;      }
+  MEMFLAGS nmt_flag()    const { return _flag;            }
+  bool     is_reserved() const { return _base != nullptr; }
+};
+
+ReservedSpaceView ReservedSpaceView::first_part(size_t partition_size) const
+{
+  return first_part(partition_size, alignment());
+}
+
+ReservedSpaceView ReservedSpaceView::last_part(size_t partition_size) const
+{
+  return last_part(partition_size, alignment());
+}
+
+ReservedSpaceView ReservedSpaceView::partition(size_t offset, size_t partition_size) const
+{
+  return partition(offset, partition_size, alignment());
+}
+
+class ReservedSpace : public ReservedSpaceView {
+  friend class VMStructs;
+protected:
   // ReservedSpace
   ReservedSpace(char* base, size_t size, size_t alignment,
                 size_t page_size, bool special, bool executable, MEMFLAGS flag);
- protected:
+
   // Helpers to clear and set members during initialization. These members
   // require special treatment:
-  //  * _fd_for_heap     - The fd is set once and should not be cleared
-  //                       even if the reservation has to be retried.
-  //  * _noaccess_prefix - Used for compressed heaps and updated after
-  //                       the reservation is initialized. Always set to
-  //                       0 during initialization.
   //  * _flag            - Used for NMT memory type. Once set in ctor,
   //                       it should not change after.
   //  * _alignment       - Not to be changed after initialization
@@ -70,15 +114,13 @@ class ReservedSpace {
 
   void reserve(size_t size, size_t alignment, size_t page_size,
                char* requested_address, bool executable);
+  void release_internal(char* base, size_t size);
  public:
-
-  MEMFLAGS nmt_flag() const { assert(is_reserved(), "Memory region is not reserved."); assert(_flag != mtNone, "Memory flag is not set."); return _flag; }
-
   // Constructor
   ReservedSpace();
   // Initialize the reserved space with the given size. Depending on the size
   // a suitable page size and alignment will be used.
-  explicit ReservedSpace(size_t size, MEMFLAGS flag);
+  ReservedSpace(size_t size, MEMFLAGS flag);
   // Initialize the reserved space with the given size. The preferred_page_size
   // is used as the minimum page size/alignment. This may waste some space if
   // the given size is not aligned to that value, as the reservation will be
@@ -87,28 +129,7 @@ class ReservedSpace {
   ReservedSpace(size_t size, size_t alignment, size_t page_size, MEMFLAGS flag,
                 char* requested_address = nullptr);
 
-  // Accessors
-  char*  base()            const { return _base;      }
-  size_t size()            const { assert(is_reserved(), "Memory region is not reserved."); return _size;      }
-  char*  end()             const { assert(is_reserved(), "Memory region is not reserved."); return _base + _size; }
-  size_t alignment()       const { assert(is_reserved(), "Memory region is not reserved."); return _alignment; }
-  size_t page_size()       const { assert(is_reserved(), "Memory region is not reserved."); return _page_size; }
-  bool   special()         const { assert(is_reserved(), "Memory region is not reserved."); return _special;   }
-  bool   executable()      const { assert(is_reserved(), "Memory region is not reserved."); return _executable;   }
-  size_t noaccess_prefix() const { assert(is_reserved(), "Memory region is not reserved."); return _noaccess_prefix;   }
-  bool is_reserved()       const { return _base != nullptr; }
   void release();
-
-  // Splitting
-  // This splits the space into two spaces, the first part of which will be returned.
-  ReservedSpace first_part(size_t partition_size, size_t alignment);
-  ReservedSpace last_part (size_t partition_size, size_t alignment);
-  ReservedSpace partition (size_t offset, size_t partition_size, size_t alignment);
-
-  // These simply call the above using the default alignment.
-  inline ReservedSpace first_part(size_t partition_size);
-  inline ReservedSpace last_part (size_t partition_size);
-  inline ReservedSpace partition (size_t offset, size_t partition_size);
 
   // Alignment
   static size_t page_align_size_up(size_t size);
@@ -123,24 +144,13 @@ class ReservedSpace {
                                        size_t page_size, bool special, bool executable, MEMFLAGS flag);
 };
 
-ReservedSpace ReservedSpace::first_part(size_t partition_size)
-{
-  return first_part(partition_size, alignment());
-}
-
-ReservedSpace ReservedSpace::last_part(size_t partition_size)
-{
-  return last_part(partition_size, alignment());
-}
-
-ReservedSpace ReservedSpace::partition(size_t offset, size_t partition_size)
-{
-  return partition(offset, partition_size, alignment());
-}
-
 // Class encapsulating behavior specific of memory space reserved for Java heap.
-class ReservedHeapSpace : public ReservedSpace {
+class ReservedHeapSpace : private ReservedSpace {
+  size_t   _noaccess_prefix;
+  int      _fd_for_heap;
  private:
+  void reserve(size_t size, size_t alignment, size_t page_size,
+               char* requested_address, bool executable);
   void try_reserve_heap(size_t size, size_t alignment, size_t page_size,
                         char *requested_address);
   void try_reserve_range(char *highest_start, char *lowest_start,
@@ -158,6 +168,20 @@ class ReservedHeapSpace : public ReservedSpace {
   // encoded safely and implicit null checks can work.
   char *compressed_oop_base() const { return _base - _noaccess_prefix; }
   MemRegion region() const;
+
+  size_t noaccess_prefix() const { return _noaccess_prefix;   }
+  void release();
+
+  ReservedSpaceView& view() { return *this; }
+
+  using ReservedSpace::base;
+  using ReservedSpace::size;
+  using ReservedSpace::end;
+  using ReservedSpace::alignment;
+  using ReservedSpace::page_size;
+  using ReservedSpace::special;
+  using ReservedSpace::executable;
+  using ReservedSpace::is_reserved;
 };
 
 // Class encapsulating behavior specific memory space for Code
@@ -234,8 +258,8 @@ class VirtualSpace {
  public:
   // Initialization
   VirtualSpace();
-  bool initialize_with_granularity(ReservedSpace rs, size_t committed_byte_size, size_t max_commit_ganularity);
-  bool initialize(ReservedSpace rs, size_t committed_byte_size);
+  bool initialize_with_granularity(const ReservedSpaceView& rs, size_t committed_byte_size, size_t max_commit_ganularity);
+  bool initialize(const ReservedSpaceView& rs, size_t committed_byte_size);
 
   // Destruction
   ~VirtualSpace();

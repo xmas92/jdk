@@ -82,7 +82,7 @@ class PSYoungGen : public CHeapObj<mtGC> {
 
  public:
   // Initialize the generation.
-  PSYoungGen(ReservedSpace rs,
+  PSYoungGen(const ReservedSpaceView& rs,
              size_t initial_byte_size,
              size_t minimum_byte_size,
              size_t maximum_byte_size);

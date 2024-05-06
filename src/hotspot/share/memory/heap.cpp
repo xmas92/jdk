@@ -198,7 +198,7 @@ void CodeHeap::on_code_mapping(char* base, size_t size) {
 }
 
 
-bool CodeHeap::reserve(ReservedSpace rs, size_t committed_size, size_t segment_size) {
+bool CodeHeap::reserve(const ReservedSpaceView& rs, size_t committed_size, size_t segment_size) {
   assert(rs.size() >= committed_size, "reserved < committed");
   assert(segment_size >= sizeof(FreeBlock), "segment size is too small");
   assert(is_power_of_2(segment_size), "segment_size must be a power of 2");

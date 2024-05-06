@@ -77,7 +77,7 @@ class PSOldGen : public CHeapObj<mtGC> {
 
  public:
   // Initialize the generation.
-  PSOldGen(ReservedSpace rs, size_t initial_size, size_t min_size,
+  PSOldGen(const ReservedSpaceView& rs, size_t initial_size, size_t min_size,
            size_t max_size, const char* perf_data_name, int level);
 
   MemRegion reserved() const {

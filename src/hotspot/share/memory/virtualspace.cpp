@@ -35,26 +35,42 @@
 #include "runtime/java.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/powerOfTwo.hpp"
+
+
+ReservedSpaceView ReservedSpaceView::first_part(size_t partition_size, size_t alignment) const {
+  assert(partition_size <= size(), "partition failed");
+  return {base(), partition_size, alignment, page_size(), special(), executable(), nmt_flag()};
+}
+
+ReservedSpaceView ReservedSpaceView::last_part(size_t partition_size, size_t alignment) const {
+  assert(partition_size <= size(), "partition failed");
+  return {base() + partition_size, size() - partition_size, alignment, page_size(), special(), executable(), nmt_flag()};
+}
+
+ReservedSpaceView ReservedSpaceView::partition(size_t offset, size_t partition_size, size_t alignment) const {
+  assert(offset + partition_size <= size(), "partition failed");
+  return {base() + offset, partition_size, alignment, page_size(), special(), executable(), nmt_flag()};
+}
 
 // ReservedSpace
 
 // Dummy constructor
-ReservedSpace::ReservedSpace() : _base(nullptr), _size(0), _noaccess_prefix(0),
-    _alignment(0), _fd_for_heap(-1), _special(false), _executable(false), _flag(mtNone) {
-}
+ReservedSpace::ReservedSpace() : ReservedSpaceView() {}
 
-ReservedSpace::ReservedSpace(size_t size, MEMFLAGS flag) : _fd_for_heap(-1), _flag(flag) {
+ReservedSpace::ReservedSpace(size_t size, MEMFLAGS flag) : ReservedSpaceView() {
   // Want to use large pages where possible. If the size is
   // not large page aligned the mapping will be a mix of
   // large and normal pages.
   size_t page_size = os::page_size_for_region_unaligned(size, 1);
   size_t alignment = os::vm_allocation_granularity();
+  _flag = flag;
   initialize(size, alignment, page_size, nullptr, false);
 }
 
-ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size, MEMFLAGS flag) : _fd_for_heap(-1), _flag(flag) {
+ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size, MEMFLAGS flag) : ReservedSpaceView() {
   // When a page size is given we don't want to mix large
   // and normal pages. If the size is not a multiple of the
   // page size it will be aligned up to achieve this.
@@ -63,6 +79,7 @@ ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size, MEMFLAGS f
     alignment = MAX2(preferred_page_size, alignment);
     size = align_up(size, alignment);
   }
+  _flag = flag;
   initialize(size, alignment, preferred_page_size, nullptr, false);
 }
 
@@ -70,12 +87,12 @@ ReservedSpace::ReservedSpace(size_t size,
                              size_t alignment,
                              size_t page_size,
                              MEMFLAGS flag,
-                             char* requested_address) : _fd_for_heap(-1), _flag(flag) {
+                             char* requested_address) : ReservedSpaceView() {
   initialize(size, alignment, page_size, requested_address, false);
 }
 
 ReservedSpace::ReservedSpace(char* base, size_t size, size_t alignment, size_t page_size,
-                             bool special, bool executable, MEMFLAGS flag) : _fd_for_heap(-1), _flag(flag) {
+                             bool special, bool executable, MEMFLAGS flag) :  ReservedSpaceView() {
   assert((size % os::vm_allocation_granularity()) == 0,
          "size not allocation aligned");
   initialize_members(base, size, alignment, page_size, special, executable);
@@ -210,11 +227,8 @@ void ReservedSpace::initialize_members(char* base, size_t size, size_t alignment
                                        size_t page_size, bool special, bool executable) {
   _base = base;
   _size = size;
-  _noaccess_prefix = 0;
-
   _page_size = page_size;
   _special = special;
-
   _alignment = alignment;
   _executable = executable;
 }
@@ -233,19 +247,6 @@ void ReservedSpace::reserve(size_t size,
   // The first two have restrictions that requires the whole mapping to be
   // committed up front. To record this the ReservedSpace is marked 'special'.
 
-  // == Case 1 ==
-  if (_fd_for_heap != -1) {
-    // When there is a backing file directory for this space then whether
-    // large pages are allocated is up to the filesystem of the backing file.
-    // So UseLargePages is not taken into account for this reservation.
-    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable, _flag);
-    if (base != nullptr) {
-      initialize_members(base, size, alignment, os::vm_page_size(), true, executable);
-    }
-    // Always return, not possible to fall back to reservation not using a file.
-    return;
-  }
-
   // == Case 2 ==
   if (use_explicit_large_pages(page_size)) {
     // System can't commit large pages i.e. use transparent huge pages and
@@ -253,7 +254,7 @@ void ReservedSpace::reserve(size_t size,
     // explicit large pages and these have to be committed up front to ensure
     // no reservations are lost.
     do {
-      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable, _flag);
+      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable, nmt_flag());
       if (base != nullptr) {
         // Successful reservation using large pages.
         initialize_members(base, size, alignment, page_size, true, executable);
@@ -269,10 +270,20 @@ void ReservedSpace::reserve(size_t size,
   }
 
   // == Case 3 ==
-  char* base = reserve_memory(requested_address, size, alignment, -1, executable, _flag);
+  char* base = reserve_memory(requested_address, size, alignment, -1, executable, nmt_flag());
   if (base != nullptr) {
     // Successful mapping.
     initialize_members(base, size, alignment, page_size, false, executable);
+  }
+}
+
+
+void ReservedSpace::release_internal(char* addr, size_t bytes) {
+  assert(is_reserved(), "must be");
+  if (special()) {
+    os::release_memory_special(addr, bytes);
+  } else{
+    os::release_memory(addr, bytes);
   }
 }
 
@@ -346,17 +357,7 @@ size_t ReservedSpace::allocation_align_size_up(size_t size) {
 
 void ReservedSpace::release() {
   if (is_reserved()) {
-    char *real_base = _base - _noaccess_prefix;
-    const size_t real_size = _size + _noaccess_prefix;
-    if (special()) {
-      if (_fd_for_heap != -1) {
-        os::unmap_memory(real_base, real_size);
-      } else {
-        os::release_memory_special(real_base, real_size);
-      }
-    } else{
-      os::release_memory(real_base, real_size);
-    }
+    release_internal(_base, _size);
     clear_members();
   }
 }
@@ -375,8 +376,8 @@ static size_t noaccess_prefix_size(size_t alignment) {
 }
 
 void ReservedHeapSpace::establish_noaccess_prefix() {
-  assert(_alignment >= os::vm_page_size(), "must be at least page size big");
-  _noaccess_prefix = noaccess_prefix_size(_alignment);
+  assert(alignment() >= os::vm_page_size(), "must be at least page size big");
+  _noaccess_prefix = noaccess_prefix_size(alignment());
 
   if (base() && base() + _size > (char *)OopEncodingHeapMax) {
     if (true
@@ -397,9 +398,33 @@ void ReservedHeapSpace::establish_noaccess_prefix() {
     }
   }
 
+  // Maybe implement custom _base and _size methods instead.
   _base += _noaccess_prefix;
   _size -= _noaccess_prefix;
-  assert(((uintptr_t)_base % _alignment == 0), "must be exactly of required alignment");
+  assert(((uintptr_t)_base % alignment() == 0), "must be exactly of required alignment");
+}
+
+
+void ReservedHeapSpace::reserve(size_t size,
+                                size_t alignment,
+                                size_t page_size,
+                                char* requested_address,
+                                bool executable) {
+  assert(is_aligned(size, alignment), "Size must be aligned to the requested alignment");
+
+  if (_fd_for_heap != -1) {
+    // When there is a backing file directory for this space then whether
+    // large pages are allocated is up to the filesystem of the backing file.
+    // So UseLargePages is not taken into account for this reservation.
+    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable, nmt_flag());
+    if (base != nullptr) {
+      initialize_members(base, size, alignment, os::vm_page_size(), true, executable, nmt_flag());
+    }
+    // Always return, not possible to fall back to reservation not using a file.
+    return;
+  }
+
+  ReservedSpace::reserve(size, alignment, page_size, requested_address, executable);
 }
 
 // Tries to allocate memory of size 'size' at address requested_address with alignment 'alignment'.
@@ -426,6 +451,7 @@ void ReservedHeapSpace::try_reserve_heap(size_t size,
 
   // Check alignment constraints.
   if (is_reserved() && !is_aligned(_base, _alignment)) {
+    ShouldNotReachHere();
     // Base not aligned, retry.
     release();
   }
@@ -664,6 +690,19 @@ MemRegion ReservedHeapSpace::region() const {
   return MemRegion((HeapWord*)base(), (HeapWord*)end());
 }
 
+void ReservedHeapSpace::release() {
+  if (is_reserved()) {
+    char *real_base = _base - _noaccess_prefix;
+    const size_t real_size = _size + _noaccess_prefix;
+    if (special() && _fd_for_heap != -1) {
+      os::unmap_memory(real_base, real_size);
+    } else{
+      release_internal(real_base, real_size);
+    }
+    clear_members();
+  }
+}
+
 // Reserve space for code segment.  Same as Java heap only we mark this as
 // executable.
 ReservedCodeSpace::ReservedCodeSpace(size_t r_size,
@@ -695,12 +734,12 @@ VirtualSpace::VirtualSpace() {
 }
 
 
-bool VirtualSpace::initialize(ReservedSpace rs, size_t committed_size) {
+bool VirtualSpace::initialize(const ReservedSpaceView& rs, size_t committed_size) {
   const size_t max_commit_granularity = os::page_size_for_region_unaligned(rs.size(), 1);
   return initialize_with_granularity(rs, committed_size, max_commit_granularity);
 }
 
-bool VirtualSpace::initialize_with_granularity(ReservedSpace rs, size_t committed_size, size_t max_commit_granularity) {
+bool VirtualSpace::initialize_with_granularity(const ReservedSpaceView& rs, size_t committed_size, size_t max_commit_granularity) {
   if(!rs.is_reserved()) return false;  // allocation failed.
   assert(_low_boundary == nullptr, "VirtualSpace already initialized");
   assert(max_commit_granularity > 0, "Granularity must be non-zero.");

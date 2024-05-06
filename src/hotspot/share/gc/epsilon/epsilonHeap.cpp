@@ -46,7 +46,7 @@ jint EpsilonHeap::initialize() {
 
   // Initialize backing storage
   ReservedHeapSpace heap_rs = Universe::reserve_heap(max_byte_size, align);
-  _virtual_space.initialize(heap_rs, init_byte_size);
+  _virtual_space.initialize(heap_rs.view() , init_byte_size);
 
   MemRegion committed_region((HeapWord*)_virtual_space.low(),          (HeapWord*)_virtual_space.high());
 

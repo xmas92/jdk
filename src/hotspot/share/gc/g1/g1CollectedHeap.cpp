@@ -1299,7 +1299,7 @@ jint G1CollectedHeap::initialize() {
   // Create space mappers.
   size_t page_size = heap_rs.page_size();
   G1RegionToSpaceMapper* heap_storage =
-    G1RegionToSpaceMapper::create_mapper(heap_rs,
+    G1RegionToSpaceMapper::create_mapper(heap_rs.view(),
                                          heap_rs.size(),
                                          page_size,
                                          HeapRegion::GrainBytes,

@@ -320,19 +320,19 @@ void CodeCache::initialize_heaps() {
 
   size_t offset = 0;
   if (profiled.enabled) {
-    ReservedSpace profiled_space = rs.partition(offset, profiled.size);
+    ReservedSpaceView profiled_space = rs.partition(offset, profiled.size);
     offset += profiled.size;
     // Tier 2 and tier 3 (profiled) methods
     add_heap(profiled_space, "CodeHeap 'profiled nmethods'", CodeBlobType::MethodProfiled);
   }
 
-  ReservedSpace non_method_space = rs.partition(offset, non_nmethod.size);
+  ReservedSpaceView non_method_space = rs.partition(offset, non_nmethod.size);
   offset += non_nmethod.size;
   // Non-nmethods (stubs, adapters, ...)
   add_heap(non_method_space, "CodeHeap 'non-nmethods'", CodeBlobType::NonNMethod);
 
   if (non_profiled.enabled) {
-    ReservedSpace non_profiled_space  = rs.partition(offset, non_profiled.size);
+    ReservedSpaceView non_profiled_space  = rs.partition(offset, non_profiled.size);
     // Tier 1 and tier 4 (non-profiled) methods and native methods
     add_heap(non_profiled_space, "CodeHeap 'non-profiled nmethods'", CodeBlobType::MethodNonProfiled);
   }
@@ -416,7 +416,7 @@ void CodeCache::add_heap(CodeHeap* heap) {
   }
 }
 
-void CodeCache::add_heap(ReservedSpace rs, const char* name, CodeBlobType code_blob_type) {
+void CodeCache::add_heap(const ReservedSpaceView& rs, const char* name, CodeBlobType code_blob_type) {
   // Check if heap is needed
   if (!heap_available(code_blob_type)) {
     return;

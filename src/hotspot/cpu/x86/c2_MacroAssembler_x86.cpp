@@ -1129,8 +1129,10 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
     // Release lock.
     movptr(Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(owner)), NULL_WORD);
 
-    // Fence
-    lock(); addl(Address(rsp, 0), 0);
+    if (!HandshakeInsteadOfFence) {
+      // Fence
+      lock(); addl(Address(rsp, 0), 0);
+    }
 
     // Check if the entry lists are empty.
     movptr(reg_rax, Address(monitor, OM_OFFSET_NO_MONITOR_VALUE_TAG(cxq)));

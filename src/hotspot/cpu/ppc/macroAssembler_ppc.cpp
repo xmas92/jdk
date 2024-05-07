@@ -2685,7 +2685,9 @@ void MacroAssembler::compiler_fast_unlock_lightweight_object(ConditionRegister f
     li(t, 0);
     std(t, in_bytes(ObjectMonitor::owner_offset()), monitor);
 
-    fence();
+    if (!HandshakeInsteadOfFence) {
+      fence();
+    }
 
     const Register t2 = tmp2;
 

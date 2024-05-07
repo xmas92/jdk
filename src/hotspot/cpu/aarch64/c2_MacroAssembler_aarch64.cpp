@@ -446,7 +446,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register t1, Regis
     // Release to satisfy the JMM
     stlr(zr, t2_owner_addr);
 
-    membar(StoreLoad);
+    if (!HandshakeInsteadOfFence) {
+      membar(StoreLoad);
+    }
 
     // Check if the entry lists are empty.
     ldr(rscratch1, Address(t1_monitor, ObjectMonitor::EntryList_offset()));

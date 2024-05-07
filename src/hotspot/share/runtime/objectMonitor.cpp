@@ -41,6 +41,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/handles.inline.hpp"
+#include "runtime/handshake.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.inline.hpp"
 #include "runtime/mutexLocker.hpp"
@@ -52,6 +53,7 @@
 #include "runtime/safefetch.hpp"
 #include "runtime/safepointMechanism.inline.hpp"
 #include "runtime/sharedRuntime.hpp"
+#include "runtime/threadSMR.hpp"
 #include "services/threadService.hpp"
 #include "utilities/dtrace.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -519,11 +521,42 @@ bool ObjectMonitor::enter(JavaThread* current) {
   return true;
 }
 
+class ObjectMonitor::InterferenceTracker {
+  void* _last_owner;
+  bool _interference_observed;
+
+public:
+  InterferenceTracker() : _last_owner(nullptr), _interference_observed(false) {}
+
+  void reset(ObjectMonitor* monitor) {
+    _last_owner = monitor->owner_raw();
+    _interference_observed = _last_owner == nullptr || _last_owner == DEFLATER_MARKER;;
+  }
+
+  void observe(void* owner) {
+    if (!_interference_observed) {
+      assert (_last_owner != nullptr, "must be");
+      assert (_last_owner != DEFLATER_MARKER, "must be");
+      if (_last_owner == anon_owner_ptr()) {
+        _interference_observed = owner == nullptr || owner == DEFLATER_MARKER;
+      } else {
+        _interference_observed = owner == nullptr || owner == DEFLATER_MARKER || owner != _last_owner;
+      }
+      _last_owner = owner;
+    }
+  }
+
+  bool observed() const { return _interference_observed; }
+};
+
 // Caveat: TryLock() is not necessarily serializing if it returns failure.
 // Callers must compensate as needed.
 
-ObjectMonitor::TryLockResult ObjectMonitor::TryLock(JavaThread* current) {
+ObjectMonitor::TryLockResult ObjectMonitor::TryLock(JavaThread* current, InterferenceTracker* interference_tracker) {
   void* own = owner_raw();
+  if (interference_tracker != nullptr) {
+    interference_tracker->observe(own);
+  }
   if (own != nullptr) return TryLockResult::HasOwner;
   if (try_set_owner_from(nullptr, current) == nullptr) {
     assert(_recursions == 0, "invariant");
@@ -706,6 +739,13 @@ const char* ObjectMonitor::is_busy_to_string(stringStream* ss) {
 
 #define MAX_RECHECK_INTERVAL 1000
 
+template<typename T>
+struct AvoidStrandingClosure : public HandshakeClosure {
+  T& _f;
+  AvoidStrandingClosure(T& f) : HandshakeClosure("AvoidStrandingClosure"), _f(f) {}
+  void do_thread(Thread* thread) final { _f(thread); }
+};
+
 void ObjectMonitor::EnterI(JavaThread* current) {
   assert(current->thread_state() == _thread_blocked, "invariant");
 
@@ -744,7 +784,7 @@ void ObjectMonitor::EnterI(JavaThread* current) {
   // to the owner.  This has subtle but beneficial affinity
   // effects.
 
-  if (TrySpin(current)) {
+  if (!HandshakeInsteadOfFence && TrySpin(current)) {
     assert(owner_raw() == current, "invariant");
     assert(_succ != current, "invariant");
     assert(_Responsible != current, "invariant");
@@ -812,6 +852,16 @@ void ObjectMonitor::EnterI(JavaThread* current) {
   // timer scalability issues we see on some platforms as we'd only have one thread
   // -- the checker -- parked on a timer.
 
+  InterferenceTracker interference_tracker;
+  if (HandshakeInsteadOfFence) {
+    if (TrySpin(current, &interference_tracker)) {
+      assert(owner_raw() == current, "invariant");
+      UnlinkAfterAcquire(current, &node);
+      if (_succ == current) _succ = nullptr;
+      return;
+    }
+  }
+
   if (nxt == nullptr && _EntryList == nullptr X86_ONLY(&& LockingMode != LM_LIGHTWEIGHT)
       AARCH64_ONLY(&& LockingMode != LM_LIGHTWEIGHT) RISCV_ONLY(&& LockingMode != LM_LIGHTWEIGHT)
       PPC64_ONLY(&& LockingMode != LM_LIGHTWEIGHT)) {
@@ -847,6 +897,44 @@ void ObjectMonitor::EnterI(JavaThread* current) {
       break;
     }
     assert(owner_raw() != current, "invariant");
+
+    if (HandshakeInsteadOfFence && !interference_tracker.observed()) {
+      struct TransitionVMFromBlockedSpecial {
+        JavaThread* _current;
+        TransitionVMFromBlockedSpecial(JavaThread* current) : _current(current) {
+          _current->set_thread_state_fence(_thread_in_vm);
+          if (SafepointMechanism::should_process(_current, false)) {
+            SafepointMechanism::process_if_requested(_current, false, false );
+          }
+        }
+        ~TransitionVMFromBlockedSpecial() {
+          ThreadStateTransition::transition_from_vm(_current, _thread_blocked);
+        }
+      } tvfbs{current};
+
+      void* const owner = try_set_owner_from(nullptr, current);
+      assert(owner != DEFLATER_MARKER, "should not be possible");
+      if (owner == nullptr) {
+        break;
+      }
+      auto f = [&](Thread* thread) {
+        TryLock(current);
+      };
+      AvoidStrandingClosure<decltype(f)> c{f};
+      if (owner == anon_owner_ptr()) {
+        Handshake::execute(&c);
+      } else {
+        ThreadsListHandle tlh(current);
+        JavaThread* target = reinterpret_cast<JavaThread*>(owner);
+        Handshake::execute(&c, target);
+      }
+      if (owner_raw() == current) {
+        break;
+      }
+      if (TryLock(current) == TryLockResult::Success) {
+        break;
+      }
+    }
 
     // park self
     if (_Responsible == current) {
@@ -895,7 +983,7 @@ void ObjectMonitor::EnterI(JavaThread* current) {
     // We can defer clearing _succ until after the spin completes
     // TrySpin() must tolerate being called with _succ == current.
     // Try yet another round of adaptive spinning.
-    if (TrySpin(current)) {
+    if (TrySpin(current, &interference_tracker)) {
       break;
     }
 
@@ -1924,9 +2012,9 @@ inline static int adjust_down(int spin_duration) {
   }
 }
 
-bool ObjectMonitor::short_fixed_spin(JavaThread* current, int spin_count, bool adapt) {
+bool ObjectMonitor::short_fixed_spin(JavaThread* current, int spin_count, bool adapt, InterferenceTracker* interference_tracker) {
   for (int ctr = 0; ctr < spin_count; ctr++) {
-    TryLockResult status = TryLock(current);
+    TryLockResult status = TryLock(current, interference_tracker);
     if (status == TryLockResult::Success) {
       if (adapt) {
         _SpinDuration = adjust_up(_SpinDuration);
@@ -1941,12 +2029,16 @@ bool ObjectMonitor::short_fixed_spin(JavaThread* current, int spin_count, bool a
 }
 
 // Spinning: Fixed frequency (100%), vary duration
-bool ObjectMonitor::TrySpin(JavaThread* current) {
+bool ObjectMonitor::TrySpin(JavaThread* current, InterferenceTracker* interference_tracker) {
+
+  if (interference_tracker != nullptr) {
+    interference_tracker->reset(this);
+  }
 
   // Dumb, brutal spin.  Good for comparative measurements against adaptive spinning.
   int knob_fixed_spin = Knob_FixedSpin;  // 0 (don't spin: default), 2000 good test
   if (knob_fixed_spin > 0) {
-    return short_fixed_spin(current, knob_fixed_spin, false);
+    return short_fixed_spin(current, knob_fixed_spin, false, interference_tracker);
   }
 
   // Admission control - verify preconditions for spinning
@@ -1957,7 +2049,7 @@ bool ObjectMonitor::TrySpin(JavaThread* current) {
   // modality changed.
 
   int knob_pre_spin = Knob_PreSpin; // 10 (default), 100, 1000 or 2000
-  if (short_fixed_spin(current, knob_pre_spin, true)) {
+  if (short_fixed_spin(current, knob_pre_spin, true, interference_tracker)) {
     return true;
   }
 

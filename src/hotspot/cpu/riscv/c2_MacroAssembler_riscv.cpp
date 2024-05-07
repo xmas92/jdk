@@ -486,7 +486,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register tmp1, Reg
     membar(MacroAssembler::LoadStore | MacroAssembler::StoreStore);
     sd(zr, Address(tmp2_owner_addr));
 
-    membar(StoreLoad);
+    if (!HandshakeInsteadOfFence) {
+      membar(StoreLoad);
+    }
 
     // Check if the entry lists are empty.
     ld(t0, Address(tmp1_monitor, ObjectMonitor::EntryList_offset()));

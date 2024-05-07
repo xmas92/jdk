@@ -355,13 +355,15 @@ private:
   void      ReenterI(JavaThread* current, ObjectWaiter* current_node);
   void      UnlinkAfterAcquire(JavaThread* current, ObjectWaiter* current_node);
 
+  class InterferenceTracker;
 
   enum class TryLockResult { Interference = -1, HasOwner = 0, Success = 1 };
 
-  TryLockResult  TryLock(JavaThread* current);
+  TryLockResult  TryLock(JavaThread* current, InterferenceTracker* interference_tracker = nullptr);
 
-  bool      TrySpin(JavaThread* current);
-  bool      short_fixed_spin(JavaThread* current, int spin_count, bool adapt);
+  bool      TrySpin(JavaThread* current, InterferenceTracker* interference_tracker = nullptr);
+  bool      short_fixed_spin(JavaThread* current, int spin_count, bool adapt,
+                             InterferenceTracker* interference_tracker = nullptr);
   void      ExitEpilog(JavaThread* current, ObjectWaiter* Wakee);
 
   // Deflation support

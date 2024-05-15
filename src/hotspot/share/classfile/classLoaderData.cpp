@@ -1122,7 +1122,7 @@ void ClassLoaderData::print_on(outputStream* out) const {
     out->print_cr("");
   }
   if (!_unloading) {
-    out->print_cr(" - class loader        " INTPTR_FORMAT, p2i(_class_loader.peek()));
+    out->print_cr(" - class loader        " INTPTR_FORMAT, p2i(class_loader_no_keepalive()));
   } else {
     out->print_cr(" - class loader        <unloading, oop is bad>");
   }

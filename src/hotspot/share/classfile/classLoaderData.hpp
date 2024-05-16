@@ -319,6 +319,7 @@ public:
     DependencyListEntryHandle();
     DependencyListEntryHandle(objArrayHandle entry, Handle dependency);
   public:
+    static constexpr int _number_list_entries = 32;
     static DependencyListEntryHandle create_from_entry_handle(OopHandle entry_h);
     static objArrayOop create_entry(Handle dependency, TRAPS);
     static DependencyListEntryHandle create_dependency_entry_handle(Handle dependency, TRAPS);

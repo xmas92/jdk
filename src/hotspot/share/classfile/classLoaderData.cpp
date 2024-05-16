@@ -77,6 +77,7 @@
 #include "runtime/globals.hpp"
 #include "runtime/handles.hpp"
 #include "runtime/handles.inline.hpp"
+#include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/mutex.hpp"
 #include "runtime/safepoint.hpp"
 #include "utilities/debug.hpp"
@@ -429,8 +430,7 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
   // Store list head if empty
   if (cursor == nullptr) {
     if (list_entry == nullptr) {
-      list_entry = oopFactory::new_objectArray(2, CHECK);
-      list_entry->obj_at_put(0, dependency());
+      list_entry = DependencyListEntryHandle::create_entry(dependency, CHECK);
     }
     do {
       // TODO[Axel]: Use load to load cursor instead of cmpxchg.
@@ -451,31 +451,48 @@ void ClassLoaderData::add_dependency_impl(HeadLoad head_load, HeadReplaceIfNull 
     // Find dependency or end of list
     objArrayOop next = cursor;
     do {
-      if (cursor->obj_at(0) == dependency()) {
-        // Already contained
-        return;
+      for (int i = 0; i < DependencyListEntryHandle::_number_list_entries; i++) {
+        oop entry = cursor->obj_at(i);
+        if (entry == dependency()) {
+          // Already contained
+          return;
+        } else if (entry == nullptr &&
+                   cursor->replace_if_null(i, dependency()) == nullptr) {
+          // Inserted
+          return;
+        }
       }
-      assert(cursor->obj_at(0) != nullptr, "null dependency found");
       // Advance the cursor
       cursor = next;
-      next = (objArrayOop)cursor->obj_at(1);
+      next = (objArrayOop)cursor->obj_at(DependencyListEntryHandle::_number_list_entries);
     } while (next != nullptr);
 
     // Allocate list entry
     if (list_entry == nullptr) {
       HandleMark handlemark(THREAD);
       objArrayHandle cursor_h = objArrayHandle(THREAD, cursor);
-      list_entry = oopFactory::new_objectArray(2, CHECK);
-      list_entry->obj_at_put(0, dependency());
+      list_entry = DependencyListEntryHandle::create_entry(dependency, CHECK);
       cursor = cursor_h();
     }
 
-    if (nullptr == cursor->replace_if_null(1, list_entry) &&
-        cursor->obj_at(1) == list_entry) {
+    if (nullptr == cursor->replace_if_null(DependencyListEntryHandle::_number_list_entries, list_entry)) {
+      assert(cursor->obj_at(DependencyListEntryHandle::_number_list_entries) == list_entry, "must be");
       if (trace) {
         trace_dependency(dependency);
       }
       return;
+    }
+
+    if (THREAD != nullptr && SafepointMechanism::should_process(THREAD)) {
+      // Honor the safepoint.
+      HandleMark handlemark(THREAD);
+      objArrayHandle cursor_h = objArrayHandle(THREAD, cursor);
+      objArrayHandle list_entry_h = objArrayHandle(THREAD, list_entry);
+      {
+        ThreadBlockInVM tbivm(THREAD);
+      }
+      cursor = cursor_h();
+      list_entry = list_entry_h();
     }
   }
 }
@@ -509,7 +526,7 @@ ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryH
   oop entry_oop = entry_h.resolve();
   assert(entry_oop->is_objArray(), "must be");
   objArrayOop entry = (objArrayOop)entry_oop;
-  assert(entry->length() == 2, "must be");
+  assert(entry->length() == _number_list_entries + 1, "must be");
   oop dependency = entry->obj_at(0);
   assert(dependency != nullptr, "must be");
 
@@ -518,7 +535,7 @@ ClassLoaderData::DependencyListEntryHandle ClassLoaderData::DependencyListEntryH
 
 objArrayOop ClassLoaderData::DependencyListEntryHandle::create_entry(Handle dependency, TRAPS) {
   precond(dependency() != nullptr);
-  objArrayOop entry = oopFactory::new_objectArray(2, CHECK_NULL);
+  objArrayOop entry = oopFactory::new_objectArray(_number_list_entries + 1, CHECK_NULL);
   entry->obj_at_put(0, dependency());
   return entry;
 }

@@ -576,9 +576,16 @@ void Universe::fixup_mirrors(TRAPS) {
     Klass* k = list->at(i);
     assert(k->is_klass(), "List should only hold classes");
     java_lang_Class::fixup_mirror(k, CATCH);
+#if INCLUDE_CDS
+    java_lang_Class::fixup_resolved_references(i, k);
+#endif
   }
   delete java_lang_Class::fixup_mirror_list();
   java_lang_Class::set_fixup_mirror_list(nullptr);
+#if INCLUDE_CDS
+  delete java_lang_Class::fixup_resolved_references_list();
+  java_lang_Class::set_fixup_resolved_references_list(nullptr);
+#endif
 }
 
 #define assert_pll_locked(test) \

@@ -246,6 +246,9 @@ class java_lang_Class : AllStatic {
 
   static GrowableArray<Klass*>* _fixup_mirror_list;
   static GrowableArray<Klass*>* _fixup_module_field_list;
+#if INCLUDE_CDS
+  static GrowableArray<OopHandle>* _fixup_resolved_references_list;
+#endif
 
   static void set_init_lock(oop java_class, oop init_lock);
   static void set_protection_domain(oop java_class, oop protection_domain);
@@ -254,6 +257,10 @@ class java_lang_Class : AllStatic {
   static void initialize_mirror_fields(Klass* k, Handle mirror, Handle protection_domain,
                                        Handle classData, TRAPS);
   static void set_mirror_module_field(JavaThread* current, Klass* K, Handle mirror, Handle module);
+
+  static bool is_resolved_references_link(objArrayOop obj);
+  static objArrayOop create_resolved_references_link(Handle resolved_references, Handle next, TRAPS);
+  static void assert_resolved_references_mutual_exclusion(oop java_class, Thread* thread) NOT_DEBUG_RETURN;
  public:
   static void allocate_fixup_lists();
   static void compute_offsets();
@@ -321,10 +328,9 @@ class java_lang_Class : AllStatic {
   static void set_source_file(oop java_class, oop source_file);
 
   static oop resolved_references(oop java_class);
-  static void init_resolved_references(Handle java_class, Handle resolved_references, TRAPS);
+  static void init_resolved_references(oop java_class, oop resolved_references);
   static void add_resolved_references(Handle java_class, Handle resolved_references, TRAPS);
   static void remove_resolved_references(oop java_class, oop resolved_references);
-  static void shrink_resolved_references(Handle java_class, TRAPS);
 
   static objArrayOop dependency(oop java_class);
   static objArrayOop dependency_replace_if_null(oop java_class, objArrayOop dependency_entry);
@@ -350,6 +356,16 @@ class java_lang_Class : AllStatic {
   static void set_fixup_module_field_list(GrowableArray<Klass*>* v) {
     _fixup_module_field_list = v;
   }
+
+#if INCLUDE_CDS
+  static GrowableArray<OopHandle>* fixup_resolved_references_list() {
+    return _fixup_resolved_references_list;
+  }
+  static void set_fixup_resolved_references_list(GrowableArray<OopHandle>* v) {
+    _fixup_resolved_references_list = v;
+  }
+  static void fixup_resolved_references(int index, Klass* klass);
+#endif
 
   // Debugging
   friend class JavaClasses;

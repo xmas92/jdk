@@ -228,16 +228,17 @@ void ConstantPool::initialize_resolved_references(ClassLoaderData* loader_data,
     // Create Java array for holding resolved strings, methodHandles,
     // methodTypes, invokedynamic and invokehandle appendix objects, etc.
     objArrayOop stom = oopFactory::new_objArray(vmClasses::Object_klass(), map_length, CHECK);
-    HandleMark hm(THREAD);
     oop mirror = _pool_holder->resolved_reference_holder();
-    Handle resolved_references (THREAD, stom);
-    Handle java_class (THREAD, mirror);
     if (_pool_holder->has_redefined_from_class()) {
+      HandleMark hm(THREAD);
+      objArrayHandle resolved_references (THREAD, stom);
+      Handle java_class (THREAD, mirror);
       java_lang_Class::add_resolved_references(java_class, resolved_references, CHECK);
+      stom = resolved_references();
     } else {
-      java_lang_Class::init_resolved_references(java_class, resolved_references, CHECK);
+      java_lang_Class::init_resolved_references(mirror, stom);
     }
-    set_resolved_references(WeakHandle(Universe::vm_weak(), resolved_references));
+    set_resolved_references(WeakHandle(Universe::vm_weak(), stom));
 
     // Create a "scratch" copy of the resolved references array to archive
     if (CDSConfig::is_dumping_heap()) {
@@ -377,16 +378,15 @@ void ConstantPool::restore_unshareable_info(TRAPS) {
         _cache->archived_references() != nullptr) {
       oop archived = _cache->archived_references();
       // Create handle for the archived resolved reference array object
-      HandleMark hm(THREAD);
-      Handle resolved_references(THREAD, archived);
       if (_pool_holder->java_mirror() == nullptr) {
         // TODO[Axel]: Handle bootstrapping
-        OopHandle(Universe::vm_global(), archived);
+        OopHandle resolved_references = OopHandle(Universe::vm_global(), archived);
+        int index = java_lang_Class::fixup_mirror_list()->find_from_end(_pool_holder);
+        java_lang_Class::fixup_resolved_references_list()->at_put_grow(index, resolved_references);
       } else {
-        Handle java_class = Handle(THREAD, _pool_holder->java_mirror());
-        java_lang_Class::init_resolved_references(java_class, resolved_references, CHECK);
+        java_lang_Class::init_resolved_references(_pool_holder->java_mirror(), archived);
       }
-      set_resolved_references(WeakHandle(Universe::vm_weak(), resolved_references));
+      set_resolved_references(WeakHandle(Universe::vm_weak(), archived));
       _cache->clear_archived_references();
     } else
 #endif
@@ -396,16 +396,15 @@ void ConstantPool::restore_unshareable_info(TRAPS) {
       int map_length = resolved_reference_length();
       if (map_length > 0) {
         objArrayOop stom = oopFactory::new_objArray(vmClasses::Object_klass(), map_length, CHECK);
-        HandleMark hm(THREAD);
-        Handle resolved_references(THREAD, stom);  // must handleize.
         if (_pool_holder->java_mirror() == nullptr) {
           // TODO[Axel]: Handle bootstrapping
-          OopHandle(Universe::vm_global(), stom);
+        OopHandle resolved_references = OopHandle(Universe::vm_global(), stom);
+        int index = java_lang_Class::fixup_mirror_list()->find_from_end(_pool_holder);
+        java_lang_Class::fixup_resolved_references_list()->at_put_grow(index, resolved_references);
         } else {
-          Handle java_class = Handle(THREAD, _pool_holder->java_mirror());
-          java_lang_Class::init_resolved_references(java_class, resolved_references, CHECK);
+          java_lang_Class::init_resolved_references(_pool_holder->java_mirror(), stom);
         }
-        set_resolved_references(WeakHandle(Universe::vm_weak(), resolved_references));
+        set_resolved_references(WeakHandle(Universe::vm_weak(), stom));
       }
     }
   }

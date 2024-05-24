@@ -63,10 +63,12 @@
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oopCast.inline.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/oopHandle.hpp"
 #include "oops/symbol.hpp"
 #include "oops/recordComponent.hpp"
 #include "oops/typeArrayOop.inline.hpp"
 #include "prims/jvmtiExport.hpp"
+#include "prims/jvmtiThreadState.hpp"
 #include "prims/methodHandles.hpp"
 #include "prims/resolvedMethodTable.hpp"
 #include "runtime/continuationEntry.inline.hpp"
@@ -91,6 +93,7 @@
 #include "utilities/exceptions.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/growableArray.hpp"
+#include "utilities/macros.hpp"
 #include "utilities/preserveException.hpp"
 #include "utilities/utf8.hpp"
 #if INCLUDE_JVMCI
@@ -824,6 +827,9 @@ int java_lang_Class::_classRedefinedCount_offset;
 bool java_lang_Class::_offsets_computed = false;
 GrowableArray<Klass*>* java_lang_Class::_fixup_mirror_list = nullptr;
 GrowableArray<Klass*>* java_lang_Class::_fixup_module_field_list = nullptr;
+#if INCLUDE_CDS
+GrowableArray<OopHandle>* java_lang_Class::_fixup_resolved_references_list = nullptr;
+#endif
 
 #ifdef ASSERT
 inline static void assert_valid_static_string_field(fieldDescriptor* fd) {
@@ -933,6 +939,18 @@ void java_lang_Class::fixup_mirror(Klass* k, TRAPS) {
   create_mirror(k, Handle(), Handle(), Handle(), Handle(), CHECK);
 }
 
+#if INCLUDE_CDS
+void java_lang_Class::fixup_resolved_references(int index, Klass *klass) {
+  if (index < _fixup_resolved_references_list->length()) {
+    OopHandle& resolved_references = _fixup_resolved_references_list->at(index);
+    if (!resolved_references.is_empty()) {
+      init_resolved_references(klass->java_mirror(), resolved_references.resolve());
+      resolved_references.release(Universe::vm_global());
+    }
+  }
+}
+#endif
+
 void java_lang_Class::initialize_mirror_fields(Klass* k,
                                                Handle mirror,
                                                Handle protection_domain,
@@ -1002,6 +1020,12 @@ void java_lang_Class::allocate_fixup_lists() {
   GrowableArray<Klass*>* module_list =
     new (mtModule) GrowableArray<Klass*>(500, mtModule);
   set_fixup_module_field_list(module_list);
+
+#if INCLUDE_CDS
+  GrowableArray<OopHandle>* resolved_references_list =
+    new (mtModule) GrowableArray<OopHandle>(40, mtClass);
+  set_fixup_resolved_references_list(resolved_references_list);
+#endif
 }
 
 void java_lang_Class::allocate_mirror(Klass* k, bool is_scratch, Handle protection_domain, Handle classData,
@@ -1313,54 +1337,175 @@ oop java_lang_Class::resolved_references(oop java_class) {
   return java_class->obj_field(_resolved_references_offset);
 }
 
-void java_lang_Class::init_resolved_references(Handle java_class, Handle resolved_references, TRAPS) {
+bool java_lang_Class::is_resolved_references_link(objArrayOop obj) {
+  // links are objArrays with size 3 where the first element is a self link to
+  // identify that it is a link, the second is the resolved reference, and the
+  // third is the next link. The self link will never occur in a normal resolved
+  // reference array.
+  const int link_size = 3;
+  return obj->length() != link_size || obj->obj_at(0) != obj;
+}
+
+objArrayOop java_lang_Class::create_resolved_references_link(Handle resolved_references, Handle next, TRAPS) {
+  const int link_size = 3;
+  objArrayOop link = oopFactory::new_objArray(vmClasses::Object_klass(), link_size, CHECK_NULL);
+  // Self link as an identifier.
+  link->obj_at_put(0, link);
+  link->obj_at_put(1, resolved_references());
+  link->obj_at_put(2, next());
+  return link;
+}
+
+#ifdef ASSERT
+void java_lang_Class::assert_resolved_references_mutual_exclusion(oop java_class, Thread* thread) {
+  if (SafepointSynchronize::is_at_safepoint()) {
+    assert(thread == Thread::current(), "must be");
+    assert(thread->is_VM_thread(), "must be");
+    return;
+  }
+
+  assert(thread == JavaThread::current(), "must be");
+  InstanceKlass* klass = InstanceKlass::cast(as_Klass(java_class));
+  if (klass->is_init_thread(JavaThread::cast(thread))) {
+#if INCLUDE_JVMTI
+    if (klass->is_being_redefined()) {
+      // The class can be redefined before the init thread is cleared.
+      assert(klass->is_linked() || klass->is_being_linked(), "must be %u", klass->init_state());
+    } else
+#endif
+    {
+      // Currently being linked by thread.
+      assert(klass->is_being_linked(), "must be %u", klass->init_state());
+      return;
+    }
+  }
+
+#if INCLUDE_CDS
+  if (klass->is_shared()) {
+    // CDS is restoring shared classes
+    // TODO[Axel]: This whole thing is a little iffy.
+    //             Cannot really check !klass->is_unshareable_info_restored()
+    //             because we seem to do this after.
+    //             Universe::is_bootstrapping() can handle the very early
+    //             loading. Which hopefully is alright. I do not know what
+    //             keeps ConstantPool::restore_unshareable_info() exclusive
+    //             from other updates. But it seems (to me) like CDS cannot
+    //             work if we were able to redefine shared classes before
+    //             they have restored their unshareable info.
+    return;
+  }
+#endif
+
+#if INCLUDE_JVMTI
+  if (klass->is_being_redefined()) {
+    assert(thread->is_Java_thread(), "must be");
+    JvmtiThreadState *state = JavaThread::cast(thread)->jvmti_thread_state();
+    assert(state != nullptr, "Current thread is not redefining");
+    GrowableArray<Klass*>* klasses = state->get_classes_being_redefined();
+    if (klasses != nullptr && klasses->contains(klass)) {
+      // Currently being redefined by thread.
+      return;
+    }
+    fatal("Current thread is not redefining");
+  }
+#endif
+
+  ShouldNotReachHere();
+}
+#endif
+
+void java_lang_Class::init_resolved_references(oop java_class, oop resolved_references) {
   assert(_resolved_references_offset != 0, "must be set");
+  assert(is_instance(java_class), "must be Class instance");
+  assert_resolved_references_mutual_exclusion(java_class, Thread::current());
   assert(java_class->obj_field(_resolved_references_offset) == nullptr, "only initialize once");
-  objArrayOop resolved_references_array = oopFactory::new_objArray(vmClasses::Object_klass(), 1, CHECK);
-  resolved_references_array->obj_at_put(0, resolved_references());
-  java_class->obj_field_put(_resolved_references_offset, (oop)resolved_references_array);
+  java_class->obj_field_put(_resolved_references_offset, resolved_references);
 }
 
 void java_lang_Class::add_resolved_references(Handle java_class, Handle resolved_references, TRAPS) {
   assert(_resolved_references_offset != 0, "must be set");
-  objArrayHandle resolved_references_array = objArrayHandle(THREAD, (objArrayOop)java_class->obj_field(_resolved_references_offset));
-  const bool old_exists = !resolved_references_array.is_null();
-  const int old_size = old_exists ? resolved_references_array->length() : 0;
-  const int new_size = old_size + 1;
-  assert(new_size > 0, "overflow");
-  objArrayOop new_resolved_references_array = oopFactory::new_objArray(vmClasses::Object_klass(), new_size, CHECK);
-  if (old_exists) {
-    ArrayAccess<>::oop_arraycopy(resolved_references_array(), objArrayOopDesc::base_offset_in_bytes(), new_resolved_references_array, objArrayOopDesc::base_offset_in_bytes(), old_size);
+  assert(is_instance(java_class()), "must be Class instance");
+  assert_resolved_references_mutual_exclusion(java_class(), THREAD);
+
+  objArrayOop next = cast_from_oop<objArrayOop>(java_class->obj_field(_resolved_references_offset));
+  if (next == nullptr) {
+    return init_resolved_references(java_class(), resolved_references());
   }
-  new_resolved_references_array->obj_at_put(old_size, resolved_references());
-  java_class->obj_field_put(_resolved_references_offset, (oop)new_resolved_references_array);
+
+  assert(next->is_objArray(), "must be either link or resolved references");
+  if (!is_resolved_references_link(next)) {
+    // Only one resolved references, transform to link.
+    Handle next_h = Handle(THREAD, next);
+    next = create_resolved_references_link(next_h, {}, CHECK);
+  }
+
+  Handle next_h = Handle(THREAD, next);
+  oop new_link = create_resolved_references_link(resolved_references, next_h, CHECK);
+  java_class->obj_field_put(_resolved_references_offset, new_link);
 }
 
 void java_lang_Class::remove_resolved_references(oop java_class, oop resolved_references) {
   assert(_resolved_references_offset != 0, "must be set");
-  objArrayOop resolved_references_array = (objArrayOop)java_class->obj_field(_resolved_references_offset);
-  int i = 0;
-  while (i < resolved_references_array->length()) {
-    if (resolved_references == resolved_references_array->obj_at(i)) {
-      resolved_references_array->obj_at_put(i, (oop)nullptr);
+  assert_resolved_references_mutual_exclusion(java_class, Thread::current());
+  objArrayOop next = cast_from_oop<objArrayOop>(java_class->obj_field(_resolved_references_offset));
+  if (next == nullptr) {
+    // No resolved references.
+    return;
+  }
+
+  assert(next->is_objArray(), "must be either link or resolved references");
+  if (!is_resolved_references_link(next)) {
+    // Only one resolved references.
+    if (next == resolved_references) {
+      // Remove the resolved references.
+      java_class->obj_field_put(_resolved_references_offset, nullptr);
+    }
+    return;
+  }
+
+  objArrayOop prev = nullptr;
+  const int resolved_references_index = 1;
+  const int next_index = 2;
+  do {
+    assert(next->is_objArray() && is_resolved_references_link(next), "should only encounter links");
+    if (next->obj_at(resolved_references_index) == resolved_references) {
+      // Found link.
+      objArrayOop new_next = cast_from_oop<objArrayOop>(next->obj_at(next_index));
+      assert(new_next == nullptr || (new_next->is_objArray() && is_resolved_references_link(new_next)), "should only encounter links");
+      if (prev == nullptr) {
+        // Replacing head.
+        if (new_next != nullptr && new_next->obj_at(next_index) == nullptr) {
+          // Removing second to last resolved_references, transform back from link.
+          java_class->obj_field_put(_resolved_references_offset, new_next->obj_at(resolved_references_index));
+        } else {
+          // Unlink head.
+          java_class->obj_field_put(_resolved_references_offset, new_next);
+        }
+      } else {
+        if (new_next != nullptr && prev == java_class->obj_field(_resolved_references_offset)) {
+          // Removing second to last resolved_references, transform back from link.
+          java_class->obj_field_put(_resolved_references_offset, prev->obj_at(resolved_references_index));
+        } else {
+          // Unlink link.
+          prev->obj_at_put(next_index, new_next);
+        }
+      }
+      DEBUG_ONLY(next = new_next;)
       break;
     }
-    ++i;
-  }
+
+    // Advance.
+    prev = next;
+    next = cast_from_oop<objArrayOop>(next->obj_at(next_index));
+  } while (next != nullptr);
+
 #ifdef ASSERT
-  while (i < resolved_references_array->length()) {
-    assert(resolved_references != resolved_references_array->obj_at(i), "only one entry");
-    ++i;
+  while (next != nullptr) {
+    assert(next->is_objArray() && is_resolved_references_link(next), "should only encounter links");
+    assert(next->obj_at(resolved_references_index) == resolved_references, "no duplicates");
+    next = cast_from_oop<objArrayOop>(next->obj_at(next_index));
   }
 #endif
-}
-
-void java_lang_Class::shrink_resolved_references(Handle java_class, TRAPS) {
-  assert(_resolved_references_offset != 0, "must be set");
-  assert(java_class->obj_field(_resolved_references_offset) != nullptr, "must be initialized");
-  // TODO[AXEL]: Figure out when to remove cleared resolved_references, could be done lazily in add
-  //             as well, but still need a final cleaning after previous versions gets cleaned out.
-  //             But requires heap allocations.
 }
 
 objArrayOop java_lang_Class::dependency(oop java_class) {

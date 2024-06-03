@@ -200,6 +200,7 @@ oop ResolvedMethodTable::add_method(const Method* method, Handle rmethod_name) {
     if (_local_table->get(thread, lookup, rmg)) {
       return rmg.get_res_oop();
     }
+    // assert(_oop_storage->allocation_count() < 50'000, "crash");
     WeakHandle wh(_oop_storage, rmethod_name);
     // The hash table takes ownership of the WeakHandle, even if it's not inserted.
     if (_local_table->insert(thread, lookup, wh)) {

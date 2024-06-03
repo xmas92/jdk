@@ -1313,6 +1313,7 @@ void Threads::print_on(outputStream* st, bool print_stacks,
   // Dump concurrent locks
   ConcurrentLocksDump concurrent_locks;
   if (print_concurrent_locks) {
+    st->print_cr("With concurrent_locks");
     concurrent_locks.dump_at_safepoint();
   }
 #endif // INCLUDE_SERVICES

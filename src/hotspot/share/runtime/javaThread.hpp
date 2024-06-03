@@ -598,6 +598,7 @@ private:
 
   // Continuation support
   ContinuationEntry* last_continuation() const { return _cont_entry; }
+  void set_last_continuation(ContinuationEntry* entry) {  _cont_entry = entry; }
   void set_cont_fastpath(intptr_t* x)          { _cont_fastpath = x; }
   void push_cont_fastpath(intptr_t* sp)        { if (sp > _cont_fastpath) _cont_fastpath = sp; }
   void set_cont_fastpath_thread_state(bool x)  { _cont_fastpath_thread_state = (int)x; }

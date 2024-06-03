@@ -44,6 +44,7 @@
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
+#include "runtime/continuationEntry.hpp"
 #include "runtime/continuationWrapper.inline.hpp"
 #include "runtime/frame.inline.hpp"
 #include "runtime/handles.inline.hpp"
@@ -1691,6 +1692,9 @@ public:
   // writes HPROF_GC_ROOT_THREAD_OBJ subrecord
   void dump_thread_obj(AbstractDumpWriter* writer);
 
+  // writes HPROF_GC_ROOT_NATIVE_STACK
+  void dump_native_thread_handles(AbstractDumpWriter* writer);
+
   // Walk the stack of the thread.
   // Dumps a HPROF_GC_ROOT_JAVA_FRAME subrecord for each local
   // Dumps a HPROF_GC_ROOT_JNI_LOCAL subrecord for each JNI local
@@ -1779,6 +1783,39 @@ void ThreadDumper::dump_thread_obj(AbstractDumpWriter * writer) {
   writer->write_u4(thread_serial_num());      // thread serial number
   writer->write_u4(stack_trace_serial_num()); // stack trace serial number
   writer->end_sub_record();
+}
+
+void ThreadDumper::dump_native_thread_handles(AbstractDumpWriter * writer) {
+  assert(_thread_serial_num != 0 && _start_frame_serial_num != 0, "serial_num is not initialized");
+  class NativeThreadHandleDumper : public OopClosure, public NMethodClosure {
+    AbstractDumpWriter* _writer;
+    u4 _thread_serial_num;
+  public:
+    NativeThreadHandleDumper(AbstractDumpWriter* writer, u4 thread_serial_num) :
+      _writer(writer), _thread_serial_num(thread_serial_num) {}
+    void do_nmethod(nmethod* cb) {}
+    void do_oop(oop* obj_p) {
+      oop o = *obj_p;
+      if (o != nullptr) {
+        u4 size = 1 + sizeof(address) + 4;
+        _writer->start_sub_record(HPROF_GC_ROOT_NATIVE_STACK, size);
+        _writer->write_objectID(o);
+        _writer->write_u4(_thread_serial_num);
+        _writer->end_sub_record();
+      }
+    }
+    void do_oop(narrowOop* obj_p) { ShouldNotReachHere(); }
+  } dumper(writer, thread_serial_num());
+  if (_java_thread != nullptr) {
+    // Avoid doing register active_handles and cont entires as two different gc roots
+    JNIHandleBlock* active_handles = _java_thread->active_handles();
+    ContinuationEntry* cont_entry = _java_thread->last_continuation();
+    _java_thread->set_active_handles(nullptr);
+    _java_thread->set_last_continuation(nullptr);
+    _java_thread->oops_do_no_frames(&dumper, &dumper);
+    _java_thread->set_last_continuation(cont_entry);
+    _java_thread->set_active_handles(active_handles);
+  }
 }
 
 void ThreadDumper::dump_stack_refs(AbstractDumpWriter * writer) {
@@ -2338,6 +2375,7 @@ void VM_HeapDumper::do_load_class(Klass* k) {
 void VM_HeapDumper::dump_threads(AbstractDumpWriter* writer) {
   for (int i = 0; i < _thread_dumpers_count; i++) {
     _thread_dumpers[i]->dump_thread_obj(writer);
+    _thread_dumpers[i]->dump_native_thread_handles(writer);
     _thread_dumpers[i]->dump_stack_refs(writer);
   }
 }
@@ -2460,7 +2498,7 @@ void VM_HeapDumper::work(uint worker_id) {
     // write HPROF_LOAD_CLASS records
     {
       LockedClassesDo locked_load_classes(&do_load_class);
-      ClassLoaderDataGraph::classes_do(&locked_load_classes);
+      ClassLoaderDataGraph::classes_do_no_keepalive(&locked_load_classes);
     }
 
     // write HPROF_FRAME and HPROF_TRACE records
@@ -2483,7 +2521,7 @@ void VM_HeapDumper::work(uint worker_id) {
       TraceTime timer("Dump non-objects (part 2)", TRACETIME_LOG(Info, heapdump));
       // Writes HPROF_GC_CLASS_DUMP records
       ClassDumper class_dumper(&segment_writer);
-      ClassLoaderDataGraph::classes_do(&class_dumper);
+      ClassLoaderDataGraph::classes_do_no_keepalive(&class_dumper);
 
       // HPROF_GC_ROOT_THREAD_OBJ + frames + jni locals
       dump_threads(&segment_writer);

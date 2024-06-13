@@ -127,7 +127,7 @@ class SampleMarker {
   SampleMarker(ObjectSampleMarker& marker, jlong last_sweep) : _marker(marker), _last_sweep(last_sweep), _count(0) {}
   void sample_do(ObjectSample* sample) {
     if (sample->is_alive_and_older_than(_last_sweep)) {
-      _marker.mark(sample->object());
+      _marker.mark(sample->object_no_keep_alive());
       ++_count;
     }
   }
@@ -207,7 +207,7 @@ static bool stack_trace_precondition(const ObjectSample* sample) {
 
 static void add_to_leakp_set(const ObjectSample* sample) {
   assert(sample != nullptr, "invariant");
-  oop object = sample->object();
+  oop object = sample->object_no_keep_alive();
   if (object == nullptr) {
     return;
   }

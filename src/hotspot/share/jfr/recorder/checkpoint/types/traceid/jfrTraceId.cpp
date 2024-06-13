@@ -187,7 +187,7 @@ static traceid load_primitive(const oop mirror) {
 traceid JfrTraceId::load(jclass jc, bool raw /* false */) {
   assert(jc != nullptr, "invariant");
   assert(JavaThread::current()->thread_state() == _thread_in_vm, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   const Klass* const k = java_lang_Class::as_Klass(mirror);
   return k != nullptr ? (raw ? load_raw(k) : load(k)) : load_primitive(mirror);
@@ -234,42 +234,42 @@ void JfrTraceId::restore(const Klass* k) {
 bool JfrTraceId::in_visible_set(const jclass jc) {
   assert(jc != nullptr, "invariant");
   assert(JavaThread::current()->thread_state() == _thread_in_vm, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   return in_visible_set(java_lang_Class::as_Klass(mirror));
 }
 
 bool JfrTraceId::in_jdk_jfr_event_hierarchy(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   return in_jdk_jfr_event_hierarchy(java_lang_Class::as_Klass(mirror));
 }
 
 bool JfrTraceId::is_jdk_jfr_event_sub(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   return is_jdk_jfr_event_sub(java_lang_Class::as_Klass(mirror));
 }
 
 bool JfrTraceId::is_jdk_jfr_event(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   return is_jdk_jfr_event(java_lang_Class::as_Klass(mirror));
 }
 
 bool JfrTraceId::is_event_host(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   return is_event_host(java_lang_Class::as_Klass(mirror));
 }
 
 void JfrTraceId::tag_as_jdk_jfr_event_sub(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   const Klass* const k = java_lang_Class::as_Klass(mirror);
   tag_as_jdk_jfr_event_sub(k);
@@ -278,7 +278,7 @@ void JfrTraceId::tag_as_jdk_jfr_event_sub(const jclass jc) {
 
 void JfrTraceId::tag_as_event_host(const jclass jc) {
   assert(jc != nullptr, "invariant");
-  const oop mirror = JNIHandles::resolve(jc);
+  const oop mirror = JNIHandles::resolve_no_keepalive(jc);
   assert(mirror != nullptr, "invariant");
   const Klass* const k = java_lang_Class::as_Klass(mirror);
   tag_as_event_host(k);

@@ -139,7 +139,7 @@ void EventEmitter::write_event(const ObjectSample* sample, EdgeStore* edge_store
 
   const StoredEdge* const edge = edge_store->get(sample);
   assert(edge != nullptr, "invariant");
-  assert(edge->pointee() == sample->object(), "invariant");
+  assert(edge->pointee() == sample->object_no_keep_alive(), "invariant");
   const traceid object_id = edge_store->get_id(edge);
   assert(object_id != 0, "invariant");
   const traceid gc_root_id = edge->gc_root_id();

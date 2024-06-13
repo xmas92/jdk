@@ -39,6 +39,9 @@ bool LeakProfiler::is_running() {
 }
 
 bool LeakProfiler::start(int sample_count) {
+  if (UseNewCode) {
+    return false;
+  }
   if (is_running()) {
     return true;
   }

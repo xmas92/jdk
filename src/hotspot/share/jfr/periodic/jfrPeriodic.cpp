@@ -617,10 +617,14 @@ class JfrClassLoaderStatsVMOperation : public ClassLoaderStatsVMOperation {
  public:
   JfrClassLoaderStatsVMOperation() : ClassLoaderStatsVMOperation(nullptr) { }
 
-  void doit() {
+  void doit() override {
     JfrClassLoaderStatsClosure clsc;
     ClassLoaderDataGraph::loaded_cld_do_no_keepalive(&clsc);
     clsc.createEvents();
+  }
+
+  const char* name() const override {
+    return "JFR ClassLoaderStats";
   }
 };
 

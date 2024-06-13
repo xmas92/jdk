@@ -230,7 +230,7 @@ EdgeStore::~EdgeStore() {
 
 static int leak_context_edge_idx(const ObjectSample* sample) {
   assert(sample != nullptr, "invariant");
-  return static_cast<int>(sample->object()->mark().value()) >> markWord::lock_bits;
+  return static_cast<int>(sample->object_no_keep_alive()->mark().value()) >> markWord::lock_bits;
 }
 
 bool EdgeStore::has_leak_context(const ObjectSample* sample) const {

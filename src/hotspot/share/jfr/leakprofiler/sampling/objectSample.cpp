@@ -40,6 +40,10 @@ oop ObjectSample::object() const {
   return is_dead() ? nullptr :_object.resolve();
 }
 
+oop ObjectSample::object_no_keep_alive() const {
+  return is_dead() ? nullptr :_object.peek();
+}
+
 bool ObjectSample::is_dead() const {
   return _object.peek() == nullptr;
 }

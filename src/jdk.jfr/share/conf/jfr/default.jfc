@@ -23,7 +23,7 @@
     </event>
 
     <event name="jdk.ClassLoaderStatistics">
-      <setting name="enabled">true</setting>
+      <setting name="enabled">false</setting>
       <setting name="period">everyChunk</setting>
     </event>
 
@@ -216,7 +216,7 @@
     </event>
 
     <event name="jdk.ThreadDump">
-      <setting name="enabled" control="thread-dump-enabled">true</setting>
+      <setting name="enabled" control="thread-dump-enabled">false</setting>
       <setting name="period" control="thread-dump">everyChunk</setting>
     </event>
 

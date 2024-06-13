@@ -103,6 +103,7 @@ class ObjectSample : public JfrCHeapObj {
   bool is_dead() const;
 
   oop object() const;
+  oop object_no_keep_alive() const;
   void set_object(oop object);
 
   const oop* object_addr() const;

@@ -54,8 +54,10 @@ class JNIHandles : AllStatic {
 
   template <DecoratorSet decorators, bool external_guard> inline static oop resolve_impl(jobject handle);
 
+public:
   // Resolve handle into oop, without keeping the object alive
   inline static oop resolve_no_keepalive(jobject handle);
+private:
 
   // This method is not inlined in order to avoid circular includes between
   // this header file and thread.hpp.

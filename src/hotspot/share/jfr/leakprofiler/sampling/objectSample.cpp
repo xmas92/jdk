@@ -37,7 +37,7 @@ void ObjectSample::reset() {
 }
 
 oop ObjectSample::object() const {
-  return is_dead() ? nullptr :_object.peek();
+  return is_dead() ? nullptr :_object.resolve();
 }
 
 bool ObjectSample::is_dead() const {

@@ -48,7 +48,7 @@ template <typename Delegate>
 void RootSetClosure<Delegate>::do_oop(oop* ref) {
   assert(ref != nullptr, "invariant");
   assert(is_aligned(ref, HeapWordSize), "invariant");
-  if (NativeAccess<AS_NO_KEEPALIVE>::oop_load(ref) != nullptr) {
+  if (NativeAccess<>::oop_load(ref) != nullptr) {
     _delegate->do_root(UnifiedOopRef::encode_in_native(ref));
   }
 }

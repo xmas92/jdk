@@ -1366,16 +1366,16 @@ void java_lang_Class::assert_resolved_references_mutual_exclusion(oop java_class
 
   assert(thread == JavaThread::current(), "must be");
   InstanceKlass* klass = InstanceKlass::cast(as_Klass(java_class));
-  if (klass->is_init_thread(JavaThread::cast(thread))) {
+  if (klass->is_reentrant_initialization(thread)) {
 #if INCLUDE_JVMTI
     if (klass->is_being_redefined()) {
       // The class can be redefined before the init thread is cleared.
-      assert(klass->is_linked() || klass->is_being_linked(), "must be %u", klass->init_state());
+      assert(klass->is_linked() || klass->is_linked(), "must be %u", klass->init_state());
     } else
 #endif
     {
       // Currently being linked by thread.
-      assert(klass->is_being_linked(), "must be %u", klass->init_state());
+      assert(klass->is_linked(), "must be %u", klass->init_state());
       return;
     }
   }

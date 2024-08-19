@@ -620,7 +620,7 @@ void ClassLoaderData::initialize_holder(Handle loader_or_mirror) {
     assert(_holder.is_null(), "never replace holders");
     _holder = WeakHandle(Universe::vm_weak(), loader_or_mirror);
     NativeAccess<>::oop_store(&_holder_oop, loader_or_mirror());
-    if (keep_alive() && has_class_mirror_holder()) {
+    if (keep_alive_ref_count() > 0 && has_class_mirror_holder()) {
       assert(java_lang_Class::is_instance(loader_or_mirror()), "must be class holder");
       _keep_alive_holder = OopHandle(Universe::vm_global(), loader_or_mirror());
     }

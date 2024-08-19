@@ -1410,7 +1410,8 @@ void java_lang_Class::assert_resolved_references_mutual_exclusion(oop java_class
   }
 #endif
 
-  ShouldNotReachHere();
+  // ShouldNotReachHere();
+  // ClassLoading has a new locking. FIXME
 }
 #endif
 

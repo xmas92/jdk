@@ -82,17 +82,9 @@ markWord oopDesc::cas_set_mark(markWord new_mark, markWord old_mark, atomic_memo
   return Atomic::cmpxchg(&_mark, old_mark, new_mark, order);
 }
 
-markWord oopDesc::prototype_mark() const {
-  if (UseCompactObjectHeaders) {
-    return klass()->prototype_header();
-  } else {
-    return markWord::prototype();
-  }
-}
-
 void oopDesc::init_mark() {
   if (UseCompactObjectHeaders) {
-    set_mark(prototype_mark());
+    set_mark(markWord::prototype().set_klass(klass()));
   } else {
     set_mark(markWord::prototype());
   }
@@ -262,14 +254,6 @@ Klass* oopDesc::forward_safe_klass() const {
 
 size_t oopDesc::forward_safe_size() {
   return size_given_klass(forward_safe_klass());
-}
-
-void oopDesc::forward_safe_init_mark() {
-  if (UseCompactObjectHeaders) {
-    set_mark(forward_safe_klass()->prototype_header());
-  } else {
-    set_mark(markWord::prototype());
-  }
 }
 
 bool oopDesc::is_instance()    const { return klass()->is_instance_klass();             }

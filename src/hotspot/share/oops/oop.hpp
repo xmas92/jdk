@@ -80,9 +80,6 @@ class oopDesc {
   inline markWord cas_set_mark(markWord new_mark, markWord old_mark);
   inline markWord cas_set_mark(markWord new_mark, markWord old_mark, atomic_memory_order order);
 
-  // Returns the prototype mark that should be used for this object.
-  inline markWord prototype_mark() const;
-
   // Used only to re-initialize the mark word (e.g., of promoted
   // objects during a GC) -- requires a valid klass pointer
   inline void init_mark();
@@ -131,7 +128,6 @@ public:
   inline Klass*   forward_safe_klass() const;
   inline Klass*   forward_safe_klass(markWord m) const;
   inline size_t   forward_safe_size();
-  inline void     forward_safe_init_mark();
 
   // type test operations (inlined in oop.inline.hpp)
   inline bool is_instance()    const;

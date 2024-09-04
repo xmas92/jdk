@@ -373,7 +373,7 @@ oop MemAllocator::finish(HeapWord* mem) const {
   // object zeroing are visible before setting the klass non-null, for
   // concurrent collectors.
   if (UseCompactObjectHeaders) {
-    oopDesc::release_set_mark(mem, _klass->prototype_header());
+    oopDesc::release_set_mark(mem, markWord::prototype().set_klass(_klass));
   } else {
     oopDesc::set_mark(mem, markWord::prototype());
     oopDesc::release_set_klass(mem, _klass);

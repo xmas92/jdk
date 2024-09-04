@@ -505,6 +505,10 @@ public:
   void vgather8b_offset(BasicType elem_bt, XMMRegister dst, Register base, Register idx_base,
                               Register offset, Register rtmp, int vlen_enc);
 
+  Address adjust_compact_object_header_address_c2(Address addr);
   void load_nklass_compact_c2(Register dst, Address src);
+  void store_compact_object_header_c2(Address dst, Register header);
+  void encode_and_store_compact_object_header_c2(Address dst, Register tmp, Register nklass);
+  void encode_and_store_compact_object_header_c2(Address dst, Register tmp, Klass* klass);
 
 #endif // CPU_X86_C2_MACROASSEMBLER_X86_HPP

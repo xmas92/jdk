@@ -74,7 +74,7 @@ oop XObjArrayAllocator::initialize(HeapWord* mem) const {
   // cleared, therefore we can't expose the header at the end of this
   // function. Instead explicitly initialize it according to our needs.
   if (UseCompactObjectHeaders) {
-    arrayOopDesc::release_set_mark(mem, _klass->prototype_header());
+    arrayOopDesc::release_set_mark(mem, markWord::prototype().set_klass(_klass));
   } else {
     arrayOopDesc::set_mark(mem, markWord::prototype());
     arrayOopDesc::release_set_klass(mem, _klass);

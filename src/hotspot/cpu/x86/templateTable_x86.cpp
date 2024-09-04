@@ -4127,8 +4127,8 @@ void TemplateTable::_new() {
     __ bind(initialize_header);
     if (UseCompactObjectHeaders) {
       __ pop(rcx);   // get saved klass back in the register.
-      __ movptr(rbx, Address(rcx, Klass::prototype_header_offset()));
-      __ movptr(Address(rax, oopDesc::mark_offset_in_bytes()), rbx);
+      __ encode_compact_object_header(rscratch1, rcx);
+      __ movptr(Address(rax, oopDesc::mark_offset_in_bytes()), rscratch1);
     } else {
       __ movptr(Address(rax, oopDesc::mark_offset_in_bytes()),
                 (intptr_t)markWord::prototype().value()); // header

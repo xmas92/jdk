@@ -64,7 +64,7 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
   // Signal to the ZIterator that this is an invisible root, by setting
   // the mark word to "marked". Reset to prototype() after the clearing.
   if (UseCompactObjectHeaders) {
-    oopDesc::release_set_mark(mem, _klass->prototype_header().set_marked());
+    oopDesc::release_set_mark(mem, markWord::prototype().set_marked().set_klass(_klass));
   } else {
     arrayOopDesc::set_mark(mem, markWord::prototype().set_marked());
     arrayOopDesc::release_set_klass(mem, _klass);
@@ -157,7 +157,7 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
 
   // Signal to the ZIterator that this is no longer an invisible root
   if (UseCompactObjectHeaders) {
-    oopDesc::release_set_mark(mem, _klass->prototype_header());
+    oopDesc::release_set_mark(mem, markWord::prototype().set_klass(_klass));
   } else {
     oopDesc::release_set_mark(mem, markWord::prototype());
   }

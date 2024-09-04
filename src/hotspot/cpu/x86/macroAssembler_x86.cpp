@@ -6107,6 +6107,26 @@ void  MacroAssembler::cmp_narrow_klass(Address dst, Klass* k) {
   Assembler::cmp_narrow_oop(dst, CompressedKlassPointers::encode(k), rspec);
 }
 
+void MacroAssembler::encode_compact_object_header(Register dst, Klass* k) {
+  assert (UseCompactObjectHeaders, "should only be used for compact object headers");
+  assert (oop_recorder() != nullptr, "this assembler needs an OopRecorder");
+  int klass_index = oop_recorder()->find_index(k);
+  RelocationHolder rspec = metadata_Relocation::spec(klass_index);
+  mov_literal64(dst, markWord::prototype().set_klass(k).value(), rspec);
+}
+
+void MacroAssembler::encode_compact_object_header(Register dst, Register klass) {
+  encode_and_move_klass_not_null(dst, klass);
+  shlq(dst, markWord::klass_shift);
+  orq(dst, markWord::prototype().value());
+}
+
+void MacroAssembler::encode_compact_object_header_from_nklass(Register dst, Register nklass) {
+  movq(dst, nklass);
+  shlq(dst, markWord::klass_shift);
+  orq(dst, markWord::prototype().value());
+}
+
 void MacroAssembler::reinit_heapbase() {
   if (UseCompressedOops) {
     if (Universe::heap() != nullptr) {

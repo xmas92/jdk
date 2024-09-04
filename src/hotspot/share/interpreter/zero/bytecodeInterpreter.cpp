@@ -2022,7 +2022,7 @@ run:
 
               // Initialize header, mirrors MemAllocator.
               if (UseCompactObjectHeaders) {
-                oopDesc::release_set_mark(result, ik->prototype_header());
+                oopDesc::release_set_mark(result, markWord::prototype().set_klass(ik));
               } else {
                 oopDesc::set_mark(result, markWord::prototype());
                 oopDesc::set_klass_gap(result, 0);

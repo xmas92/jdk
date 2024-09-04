@@ -37,8 +37,9 @@ TEST_VM(typeArrayOopDesc, bool_at_put) {
 
   typeArrayOop o = (typeArrayOop) cast_to_oop(addr);
   if (UseCompactObjectHeaders) {
-    o->set_mark(Universe::boolArrayKlass()->prototype_header());
+    o->set_mark(markWord::prototype().set_klass(Universe::boolArrayKlass()));
   } else {
+    o->set_mark(markWord::prototype());
     o->set_klass(Universe::boolArrayKlass());
   }
   o->set_length(10);

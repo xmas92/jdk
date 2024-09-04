@@ -177,7 +177,7 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
   assert_different_registers(obj, klass, len);
 
   if (UseCompactObjectHeaders) {
-    ldr(t1, Address(klass, Klass::prototype_header_offset()));
+    encode_compact_object_header(t1, klass);
     str(t1, Address(obj, oopDesc::mark_offset_in_bytes()));
   } else {
     mov(t1, checked_cast<int32_t>(markWord::prototype().value()));

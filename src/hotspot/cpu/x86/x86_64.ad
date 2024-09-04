@@ -5153,6 +5153,7 @@ instruct storeN(memory mem, rRegN src)
 
 instruct storeNKlass(memory mem, rRegN src)
 %{
+  predicate(!UseCompactObjectHeaders);
   match(Set mem (StoreNKlass mem src));
 
   ins_cost(125); // XXX
@@ -5161,6 +5162,34 @@ instruct storeNKlass(memory mem, rRegN src)
     __ movl($mem$$Address, $src$$Register);
   %}
   ins_pipe(ialu_mem_reg);
+%}
+
+instruct storeNKlassCompactObjectHeadersReg(memory mem, rRegN src, rRegP rtmp, rFlagsReg cr)
+%{
+  predicate(UseCompactObjectHeaders);
+  match(Set mem (StoreNKlass mem src));
+  effect(TEMP rtmp, KILL cr);
+
+  ins_cost(125); // XXX
+  format %{ "movq    $mem, $src\t# compact object header" %}
+  ins_encode %{
+    __ encode_and_store_compact_object_header_c2($mem$$Address, $rtmp$$Register, $src$$Register);
+  %}
+  ins_pipe(ialu_mem_reg);
+%}
+
+instruct storeNKlassCompactObjectHeadersImm(memory mem, immNKlass src, rRegP rtmp, rFlagsReg cr)
+%{
+  predicate(UseCompactObjectHeaders);
+  match(Set mem (StoreNKlass mem src));
+  effect(TEMP rtmp, KILL cr);
+
+  ins_cost(150); // XXX
+  format %{ "movq    $mem, $src\t# compact object header" %}
+  ins_encode %{
+    __ encode_and_store_compact_object_header_c2($mem$$Address, $rtmp$$Register, (Klass*)$src$$constant);
+  %}
+  ins_pipe(ialu_mem_imm);
 %}
 
 instruct storeImmN0(memory mem, immN0 zero)
@@ -5195,6 +5224,7 @@ instruct storeImmN(memory mem, immN src)
 
 instruct storeImmNKlass(memory mem, immNKlass src)
 %{
+  predicate(!UseCompactObjectHeaders);
   match(Set mem (StoreNKlass mem src));
 
   ins_cost(150); // XXX

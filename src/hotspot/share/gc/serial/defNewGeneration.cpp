@@ -705,7 +705,11 @@ void DefNewGeneration::remove_forwarding_pointers() {
       } else if (obj->is_forwarded()) {
         // To restore the klass-bits in the header.
         // Needed for object iteration to work properly.
-        obj->set_mark(obj->forwardee()->prototype_mark());
+        if (UseCompactObjectHeaders) {
+          obj->set_mark(markWord::prototype().set_klass(obj->forwardee()->klass()));
+        } else {
+          obj->set_mark(markWord::prototype());
+        }
       }
     }
   } cl;

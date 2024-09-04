@@ -6510,11 +6510,33 @@ void C2_MacroAssembler::vector_rearrange_int_float(BasicType bt, XMMRegister dst
 }
 
 #ifdef _LP64
-void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Address src) {
+
+Address C2_MacroAssembler::adjust_compact_object_header_address_c2(Address addr) {
   // The incoming address is pointing into obj-start + klass_offset_in_bytes. We need to extract
   // obj-start, so that we can load from the object's mark-word instead. Usually the address
   // comes as obj-start in obj and klass_offset_in_bytes in disp.
-  movq(dst, src.plus_disp(-oopDesc::klass_offset_in_bytes()));
+  return addr.plus_disp(-oopDesc::klass_offset_in_bytes());
+}
+
+void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Address src) {
+  movq(dst, adjust_compact_object_header_address_c2(src));
   shrq(dst, markWord::klass_shift);
 }
+
+void C2_MacroAssembler::store_compact_object_header_c2(Address dst, Register header) {
+  Address obj = adjust_compact_object_header_address_c2(dst);
+  movq(obj, header);
+}
+
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Address dst, Register tmp, Register nklass) {
+  encode_compact_object_header_from_nklass(tmp, nklass);
+  store_compact_object_header_c2(dst, tmp);
+}
+
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Address dst, Register tmp, Klass* klass) {
+  assert(klass != nullptr, "Unexpected null pointer");
+  encode_compact_object_header(tmp, klass);
+  store_compact_object_header_c2(dst, tmp);
+}
+
 #endif

@@ -1699,16 +1699,17 @@ PhaseMacroExpand::initialize_object(AllocateNode* alloc,
                                     Node* klass_node, Node* length,
                                     Node* size_in_bytes) {
   InitializeNode* init = alloc->initialization();
-  // Store the klass & mark bits
-  Node* mark_node = alloc->make_ideal_mark(&_igvn, object, control, rawmem);
-  if (!mark_node->is_Con()) {
-    transform_later(mark_node);
-  }
-  rawmem = make_store(control, rawmem, object, oopDesc::mark_offset_in_bytes(), mark_node, TypeX_X->basic_type());
 
-  if (!UseCompactObjectHeaders) {
+  if (UseCompactObjectHeaders) {
+    // Store compact object header (klass & mark bits)
+    rawmem = make_store(control, rawmem, object, oopDesc::klass_offset_in_bytes(), klass_node, T_METADATA);
+  } else {
+    // Store the klass & mark bits
+    Node* mark_node = MakeConX(markWord::prototype().value());
+    rawmem = make_store(control, rawmem, object, oopDesc::mark_offset_in_bytes(), mark_node, TypeX_X->basic_type());
     rawmem = make_store(control, rawmem, object, oopDesc::klass_offset_in_bytes(), klass_node, T_METADATA);
   }
+
   int header_size = alloc->minimum_header_size();  // conservatively small
 
   // Array length

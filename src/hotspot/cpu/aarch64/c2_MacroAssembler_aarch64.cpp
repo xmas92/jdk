@@ -2558,7 +2558,7 @@ bool C2_MacroAssembler::in_scratch_emit_size() {
   return MacroAssembler::in_scratch_emit_size();
 }
 
-void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Register obj, Register index, int scale, int disp) {
+Address C2_MacroAssembler::adjust_compact_object_header_address_c2(Register obj, Register index, int scale, int disp, Register tmp) {
   // Note: Don't clobber obj anywhere in that method!
 
   // The incoming address is pointing into obj-start + klass_offset_in_bytes. We need to extract
@@ -2570,10 +2570,31 @@ void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Register obj, Regis
   // klass_offset_in_bytes, to get the address of the mark-word.
   int offset = oopDesc::mark_offset_in_bytes() + disp - oopDesc::klass_offset_in_bytes();
   if (index == noreg) {
-    ldr(dst, Address(obj, offset));
+    return Address(obj, offset);
   } else {
-    lea(dst, Address(obj, index, Address::lsl(scale)));
-    ldr(dst, Address(dst, offset));
+    lea(tmp, Address(obj, index, Address::lsl(scale)));
+    return Address(tmp, offset);
   }
+}
+
+void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Register obj, Register index, int scale, int disp) {
+  Address addr = adjust_compact_object_header_address_c2(obj, index, scale, disp, dst);
+  ldr(dst, addr);
   lsr(dst, dst, markWord::klass_shift);
+}
+
+void C2_MacroAssembler::store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register header, Register tmp) {
+  Address addr = adjust_compact_object_header_address_c2(obj, index, scale, disp, tmp);
+  str(header, addr);
+}
+
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register nklass, Register tmp, Register tmp2) {
+  encode_compact_object_header_from_nklass(tmp, nklass);
+  store_compact_object_header_c2(obj, index, scale, disp, tmp /* header */, tmp2);
+}
+
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Klass* klass, Register tmp, Register tmp2) {
+  assert(klass != nullptr, "Unexpected null pointer");
+  encode_compact_object_header(tmp, klass);
+  store_compact_object_header_c2(obj, index, scale, disp, tmp /* header */, tmp2);
 }

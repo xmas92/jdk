@@ -179,6 +179,10 @@
   void vector_signum_sve(FloatRegister dst, FloatRegister src, FloatRegister zero,
                          FloatRegister one, FloatRegister vtmp, PRegister pgtmp, SIMD_RegVariant T);
 
+  Address adjust_compact_object_header_address_c2(Register obj, Register index, int scale, int disp, Register tmp);
   void load_nklass_compact_c2(Register dst, Register obj, Register index, int scale, int disp);
+  void store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register header, Register tmp);
+  void encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register nklass, Register tmp, Register tmp2);
+  void encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Klass* klass, Register tmp, Register tmp2);
 
 #endif // CPU_AARCH64_C2_MACROASSEMBLER_AARCH64_HPP

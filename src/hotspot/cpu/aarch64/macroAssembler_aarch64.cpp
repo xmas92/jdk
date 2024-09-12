@@ -5250,6 +5250,42 @@ void  MacroAssembler::set_narrow_klass(Register dst, Klass* k) {
   movk(dst, nk & 0xffff);
 }
 
+void MacroAssembler::encode_compact_object_header(Register dst, Klass* k) {
+  assert (UseCompressedClassPointers, "should only be used for compressed headers");
+  assert (oop_recorder() != nullptr, "this assembler needs an OopRecorder");
+  int index = oop_recorder()->find_index(k);
+  assert(! Universe::heap()->is_in(k), "should not be an oop");
+
+  InstructionMark im(this);
+  RelocationHolder rspec = metadata_Relocation::spec(index);
+  code_section()->relocate(inst_mark(), rspec);
+
+  narrowKlass nk = CompressedKlassPointers::encode(k);
+  STATIC_ASSERT(markWord::klass_bits == 22);
+  STATIC_ASSERT(markWord::klass_shift == 42);
+
+  fatal("Catch me!");
+
+  const int lower_bits = markWord::klass_bits - 16;
+
+  movz(dst, (nk >> lower_bits), 48);
+  movk(dst, (nk & right_n_bits(lower_bits)) << (16 - lower_bits), 32);
+  orr(dst, dst, markWord::prototype().value());
+}
+
+void MacroAssembler::encode_compact_object_header(Register dst, Register klass) {
+  encode_klass_not_null(dst, klass);
+  lsl(dst, dst, markWord::klass_shift);
+  orr(dst, dst, markWord::prototype().value());
+}
+
+void MacroAssembler::encode_compact_object_header_from_nklass(Register dst, Register nklass) {
+  mov(dst, nklass);
+  lsl(dst, dst, markWord::klass_shift);
+  assert(markWord::prototype().value() == 1, "Used by the implementation");
+  orr(dst, dst, markWord::prototype().value());
+}
+
 void MacroAssembler::access_load_at(BasicType type, DecoratorSet decorators,
                                     Register dst, Address src,
                                     Register tmp1, Register tmp2) {

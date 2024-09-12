@@ -6456,7 +6456,8 @@ instruct loadNKlassCompactHeaders(iRegNNoSp dst, memory mem)
   ins_cost(4 * INSN_COST);
   format %{ "ldrw  $dst, $mem\t# compressed class ptr" %}
   ins_encode %{
-    __ load_nklass_compact_c2($dst$$Register, $mem$$base$$Register, $mem$$index$$Register, $mem$$scale, $mem$$disp);
+    Address addr = mem2address($mem->opcode(), $mem$$base$$Register, $mem$$index, $mem$$scale, $mem$$disp);
+    __ load_nklass_compact_c2($dst$$Register, addr);
   %}
   ins_pipe(pipe_slow);
 %}
@@ -6921,17 +6922,18 @@ instruct storeNKlass(iRegN src, memory mem)
 %}
 
 // Store Compact Object Header
-instruct storeNKlassCompactObjectHeadersReg(iRegN src, memory mem, iRegPNoSp rtmp, iRegPNoSp rtmp2, rFlagsReg cr)
+instruct storeNKlassCompactObjectHeadersReg(iRegN src, memory mem, rFlagsReg cr)
 %{
   predicate(!needs_releasing_store(n) && UseCompactObjectHeaders);
   match(Set mem (StoreNKlass mem src));
-  effect(TEMP rtmp, TEMP rtmp2, KILL cr);
+  effect(KILL cr);
 
   ins_cost(INSN_COST);
   format %{ "strw  $src, $mem\t# compressed klass ptr" %}
 
   ins_encode %{
-    __ encode_and_store_compact_object_header_c2($mem$$base$$Register, $mem$$index$$Register, $mem$$scale, $mem$$disp, $src$$Register, $rtmp$$Register, $rtmp2$$Register);
+    Address addr = mem2address($mem->opcode(), $mem$$base$$Register, $mem$$index, $mem$$scale, $mem$$disp);
+    __ encode_and_store_compact_object_header_c2(addr, $src$$Register);
   %}
 
   ins_pipe(istore_reg_mem);

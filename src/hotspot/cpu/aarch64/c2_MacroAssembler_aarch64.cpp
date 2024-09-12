@@ -2558,43 +2558,40 @@ bool C2_MacroAssembler::in_scratch_emit_size() {
   return MacroAssembler::in_scratch_emit_size();
 }
 
-Address C2_MacroAssembler::adjust_compact_object_header_address_c2(Register obj, Register index, int scale, int disp, Register tmp) {
-  // Note: Don't clobber obj anywhere in that method!
-
+Address C2_MacroAssembler::adjust_compact_object_header_address_c2(Address addr, Register tmp) {
   // The incoming address is pointing into obj-start + klass_offset_in_bytes. We need to extract
   // obj-start, so that we can load from the object's mark-word instead. Usually the address
-  // comes as obj-start in obj and klass_offset_in_bytes in disp. However, sometimes C2
-  // combines decoding of a compressed oop and the load of the narrow Klass. When that happens,
-  // we get the heapBase in obj, and the narrowOop+klass_offset_in_bytes/sizeof(narrowOop) in index.
-  // When that happens, we need to lea the address into a single register, and subtract the
-  // klass_offset_in_bytes, to get the address of the mark-word.
-  int offset = oopDesc::mark_offset_in_bytes() + disp - oopDesc::klass_offset_in_bytes();
-  if (index == noreg) {
-    return Address(obj, offset);
+  // comes as obj-start in addr.base() and klass_offset_in_bytes in addr.offset().
+  if (addr.getMode() != Address::base_plus_offset) {
+    lea(tmp, addr);
+    addr = Address(tmp, -oopDesc::klass_offset_in_bytes());
   } else {
-    lea(tmp, Address(obj, index, Address::lsl(scale)));
-    return Address(tmp, offset);
+    addr = Address(addr.base(), addr.offset() - oopDesc::klass_offset_in_bytes());
   }
+  return legitimize_address(addr, 8, tmp);
 }
 
-void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Register obj, Register index, int scale, int disp) {
-  Address addr = adjust_compact_object_header_address_c2(obj, index, scale, disp, dst);
+void C2_MacroAssembler::load_nklass_compact_c2(Register dst, Address src) {
+  Address addr = adjust_compact_object_header_address_c2(src, dst);
   ldr(dst, addr);
   lsr(dst, dst, markWord::klass_shift);
 }
 
-void C2_MacroAssembler::store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register header, Register tmp) {
-  Address addr = adjust_compact_object_header_address_c2(obj, index, scale, disp, tmp);
+void C2_MacroAssembler::store_compact_object_header_c2(Address dst, Register header) {
+  assert_different_registers(dst.base(), dst.index(), header, rscratch1);
+  Address addr = adjust_compact_object_header_address_c2(dst, rscratch1);
   str(header, addr);
 }
 
-void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Register nklass, Register tmp, Register tmp2) {
-  encode_compact_object_header_from_nklass(tmp, nklass);
-  store_compact_object_header_c2(obj, index, scale, disp, tmp /* header */, tmp2);
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Address dst, Register nklass) {
+  assert_different_registers(dst.base(), dst.index(), nklass, rscratch2);
+  encode_compact_object_header_from_nklass(rscratch2, nklass);
+  store_compact_object_header_c2(dst, rscratch2);
 }
 
-void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Register obj, Register index, int scale, int disp, Klass* klass, Register tmp, Register tmp2) {
+void C2_MacroAssembler::encode_and_store_compact_object_header_c2(Address dst, Klass* klass) {
   assert(klass != nullptr, "Unexpected null pointer");
-  encode_compact_object_header(tmp, klass);
-  store_compact_object_header_c2(obj, index, scale, disp, tmp /* header */, tmp2);
+  assert_different_registers(dst.base(), dst.index(), rscratch2);
+  encode_compact_object_header(rscratch2, klass);
+  store_compact_object_header_c2(dst, rscratch2);
 }

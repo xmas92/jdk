@@ -37,6 +37,49 @@ import java.util.regex.Pattern;
 // This is used e.g. in TestHugePageDetection to determine if the JVM detects the correct settings from the OS.
 public class HugePageConfiguration {
 
+    public static class ExplicitHugePageStats {
+        public long total = -1;
+        public long free = -1;
+        public long rsvd = -1;
+        public long surp = -1;
+
+        @Override
+        public String toString() {
+            return "ExplicitHugePageStats{" +
+                    "Total=" + total +
+                    ", free=" + free +
+                    ", rsvd=" + rsvd +
+                    ", surp=" + surp +
+                    '}';
+        }
+    }
+
+    public static ExplicitHugePageStats readExplicitHugePageStatsFromOS() {
+        Pattern pat = Pattern.compile("HugePages_(\\w+): *(\\d+)");
+        ExplicitHugePageStats stats = new ExplicitHugePageStats();
+        try (Scanner scanner = new Scanner(new File("/proc/meminfo"))) {
+            while (scanner.hasNextLine()) {
+                Matcher mat = pat.matcher(scanner.nextLine());
+                if (mat.matches()) {
+                    long value = Long.parseLong(mat.group(2));
+                    switch (mat.group(1)) {
+                        case "Total": stats.total = value; break;
+                        case "Free": stats.free = value; break;
+                        case "Rsvd": stats.rsvd = value; break;
+                        case "Surp": stats.surp = value; break;
+                        default:
+                        throw new RuntimeException("Unknown HugePages_" + mat.group(1) + " option in /proc/meminfo");
+                    }
+                }
+            }
+        } catch (FileNotFoundException e) {
+            System.out.println("Could not open /proc/meminfo");
+            return null;
+        }
+        // TODO: fix partial stats/FileNotFound
+        return stats;
+    }
+
     public static class ExplicitHugePageConfig implements Comparable<ExplicitHugePageConfig> {
         public long pageSize = -1;
         public long nr_hugepages = -1;
@@ -65,11 +108,11 @@ public class HugePageConfiguration {
     Set<ExplicitHugePageConfig> _explicitHugePageConfigurations;
     long _explicitDefaultHugePageSize = -1;
 
-    public enum THPMode {always, never, madvise}
+    enum THPMode {always, never, madvise}
     THPMode _thpMode;
     long _thpPageSize;
 
-    public enum ShmemTHPMode {always, within_size, advise, never, deny, force, unknown}
+    enum ShmemTHPMode {always, within_size, advise, never, deny, force, unknown}
     ShmemTHPMode _shmemThpMode;
 
     public Set<ExplicitHugePageConfig> getExplicitHugePageConfigurations() {

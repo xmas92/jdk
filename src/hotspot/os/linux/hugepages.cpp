@@ -23,6 +23,7 @@
  *
  */
 
+#include "gc/shared/gcLogPrecious.hpp"
 #include "precompiled.hpp"
 #include "hugepages.hpp"
 
@@ -32,6 +33,7 @@
 #include "runtime/os.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/ostream.hpp"
 
 #include <dirent.h>
@@ -167,6 +169,168 @@ void ExplicitHugePageSupport::scan_os() {
     LogStream ls(lt);
     print_on(&ls);
   }
+}
+
+bool ExplicitHugePageSupport::scan_os_proc_meminfo_stats(Stats* stats) {
+  precond(stats != nullptr);
+
+  FILE* const fp = os::fopen("/proc/meminfo", "r");
+  if (fp == nullptr) {
+    return false;
+  }
+
+  int num_stats_scanned = 0;
+  while (!::feof(fp)) {
+    size_t value;
+    char buf[16];
+    if (::fscanf(fp, "HugePages_%s %zu", buf, &value) == 2) {
+      if (::strstr(buf, "Total") != nullptr) {
+        num_stats_scanned++;
+        stats->_total = value;
+      } else if (::strstr(buf, "Free") != nullptr) {
+        num_stats_scanned++;
+        stats->_free = value;
+      } else if (::strstr(buf, "Rsvd") != nullptr) {
+        num_stats_scanned++;
+        stats->_rsvd = value;
+      } else if (::strstr(buf, "Surp") != nullptr) {
+        num_stats_scanned++;
+        stats->_surp = value;
+      }
+    } else {
+      // skip to next line
+      for (;;) {
+        const int ch = ::fgetc(fp);
+        if (ch == EOF || ch == (int)'\n') break;
+      }
+    }
+  }
+  ::fclose(fp);
+
+  return num_stats_scanned == 4;
+}
+
+static size_t scan_hugepage_stats(ExplicitHugePageSupport::Stats* stats, char* dir, size_t max_len) {
+  precond(stats != nullptr);
+
+  const size_t dir_len = strnlen(dir, max_len);
+
+  const char* const nr_hugepages = "nr_hugepages";
+  const char* const free_hugepages = "free_hugepages";
+  const char* const resv_hugepages = "resv_hugepages";
+  const char* const surplus_hugepages = "surplus_hugepages";
+
+  const char* const files[] = {
+    nr_hugepages,
+    free_hugepages,
+    resv_hugepages,
+    surplus_hugepages,
+  };
+
+  stats = {};
+  size_t num_stats_found = 0;
+  for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
+    if (os::snprintf(dir + dir_len, max_len - dir_len, "%s", files[i]) < 0) {
+      assert(false, "max_len is to small");
+      continue;
+    }
+    log_debug_p(gc, init)("File: %s", dir);
+
+    FILE* const fp = os::fopen(dir, "r");
+
+    if (fp == nullptr) {
+      continue;
+    }
+
+    size_t value;
+    const int num_scanned = ::fscanf(fp, "%zu", &value);
+    ::fclose(fp);
+
+    if (num_scanned != 1) {
+      continue;
+    }
+
+    num_stats_found++;
+
+    if (files[i] == nr_hugepages) {
+      stats->_total = value;
+    } else if (files[i] == free_hugepages) {
+      stats->_free = value;
+    } else if (files[i] == resv_hugepages) {
+      stats->_rsvd = value;
+    } else {
+      assert(files[i] == surplus_hugepages, "must be");
+      stats->_surp = value;
+    }
+  }
+  return num_stats_found;
+}
+
+bool ExplicitHugePageSupport::scan_os_stats(Stats* stats, size_t page_size) {
+  precond(stats != nullptr);
+
+  if (!HugePages::supports_explicit_hugepages()) {
+    stats = {};
+    return false;
+  }
+
+  // buf must fit "/sys/kernel/mm/hugepages/hugepages-[0-9]{0-16}kB/surplus_hugepages"
+  const size_t len = 128;
+  char buf[len];
+
+  if (os::snprintf(buf, len, "/sys/kernel/mm/hugepages/hugepages-%zukB/", page_size / K) < 0) {
+    assert(false, "len is to small");
+    return false;
+  }
+  log_debug_p(gc, init)("Dir: %s", buf);
+
+  const size_t expected_number_of_stats = 4;
+  return scan_hugepage_stats(stats, buf, len) == expected_number_of_stats;
+}
+
+bool ExplicitHugePageSupport::scan_os_node_stats(Stats* stats, int node, size_t page_size) {
+  precond(stats != nullptr);
+
+  if (!HugePages::supports_explicit_hugepages()) {
+    stats = {};
+    return false;
+  }
+
+  // buf must fit "/sys/devices/system/node/node[0-9]{0-19}/hugepages/hugepages-[0-9]{0-16}kB/surplus_hugepages"
+  const size_t len = 128;
+  char buf[len];
+
+  if (os::snprintf(buf, len, "/sys/devices/system/node/node%d/hugepages/hugepages-%zukB/", node, page_size / K) < 0) {
+    assert(false, "len is to small");
+    return false;
+  }
+
+  const size_t expected_number_of_stats = 3;
+  return scan_hugepage_stats(stats, buf, len) == expected_number_of_stats;
+}
+
+bool ExplicitHugePageSupport::scan_os_nodes_stats(GrowableArray<Stats>* nodes_stats, size_t page_size) {
+  precond(nodes_stats != nullptr);
+
+  DIR* const dir = os::opendir("/sys/devices/system/node");
+
+  if (dir == nullptr) {
+    return false;
+  }
+
+  struct dirent* entry;
+  int node;
+  bool result = true;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_type == DT_DIR && sscanf(entry->d_name, "node%d", &node) == 1) {
+      Stats stats{};
+      result = result && scan_os_node_stats(&stats, node, page_size);
+      nodes_stats->at_put_grow(node, stats);
+    }
+  }
+  os::closedir(dir);
+
+  return result;
 }
 
 THPSupport::THPSupport() :

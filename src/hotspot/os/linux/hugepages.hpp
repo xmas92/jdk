@@ -65,6 +65,18 @@ public:
   void print_on(outputStream* os);
 
   bool inconsistent() const { return _inconsistent; }
+
+  struct Stats {
+    size_t _total;
+    size_t _free;
+    size_t _rsvd;
+    size_t _surp;
+  };
+
+  static bool scan_os_proc_meminfo_stats(Stats* stats);
+  static bool scan_os_stats(Stats* stats, size_t page_size);
+  static bool scan_os_node_stats(Stats* node_stats, int node, size_t page_size);
+  static bool scan_os_nodes_stats(GrowableArray<Stats>* nodes_stats, size_t page_size);
 };
 
 enum class THPMode { always, never, madvise };

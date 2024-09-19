@@ -40,6 +40,7 @@
 #include "runtime/safefetch.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
+#include "memory/resourceArea.hpp"
 #include "utilities/growableArray.hpp"
 
 #include <fcntl.h>
@@ -515,7 +516,7 @@ ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zoffset offset, size_t length
   // some point touch these segments, otherwise we can not punch hole in them.
   // Also note that we need to use compat mode when using transparent huge pages,
   // since we need to use madvise(2) on the mapping before the page is allocated.
-  if (z_fallocate_supported && !ZLargePages::is_enabled()) {
+  if (z_fallocate_supported && (UseNewCode2 || !ZLargePages::is_enabled())) {
      const ZErrno err = fallocate_fill_hole_syscall(offset, length);
      if (!err) {
        // Success
@@ -602,7 +603,7 @@ bool ZPhysicalMemoryBacking::commit_inner(zoffset offset, size_t length) const {
 retry:
   const ZErrno err = fallocate(false /* punch_hole */, offset, length);
   if (err) {
-    if (err == ENOSPC && !is_init_completed() && ZLargePages::is_explicit() && z_fallocate_hugetlbfs_attempts-- > 0) {
+    if ((err == ENOSPC || (UseNewCode && err == ENOMEM)) && !is_init_completed() && ZLargePages::is_explicit() && z_fallocate_hugetlbfs_attempts-- > 0) {
       // If we fail to allocate during initialization, due to lack of space on
       // the hugetlbfs filesystem, then we wait and retry a few times before
       // giving up. Otherwise there is a risk that running JVMs back-to-back
@@ -610,6 +611,29 @@ retry:
       // huge pages owned by that process being returned to the huge page pool
       // and made available for new allocations.
       log_debug_p(gc, init)("Failed to commit memory (%s), retrying", err.to_string());
+      ExplicitHugePageSupport::Stats stats{};
+      const size_t page_size = ZGranuleSize;
+      if (ExplicitHugePageSupport::scan_os_stats(&stats, page_size)) {
+        const size_t allocated = stats._total - stats._free;
+        const size_t available = stats._free - stats._rsvd;
+        const size_t required = length / page_size;
+        log_debug_p(gc, init)("Failed to get persistent huge pages stats. Available: %zu, Required: %zu, System Allocated: %zu", available, required, allocated);
+        if (ZNUMA::is_enabled()) {
+          ResourceMark rm;
+          GrowableArray<ExplicitHugePageSupport::Stats> numa_stats;
+          if (ExplicitHugePageSupport::scan_os_nodes_stats(&numa_stats, page_size)) {
+            size_t i = 1;
+            for (ExplicitHugePageSupport::Stats stats : numa_stats) {
+              const size_t allocated = stats._total - stats._free;
+              const size_t available = stats._free - stats._rsvd;
+              const size_t required = (length / page_size) / numa_stats.length();
+              log_debug_p(gc, init)("Failed to get persistent huge pages stats numa node%zu. Available: %zu, Required: %zu, System Allocated: %zu", i, available, required, allocated);
+            }
+          }
+        }
+      } else {
+        log_debug_p(gc, init)("Failed to get persistent huge pages stats");
+      }
 
       // Wait and retry in one second, in the hope that huge pages will be
       // available by then.
@@ -619,6 +643,19 @@ retry:
 
     // Failed
     log_error_p(gc)("Failed to commit memory (%s)", err.to_string());
+    if (ZLargePages::is_explicit()) {
+      ExplicitHugePageSupport::Stats stats;
+      if (ExplicitHugePageSupport::scan_os_proc_meminfo_stats(&stats)) {
+        size_t allocated = stats._total - stats._free;
+        size_t available = stats._free - stats._rsvd;
+        size_t required = length / HugePages::default_explicit_hugepage_size();
+        if (required > available) {
+          log_error_p(gc)("Not enough available persistent huge pages. Available: %zu, Required: %zu, System Allocated: %zu", available, required, allocated);
+        }
+      } else {
+        log_error_p(gc)("Failed to get persistent huge pages stats");
+      }
+    }
     return false;
   }
 

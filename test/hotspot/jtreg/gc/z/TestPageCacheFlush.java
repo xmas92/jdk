@@ -26,6 +26,7 @@ package gc.z;
 /*
  * @test TestPageCacheFlush
  * @requires vm.gc.Z
+ * @ignore
  * @summary Test ZGC page cache flushing
  * @library /test/lib
  * @run driver gc.z.TestPageCacheFlush

@@ -27,6 +27,7 @@
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLiveMap.hpp"
+#include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemory.hpp"

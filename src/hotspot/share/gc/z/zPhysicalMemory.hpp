@@ -69,13 +69,16 @@ public:
   const ZPhysicalMemorySegment& segment(int index) const;
 
   void add_segments(const ZPhysicalMemory& pmem);
+  void add_segments_unsorted(const ZPhysicalMemory& pmem);
   void remove_segments();
 
   void add_segment(const ZPhysicalMemorySegment& segment);
+  void add_segment_unsorted(const ZPhysicalMemorySegment& segment);
   bool commit_segment(int index, size_t size);
   bool uncommit_segment(int index, size_t size);
 
   ZPhysicalMemory split(size_t size);
+  ZPhysicalMemory split_unsorted(size_t size);
   ZPhysicalMemory split_committed();
 };
 

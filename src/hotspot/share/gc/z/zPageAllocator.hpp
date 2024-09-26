@@ -28,6 +28,7 @@
 #include "gc/z/zArray.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zMappedCache.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageCache.hpp"
 #include "gc/z/zPageType.hpp"
@@ -65,7 +66,7 @@ class ZPageAllocator {
 
 private:
   mutable ZLock              _lock;
-  ZPageCache                 _cache;
+  ZMappedCache               _mapped_cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
   const size_t               _min_capacity;
@@ -96,6 +97,9 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
+  // TODO: New
+  void unmap_and_uncommit_mapped(ZMappedMemory& mapped);
+
   bool commit_page(ZPage* page);
   void uncommit_page(ZPage* page);
 
@@ -104,15 +108,15 @@ private:
 
   void destroy_page(ZPage* page);
 
-  bool should_defragment(const ZPage* page) const;
+  bool should_defragment(const ZMappedMemory& mapping) const;
   ZPage* defragment_page(ZPage* page);
 
   bool is_alloc_allowed(size_t size) const;
 
-  bool alloc_page_common_inner(ZPageType type, size_t size, ZList<ZPage>* pages);
-  bool alloc_page_common(ZPageAllocation* allocation);
+  bool alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  bool alloc_memory_common(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
-  bool alloc_page_or_stall(ZPageAllocation* allocation);
+  bool alloc_memory_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
   ZPage* alloc_page_create(ZPageAllocation* allocation);
   ZPage* alloc_page_finalize(ZPageAllocation* allocation);
@@ -133,6 +137,7 @@ public:
 
   bool is_initialized() const;
 
+  bool prime_mapped_cache(ZWorkers* workers, size_t size);
   bool prime_cache(ZWorkers* workers, size_t size);
 
   size_t initial_capacity() const;
@@ -151,8 +156,8 @@ public:
   void reset_statistics(ZGenerationId id);
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
-  ZPage* prepare_to_recycle(ZPage* page, bool allow_defragment);
-  void recycle_page(ZPage* page);
+  ZPage* prepare_to_harvest(ZPage* page, bool allow_defragment);
+  void harvest_page(ZPage* page);
   void safe_destroy_page(ZPage* page);
   void free_page(ZPage* page, bool allow_defragment);
   void free_pages(const ZArray<ZPage*>* pages);

@@ -91,6 +91,11 @@ public:
 
   public:
     NodeIteratorImpl(Treap* tree) : _tree(tree) {
+      if (_tree->_node_count == 0) {
+        _next = nullptr;
+        return;
+      }
+
       TreapNode* head = _tree->_root;
       while (head != nullptr) {
         _to_visit.push(head);
@@ -122,8 +127,8 @@ public:
     }
   };
 
-  using NodeIterator = NodeIteratorImpl<true /* Forward */>;
-  using NodeReverseIterator = NodeIteratorImpl<false /* Forward */>;
+  using InOrderIterator = NodeIteratorImpl<true /* Forward */>;
+  using InReverseOrderIterator = NodeIteratorImpl<false /* Forward */>;
 
 private:
   ALLOCATOR _allocator;

@@ -96,6 +96,10 @@ void ZPhysicalMemory::add_segments(const ZPhysicalMemory& pmem) {
   }
 }
 
+void ZPhysicalMemory::add_segments_unsorted(const ZPhysicalMemory& pmem) {
+  _segments.appendAll(&pmem._segments);
+}
+
 void ZPhysicalMemory::remove_segments() {
   _segments.clear_and_deallocate();
 }
@@ -151,6 +155,10 @@ void ZPhysicalMemory::add_segment(const ZPhysicalMemorySegment& segment) {
   insert_segment(0, segment.start(), segment.size(), segment.is_committed());
 }
 
+void ZPhysicalMemory::add_segment_unsorted(const ZPhysicalMemorySegment& segment) {
+  _segments.append(segment);
+}
+
 bool ZPhysicalMemory::commit_segment(int index, size_t size) {
   assert(size <= _segments.at(index).size(), "Invalid size");
   assert(!_segments.at(index).is_committed(), "Invalid state");
@@ -203,6 +211,33 @@ ZPhysicalMemory ZPhysicalMemory::split(size_t size) {
         // Split segment
         const size_t split_size = size - pmem.size();
         pmem.add_segment(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
+        _segments.at_put(nsegments++, ZPhysicalMemorySegment(segment.start() + split_size, segment.size() - split_size, segment.is_committed()));
+      }
+    } else {
+      // Keep segment
+      _segments.at_put(nsegments++, segment);
+    }
+  }
+
+  _segments.trunc_to(nsegments);
+
+  return pmem;
+}
+
+ZPhysicalMemory ZPhysicalMemory::split_unsorted(size_t size) {
+  ZPhysicalMemory pmem;
+  int nsegments = 0;
+
+  for (int i = 0; i < _segments.length(); i++) {
+    const ZPhysicalMemorySegment& segment = _segments.at(i);
+    if (pmem.size() < size) {
+      if (pmem.size() + segment.size() <= size) {
+        // Transfer segment
+        pmem.add_segment_unsorted(segment);
+      } else {
+        // Split segment
+        const size_t split_size = size - pmem.size();
+        pmem.add_segment_unsorted(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
         _segments.at_put(nsegments++, ZPhysicalMemorySegment(segment.start() + split_size, segment.size() - split_size, segment.is_committed()));
       }
     } else {

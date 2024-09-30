@@ -27,62 +27,14 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zMemory.hpp"
+#include "gc/z/zValue.hpp"
 #include "memory/allocation.hpp"
 #include OS_HEADER(gc/z/zPhysicalMemoryBacking)
 
-class ZPhysicalMemorySegment : public CHeapObj<mtGC> {
-private:
-  zoffset     _start;
-  zoffset_end _end;
-  bool        _committed;
-
-public:
-  ZPhysicalMemorySegment();
-  ZPhysicalMemorySegment(zoffset start, size_t size, bool committed);
-
-  zoffset start() const;
-  zoffset_end end() const;
-  size_t size() const;
-
-  bool is_committed() const;
-  void set_committed(bool committed);
-};
-
-class ZPhysicalMemory {
-private:
-  ZArray<ZPhysicalMemorySegment> _segments;
-
-  void insert_segment(int index, zoffset start, size_t size, bool committed);
-  void replace_segment(int index, zoffset start, size_t size, bool committed);
-  void remove_segment(int index);
-
-public:
-  ZPhysicalMemory();
-  ZPhysicalMemory(const ZPhysicalMemorySegment& segment);
-  ZPhysicalMemory(const ZPhysicalMemory& pmem);
-  const ZPhysicalMemory& operator=(const ZPhysicalMemory& pmem);
-
-  bool is_null() const;
-  size_t size() const;
-
-  int nsegments() const;
-  const ZPhysicalMemorySegment& segment(int index) const;
-
-  void add_segments(const ZPhysicalMemory& pmem);
-  void remove_segments();
-
-  void add_segment(const ZPhysicalMemorySegment& segment);
-  bool commit_segment(int index, size_t size);
-  bool uncommit_segment(int index, size_t size);
-
-  ZPhysicalMemory split(size_t size);
-  ZPhysicalMemory split_committed();
-};
-
 class ZPhysicalMemoryManager {
 private:
-  ZPhysicalMemoryBacking _backing;
-  ZMemoryManager         _manager;
+  ZPhysicalMemoryBacking   _backing;
+  ZPerNUMA<ZMemoryManager> _managers;
 
 public:
   ZPhysicalMemoryManager(size_t max_capacity);
@@ -92,14 +44,16 @@ public:
   void warn_commit_limits(size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 
-  void alloc(ZPhysicalMemory& pmem, size_t size);
-  void free(const ZPhysicalMemory& pmem);
+  void alloc(zoffset* pmem, size_t size, int numa_id = -1);
+  void free(const zoffset* pmem, size_t size, int numa_id);
 
-  bool commit(ZPhysicalMemory& pmem);
-  bool uncommit(ZPhysicalMemory& pmem);
+  size_t commit(const zoffset* pmem, size_t size, int numa_id = -1);
+  size_t uncommit(const zoffset* pmem, size_t size);
 
-  void map(zoffset offset, const ZPhysicalMemory& pmem) const;
-  void unmap(zoffset offset, size_t size) const;
+  void map(zoffset offset, const zoffset* pmem, size_t size) const;
+  void unmap(zoffset offset, const zoffset* pmem, size_t size) const;
+
+  size_t count_segments(const zoffset* pmem, size_t size);
 };
 
 #endif // SHARE_GC_Z_ZPHYSICALMEMORY_HPP

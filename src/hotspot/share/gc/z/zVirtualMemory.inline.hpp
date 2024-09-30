@@ -57,12 +57,27 @@ inline ZVirtualMemory ZVirtualMemory::split(size_t size) {
   return ZVirtualMemory(_start - size, size);
 }
 
+inline bool ZVirtualMemory::adjacent_to(const ZVirtualMemory& other) const {
+  return zoffset(end()) == other.start() || zoffset(other.end()) == start();
+}
+
+inline void ZVirtualMemory::extend(size_t size) {
+  _end += size;
+}
+
 inline size_t ZVirtualMemoryManager::reserved() const {
   return _reserved;
 }
 
-inline zoffset ZVirtualMemoryManager::lowest_available_address() const {
-  return _manager.peek_low_address();
+inline zoffset ZVirtualMemoryManager::half_available_space(int numa_id) const {
+  // TODO: This isn't really half the available space if we have a discontiguous
+  // reservation. Should be weighted toward where the actual half-way point is.
+  const ZVirtualMemory& range = _vmem_ranges.get(numa_id);
+  return range.start() + range.size() / 2;
+}
+
+inline zoffset ZVirtualMemoryManager::lowest_available_address(int numa_id) const {
+  return _managers.get(numa_id).peek_low_address();
 }
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_INLINE_HPP

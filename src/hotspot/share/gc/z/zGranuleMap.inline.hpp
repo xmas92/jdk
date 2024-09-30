@@ -67,6 +67,12 @@ inline T ZGranuleMap<T>::get(zoffset offset) const {
 }
 
 template <typename T>
+inline T* ZGranuleMap<T>::get_addr(zoffset offset) const {
+  const size_t index = index_for_offset(offset);
+  return _map + index;
+}
+
+template <typename T>
 inline void ZGranuleMap<T>::put(zoffset offset, T value) {
   const size_t index = index_for_offset(offset);
   Atomic::store(_map + index, value);

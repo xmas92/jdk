@@ -28,12 +28,15 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zNMT.hpp"
+#include "gc/z/zNUMA.hpp"
+#include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
 ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
-  : _manager(),
+  : _managers(),
     _reserved(0),
     _initialized(false) {
 
@@ -150,8 +153,9 @@ bool ZVirtualMemoryManager::reserve_contiguous(zoffset start, size_t size) {
   // Register address views with native memory tracker
   ZNMT::reserve(addr, size);
 
-  // Make the address range free
-  _manager.free(start, size);
+  // We put all the reserved memory inside the first manager and potentially
+  // divide it when we've reserved all of the memory the user has requested.
+  _managers.get(0).free(start, size);
 
   return true;
 }
@@ -175,6 +179,7 @@ bool ZVirtualMemoryManager::reserve_contiguous(size_t size) {
 bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
   const size_t limit = MIN2(ZAddressOffsetMax, ZAddressSpaceLimit::heap());
   const size_t size = MIN2(max_capacity * ZVirtualToPhysicalRatio, limit);
+  bool contiguous_reservation = false;
 
   auto do_reserve = [&]() {
 #ifdef ASSERT
@@ -185,6 +190,7 @@ bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
 
     // Prefer a contiguous address space
     if (reserve_contiguous(size)) {
+      contiguous_reservation = true;
       return size;
     }
 
@@ -193,34 +199,54 @@ bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
   };
 
   const size_t reserved = do_reserve();
-
-  const bool contiguous = _manager.free_is_contiguous();
+  initialize_managers(reserved);
 
   log_info_p(gc, init)("Address Space Type: %s/%s/%s",
-                       (contiguous ? "Contiguous" : "Discontiguous"),
+                       (contiguous_reservation ? "Contiguous" : "Discontiguous"),
                        (limit == ZAddressOffsetMax ? "Unrestricted" : "Restricted"),
                        (reserved == size ? "Complete" : "Degraded"));
   log_info_p(gc, init)("Address Space Size: %zuM", reserved / M);
 
   // Record reserved
-  _reserved = reserved;
+  _reserved = reserved / ZNUMA::count();
 
   return reserved >= max_capacity;
+}
+
+void ZVirtualMemoryManager::initialize_managers(size_t size) {
+  // All reserved memory is initially stored in the manager with id 0. We need
+  // to divide it equally among all the managers.
+  const size_t nodes = ZNUMA::count();
+  const size_t numa_local_reservation = size / nodes;
+  ZMemoryManager& initial_manager = _managers.get(0);
+
+  for (int numa_id = (int)nodes - 1; numa_id >= 0; numa_id--) {
+    ZMemoryManager& manager = _managers.get(numa_id);
+
+    if (numa_id != 0) {
+      initial_manager.transfer_high_address(manager, numa_local_reservation);
+    }
+
+    // Update the range
+    const zoffset range_start = manager.peek_low_address();
+    const size_t range_size = manager.range_size();
+    _vmem_ranges.set(ZVirtualMemory(range_start, range_size), numa_id);
+  }
 }
 
 bool ZVirtualMemoryManager::is_initialized() const {
   return _initialized;
 }
 
-ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, bool force_low_address) {
+ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_low_address) {
   zoffset start;
 
-  // Small pages are allocated at low addresses, while medium/large pages
-  // are allocated at high addresses (unless forced to be at a low address).
-  if (force_low_address || size <= ZPageSizeSmall) {
-    start = _manager.alloc_low_address(size);
+  // Small/medium pages are allocated at low addresses, while large pages are
+  // allocated at high addresses (unless forced to be at a low address).
+  if (force_low_address || size <= ZPageSizeSmall || size <= ZPageSizeMedium) {
+    start = _managers.get(numa_id).alloc_low_address(size);
   } else {
-    start = _manager.alloc_high_address(size);
+    start = _managers.get(numa_id).alloc_high_address(size);
   }
 
   if (start == zoffset(UINTPTR_MAX)) {
@@ -231,5 +257,18 @@ ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, bool force_low_address)
 }
 
 void ZVirtualMemoryManager::free(const ZVirtualMemory& vmem) {
-  _manager.free(vmem.start(), vmem.size());
+  const int numa_id = get_numa_id(vmem);
+  _managers.get(numa_id).free(vmem.start(), vmem.size());
+}
+
+int ZVirtualMemoryManager::get_numa_id(const ZVirtualMemory& vmem) const {
+  for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
+    const ZVirtualMemory& range = _vmem_ranges.get(numa_id);
+    if (vmem.start() >= range.start() && vmem.end() <= range.end()) {
+      return numa_id;
+    }
+  }
+
+  assert(false, "Should never reach here");
+  return -1;
 }

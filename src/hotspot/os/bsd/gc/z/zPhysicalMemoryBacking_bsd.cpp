@@ -26,7 +26,6 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zLargePages.inline.hpp"
-#include "gc/z/zPhysicalMemory.inline.hpp"
 #include "gc/z/zPhysicalMemoryBacking_bsd.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"

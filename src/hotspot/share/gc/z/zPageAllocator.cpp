@@ -31,15 +31,17 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zMappedCache.hpp"
+#include "gc/z/zMemory.inline.hpp"
+#include "gc/z/zNUMA.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
-#include "gc/z/zPageCache.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncommitter.hpp"
-#include "gc/z/zUnmapper.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
@@ -50,52 +52,67 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+#include <cmath>
+
 static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocation Rate", ZStatUnitBytesPerSecond);
-static const ZStatCounter       ZCounterPageCacheFlush("Memory", "Page Cache Flush", ZStatUnitBytesPerSecond);
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
-ZSafePageRecycle::ZSafePageRecycle(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
-    _unsafe_to_recycle() {}
-
-void ZSafePageRecycle::activate() {
-  _unsafe_to_recycle.activate();
+static void sort_zoffset_ptrs(void* at, size_t size) {
+  qsort(at, size, sizeof(zoffset),
+    [](const void* a, const void* b) -> int {
+      return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
+    });
 }
 
-void ZSafePageRecycle::deactivate() {
-  auto delete_function = [&](ZPage* page) {
-    _page_allocator->safe_destroy_page(page);
+class ZSegmentStash {
+private:
+  ZGranuleMap<zoffset>* _physical_mappings;
+  ZArray<zoffset> _stash;
+
+  void sort_stashed_segments() {
+    sort_zoffset_ptrs(_stash.adr_at(0), (size_t)_stash.length());
+  }
+
+public:
+  ZSegmentStash(ZGranuleMap<zoffset>* physical_mappings, int num_granules)
+    : _physical_mappings(physical_mappings),
+      _stash(num_granules, num_granules, zoffset(0)) {}
+
+  void stash(const ZMemoryRange& vmem) {
+    memcpy(_stash.adr_at(0), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * (int)vmem.size_in_granules());
+    sort_stashed_segments();
+  }
+
+  void stash(ZArray<ZMemoryRange>* mappings) {
+    int stash_index = 0;
+    ZArrayIterator<ZMemoryRange> iter(mappings);
+    for (ZMemoryRange vmem; iter.next(&vmem);) {
+      const size_t num_granules = vmem.size_in_granules();
+      memcpy(_stash.adr_at(stash_index), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+      stash_index += (int)num_granules;
+    }
+    sort_stashed_segments();
+  }
+
+  void pop(ZArray<ZMemoryRange>* mappings, size_t num_mappings) {
+    int stash_index = 0;
+    for (int idx = mappings->length() - (int)num_mappings; idx < mappings->length(); idx++) {
+      const ZMemoryRange& vmem = mappings->at(idx);
+      const size_t num_granules = vmem.size_in_granules();
+      const size_t granules_left = _stash.length() - stash_index;
+
+      // If we run out of segments in the stash, we finish early
+      if (num_granules >= granules_left) {
+        memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * granules_left);
+        return;
+      }
+
+      memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * num_granules);
+      stash_index += (int)num_granules;
+    }
   };
-
-  _unsafe_to_recycle.deactivate_and_apply(delete_function);
-}
-
-ZPage* ZSafePageRecycle::register_and_clone_if_activated(ZPage* page) {
-  if (!_unsafe_to_recycle.is_activated()) {
-    // The page has no concurrent readers.
-    // Recycle original page.
-    return page;
-  }
-
-  // The page could have concurrent readers.
-  // It would be unsafe to recycle this page at this point.
-
-  // As soon as the page is added to _unsafe_to_recycle, it
-  // must not be used again. Hence, the extra double-checked
-  // locking to only clone the page if it is believed to be
-  // unsafe to recycle the page.
-  ZPage* const cloned_page = page->clone_limited();
-  if (!_unsafe_to_recycle.add_if_activated(page)) {
-    // It became safe to recycle the page after the is_activated check
-    delete cloned_page;
-    return page;
-  }
-
-  // The original page has been registered to be deleted by another thread.
-  // Recycle the cloned page.
-  return cloned_page;
-}
+};
 
 class ZPageAllocation : public StackObj {
   friend class ZList<ZPageAllocation>;
@@ -106,9 +123,10 @@ private:
   const ZAllocationFlags     _flags;
   const uint32_t             _young_seqnum;
   const uint32_t             _old_seqnum;
-  size_t                     _flushed;
+  size_t                     _harvested;
   size_t                     _committed;
-  ZList<ZPage>               _pages;
+  int                        _numa_id;
+  ZArray<ZMemoryRange>     _claimed_mappings;
   ZListNode<ZPageAllocation> _node;
   ZFuture<bool>              _stall_result;
 
@@ -119,11 +137,18 @@ public:
       _flags(flags),
       _young_seqnum(ZGeneration::young()->seqnum()),
       _old_seqnum(ZGeneration::old()->seqnum()),
-      _flushed(0),
+      _harvested(0),
       _committed(0),
-      _pages(),
+      _numa_id(-1),
+      _claimed_mappings(1),
       _node(),
       _stall_result() {}
+
+  void reset_for_retry() {
+    _harvested = 0;
+    _committed = 0;
+    _claimed_mappings.clear();
+  }
 
   ZPageType type() const {
     return _type;
@@ -145,12 +170,12 @@ public:
     return _old_seqnum;
   }
 
-  size_t flushed() const {
-    return _flushed;
+  size_t harvested() const {
+    return _harvested;
   }
 
-  void set_flushed(size_t flushed) {
-    _flushed = flushed;
+  void set_harvested(size_t harvested) {
+    _harvested = harvested;
   }
 
   size_t committed() const {
@@ -161,12 +186,20 @@ public:
     _committed = committed;
   }
 
+  int numa_id() const {
+    return _numa_id;
+  }
+
+  void set_numa_id(int id) {
+    _numa_id = id;
+  }
+
   bool wait() {
     return _stall_result.get();
   }
 
-  ZList<ZPage>* pages() {
-    return &_pages;
+  ZArray<ZMemoryRange>* claimed_mappings() {
+    return &_claimed_mappings;
   }
 
   void satisfy(bool result) {
@@ -178,32 +211,167 @@ public:
   }
 };
 
+class ZCacheState {
+  friend class ZPageAllocator;
+
+private:
+  ZMappedCache               _cache;
+  volatile size_t            _current_max_capacity;
+  volatile size_t            _capacity;
+  volatile size_t            _claimed;
+  volatile size_t            _used;
+  size_t                     _used_generations[2];
+  struct {
+    size_t                   _used_high;
+    size_t                   _used_low;
+  } _collection_stats[2];
+  double                     _last_commit;
+  double                     _last_uncommit;
+  size_t                     _to_uncommit;
+
+public:
+  void initialize(size_t max_capacity);
+
+  size_t available_capacity() const;
+  size_t soft_max_capacity() const;
+
+  size_t increase_capacity(size_t size);
+  void decrease_capacity(size_t size, bool set_max_capacity);
+
+  void increase_used(size_t size);
+  void decrease_used(size_t size);
+
+  void increase_used_generation(ZGenerationId id, size_t size);
+  void decrease_used_generation(ZGenerationId id, size_t size);
+
+  void reset_statistics(ZGenerationId id);
+};
+
+
+void ZCacheState::initialize(size_t max_capacity) {
+  _current_max_capacity = max_capacity;
+  _capacity = 0;
+  _claimed = 0;
+  _used = 0;
+
+  for (int i = 0; i < 2; i++) {
+    _used_generations[i] = 0;
+    _collection_stats[i] = {0, 0};
+  }
+
+  _last_commit = 0.0;
+  _last_uncommit = 0.0;
+  _to_uncommit = 0;
+}
+
+size_t ZCacheState::available_capacity() const {
+  return _current_max_capacity - _used - _claimed;
+}
+
+size_t ZCacheState::increase_capacity(size_t size) {
+  const size_t increased = MIN2(size, _current_max_capacity - _capacity);
+
+  if (increased > 0) {
+    // Update atomically since we have concurrent readers
+    Atomic::add(&_capacity, increased);
+
+    _last_commit = os::elapsedTime();
+    _last_uncommit = 0;
+    _cache.reset_min();
+  }
+
+  return increased;
+}
+
+void ZCacheState::decrease_capacity(size_t size, bool set_max_capacity) {
+  // Update state atomically since we have concurrent readers
+  Atomic::sub(&_capacity, size);
+
+  // Adjust current max capacity to avoid further attempts to increase capacity
+  if (set_max_capacity) {
+    Atomic::store(&_current_max_capacity, _capacity);
+  }
+}
+
+void ZCacheState::increase_used(size_t size) {
+  // We don't track generation usage here because this page
+  // could be allocated by a thread that satisfies a stalling
+  // allocation. The stalled thread can wake up and potentially
+  // realize that the page alloc should be undone. If the alloc
+  // and the undo gets separated by a safepoint, the generation
+  // statistics could se a decreasing used value between mark
+  // start and mark end.
+
+  // Update atomically since we have concurrent readers
+  const size_t used = Atomic::add(&_used, size);
+
+  // Update used high
+  for (auto& stats : _collection_stats) {
+    if (used > stats._used_high) {
+      stats._used_high = used;
+    }
+  }
+}
+
+void ZCacheState::decrease_used(size_t size) {
+  // Update atomically since we have concurrent readers
+  const size_t used = Atomic::sub(&_used, size);
+
+  // Update used low
+  for (auto& stats : _collection_stats) {
+    if (used < stats._used_low) {
+      stats._used_low = used;
+    }
+  }
+}
+
+void ZCacheState::increase_used_generation(ZGenerationId id, size_t size) {
+  // Update atomically since we have concurrent readers
+  Atomic::add(&_used_generations[(int)id], size, memory_order_relaxed);
+}
+
+void ZCacheState::decrease_used_generation(ZGenerationId id, size_t size) {
+  // Update atomically since we have concurrent readers
+  Atomic::sub(&_used_generations[(int)id], size, memory_order_relaxed);
+}
+
+void ZCacheState::reset_statistics(ZGenerationId id) {
+  _collection_stats[(int)id]._used_high = _used;
+  _collection_stats[(int)id]._used_low = _used;
+}
+
 ZPageAllocator::ZPageAllocator(size_t min_capacity,
                                size_t initial_capacity,
                                size_t soft_max_capacity,
                                size_t max_capacity)
   : _lock(),
-    _cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
+    _physical_mappings(ZAddressOffsetMax),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
-    _current_max_capacity(max_capacity),
-    _capacity(0),
-    _claimed(0),
-    _used(0),
-    _used_generations{0, 0},
-    _collection_stats{{0, 0}, {0, 0}},
+    _states(),
     _stalled(),
-    _unmapper(new ZUnmapper(this)),
     _uncommitter(new ZUncommitter(this)),
     _safe_destroy(),
-    _safe_recycle(this),
     _initialized(false) {
 
   if (!_virtual.is_initialized() || !_physical.is_initialized()) {
     return;
+  }
+
+  const int numa_nodes = ZNUMA::count();
+  const size_t capacity_per_state = align_up(max_capacity / numa_nodes, ZGranuleSize);
+  size_t capacity_left = max_capacity;
+
+  for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
+    const size_t capacity = MIN2(capacity_per_state, capacity_left);
+    capacity_left -= capacity;
+
+    ZCacheState& state = _states.get(numa_id);
+    state.initialize(capacity);
+    _physical.install_capacity(numa_id, zoffset(capacity_per_state * numa_id), capacity);
   }
 
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
@@ -231,16 +399,18 @@ bool ZPageAllocator::is_initialized() const {
   return _initialized;
 }
 
+static void pretouch_memory(zoffset start, size_t size) {
+  // At this point we know that we have a valid zoffset / zaddress.
+  const zaddress zaddr = ZOffset::address(start);
+  const uintptr_t addr = untype(zaddr);
+  const size_t page_size = ZLargePages::is_explicit() ? ZGranuleSize : os::vm_page_size();
+  os::pretouch_memory((void*)addr, (void*)(addr + size), page_size);
+}
+
 class ZPreTouchTask : public ZTask {
 private:
   volatile uintptr_t _current;
   const uintptr_t    _end;
-
-  static void pretouch(zaddress zaddr, size_t size) {
-    const uintptr_t addr = untype(zaddr);
-    const size_t page_size = ZLargePages::is_explicit() ? ZGranuleSize : os::vm_page_size();
-    os::pretouch_memory((void*)addr, (void*)(addr + size), page_size);
-  }
 
 public:
   ZPreTouchTask(zoffset start, zoffset_end end)
@@ -261,31 +431,56 @@ public:
 
       // At this point we know that we have a valid zoffset / zaddress.
       const zoffset offset = to_zoffset(claimed);
-      const zaddress addr = ZOffset::address(offset);
 
       // Pre-touch the granule
-      pretouch(addr, size);
+      pretouch_memory(offset, size);
     }
   }
 };
 
 bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
-  ZAllocationFlags flags;
-  flags.set_non_blocking();
-  flags.set_low_address();
+  const int numa_nodes = ZNUMA::count();
+  const size_t size_per_state = align_up(size / numa_nodes, ZGranuleSize);
+  size_t size_left = size;
 
-  ZPage* const page = alloc_page(ZPageType::large, size, flags, ZPageAge::eden);
-  if (page == nullptr) {
-    return false;
+  for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
+    const size_t to_prime = MIN2(size_left, size_per_state);
+    size_left -= to_prime;
+
+    if (to_prime == 0) {
+      // Nothing more to prime, exit
+      return true;
+    }
+
+    ZCacheState& state = _states.get(numa_id);
+    ZMemoryRange vmem = _virtual.alloc(to_prime, numa_id, true /* force_low_address */);
+
+    // Increase capacity, allocate and commit physical memory
+    state.increase_capacity(to_prime);
+    _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_prime, numa_id);
+    if (!commit_physical(&vmem, numa_id)) {
+      // This is a failure state. We do not cleanup the maybe partially committed memory.
+      return false;
+    }
+
+    map_virtual_to_physical(vmem, numa_id);
+
+    // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
+    int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+    if (actual != numa_id) {
+      log_debug(gc, heap)("NUMA Mismatch (priming): desired %d, actual %d", numa_id, actual);
+    }
+
+    if (AlwaysPreTouch) {
+      // Pre-touch memory
+      ZPreTouchTask task(vmem.start(), vmem.end());
+      workers->run_all(&task);
+    }
+
+    // We don't have to take a lock here as no other threads will access the
+    // mapped cache until we're finished.
+    state._cache.insert_mapping(vmem);
   }
-
-  if (AlwaysPreTouch) {
-    // Pre-touch page
-    ZPreTouchTask task(page->start(), page->end());
-    workers->run_all(&task);
-  }
-
-  free_page(page, false /* allow_defragment */);
 
   return true;
 }
@@ -303,255 +498,197 @@ size_t ZPageAllocator::max_capacity() const {
 }
 
 size_t ZPageAllocator::soft_max_capacity() const {
-  // Note that SoftMaxHeapSize is a manageable flag
-  const size_t soft_max_capacity = Atomic::load(&SoftMaxHeapSize);
-  const size_t current_max_capacity = Atomic::load(&_current_max_capacity);
-  return MIN2(soft_max_capacity, current_max_capacity);
+  size_t current_max_capacity = 0;
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    current_max_capacity += Atomic::load(&state->_current_max_capacity);
+  }
+
+  const size_t soft_max_heapsize = Atomic::load(&SoftMaxHeapSize);
+  return MIN2(soft_max_heapsize, current_max_capacity);
 }
 
 size_t ZPageAllocator::capacity() const {
-  return Atomic::load(&_capacity);
+  size_t capacity = 0;
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    capacity += Atomic::load(&state->_capacity);
+  }
+  return capacity;
 }
 
 size_t ZPageAllocator::used() const {
-  return Atomic::load(&_used);
+  size_t used = 0;
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    used += Atomic::load(&state->_used);
+  }
+  return used;
 }
 
 size_t ZPageAllocator::used_generation(ZGenerationId id) const {
-  return Atomic::load(&_used_generations[(int)id]);
+  size_t used_generation = 0;
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    used_generation += Atomic::load(&state->_used_generations[(int)id]);
+  }
+  return used_generation;
 }
 
 size_t ZPageAllocator::unused() const {
-  const ssize_t capacity = (ssize_t)Atomic::load(&_capacity);
-  const ssize_t used = (ssize_t)Atomic::load(&_used);
-  const ssize_t claimed = (ssize_t)Atomic::load(&_claimed);
+  ssize_t capacity = 0;
+  ssize_t used = 0;
+  ssize_t claimed = 0;
+
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    capacity += (ssize_t)Atomic::load(&state->_capacity);
+    used += (ssize_t)Atomic::load(&state->_used);
+    claimed += (ssize_t)Atomic::load(&state->_claimed);
+  }
+
   const ssize_t unused = capacity - used - claimed;
   return unused > 0 ? (size_t)unused : 0;
 }
 
 ZPageAllocatorStats ZPageAllocator::stats(ZGeneration* generation) const {
   ZLocker<ZLock> locker(&_lock);
-  return ZPageAllocatorStats(_min_capacity,
-                             _max_capacity,
-                             soft_max_capacity(),
-                             _capacity,
-                             _used,
-                             _collection_stats[(int)generation->id()]._used_high,
-                             _collection_stats[(int)generation->id()]._used_low,
-                             used_generation(generation->id()),
-                             generation->freed(),
-                             generation->promoted(),
-                             generation->compacted(),
-                             _stalled.size());
+
+  ZPageAllocatorStats stats(_min_capacity,
+                            _max_capacity,
+                            0,
+                            generation->freed(),
+                            generation->promoted(),
+                            generation->compacted(),
+                            _stalled.size());
+
+  const int gen_id = (int)generation->id();
+  size_t current_max_capacity = 0;
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    current_max_capacity += state->_current_max_capacity;
+    stats.increment_stats(state->_capacity,
+                          state->_used,
+                          state->_collection_stats[gen_id]._used_high,
+                          state->_collection_stats[gen_id]._used_low,
+                          state->_used_generations[gen_id]);
+  }
+
+  // We can only calculate the soft_max_capcity after finding the combined value
+  // for the current_max_capacity, so we set it after constructing the stats object.
+  const size_t soft_max_heapsize = Atomic::load(&SoftMaxHeapSize);
+  if (current_max_capacity > soft_max_heapsize) {
+    stats.set_soft_max_capacity(current_max_capacity);
+  }
+
+  return stats;
 }
 
 void ZPageAllocator::reset_statistics(ZGenerationId id) {
   assert(SafepointSynchronize::is_at_safepoint(), "Should be at safepoint");
-  _collection_stats[(int)id]._used_high = _used;
-  _collection_stats[(int)id]._used_low = _used;
-}
 
-size_t ZPageAllocator::increase_capacity(size_t size) {
-  const size_t increased = MIN2(size, _current_max_capacity - _capacity);
-
-  if (increased > 0) {
-    // Update atomically since we have concurrent readers
-    Atomic::add(&_capacity, increased);
-
-    // Record time of last commit. When allocation, we prefer increasing
-    // the capacity over flushing the cache. That means there could be
-    // expired pages in the cache at this time. However, since we are
-    // increasing the capacity we are obviously in need of committed
-    // memory and should therefore not be uncommitting memory.
-    _cache.set_last_commit();
-  }
-
-  return increased;
-}
-
-void ZPageAllocator::decrease_capacity(size_t size, bool set_max_capacity) {
-  // Update atomically since we have concurrent readers
-  Atomic::sub(&_capacity, size);
-
-  if (set_max_capacity) {
-    // Adjust current max capacity to avoid further attempts to increase capacity
-    log_error_p(gc)("Forced to lower max Java heap size from "
-                    "%zuM(%.0f%%) to %zuM(%.0f%%)",
-                    _current_max_capacity / M, percent_of(_current_max_capacity, _max_capacity),
-                    _capacity / M, percent_of(_capacity, _max_capacity));
-
-    // Update atomically since we have concurrent readers
-    Atomic::store(&_current_max_capacity, _capacity);
+  ZPerNUMAIterator<ZCacheState> iter(&_states);
+  for (ZCacheState* state; iter.next(&state);) {
+    state->reset_statistics(id);
   }
 }
 
-void ZPageAllocator::increase_used(size_t size) {
-  // We don't track generation usage here because this page
-  // could be allocated by a thread that satisfies a stalling
-  // allocation. The stalled thread can wake up and potentially
-  // realize that the page alloc should be undone. If the alloc
-  // and the undo gets separated by a safepoint, the generation
-  // statistics could se a decreasing used value between mark
-  // start and mark end.
-
-  // Update atomically since we have concurrent readers
-  const size_t used = Atomic::add(&_used, size);
-
-  // Update used high
-  for (auto& stats : _collection_stats) {
-    if (used > stats._used_high) {
-      stats._used_high = used;
-    }
-  }
+ZCacheState& ZPageAllocator::state_from_vmem(const ZMemoryRange& vmem) {
+  return _states.get(_virtual.get_numa_id(vmem));
 }
 
-void ZPageAllocator::decrease_used(size_t size) {
-  // Update atomically since we have concurrent readers
-  const size_t used = Atomic::sub(&_used, size);
-
-  // Update used low
-  for (auto& stats : _collection_stats) {
-    if (used < stats._used_low) {
-      stats._used_low = used;
-    }
-  }
+void ZPageAllocator::promote_used(const ZMemoryRange& from, const ZMemoryRange& to) {
+  const size_t size = from.size();
+  state_from_vmem(from).decrease_used_generation(ZGenerationId::young, size);
+  state_from_vmem(to).increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::increase_used_generation(ZGenerationId id, size_t size) {
-  // Update atomically since we have concurrent readers
-  Atomic::add(&_used_generations[(int)id], size, memory_order_relaxed);
+size_t ZPageAllocator::count_segments_physical(const ZMemoryRange& vmem) {
+  return _physical.count_segments(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
-void ZPageAllocator::decrease_used_generation(ZGenerationId id, size_t size) {
-  // Update atomically since we have concurrent readers
-  Atomic::sub(&_used_generations[(int)id], size, memory_order_relaxed);
+void ZPageAllocator::sort_segments_physical(const ZMemoryRange& vmem) {
+  sort_zoffset_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
 }
 
-void ZPageAllocator::promote_used(size_t size) {
-  decrease_used_generation(ZGenerationId::young, size);
-  increase_used_generation(ZGenerationId::old, size);
+void ZPageAllocator::alloc_physical(const ZMemoryRange& vmem, int numa_id) {
+  _physical.alloc(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
 }
 
-bool ZPageAllocator::commit_page(ZPage* page) {
+void ZPageAllocator::free_physical(const ZMemoryRange& vmem, int numa_id) {
+  // Free physical memory
+  _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
+}
+
+bool ZPageAllocator::commit_physical(ZMemoryRange* vmem, int numa_id) {
   // Commit physical memory
-  return _physical.commit(page->physical_memory());
+  const size_t committed = _physical.commit(_physical_mappings.get_addr(vmem->start()), vmem->size(), numa_id);
+  const size_t not_commited = vmem->size() - committed;
+
+  if (not_commited > 0) {
+    // Free the uncommitted memory and update vmem with the committed memory
+    ZMemoryRange not_commited_vmem = *vmem;
+    *vmem = not_commited_vmem.split_from_front(committed);
+    free_physical(not_commited_vmem, numa_id);
+    free_virtual(not_commited_vmem);
+    return false;
+  }
+
+  return true;
 }
 
-void ZPageAllocator::uncommit_page(ZPage* page) {
-  if (!ZUncommit) {
+void ZPageAllocator::uncommit_physical(const ZMemoryRange& vmem) {
+  precond(ZUncommit);
+
+  // Uncommit physical memory
+  _physical.uncommit(_physical_mappings.get_addr(vmem.start()), vmem.size());
+}
+
+void ZPageAllocator::map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id) {
+  // Map virtual memory to physical memory
+  _physical.map(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
+}
+
+void ZPageAllocator::unmap_virtual(const ZMemoryRange& vmem) {
+  // Unmap virtual memory from physical memory
+  _physical.unmap(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
+}
+
+void ZPageAllocator::free_virtual(const ZMemoryRange& vmem) {
+  // Free virtual memory
+  _virtual.free(vmem);
+}
+
+void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArray<ZMemoryRange>* entries) {
+  // If no lower address can be found, don't remap/defrag
+  if (_virtual.lowest_available_address(_virtual.get_numa_id(vmem)) > vmem.start()) {
+    entries->append(vmem);
     return;
   }
 
-  // Uncommit physical memory
-  _physical.uncommit(page->physical_memory());
-}
-
-void ZPageAllocator::map_page(const ZPage* page) const {
-  // Map physical memory
-  _physical.map(page->start(), page->physical_memory());
-}
-
-void ZPageAllocator::unmap_page(const ZPage* page) const {
-  // Unmap physical memory
-  _physical.unmap(page->start(), page->size());
-}
-
-void ZPageAllocator::safe_destroy_page(ZPage* page) {
-  // Destroy page safely
-  _safe_destroy.schedule_delete(page);
-}
-
-void ZPageAllocator::destroy_page(ZPage* page) {
-  // Free virtual memory
-  _virtual.free(page->virtual_memory());
-
-  // Free physical memory
-  _physical.free(page->physical_memory());
-
-  // Destroy page safely
-  safe_destroy_page(page);
-}
-
-bool ZPageAllocator::should_defragment(const ZPage* page) const {
-  // A small page can end up at a high address (second half of the address space)
-  // if we've split a larger page or we have a constrained address space. To help
-  // fight address space fragmentation we remap such pages to a lower address, if
-  // a lower address is available.
-  return page->type() == ZPageType::small &&
-         page->start() >= to_zoffset(_virtual.reserved() / 2) &&
-         page->start() > _virtual.lowest_available_address();
-}
-
-ZPage* ZPageAllocator::defragment_page(ZPage* page) {
-  // Harvest the physical memory (which is committed)
-  ZPhysicalMemory pmem;
-  ZPhysicalMemory& old_pmem = page->physical_memory();
-  pmem.add_segments(old_pmem);
-  old_pmem.remove_segments();
-
-  _unmapper->unmap_and_destroy_page(page);
-
-  // Allocate new virtual memory at a low address
-  const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
-
-  // Create the new page and map it
-  ZPage* new_page = new ZPage(ZPageType::small, vmem, pmem);
-  map_page(new_page);
-
-  // Update statistics
   ZStatInc(ZCounterDefragment);
 
-  return new_page;
-}
+  // Synchronously unmap the virtual memory
+  unmap_virtual(vmem);
 
-bool ZPageAllocator::is_alloc_allowed(size_t size) const {
-  const size_t available = _current_max_capacity - _used - _claimed;
-  return available >= size;
-}
+  // Stash segments
+  ZSegmentStash segments(&_physical_mappings, (int)vmem.size_in_granules());
+  segments.stash(vmem);
 
-bool ZPageAllocator::alloc_page_common_inner(ZPageType type, size_t size, ZList<ZPage>* pages) {
-  if (!is_alloc_allowed(size)) {
-    // Out of memory
-    return false;
+  // Shuffle vmem
+  const int num_ranges = _virtual.shuffle_vmem_to_low_addresses(vmem, entries);
+
+  // Restore segments
+  segments.pop(entries, num_ranges);
+
+  // The entries array may contain entires from other defragmentations as well,
+  // so we only operate on the last ranges that we have just inserted
+  int numa_id = _virtual.get_numa_id(vmem);
+  for (int idx = entries->length() - num_ranges; idx < entries->length(); idx++) {
+    ZMemoryRange v = entries->at(idx);
+    map_virtual_to_physical(v, numa_id);
+    pretouch_memory(v.start(), v.size());
   }
-
-  // Try allocate from the page cache
-  ZPage* const page = _cache.alloc_page(type, size);
-  if (page != nullptr) {
-    // Success
-    pages->insert_last(page);
-    return true;
-  }
-
-  // Try increase capacity
-  const size_t increased = increase_capacity(size);
-  if (increased < size) {
-    // Could not increase capacity enough to satisfy the allocation
-    // completely. Flush the page cache to satisfy the remainder.
-    const size_t remaining = size - increased;
-    _cache.flush_for_allocation(remaining, pages);
-  }
-
-  // Success
-  return true;
-}
-
-bool ZPageAllocator::alloc_page_common(ZPageAllocation* allocation) {
-  const ZPageType type = allocation->type();
-  const size_t size = allocation->size();
-  const ZAllocationFlags flags = allocation->flags();
-  ZList<ZPage>* const pages = allocation->pages();
-
-  if (!alloc_page_common_inner(type, size, pages)) {
-    // Out of memory
-    return false;
-  }
-
-  // Updated used statistics
-  increase_used(size);
-
-  // Success
-  return true;
 }
 
 static void check_out_of_memory_during_initialization() {
@@ -591,16 +728,100 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   return result;
 }
 
-bool ZPageAllocator::alloc_page_or_stall(ZPageAllocation* allocation) {
-  {
-    ZLocker<ZLock> locker(&_lock);
+bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation) {
+  ZMappedCache& cache = state._cache;
+  const size_t size = allocation->size();
+  ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
 
-    if (alloc_page_common(allocation)) {
+  // Try to allocate a contiguous mapping.
+  ZMemoryRange mapping;
+  if (cache.remove_mapping_contiguous(&mapping, size)) {
+    mappings->append(mapping);
+    return true;
+  }
+
+  // If we've failed to allocate a contiguous range from the mapped cache,
+  // there is still a possibility that the cache holds enough memory for the
+  // allocation dispersed over more than one mapping if the capacity cannot be
+  // increased to satisfy the allocation.
+
+  // Try increase capacity
+  const size_t increased = state.increase_capacity(size);
+  if (increased == size) {
+    // Capacity increase covered the entire request, done.
+    return true;
+  }
+
+  // Could not increase capacity enough to satisfy the allocation completely.
+  // Try removing multiple mappings from the mapped cache. We only remove if
+  // cache has enough remaining to cover the request.
+  const size_t remaining = size - increased;
+  if (cache.size() >= remaining) {
+    const size_t removed = cache.remove_mappings(mappings, remaining);
+    allocation->set_harvested(removed);
+
+    assert(removed == remaining, "must be %zu != %zu", removed, remaining);
+    return true;
+  }
+
+  // Could not claim enough memory from the cache or increase capacity to
+  // fulfill the request.
+  return false;
+}
+
+bool ZPageAllocator::claim_physical(ZPageAllocation* allocation, ZCacheState& state) {
+  const size_t size = allocation->size();
+
+  if (state.available_capacity() < size) {
+    // Out of memory
+    return false;
+  }
+
+  if (!claim_mapped_or_increase_capacity(state, allocation)) {
+    // Failed to claim enough memory or increase capacity
+    return false;
+  }
+
+  // Updated used statistics
+  state.increase_used(size);
+
+  // Success
+  return true;
+}
+
+bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
+  const size_t numa_nodes = ZNUMA::count();
+  const int start_node = allocation->numa_id();
+  int current_node = start_node;
+
+  do {
+    ZCacheState& state = _states.get(current_node);
+
+    if (claim_physical(allocation, state)) {
       // Success
+      allocation->set_numa_id(current_node);
       return true;
     }
 
-    // Failed
+    // Could not claim physical memory on current node, potentially move on to
+    // the next node
+    current_node = (current_node + 1) % numa_nodes;
+  } while(current_node != start_node);
+
+  return false;
+}
+
+bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
+  {
+    ZLocker<ZLock> locker(&_lock);
+
+    // Always start at the current thread's affinity for local allocation
+    allocation->set_numa_id(ZNUMA::id());
+    if (claim_physical_round_robin(allocation)) {
+      return true;
+    }
+
+    // Failed to claim memory
     if (allocation->flags().non_blocking()) {
       // Don't stall
       return false;
@@ -614,73 +835,46 @@ bool ZPageAllocator::alloc_page_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
-  const size_t size = allocation->size();
+void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
+  const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
-  // Allocate virtual memory. To make error handling a lot more straight
-  // forward, we allocate virtual memory before destroying flushed pages.
-  // Flushed pages are also unmapped and destroyed asynchronously, so we
-  // can't immediately reuse that part of the address space anyway.
-  const ZVirtualMemory vmem = _virtual.alloc(size, allocation->flags().low_address());
-  if (vmem.is_null()) {
-    log_error(gc)("Out of address space");
-    return nullptr;
+  const int num_granules = (int)(allocation->harvested() >> ZGranuleSizeShift);
+  ZSegmentStash segments(&_physical_mappings, num_granules);
+
+  // Unmap virtual memory
+  ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
+  for (ZMemoryRange vmem; iter.next(&vmem);) {
+    unmap_virtual(vmem);
   }
 
-  ZPhysicalMemory pmem;
-  size_t flushed = 0;
+  // Stash segments
+  segments.stash(allocation->claimed_mappings());
 
-  // Harvest physical memory from flushed pages
-  ZListRemoveIterator<ZPage> iter(allocation->pages());
-  for (ZPage* page; iter.next(&page);) {
-    flushed += page->size();
+  // Shuffle vmem. We allocate enough memory to cover the entire allocation size, not just the harvested memory.
+  // If we fail to allocate additional virtual memory, the allocated virtual memory will match the harvested amount
+  // instead of the allocation request.
+  _virtual.shuffle_vmem_to_low_addresses_contiguous(allocation->size(), allocation->claimed_mappings());
 
-    // Harvest flushed physical memory
-    ZPhysicalMemory& fmem = page->physical_memory();
-    pmem.add_segments(fmem);
-    fmem.remove_segments();
+  // Restore segments
+  segments.pop(allocation->claimed_mappings(), allocation->claimed_mappings()->length());
 
-    // Unmap and destroy page
-    _unmapper->unmap_and_destroy_page(page);
+  const size_t harvested = allocation->harvested();
+  if (harvested > 0) {
+    log_debug(gc, heap)("Mapped Cache Harvest: %zuM from %d mappings", harvested / M, num_mappings_harvested);
   }
-
-  if (flushed > 0) {
-    allocation->set_flushed(flushed);
-
-    // Update statistics
-    ZStatInc(ZCounterPageCacheFlush, flushed);
-    log_debug(gc, heap)("Page Cache Flushed: %zuM", flushed / M);
-  }
-
-  // Allocate any remaining physical memory. Capacity and used has
-  // already been adjusted, we just need to fetch the memory, which
-  // is guaranteed to succeed.
-  if (flushed < size) {
-    const size_t remaining = size - flushed;
-    allocation->set_committed(remaining);
-    _physical.alloc(pmem, remaining);
-  }
-
-  // Create new page
-  return new ZPage(allocation->type(), vmem, pmem);
 }
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
-  // The allocation is immediately satisfied if the list of pages contains
-  // exactly one page, with the type and size that was requested. However,
-  // even if the allocation is immediately satisfied we might still want to
-  // return false here to force the page to be remapped to fight address
-  // space fragmentation.
-
-  if (allocation->pages()->size() != 1) {
-    // Not a single page
+  // The allocation is immediately satisfied if the list of mappings contains
+  // exactly one mapping and is of the correct size.
+  if (allocation->claimed_mappings()->length() != 1) {
+    // Not a contiguous mapping
     return false;
   }
 
-  const ZPage* const page = allocation->pages()->first();
-  if (page->type() != allocation->type() ||
-      page->size() != allocation->size()) {
-    // Wrong type or size
+  const ZMemoryRange& vmem = allocation->claimed_mappings()->first();
+  if (vmem.size() != allocation->size()) {
+    // Not correct sized mapping
     return false;
   }
 
@@ -688,79 +882,143 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   return true;
 }
 
-ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
-  // Fast path
+bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
+  if (allocation->harvested() > 0) {
+    // If we have harvested anything, we claim virtual memory from the harvested
+    // mappings, and perhaps also allocate more to match the allocation request.
+    harvest_claimed_physical(allocation);
+  } else {
+    // If we have not harvested anything, we have only increased capacity.
+    // Allocate new virtual memory from the manager.
+    ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
+    allocation->claimed_mappings()->append(vmem);
+  }
+
+  // If we have enough virtual memory to cover the allocation request,
+  // we're done.
   if (is_alloc_satisfied(allocation)) {
-    return allocation->pages()->remove_first();
+    return true;
   }
 
-  // Slow path
-  ZPage* const page = alloc_page_create(allocation);
-  if (page == nullptr) {
-    // Out of address space
-    return nullptr;
+  // Before returning the harvested memory to the cache it must be mapped.
+  if (allocation->harvested() > 0) {
+    ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
+    for (ZMemoryRange vmem; iter.next(&vmem);) {
+      map_virtual_to_physical(vmem, allocation->numa_id());
+    }
   }
 
-  // Commit page
-  if (commit_page(page)) {
-    // Success
-    map_page(page);
-    return page;
-  }
-
-  // Failed or partially failed. Split of any successfully committed
-  // part of the page into a new page and insert it into list of pages,
-  // so that it will be re-inserted into the page cache.
-  ZPage* const committed_page = page->split_committed();
-  destroy_page(page);
-
-  if (committed_page != nullptr) {
-    map_page(committed_page);
-    allocation->pages()->insert_last(committed_page);
-  }
-
-  return nullptr;
+  // Failed to allocate enough to virtual memory from the manager.
+  return false;
 }
 
-ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
-  EventZPageAllocation event;
+bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size) {
+  ZMemoryRange to_be_committed_vmem = vmem;
+  ZMemoryRange committed_vmem = to_be_committed_vmem.split_from_front(committed_size);
 
+  // Try to commit all physical memory, commit_physical frees both the virtual
+  // and physical parts that correspond to the memory that failed to be committed.
+  commit_physical(&to_be_committed_vmem, allocation->numa_id());
+  committed_vmem.grow_from_back(to_be_committed_vmem.size());
+
+  // We have not managed to get any committed memory at all, meaning this allocation
+  // failed to commit memory on capacity increase alone and nothing harvested.
+  if (committed_vmem.size() == 0)  {
+    return false;
+  }
+
+  sort_segments_physical(committed_vmem);
+  map_virtual_to_physical(committed_vmem, allocation->numa_id());
+  allocation->claimed_mappings()->append(committed_vmem);
+
+  // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
+  int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+  if (actual != allocation->numa_id()) {
+    log_debug(gc, heap)("NUMA Mismatch (allocation): desired %d, actual %d", allocation->numa_id(), actual);
+  }
+
+  if (committed_vmem.size() != vmem.size()) {
+    log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+        untype(committed_vmem.start()),
+        untype(committed_vmem.end()),
+        untype(vmem.end()));
+    return false;
+  }
+
+  return true;
+}
+
+ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation) {
 retry:
-  ZPageAllocation allocation(type, size, flags);
-
-  // Allocate one or more pages from the page cache. If the allocation
-  // succeeds but the returned pages don't cover the complete allocation,
-  // then finalize phase is allowed to allocate the remaining memory
-  // directly from the physical memory manager. Note that this call might
-  // block in a safepoint if the non-blocking flag is not set.
-  if (!alloc_page_or_stall(&allocation)) {
+  // Claim physical memory by taking it from the mapped cache or by increasing
+  // capacity, which allows us to allocate from the underlying memory manager
+  // later on. Note that this call might block in a safepoint if the non-blocking
+  // flag is not set.
+  if (!claim_physical_or_stall(allocation)) {
     // Out of memory
     return nullptr;
   }
 
-  ZPage* const page = alloc_page_finalize(&allocation);
-  if (page == nullptr) {
-    // Failed to commit or map. Clean up and retry, in the hope that
-    // we can still allocate by flushing the page cache (more aggressively).
-    free_pages_alloc_failed(&allocation);
+  // If we have claimed a large enough contiguous mapping from the cache,
+  // we're done.
+  if (is_alloc_satisfied(allocation)) {
+    ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+    return new ZPage(allocation->type(), vmem);
+  }
+
+  // Claim virtual memory, either by harvesting or by allocating new from the
+  // virtual manager.
+  if (!claim_virtual_memory(allocation)) {
+    log_error(gc)("Out of address space");
+    free_memory_alloc_failed(allocation);
+    return nullptr;
+  }
+
+  ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+
+  // Allocate any remaining physical memory. Capacity and used has already been
+  // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
+  const size_t remaining_physical = allocation->size() - allocation->harvested();
+  if (remaining_physical > 0) {
+    allocation->set_committed(remaining_physical);
+    ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
+    alloc_physical(uncommitted_range, allocation->numa_id());
+  }
+
+  if (!commit_and_map_memory(allocation, vmem, allocation->harvested())) {
+    free_memory_alloc_failed(allocation);
     goto retry;
   }
 
+  return new ZPage(allocation->type(), vmem);
+}
+
+void ZPageAllocator::alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id) {
   // The generation's used is tracked here when the page is handed out
   // to the allocating thread. The overall heap "used" is tracked in
   // the lower-level allocation code.
   const ZGenerationId id = age == ZPageAge::old ? ZGenerationId::old : ZGenerationId::young;
-  increase_used_generation(id, size);
+  _states.get(numa_id).increase_used_generation(id, size);
 
   // Reset page. This updates the page's sequence number and must
   // be done after we potentially blocked in a safepoint (stalled)
   // where the global sequence number was updated.
   page->reset(age);
-  page->reset_top_for_allocation();
-  page->reset_livemap();
   if (age == ZPageAge::old) {
     page->remset_alloc();
   }
+}
+
+ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
+  EventZPageAllocation event;
+
+  ZPageAllocation allocation(type, size, flags);
+  ZPage* const page = alloc_page_inner(&allocation);
+  if (page == nullptr) {
+    return nullptr;
+  }
+
+  alloc_page_age_update(page, size, age, allocation.numa_id());
 
   // Update allocation statistics. Exclude gc relocations to avoid
   // artificial inflation of the allocation rate during relocation.
@@ -772,10 +1030,15 @@ retry:
   }
 
   // Send event
-  event.commit((u8)type, size, allocation.flushed(), allocation.committed(),
-               page->physical_memory().nsegments(), flags.non_blocking());
+  event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
+               (unsigned int)count_segments_physical(page->virtual_memory()), flags.non_blocking());
 
   return page;
+}
+
+void ZPageAllocator::safe_destroy_page(ZPage* page) {
+  // Destroy page safely
+  _safe_destroy.schedule_delete(page);
 }
 
 void ZPageAllocator::satisfy_stalled() {
@@ -786,7 +1049,7 @@ void ZPageAllocator::satisfy_stalled() {
       return;
     }
 
-    if (!alloc_page_common(allocation)) {
+    if (!claim_physical_round_robin(allocation)) {
       // Allocation could not be satisfied, give up
       return;
     }
@@ -799,164 +1062,219 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-ZPage* ZPageAllocator::prepare_to_recycle(ZPage* page, bool allow_defragment) {
-  // Make sure we have a page that is safe to recycle
-  ZPage* const to_recycle = _safe_recycle.register_and_clone_if_activated(page);
+void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment) {
+  // Extract memory and destroy page
+  ZMemoryRange vmem = page->virtual_memory();
+  const ZPageType page_type = page->type();
+  safe_destroy_page(page);
 
-  // Defragment the page before recycle if allowed and needed
-  if (allow_defragment && should_defragment(to_recycle)) {
-    return defragment_page(to_recycle);
+  // Perhaps remap mapping
+  if (page_type == ZPageType::large && allow_defragment) {
+    remap_and_defragment_mapping(vmem, entries);
+  } else {
+    entries->append(vmem);
   }
-
-  // Remove the remset before recycling
-  if (to_recycle->is_old() && to_recycle == page) {
-    to_recycle->remset_delete();
-  }
-
-  return to_recycle;
-}
-
-void ZPageAllocator::recycle_page(ZPage* page) {
-  // Set time when last used
-  page->set_last_used();
-
-  // Cache page
-  _cache.free_page(page);
 }
 
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
-  const ZGenerationId generation_id = page->generation_id();
+  ZArray<ZMemoryRange> to_cache;
 
-  // Prepare page for recycling before taking the lock
-  ZPage* const to_recycle = prepare_to_recycle(page, allow_defragment);
+  ZGenerationId id = page->generation_id();
+  ZCacheState& state = state_from_vmem(page->virtual_memory());
+  prepare_memory_for_free(page, &to_cache, allow_defragment);
 
   ZLocker<ZLock> locker(&_lock);
 
-  // Update used statistics
-  const size_t size = to_recycle->size();
-  decrease_used(size);
-  decrease_used_generation(generation_id, size);
-
-  // Free page
-  recycle_page(to_recycle);
+  ZArrayIterator<ZMemoryRange> iter(&to_cache);
+  for (ZMemoryRange vmem; iter.next(&vmem);) {
+    // Update used statistics and cache memory
+    state.decrease_used(vmem.size());
+    state.decrease_used_generation(id, vmem.size());
+    state._cache.insert_mapping(vmem);
+  }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
+
+struct ZGenStats {
+  size_t young_size;
+  size_t old_size;
+};
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZPage*> to_recycle_pages;
+  ZArray<ZMemoryRange> to_cache;
 
-  size_t young_size = 0;
-  size_t old_size = 0;
+  // All pages belong to the same generation, so either only young or old.
+  const ZGenerationId gen_id = pages->first()->generation_id();
+  size_t gen_size = 0;
 
-  // Prepare pages for recycling before taking the lock
+  // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
-    if (page->is_young()) {
-      young_size += page->size();
-    } else {
-      old_size += page->size();
-    }
-
-    // Prepare to recycle
-    ZPage* const to_recycle = prepare_to_recycle(page, true /* allow_defragment */);
-
-    // Register for recycling
-    to_recycle_pages.push(to_recycle);
+    gen_size += page->size();
+    prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
   ZLocker<ZLock> locker(&_lock);
 
-  // Update used statistics
-  decrease_used(young_size + old_size);
-  decrease_used_generation(ZGenerationId::young, young_size);
-  decrease_used_generation(ZGenerationId::old, old_size);
+  // Insert mappings to the cache
+  ZArrayIterator<ZMemoryRange> iter(&to_cache);
+  for (ZMemoryRange vmem; iter.next(&vmem);) {
+    ZCacheState& state = state_from_vmem(vmem);
+    state.decrease_used(vmem.size());
+    state._cache.insert_mapping(vmem);
+  }
 
-  // Free pages
-  ZArrayIterator<ZPage*> iter(&to_recycle_pages);
-  for (ZPage* page; iter.next(&page);) {
-    recycle_page(page);
+  for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
+    ZCacheState& state = _states.get(numa_id);
+    state.decrease_used_generation(gen_id, gen_size);
   }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
-void ZPageAllocator::free_pages_alloc_failed(ZPageAllocation* allocation) {
-  // The page(s) in the allocation are either taken from the cache or a newly
-  // created, mapped and commited ZPage. These page(s) have not been inserted in
-  // the page table, nor allocated a remset, so prepare_to_recycle is not required.
+void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   ZLocker<ZLock> locker(&_lock);
+  ZCacheState& state = _states.get(allocation->numa_id());
 
   // Only decrease the overall used and not the generation used,
   // since the allocation failed and generation used wasn't bumped.
-  decrease_used(allocation->size());
+  state.decrease_used(allocation->size());
 
   size_t freed = 0;
 
-  // Free any allocated/flushed pages
-  ZListRemoveIterator<ZPage> iter(allocation->pages());
-  for (ZPage* page; iter.next(&page);) {
-    freed += page->size();
-    recycle_page(page);
+  // Free mapped memory
+  ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
+  for (ZMemoryRange vmem; iter.next(&vmem);) {
+    freed += vmem.size();
+    state._cache.insert_mapping(vmem);
   }
 
-  // Adjust capacity and used to reflect the failed capacity increase
+  // Adjust capacity to reflect the failed capacity increase
   const size_t remaining = allocation->size() - freed;
-  decrease_capacity(remaining, true /* set_max_capacity */);
+  if (remaining > 0) {
+    state.decrease_capacity(remaining, true /* set_max_capacity */);
+    log_error_p(gc)("Forced to lower max Java heap size from "
+                    "%zuM(%.0f%%) to %zuM(%.0f%%) (NUMA id %d)",
+                    state._current_max_capacity / M, percent_of(state._current_max_capacity, _max_capacity),
+                    state._capacity / M, percent_of(state._capacity, _max_capacity),
+                    allocation->numa_id());
+  }
+
+  // Reset allocation for a potential retry
+  allocation->reset_for_retry();
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
 size_t ZPageAllocator::uncommit(uint64_t* timeout) {
-  // We need to join the suspendible thread set while manipulating capacity and
-  // used, to make sure GC safepoints will have a consistent view.
-  ZList<ZPage> pages;
-  size_t flushed;
+  const int numa_nodes = ZNUMA::count();
+  ZArray<ZMemoryRange> flushed_mappings;
+  ZPerNUMA<size_t> flushed_per_numa(0);
+  uint64_t lowest_timeout = ZUncommitDelay;
 
   {
+    // We need to join the suspendible thread set while manipulating capacity and
+    // used, to make sure GC safepoints will have a consistent view.
     SuspendibleThreadSetJoiner sts_joiner;
     ZLocker<ZLock> locker(&_lock);
 
-    // Never uncommit below min capacity. We flush out and uncommit chunks at
-    // a time (~0.8% of the max capacity, but at least one granule and at most
-    // 256M), in case demand for memory increases while we are uncommitting.
-    const size_t retain = MAX2(_used, _min_capacity);
-    const size_t release = _capacity - retain;
-    const size_t limit = MIN2(align_up(_current_max_capacity >> 7, ZGranuleSize), 256 * M);
-    const size_t flush = MIN2(release, limit);
+    for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
+      ZCacheState& state = _states.get(numa_id);
 
-    // Flush pages to uncommit
-    flushed = _cache.flush_for_uncommit(flush, &pages, timeout);
-    if (flushed == 0) {
-      // Nothing flushed
-      return 0;
+      const double now = os::elapsedTime();
+      const double time_since_last_commit = std::floor(now - state._last_commit);
+      const double time_since_last_uncommit = std::floor(now - state._last_uncommit);
+
+      if (time_since_last_commit < double(ZUncommitDelay)) {
+        // We have committed within the delay, stop uncommitting.
+        lowest_timeout = MIN2(lowest_timeout, uint64_t(double(ZUncommitDelay) - time_since_last_commit));
+        continue;
+      }
+
+      const size_t limit = MIN2(align_up(state._current_max_capacity >> 7, ZGranuleSize), 256 * M / ZNUMA::count());
+
+      if (time_since_last_uncommit < double(ZUncommitDelay)) {
+        // We are in the uncommit phase
+        const size_t num_uncommits_left = state._to_uncommit / limit;
+        const double time_left = double(ZUncommitDelay) - time_since_last_uncommit;
+        if (time_left < *timeout * num_uncommits_left) {
+          // Running out of time, speed up.
+          uint64_t new_timeout = uint64_t(std::floor(time_left / double(num_uncommits_left + 1)));
+          lowest_timeout = MIN2(lowest_timeout, new_timeout);
+        }
+      } else {
+        // We are about to start uncommitting
+        state._to_uncommit = state._cache.reset_min();
+        state._last_uncommit = now;
+
+        const size_t split = state._to_uncommit / limit + 1;
+        uint64_t new_timeout = ZUncommitDelay / split;
+        lowest_timeout = MIN2(lowest_timeout, new_timeout);
+      }
+
+      // Never uncommit below min capacity. We flush out and uncommit chunks at
+      // a time (~0.8% of the max capacity, but at least one granule and at most
+      // 256M), in case demand for memory increases while we are uncommitting.
+      const size_t retain = MAX2(state._used, _min_capacity / ZNUMA::count());
+      const size_t release = state._capacity - retain;
+      const size_t flush = MIN3(release, limit, state._to_uncommit);
+
+      if (flush == 0) {
+      // Nothing to flush
+        continue;
+      }
+
+      // Flush memory from the mapped cache to uncommit
+      const size_t flushed = state._cache.remove_from_min(&flushed_mappings, flush);
+      if (flushed == 0) {
+        // Nothing flushed
+        continue;
+      }
+
+      // Record flushed memory as claimed and how much we've flushed for this NUMA node
+      Atomic::add(&state._claimed, flushed);
+      state._to_uncommit -= flushed;
+      flushed_per_numa.set(flushed, numa_id);
     }
-
-    // Record flushed pages as claimed
-    Atomic::add(&_claimed, flushed);
   }
 
-  // Unmap, uncommit, and destroy flushed pages
-  ZListRemoveIterator<ZPage> iter(&pages);
-  for (ZPage* page; iter.next(&page);) {
-    unmap_page(page);
-    uncommit_page(page);
-    destroy_page(page);
+  *timeout = lowest_timeout;
+
+  // Unmap and uncommit flushed memory
+  ZArrayIterator<ZMemoryRange> it(&flushed_mappings);
+  for (ZMemoryRange vmem; it.next(&vmem);) {
+    const int numa_id = _virtual.get_numa_id(vmem);
+    unmap_virtual(vmem);
+    uncommit_physical(vmem);
+    free_physical(vmem, numa_id);
+    free_virtual(vmem);
   }
+
+  size_t total_flushed = 0;
 
   {
     SuspendibleThreadSetJoiner sts_joiner;
     ZLocker<ZLock> locker(&_lock);
 
-    // Adjust claimed and capacity to reflect the uncommit
-    Atomic::sub(&_claimed, flushed);
-    decrease_capacity(flushed, false /* set_max_capacity */);
+    for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
+      const size_t flushed = flushed_per_numa.get(numa_id);
+      if (flushed == 0) {
+        continue;
+      }
+
+      // Adjust claimed and capacity to reflect the uncommit
+      ZCacheState& state = _states.get(numa_id);
+      Atomic::sub(&state._claimed, flushed);
+      state.decrease_capacity(flushed, false /* set_max_capacity */);
+      total_flushed += flushed;
+    }
   }
 
-  return flushed;
+  return total_flushed;
 }
 
 void ZPageAllocator::enable_safe_destroy() const {
@@ -965,14 +1283,6 @@ void ZPageAllocator::enable_safe_destroy() const {
 
 void ZPageAllocator::disable_safe_destroy() const {
   _safe_destroy.disable_deferred_delete();
-}
-
-void ZPageAllocator::enable_safe_recycle() const {
-  _safe_recycle.activate();
-}
-
-void ZPageAllocator::disable_safe_recycle() const {
-  _safe_recycle.deactivate();
 }
 
 static bool has_alloc_seen_young(const ZPageAllocation* allocation) {
@@ -1046,6 +1356,5 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 }
 
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
-  tc->do_thread(_unmapper);
   tc->do_thread(_uncommitter);
 }

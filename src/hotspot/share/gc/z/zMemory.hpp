@@ -85,6 +85,9 @@ public:
 
   void register_callbacks(const Callbacks& callbacks);
 
+  void transfer_high_address(ZMemoryManager& other, size_t size);
+  size_t range_size() const;
+
   zoffset peek_low_address() const;
   zoffset alloc_low_address(size_t size);
   zoffset alloc_low_address_at_most(size_t size, size_t* allocated);

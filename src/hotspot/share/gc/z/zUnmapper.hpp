@@ -27,24 +27,46 @@
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zThread.hpp"
+#include "gc/z/zVirtualMemory.hpp"
 
 class ZPage;
 class ZPageAllocator;
+
+class ZUnmapperEntry : public CHeapObj<mtGC> {
+  friend class ZList<ZUnmapperEntry>;
+
+private:
+  ZVirtualMemory _vmem;
+  ZListNode<ZUnmapperEntry> _node;
+
+public:
+  ZUnmapperEntry(const ZVirtualMemory& vmem)
+    : _vmem(vmem),
+      _node() {}
+
+  const ZVirtualMemory& vmem() {
+    return _vmem;
+  }
+
+  size_t size() {
+    return _vmem.size();
+  }
+};
 
 class ZUnmapper : public ZThread {
 private:
   ZPageAllocator* const _page_allocator;
   ZConditionLock        _lock;
-  ZList<ZPage>          _queue;
+  ZList<ZUnmapperEntry> _queue;
   size_t                _enqueued_bytes;
   bool                  _warned_sync_unmapping;
   bool                  _stop;
 
-  ZPage* dequeue();
-  bool try_enqueue(ZPage* page);
+  ZUnmapperEntry* dequeue();
+  bool try_enqueue(const ZVirtualMemory& vmem);
   size_t queue_capacity() const;
   bool is_saturated() const;
-  void do_unmap_and_destroy_page(ZPage* page) const;
+  void do_unmap(const ZVirtualMemory& vmem) const;
 
 protected:
   virtual void run_thread();
@@ -53,7 +75,7 @@ protected:
 public:
   ZUnmapper(ZPageAllocator* page_allocator);
 
-  void unmap_and_destroy_page(ZPage* page);
+  void unmap_virtual(const ZVirtualMemory& vmem);
 };
 
 #endif // SHARE_GC_Z_ZUNMAPPER_HPP

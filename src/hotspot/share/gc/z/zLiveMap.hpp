@@ -42,6 +42,7 @@ private:
   volatile size_t   _live_bytes;
   BitMap::bm_word_t _segment_live_bits;
   BitMap::bm_word_t _segment_claim_bits;
+  size_t            _num_bits;
   ZBitMap           _bitmap;
   int               _segment_shift;
 
@@ -65,6 +66,8 @@ private:
 
   bool claim_segment(BitMap::idx_t segment);
 
+  void initialize_bitmap();
+
   void reset(ZGenerationId id);
   void reset_segment(BitMap::idx_t segment);
 
@@ -74,11 +77,10 @@ private:
   void iterate_segment(BitMap::idx_t segment, Function function);
 
 public:
-  ZLiveMap(uint32_t size);
+  ZLiveMap(size_t size);
   ZLiveMap(const ZLiveMap& other) = delete;
 
   void reset();
-  void resize(uint32_t size);
 
   bool is_marked(ZGenerationId id) const;
 

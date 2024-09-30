@@ -59,7 +59,7 @@ private:
   ZErrno fallocate(bool punch_hole, zoffset offset, size_t length) const;
 
   bool commit_inner(zoffset offset, size_t length) const;
-  size_t commit_numa_interleaved(zoffset offset, size_t length) const;
+  size_t commit_numa_preferred(zoffset offset, size_t length, int numa_id) const;
   size_t commit_default(zoffset offset, size_t length) const;
 
 public:
@@ -69,7 +69,7 @@ public:
 
   void warn_commit_limits(size_t max_capacity) const;
 
-  size_t commit(zoffset offset, size_t length) const;
+  size_t commit(zoffset offset, size_t length, int numa_id) const;
   size_t uncommit(zoffset offset, size_t length) const;
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;

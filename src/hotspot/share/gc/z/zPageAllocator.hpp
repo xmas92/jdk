@@ -24,53 +24,37 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zMappedCache.hpp"
+#include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
-#include "gc/z/zPageCache.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zSafeDelete.hpp"
+#include "gc/z/zValue.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
 class ThreadClosure;
 class ZGeneration;
+class ZNUMALocal;
+class ZNUMALocalStats;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
-class ZWorkers;
 class ZUncommitter;
 class ZUnmapper;
+class ZWorkers;
 
-class ZSafePageRecycle {
-private:
-  ZPageAllocator*        _page_allocator;
-  ZActivatedArray<ZPage> _unsafe_to_recycle;
-
-public:
-  ZSafePageRecycle(ZPageAllocator* page_allocator);
-
-  void activate();
-  void deactivate();
-
-  ZPage* register_and_clone_if_activated(ZPage* page);
-};
-
-class ZPageAllocator {
-  friend class VMStructs;
-  friend class ZUnmapper;
-  friend class ZUncommitter;
+class ZNUMALocal {
+  friend class ZPageAllocator;
 
 private:
-  mutable ZLock              _lock;
-  ZPageCache                 _cache;
-  ZVirtualMemoryManager      _virtual;
-  ZPhysicalMemoryManager     _physical;
-  const size_t               _min_capacity;
-  const size_t               _initial_capacity;
-  const size_t               _max_capacity;
+  ZMappedCache               _cache;
   volatile size_t            _current_max_capacity;
   volatile size_t            _capacity;
   volatile size_t            _claimed;
@@ -80,12 +64,17 @@ private:
     size_t                   _used_high;
     size_t                   _used_low;
   } _collection_stats[2];
-  ZList<ZPageAllocation>     _stalled;
-  ZUnmapper*                 _unmapper;
-  ZUncommitter*              _uncommitter;
-  mutable ZSafeDelete<ZPage> _safe_destroy;
-  mutable ZSafePageRecycle   _safe_recycle;
-  bool                       _initialized;
+  double                     _last_commit;
+  double                     _last_uncommit;
+  size_t                     _to_uncommit;
+
+public:
+  void initialize(size_t max_capacity);
+
+  ZNUMALocalStats stats(ZGenerationId id) const;
+
+  size_t available_memory() const;
+  size_t soft_max_capacity() const;
 
   size_t increase_capacity(size_t size);
   void decrease_capacity(size_t size, bool set_max_capacity);
@@ -96,27 +85,61 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
-  bool commit_page(ZPage* page);
-  void uncommit_page(ZPage* page);
+  void reset_statistics(ZGenerationId id);
+};
 
-  void map_page(const ZPage* page) const;
-  void unmap_page(const ZPage* page) const;
+class ZPageAllocator {
+  friend class VMStructs;
+  friend class ZUnmapper;
+  friend class ZUncommitter;
 
-  void destroy_page(ZPage* page);
+private:
+  mutable ZLock              _lock;
 
-  bool should_defragment(const ZPage* page) const;
-  ZPage* defragment_page(ZPage* page);
+  ZVirtualMemoryManager      _virtual;
+  ZPhysicalMemoryManager     _physical;
+  ZGranuleMap<zoffset>       _physical_mappings;
+  const size_t               _min_capacity;
+  const size_t               _initial_capacity;
+  const size_t               _max_capacity;
+  ZPerNUMA<ZNUMALocal>       _states;
+  ZList<ZPageAllocation>     _stalled;
+  ZUnmapper*                 _unmapper;
+  ZUncommitter*              _uncommitter;
+  mutable ZSafeDelete<ZPage> _safe_destroy;
+  bool                       _initialized;
 
-  bool is_alloc_allowed(size_t size) const;
+  ZNUMALocal& state_from_vmem(const ZVirtualMemory& vmem);
 
-  bool alloc_page_common_inner(ZPageType type, size_t size, ZList<ZPage>* pages);
-  bool alloc_page_common(ZPageAllocation* allocation);
+  size_t count_segments_physical(const ZVirtualMemory& vmem);
+  void copy_physical(const ZVirtualMemory& from, zoffset to);
+  void free_physical(const ZVirtualMemory& vmem, int numa_id);
+  bool commit_physical(ZVirtualMemory* vmem, int numa_id);
+  void uncommit_physical(const ZVirtualMemory& vmem);
+
+  void map_virtual_to_physical(const ZVirtualMemory& vmem);
+
+  void unmap_virtual(const ZVirtualMemory& vmem);
+  void free_virtual(const ZVirtualMemory& vmem);
+
+  bool should_defragment(const ZVirtualMemory& vmem) const;
+  ZVirtualMemory remap_mapping(const ZVirtualMemory& mapping, bool force_low_address);
+
+  bool claim_mapped_or_increase_capacity(ZNUMALocal& state, size_t size, ZArray<ZVirtualMemory>* mappings);
+  bool claim_physical(ZPageAllocation* allocation, ZNUMALocal& state);
+  bool claim_physical_round_robin(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
-  bool alloc_page_or_stall(ZPageAllocation* allocation);
+  bool claim_physical_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
-  ZPage* alloc_page_create(ZPageAllocation* allocation);
-  ZPage* alloc_page_finalize(ZPageAllocation* allocation);
-  void free_pages_alloc_failed(ZPageAllocation* allocation);
+
+  ZPage* alloc_page_inner(ZPageAllocation* allocation);
+  void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id);
+
+
+  void harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation);
+
+  bool commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem, size_t committed_size);
+  void free_memory_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();
 
@@ -124,6 +147,7 @@ private:
 
   void notify_out_of_memory();
   void restart_gc() const;
+  size_t calculate_soft_max_capacity(size_t current_max_capacity) const;
 
 public:
   ZPageAllocator(size_t min_capacity,
@@ -144,15 +168,13 @@ public:
   size_t used_generation(ZGenerationId id) const;
   size_t unused() const;
 
-  void promote_used(size_t size);
+  void promote_used(ZPage* from_page, ZPage* to_page);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
 
   void reset_statistics(ZGenerationId id);
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
-  ZPage* prepare_to_recycle(ZPage* page, bool allow_defragment);
-  void recycle_page(ZPage* page);
   void safe_destroy_page(ZPage* page);
   void free_page(ZPage* page, bool allow_defragment);
   void free_pages(const ZArray<ZPage*>* pages);
@@ -160,15 +182,38 @@ public:
   void enable_safe_destroy() const;
   void disable_safe_destroy() const;
 
-  void enable_safe_recycle() const;
-  void disable_safe_recycle() const;
-
   bool is_alloc_stalling() const;
   bool is_alloc_stalling_for_old() const;
   void handle_alloc_stalling_for_young();
   void handle_alloc_stalling_for_old(bool cleared_soft_refs);
 
   void threads_do(ThreadClosure* tc) const;
+};
+
+class ZNUMALocalStats {
+  friend class ZPageAllocatorStats;
+
+private:
+  size_t _current_max_capacity;
+  size_t _capacity;
+  size_t _used;
+  size_t _used_high;
+  size_t _used_low;
+  size_t _used_generation;
+
+public:
+  ZNUMALocalStats();
+
+  ZNUMALocalStats(size_t current_max_capacity,
+                  size_t capacity,
+                  size_t used,
+                  size_t used_high,
+                  size_t used_low,
+                  size_t used_generation);
+
+  size_t current_max_capacity() const;
+
+  void aggregate(const ZNUMALocalStats& stats);
 };
 
 class ZPageAllocatorStats {
@@ -190,15 +235,11 @@ public:
   ZPageAllocatorStats(size_t min_capacity,
                       size_t max_capacity,
                       size_t soft_max_capacity,
-                      size_t capacity,
-                      size_t used,
-                      size_t used_high,
-                      size_t used_low,
-                      size_t used_generation,
                       size_t freed,
                       size_t promoted,
                       size_t compacted,
-                      size_t allocation_stalls);
+                      size_t allocation_stalls,
+                      const ZNUMALocalStats& local_stats);
 
   size_t min_capacity() const;
   size_t max_capacity() const;

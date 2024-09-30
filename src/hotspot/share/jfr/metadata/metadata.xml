@@ -1142,7 +1142,7 @@
   <Event name="ZPageAllocation" category="Java Virtual Machine, GC, Detailed" label="ZGC Page Allocation" description="Allocation of a ZPage" thread="true" stackTrace="true">
      <Field type="ZPageTypeType" name="type" label="Type" />
      <Field type="ulong" contentType="bytes" name="size" label="Size" />
-     <Field type="ulong" contentType="bytes" name="flushed" label="Flushed" />
+     <Field type="ulong" contentType="bytes" name="harvested" label="Harvested" />
      <Field type="ulong" contentType="bytes" name="committed" label="Committed" />
      <Field type="uint" name="segments" label="Segments" />
      <Field type="boolean" name="nonBlocking" label="Non-blocking" />

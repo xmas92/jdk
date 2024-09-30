@@ -26,103 +26,84 @@
 
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
-#include "gc/z/zPageCache.hpp"
 #include "gc/z/zPageType.hpp"
-#include "gc/z/zPhysicalMemory.hpp"
+#include "gc/z/zPhysicalMemoryManager.hpp"
 #include "gc/z/zSafeDelete.hpp"
-#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zValue.hpp"
+#include "gc/z/zVirtualMemoryManager.hpp"
 
 class ThreadClosure;
+class ZCacheState;
 class ZGeneration;
 class ZCommitter;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
-class ZWorkers;
+class ZSegmentStash;
 class ZUncommitter;
-class ZUnmapper;
-
-class ZSafePageRecycle {
-private:
-  ZPageAllocator*        _page_allocator;
-  ZActivatedArray<ZPage> _unsafe_to_recycle;
-
-public:
-  ZSafePageRecycle(ZPageAllocator* page_allocator);
-
-  void activate();
-  void deactivate();
-
-  ZPage* register_and_clone_if_activated(ZPage* page);
-};
+class ZWorkers;
 
 class ZPageAllocator {
   friend class VMStructs;
   friend class ZCommitter;
-  friend class ZUnmapper;
   friend class ZUncommitter;
 
 private:
   mutable ZLock              _lock;
-  ZPageCache                 _cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
+  ZGranuleMap<zoffset>       _physical_mappings;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _static_max_capacity;
   volatile size_t            _heuristic_max_capacity;
-  volatile size_t            _capacity;
-  volatile size_t            _claimed;
-  volatile size_t            _used;
-  size_t                     _used_generations[2];
-  struct {
-    size_t                   _used_high;
-    size_t                   _used_low;
-  } _collection_stats[2];
+  ZPerNUMA<ZCacheState>      _states;
   ZList<ZPageAllocation>     _stalled;
-  ZUnmapper*                 _unmapper;
   ZCommitter*                _committer;
   ZUncommitter*              _uncommitter;
   mutable ZSafeDelete<ZPage> _safe_destroy;
-  mutable ZSafePageRecycle   _safe_recycle;
   bool                       _initialized;
 
-  size_t increase_capacity(size_t size, size_t curr_max_capacity);
-  void decrease_capacity(size_t size);
+  ZCacheState& state_from_vmem(const ZMemoryRange& vmem);
 
-  void increase_used(size_t size);
-  void decrease_used(size_t size);
+  size_t count_segments_physical(const ZMemoryRange& vmem);
+  void sort_segments_physical(const ZMemoryRange& vmem);
 
-  void increase_used_generation(ZGenerationId id, size_t size);
-  void decrease_used_generation(ZGenerationId id, size_t size);
+  void alloc_physical(const ZMemoryRange& vmem, int numa_id);
+  void free_physical(const ZMemoryRange& vmem, int numa_id);
+  bool commit_physical(ZMemoryRange* vmem, int numa_id);
+  void uncommit_physical(const ZMemoryRange& vmem);
 
-  bool commit_page(ZPage* page);
-  void uncommit_page(ZPage* page);
+  void map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id);
 
-  void map_page(const ZPage* page) const;
-  void unmap_page(const ZPage* page) const;
+  void unmap_virtual(const ZMemoryRange& vmem);
+  void free_virtual(const ZMemoryRange& vmem);
 
-  bool prime_alloc_page(size_t size);
-  void request_alloc_heating(ZPage* page, ZPageAllocation* allocation);
+  void remap_and_defragment_mapping(const ZMemoryRange& mapping, ZArray<ZMemoryRange>* entries);
+  void prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment);
 
-  void destroy_page(ZPage* page);
-
-  bool should_defragment(const ZPage* page) const;
-  ZPage* defragment_page(ZPage* page);
-
-  bool is_alloc_allowed(size_t size, size_t curr_max_capacity, bool use_cache) const;
-
-  bool alloc_page_common_inner(ZPageType type, size_t size, size_t curr_max_capacity, ZList<ZPage>* pages, bool use_cache);
-  bool alloc_page_common(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
-  bool alloc_page_or_stall(ZPageAllocation* allocation);
+
+  bool claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation);
+  bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);
+  bool claim_physical_round_robin(ZPageAllocation* allocation);
+  bool claim_physical_or_stall(ZPageAllocation* allocation);
+
+  void harvest_claimed_physical(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
-  ZPage* alloc_page_create(ZPageAllocation* allocation);
-  ZPage* alloc_page_finalize(ZPageAllocation* allocation);
-  void free_pages_alloc_failed(ZPageAllocation* allocation);
+  bool claim_virtual_memory(ZPageAllocation* allocation);
+
+  bool commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size);
+
+  ZPage* alloc_page_inner(ZPageAllocation* allocation);
+  void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id);
+
+  void free_memory_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();
 
@@ -158,24 +139,19 @@ public:
   void adapt_heuristic_max_capacity(ZGenerationId generation);
   void adjust_capacity(size_t used_soon);
 
-  void promote_used(size_t size);
+  void promote_used(const ZMemoryRange& from, const ZMemoryRange& to);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
 
   void reset_statistics(ZGenerationId id);
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
-  ZPage* prepare_to_recycle(ZPage* page, bool allow_defragment);
-  void recycle_page(ZPage* page);
   void safe_destroy_page(ZPage* page);
   void free_page(ZPage* page, bool allow_defragment);
   void free_pages(const ZArray<ZPage*>* pages);
 
   void enable_safe_destroy() const;
   void disable_safe_destroy() const;
-
-  void enable_safe_recycle() const;
-  void disable_safe_recycle() const;
 
   bool is_alloc_stalling() const;
   bool is_alloc_stalling_for_old() const;
@@ -189,40 +165,45 @@ class ZPageAllocatorStats {
 private:
   size_t _min_capacity;
   size_t _heuristic_max_capacity;
-  size_t _capacity;
-  size_t _used;
-  size_t _used_high;
-  size_t _used_low;
-  size_t _used_generation;
   size_t _freed;
   size_t _promoted;
   size_t _compacted;
   size_t _allocation_stalls;
 
+  size_t _capacity;
+  size_t _used;
+  size_t _used_high;
+  size_t _used_low;
+  size_t _used_generation;
+
 public:
   ZPageAllocatorStats(size_t min_capacity,
                       size_t heuristic_max_capacity,
-                      size_t capacity,
-                      size_t used,
-                      size_t used_high,
-                      size_t used_low,
-                      size_t used_generation,
                       size_t freed,
                       size_t promoted,
                       size_t compacted,
                       size_t allocation_stalls);
 
+  void increment_stats(size_t capacity,
+                       size_t used,
+                       size_t used_high,
+                       size_t used_low,
+                       size_t used_generation);
+
   size_t min_capacity() const;
   size_t heuristic_max_capacity() const;
+  size_t freed() const;
+  size_t promoted() const;
+  size_t compacted() const;
+  size_t allocation_stalls() const;
+
   size_t capacity() const;
   size_t used() const;
   size_t used_high() const;
   size_t used_low() const;
   size_t used_generation() const;
-  size_t freed() const;
-  size_t promoted() const;
-  size_t compacted() const;
-  size_t allocation_stalls() const;
+
+  void set_soft_max_capacity(size_t new_capacity);
 };
 
 #endif // SHARE_GC_Z_ZPAGEALLOCATOR_HPP

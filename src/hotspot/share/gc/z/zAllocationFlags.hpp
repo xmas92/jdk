@@ -31,25 +31,22 @@
 // Allocation flags layout
 // -----------------------
 //
-//   7     2 1 0
-//  +-----+-+-+-+
-//  |00000|1|1|1|
-//  +-----+-+-+-+
-//  |     | | |
-//  |     | | * 0-0 Non-Blocking Flag (1-bit)
-//  |     | |
-//  |     | * 1-1 GC Relocation Flag (1-bit)
-//  |     |
-//  |     * 2-2 Low Address Flag (1-bit)
+//   7       1 0
+//  +------+-+-+
+//  |000000|1|1|
+//  +------+-+-+
+//  |      | |
+//  |      | * 0-0 Non-Blocking Flag (1-bit)
+//  |      |
+//  |      * 1-1 GC Relocation Flag (1-bit)
 //  |
-//  * 7-3 Unused (5-bits)
+//  * 7-2 Unused (6-bits)
 //
 
 class ZAllocationFlags {
 private:
   typedef ZBitField<uint8_t, bool, 0, 1> field_non_blocking;
   typedef ZBitField<uint8_t, bool, 1, 1> field_gc_relocation;
-  typedef ZBitField<uint8_t, bool, 2, 1> field_low_address;
   typedef ZBitField<uint8_t, bool, 3, 1> field_no_cache;
 
   uint8_t _flags;
@@ -57,10 +54,6 @@ private:
 public:
   ZAllocationFlags()
     : _flags(0) {}
-
-  void set_no_cache() {
-    _flags |= field_no_cache::encode(true);
-  }
 
   void set_non_blocking() {
     _flags |= field_non_blocking::encode(true);
@@ -70,8 +63,8 @@ public:
     _flags |= field_gc_relocation::encode(true);
   }
 
-  void set_low_address() {
-    _flags |= field_low_address::encode(true);
+  void set_no_cache() {
+    _flags |= field_no_cache::encode(true);
   }
 
   bool non_blocking() const {
@@ -80,10 +73,6 @@ public:
 
   bool gc_relocation() const {
     return field_gc_relocation::decode(_flags);
-  }
-
-  bool low_address() const {
-    return field_low_address::decode(_flags);
   }
 
   bool use_cache() const {

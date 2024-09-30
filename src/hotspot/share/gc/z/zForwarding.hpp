@@ -29,9 +29,9 @@
 #include "gc/z/zForwardingEntry.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
-#include "gc/z/zVirtualMemory.hpp"
 
 class ObjectClosure;
 class ZForwardingAllocator;
@@ -55,7 +55,7 @@ private:
   typedef ZAttachedArray<ZForwarding, ZForwardingEntry> AttachedArray;
   typedef ZArray<volatile zpointer*> PointerArray;
 
-  const ZVirtualMemory   _virtual;
+  const ZMemoryRange     _virtual;
   const size_t           _object_alignment_shift;
   const AttachedArray    _entries;
   ZPage* const           _page;

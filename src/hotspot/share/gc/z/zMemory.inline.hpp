@@ -30,39 +30,65 @@
 #include "gc/z/zList.inline.hpp"
 #include "utilities/debug.hpp"
 
-inline ZMemory::ZMemory(zoffset start, size_t size)
+inline ZMemoryRange::ZMemoryRange()
+  : _start(zoffset(UINTPTR_MAX)),
+    _end(zoffset_end(UINTPTR_MAX)) {}
+
+inline ZMemoryRange::ZMemoryRange(zoffset start, size_t size)
   : _start(start),
     _end(to_zoffset_end(start, size)) {}
 
-inline zoffset ZMemory::start() const {
+inline bool ZMemoryRange::is_null() const {
+  return _start == zoffset(UINTPTR_MAX);
+}
+
+inline zoffset ZMemoryRange::start() const {
   return _start;
 }
 
-inline zoffset_end ZMemory::end() const {
+inline zoffset_end ZMemoryRange::end() const {
   return _end;
 }
 
-inline size_t ZMemory::size() const {
+inline size_t ZMemoryRange::size() const {
   return end() - start();
 }
 
-inline void ZMemory::shrink_from_front(size_t size) {
-  assert(this->size() > size, "Too small");
+inline size_t ZMemoryRange::size_in_granules() const {
+  return size() >> ZGranuleSizeShift;
+}
+
+inline void ZMemoryRange::shrink_from_front(size_t size) {
+  assert(this->size() >= size, "Too small");
   _start += size;
 }
 
-inline void ZMemory::shrink_from_back(size_t size) {
-  assert(this->size() > size, "Too small");
+inline void ZMemoryRange::shrink_from_back(size_t size) {
+  assert(this->size() >= size, "Too small");
   _end -= size;
 }
 
-inline void ZMemory::grow_from_front(size_t size) {
+inline void ZMemoryRange::grow_from_front(size_t size) {
   assert(size_t(start()) >= size, "Too big");
   _start -= size;
 }
 
-inline void ZMemory::grow_from_back(size_t size) {
+inline void ZMemoryRange::grow_from_back(size_t size) {
   _end += size;
+}
+
+inline ZMemoryRange ZMemoryRange::split_from_front(size_t size) {
+  shrink_from_front(size);
+  return ZMemoryRange(_start - size, size);
+}
+
+inline ZMemoryRange ZMemoryRange::split_from_back(size_t size) {
+  shrink_from_back(size);
+  return ZMemoryRange(to_zoffset(_end), size);
+}
+
+inline bool ZMemoryRange::adjacent_to(const ZMemoryRange& other) const {
+  return zoffset(end()) == other.start() || zoffset(other.end()) == start();
 }
 
 #endif // SHARE_GC_Z_ZMEMORY_INLINE_HPP

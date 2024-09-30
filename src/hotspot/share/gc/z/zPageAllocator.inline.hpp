@@ -28,26 +28,33 @@
 
 inline ZPageAllocatorStats::ZPageAllocatorStats(size_t min_capacity,
                                                 size_t heuristic_max_capacity,
-                                                size_t capacity,
-                                                size_t used,
-                                                size_t used_high,
-                                                size_t used_low,
-                                                size_t used_generation,
                                                 size_t freed,
                                                 size_t promoted,
                                                 size_t compacted,
                                                 size_t allocation_stalls)
   : _min_capacity(min_capacity),
     _heuristic_max_capacity(heuristic_max_capacity),
-    _capacity(capacity),
-    _used(used),
-    _used_high(used_high),
-    _used_low(used_low),
-    _used_generation(used_generation),
     _freed(freed),
     _promoted(promoted),
     _compacted(compacted),
-    _allocation_stalls(allocation_stalls) {}
+    _allocation_stalls(allocation_stalls),
+    _capacity(0),
+    _used(0),
+    _used_high(0),
+    _used_low(0),
+    _used_generation(0) {}
+
+inline void ZPageAllocatorStats::increment_stats(size_t capacity,
+                                                 size_t used,
+                                                 size_t used_high,
+                                                 size_t used_low,
+                                                 size_t used_generation) {
+  _capacity += capacity;
+  _used += used;
+  _used_high += used_high;
+  _used_low += used_low;
+  _used_generation += used_generation;
+}
 
 inline size_t ZPageAllocatorStats::min_capacity() const {
   return _min_capacity;
@@ -91,6 +98,10 @@ inline size_t ZPageAllocatorStats::compacted() const {
 
 inline size_t ZPageAllocatorStats::allocation_stalls() const {
   return _allocation_stalls;
+}
+
+inline void ZPageAllocatorStats::set_soft_max_capacity(size_t new_capacity) {
+  _soft_max_capacity = new_capacity;
 }
 
 #endif // SHARE_GC_Z_ZPAGEALLOCATOR_INLINE_HPP

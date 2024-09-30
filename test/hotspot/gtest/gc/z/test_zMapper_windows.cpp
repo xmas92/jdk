@@ -28,6 +28,7 @@
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
 #include "gc/z/zSyscall_windows.hpp"
+#include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "runtime/os.hpp"
 #include "unittest.hpp"
@@ -40,8 +41,9 @@ class ZMapperTest : public Test {
 private:
   static constexpr size_t ZMapperTestReservationSize = 32 * M;
 
-  static bool            _initialized;
-  static ZMemoryManager* _va;
+  static bool                      _initialized;
+  static ZPerNUMA<ZMemoryManager>* _vas;
+  static ZMemoryManager*           _va;
 
   ZVirtualMemoryManager* _vmm;
 
@@ -76,9 +78,8 @@ public:
 
     // Fake a ZVirtualMemoryManager
     _vmm = (ZVirtualMemoryManager*)os::malloc(sizeof(ZVirtualMemoryManager), mtTest);
-
-    // Construct its internal ZMemoryManager
-    _va = new (&_vmm->_manager) ZMemoryManager();
+    _vas = ::new (&_vmm->_managers) ZPerNUMA<ZMemoryManager>();
+    _va = _vmm->_managers.addr(0);
 
     // Reserve address space for the test
     if (!reserve_for_test()) {
@@ -98,6 +99,8 @@ public:
     if (_initialized) {
       _vmm->pd_unreserve(ZOffset::address_unsafe(zoffset(0)), 0);
     }
+
+    _vas->~ZPerNUMA<ZMemoryManager>();
     os::free(_vmm);
   }
 
@@ -168,8 +171,9 @@ public:
   }
 };
 
-bool ZMapperTest::_initialized   = false;
-ZMemoryManager* ZMapperTest::_va = nullptr;
+bool ZMapperTest::_initialized              = false;
+ZPerNUMA<ZMemoryManager>* ZMapperTest::_vas = nullptr;
+ZMemoryManager* ZMapperTest::_va            = nullptr;
 
 TEST_VM_F(ZMapperTest, test_alloc_low_address) {
   test_alloc_low_address();

@@ -71,10 +71,11 @@ private:
 
   void reset_seqnum();
 
-  ZPage* split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem);
+  ZPage* split_with_pmem(ZPageType type, ZPhysicalMemory&& pmem);
 
 public:
   ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  ZPage(ZPageType type, const ZVirtualMemory& vmem, ZPhysicalMemory&& pmem);
 
   ZPage* clone_limited() const;
 

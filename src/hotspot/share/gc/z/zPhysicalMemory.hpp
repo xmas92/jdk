@@ -60,7 +60,9 @@ public:
   ZPhysicalMemory();
   ZPhysicalMemory(const ZPhysicalMemorySegment& segment);
   ZPhysicalMemory(const ZPhysicalMemory& pmem);
+  ZPhysicalMemory(ZPhysicalMemory&& pmem);
   const ZPhysicalMemory& operator=(const ZPhysicalMemory& pmem);
+  const ZPhysicalMemory& operator=(ZPhysicalMemory&& pmem);
 
   bool is_null() const;
   size_t size() const;

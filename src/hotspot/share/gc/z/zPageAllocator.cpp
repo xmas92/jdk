@@ -49,6 +49,8 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+#include <utility>
+
 static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocation Rate", ZStatUnitBytesPerSecond);
 static const ZStatCounter       ZCounterPageCacheFlush("Memory", "Page Cache Flush", ZStatUnitBytesPerSecond);
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
@@ -620,7 +622,7 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   }
 
   // Create new page
-  return new ZPage(allocation->type(), vmem, pmem);
+  return new ZPage(allocation->type(), vmem, std::move(pmem));
 }
 
 bool ZPageAllocator::should_defragment(const ZPage* page) const {

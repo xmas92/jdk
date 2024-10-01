@@ -50,16 +50,27 @@ ZPhysicalMemory::ZPhysicalMemory(const ZPhysicalMemorySegment& segment)
 }
 
 ZPhysicalMemory::ZPhysicalMemory(const ZPhysicalMemory& pmem)
+  : _segments(pmem.nsegments()) {
+  _segments.appendAll(&pmem._segments);
+}
+
+ZPhysicalMemory::ZPhysicalMemory(ZPhysicalMemory&& pmem)
   : _segments() {
-  add_segments(pmem);
+  // Swap segments
+  _segments.swap(&pmem._segments);
 }
 
 const ZPhysicalMemory& ZPhysicalMemory::operator=(const ZPhysicalMemory& pmem) {
   // Free segments
   _segments.clear_and_deallocate();
+  _segments.reserve(pmem.nsegments());
+  _segments.appendAll(&pmem._segments);
+  return *this;
+}
 
-  // Copy segments
-  add_segments(pmem);
+const ZPhysicalMemory& ZPhysicalMemory::operator=(ZPhysicalMemory&& pmem) {
+  // Swap segments
+  _segments.swap(&pmem._segments);
 
   return *this;
 }

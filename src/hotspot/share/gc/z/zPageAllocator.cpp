@@ -756,7 +756,7 @@ retry:
   ZPage* const page = alloc_page_finalize(&allocation);
   if (page == nullptr) {
     // Failed to commit or map. Clean up and retry, in the hope that
-    // we can still allocate by flushing the page cache (more aggressively).
+    // we can still allocate by flushing the mapped cache (more aggressively).
     free_pages_alloc_failed(&allocation);
     goto retry;
   }
@@ -900,7 +900,7 @@ void ZPageAllocator::free_pages_alloc_failed(ZPageAllocation* allocation) {
 
   size_t freed = 0;
 
-  // Free any allocated/flushed pages
+  // Free mapped memory
   ZArrayIterator<ZMappedMemory> iter(allocation->mappings());
   for (ZMappedMemory mapping; iter.next(&mapping);) {
     freed += mapping.size();

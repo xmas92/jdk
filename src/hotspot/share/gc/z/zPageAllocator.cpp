@@ -602,7 +602,7 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   return result;
 }
 
-bool ZPageAllocator::alloc_memory_or_stall(ZPageAllocation* allocation) {
+bool ZPageAllocator::alloc_mapped_or_stall(ZPageAllocation* allocation) {
   {
     ZLocker<ZLock> locker(&_lock);
 
@@ -743,7 +743,7 @@ retry:
   // finalize phase is allowedto allocate the remaining memory directly from the
   // physical memory manager. Note that this call might block in a safepoint if
   // the non-blocking flag is not set.
-  if (!alloc_memory_or_stall(&allocation)) {
+  if (!alloc_mapped_or_stall(&allocation)) {
     // Out of memory
     return nullptr;
   }
@@ -752,7 +752,7 @@ retry:
   if (page == nullptr) {
     // Failed to commit or map. Clean up and retry, in the hope that
     // we can still allocate by flushing the mapped cache (more aggressively).
-    free_pages_alloc_failed(&allocation);
+    free_mapped_alloc_failed(&allocation);
     goto retry;
   }
 
@@ -886,7 +886,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   satisfy_stalled();
 }
 
-void ZPageAllocator::free_pages_alloc_failed(ZPageAllocation* allocation) {
+void ZPageAllocator::free_mapped_alloc_failed(ZPageAllocation* allocation) {
   ZLocker<ZLock> locker(&_lock);
 
   // Only decrease the overall used and not the generation used,

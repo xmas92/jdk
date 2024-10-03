@@ -358,10 +358,9 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
     // Update atomically since we have concurrent readers
     Atomic::add(&_capacity, increased);
 
-    // TODO: Fix comment
     // Record time of last commit. When allocation, we prefer increasing
     // the capacity over flushing the cache. That means there could be
-    // expired pages in the cache at this time. However, since we are
+    // expired memory in the cache at this time. However, since we are
     // increasing the capacity we are obviously in need of committed
     // memory and should therefore not be uncommitting memory.
     _mapped_cache.set_last_commit();
@@ -440,6 +439,11 @@ void ZPageAllocator::unmap_and_uncommit_mapped(ZMappedMemory& mapped) {
   _physical.uncommit(m);
 }
 
+void ZPageAllocator::unmap_mapped(const ZMappedMemory& mapped) {
+  // Unmap physical memory
+  _physical.unmap(mapped.start(), mapped.size());
+}
+
 bool ZPageAllocator::commit_page(ZPage* page) {
   // Commit physical memory
   return _physical.commit(page->physical_memory());
@@ -457,11 +461,6 @@ void ZPageAllocator::uncommit_page(ZPage* page) {
 void ZPageAllocator::map_page(const ZPage* page) const {
   // Map physical memory
   _physical.map(page->start(), page->physical_memory());
-}
-
-void ZPageAllocator::unmap_page(const ZPage* page) const {
-  // Unmap physical memory
-  _physical.unmap(page->start(), page->size());
 }
 
 void ZPageAllocator::safe_destroy_page(ZPage* page) {
@@ -646,14 +645,10 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   for (ZMappedMemory mapping; iter.next(&mapping);) {
     flushed += mapping.size();
     pmem.add_segments(mapping.physical_memory());
-
-    // TODO: Probably want to do this in the unampper thread instead. See TODO below.
-    _physical.unmap(mapping.start(), mapping.size());
+    _unmapper->unmap_memory(new ZMappedMemory(mapping));
   }
 
-  // TODO:
-  // Either we: Passing the entire allocation->mappings() array to the unmapper.
-  // Or:        Clear the mappings after harvesting the physical memory and unmapping directly.
+  // Clear all the stored mappings
   allocation->mappings()->clear();
 
   if (flushed > 0) {

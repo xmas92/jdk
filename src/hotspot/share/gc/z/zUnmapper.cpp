@@ -43,7 +43,7 @@ ZUnmapper::ZUnmapper(ZPageAllocator* page_allocator)
   create_and_start();
 }
 
-ZPage* ZUnmapper::dequeue() {
+ZMappedMemory* ZUnmapper::dequeue() {
   ZLocker<ZConditionLock> locker(&_lock);
 
   for (;;) {
@@ -51,17 +51,17 @@ ZPage* ZUnmapper::dequeue() {
       return nullptr;
     }
 
-    ZPage* const page = _queue.remove_first();
-    if (page != nullptr) {
-      _enqueued_bytes -= page->size();
-      return page;
+    ZMappedMemory* const mapping = _queue.remove_first();
+    if (mapping != nullptr) {
+      _enqueued_bytes -= mapping->size();
+      return mapping;
     }
 
     _lock.wait();
   }
 }
 
-bool ZUnmapper::try_enqueue(ZPage* page) {
+bool ZUnmapper::try_enqueue(ZMappedMemory* mapping) {
   // Enqueue for asynchronous unmap and destroy
   ZLocker<ZConditionLock> locker(&_lock);
   if (is_saturated()) {
@@ -70,15 +70,15 @@ bool ZUnmapper::try_enqueue(ZPage* page) {
       _warned_sync_unmapping = true;
       log_warning_p(gc)("WARNING: Encountered synchronous unmapping because asynchronous unmapping could not keep up");
     }
-    log_debug(gc, unmap)("Synchronous unmapping " SIZE_FORMAT "M page", page->size() / M);
+    log_debug(gc, unmap)("Synchronous unmapping " SIZE_FORMAT "M mapped memory", mapping->size() / M);
     return false;
   }
 
-  log_trace(gc, unmap)("Asynchronous unmapping " SIZE_FORMAT "M page (" SIZE_FORMAT "M / " SIZE_FORMAT "M enqueued)",
-                       page->size() / M, _enqueued_bytes / M, queue_capacity() / M);
+  log_trace(gc, unmap)("Asynchronous unmapping " SIZE_FORMAT "M mapped memory (" SIZE_FORMAT "M / " SIZE_FORMAT "M enqueued)",
+                       mapping->size() / M, _enqueued_bytes / M, queue_capacity() / M);
 
-  _queue.insert_last(page);
-  _enqueued_bytes += page->size();
+  _queue.insert_last(mapping);
+  _enqueued_bytes += mapping->size();
   _lock.notify_all();
 
   return true;
@@ -92,34 +92,33 @@ bool ZUnmapper::is_saturated() const {
   return _enqueued_bytes >= queue_capacity();
 }
 
-void ZUnmapper::do_unmap_and_destroy_page(ZPage* page) const {
+void ZUnmapper::do_unmap(ZMappedMemory* mapping) const {
   EventZUnmap event;
-  const size_t unmapped = page->size();
+  const size_t unmapped = mapping->size();
 
   // Unmap and destroy
-  _page_allocator->unmap_page(page);
-  _page_allocator->destroy_page(page);
+  _page_allocator->unmap_mapped(*mapping);
 
   // Send event
   event.commit(unmapped);
 }
 
-void ZUnmapper::unmap_and_destroy_page(ZPage* page) {
-  if (!try_enqueue(page)) {
+void ZUnmapper::unmap_memory(ZMappedMemory* mapping) {
+  if (!try_enqueue(mapping)) {
     // Synchronously unmap and destroy
-    do_unmap_and_destroy_page(page);
+    do_unmap(mapping);
   }
 }
 
 void ZUnmapper::run_thread() {
   for (;;) {
-    ZPage* const page = dequeue();
-    if (page == nullptr) {
+    ZMappedMemory* const mapping = dequeue();
+    if (mapping == nullptr) {
       // Stop
       return;
     }
 
-    do_unmap_and_destroy_page(page);
+    do_unmap(mapping);
   }
 }
 

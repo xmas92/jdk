@@ -27,6 +27,7 @@
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zThread.hpp"
+#include "gc/z/zMappedMemory.hpp"
 
 class ZPage;
 class ZPageAllocator;
@@ -35,16 +36,16 @@ class ZUnmapper : public ZThread {
 private:
   ZPageAllocator* const _page_allocator;
   ZConditionLock        _lock;
-  ZList<ZPage>          _queue;
+  ZList<ZMappedMemory>  _queue;
   size_t                _enqueued_bytes;
   bool                  _warned_sync_unmapping;
   bool                  _stop;
 
-  ZPage* dequeue();
-  bool try_enqueue(ZPage* page);
+  ZMappedMemory* dequeue();
+  bool try_enqueue(ZMappedMemory* mapping);
   size_t queue_capacity() const;
   bool is_saturated() const;
-  void do_unmap_and_destroy_page(ZPage* page) const;
+  void do_unmap(ZMappedMemory* mapping) const;
 
 protected:
   virtual void run_thread();
@@ -53,7 +54,7 @@ protected:
 public:
   ZUnmapper(ZPageAllocator* page_allocator);
 
-  void unmap_and_destroy_page(ZPage* page);
+  void unmap_memory(ZMappedMemory* mapping);
 };
 
 #endif // SHARE_GC_Z_ZUNMAPPER_HPP

@@ -99,12 +99,12 @@ private:
 
   // TODO: New
   void unmap_and_uncommit_mapped(ZMappedMemory& mapped);
+  void unmap_mapped(const ZMappedMemory& mapped);
 
   bool commit_page(ZPage* page);
   void uncommit_page(ZPage* page);
 
   void map_page(const ZPage* page) const;
-  void unmap_page(const ZPage* page) const;
 
   void destroy_page(ZPage* page);
 

@@ -682,12 +682,7 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
     return false;
   }
 
-  const ZMappedMemory& mapping = allocation->mappings()->first();
-  if(mapping.size() != allocation->size()) {
-    return false;
-  }
-
-  if (should_defragment(mapping)) {
+  if (should_defragment(allocation->mappings()->first())) {
     // Defragment address space
     ZStatInc(ZCounterDefragment);
     return false;
@@ -718,9 +713,9 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
     return page;
   }
 
-  // Failed or partially failed. Split of any successfully committed
-  // part of the page into a new page and insert it into list of pages,
-  // so that it will be re-inserted into the page cache.
+  // Failed or partially failed. Split of any successfully committed part of the
+  // page into a new page and insert it into the list of mapped memory so that
+  // it will be re-inserted into the mapped cache.
   ZPage* const committed_page = page->split_committed();
   destroy_page_with_memory(page);
 

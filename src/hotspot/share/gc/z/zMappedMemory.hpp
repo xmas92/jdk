@@ -28,12 +28,18 @@
 #include "gc/z/zVirtualMemory.hpp"
 
 class ZMappedMemory : public CHeapObj<mtGC> {
+  friend class ZList<ZMappedMemory>;
+
 private:
   ZVirtualMemory  _vmem;
   ZPhysicalMemory _pmem;
 
+  ZListNode<ZMappedMemory> _node;
+
 public:
   ZMappedMemory();
+  ZMappedMemory(const ZMappedMemory& other);
+  const ZMappedMemory& operator=(const ZMappedMemory& other);
 
   // Harvest virtual/physical memory from page
   ZMappedMemory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);

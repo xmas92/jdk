@@ -34,6 +34,16 @@ ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZPhysicalMemory& 
   : _vmem(vmem),
     _pmem(pmem) {}
 
+ZMappedMemory::ZMappedMemory(const ZMappedMemory& other) 
+  : _vmem(other._vmem),
+    _pmem(other._pmem) {}
+
+const ZMappedMemory& ZMappedMemory::operator=(const ZMappedMemory& other) {
+  _vmem = other._vmem;
+  _pmem = other._pmem;
+  return *this;
+}
+
 zoffset ZMappedMemory::start() const {
   return _vmem.start();
 }

@@ -106,7 +106,7 @@ private:
 
   void map_page(const ZPage* page) const;
 
-  void destroy_page(ZPage* page);
+  void destroy_page_with_memory(ZPage* page);
 
   bool should_defragment(const ZMappedMemory& mapping) const;
   ZPage* defragment_page(ZPage* page);
@@ -157,7 +157,7 @@ public:
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
   ZPage* prepare_to_harvest(ZPage* page, bool allow_defragment);
-  void harvest_page(ZPage* page);
+  void harvest_page_and_destroy(ZPage* page);
   void safe_destroy_page(ZPage* page);
   void free_page(ZPage* page, bool allow_defragment);
   void free_pages(const ZArray<ZPage*>* pages);

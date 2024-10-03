@@ -726,7 +726,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
 
   if (committed_page != nullptr) {
     map_page(committed_page);
-    allocation->mappings()->append(ZMappedMemory(page->virtual_memory(), page->physical_memory()));
+    allocation->mappings()->append(ZMappedMemory(committed_page->virtual_memory(), committed_page->physical_memory()));
   }
 
   return nullptr;
@@ -885,6 +885,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArrayIterator<ZPage*> iter(&to_recycle_pages);
   for (ZPage* page; iter.next(&page);) {
     harvest_page(page);
+    destroy_page(page);
   }
 
   // Try satisfy stalled allocations

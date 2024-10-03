@@ -713,6 +713,9 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
     return page;
   }
 
+  // TODO: Just split off mapped memory, do not create page unnecessarily for a
+  // few seconds.
+
   // Failed or partially failed. Split of any successfully committed part of the
   // page into a new page and insert it into the list of mapped memory so that
   // it will be re-inserted into the mapped cache.
@@ -722,6 +725,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   if (committed_page != nullptr) {
     map_page(committed_page);
     allocation->mappings()->append(ZMappedMemory(committed_page->virtual_memory(), committed_page->physical_memory()));
+    safe_destroy_page(page);
   }
 
   return nullptr;

@@ -51,8 +51,8 @@ size_t ZMappedCache::remove_mapped(ZArray<ZMappedMemory>* mappings, size_t size)
       }
     } else if (after_remove > size) {
       ZMappedMemory initial_chunk = mapped.split(after_remove - size);
-      _tree.upsert(node->key(), initial_chunk);
       to_remove.append(mapped);
+      _tree.upsert(node->key(), initial_chunk);
       removed = size;
       break;
     }

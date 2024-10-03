@@ -433,7 +433,7 @@ void ZPageAllocator::promote_used(size_t size) {
 }
 
 void ZPageAllocator::unmap_and_uncommit_mapped(ZMappedMemory& mapped) {
-  _physical.unmap(mapped.start(), mapped.size());
+  unmap_mapped(mapped);
   // TODO: Rework
   ZPhysicalMemory m = mapped.physical_memory();
   _physical.uncommit(m);
@@ -914,7 +914,7 @@ void ZPageAllocator::free_mapped_alloc_failed(ZPageAllocation* allocation) {
 size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   // We need to join the suspendible thread set while manipulating capacity and
   // used, to make sure GC safepoints will have a consistent view.
-  ZArray<ZMappedMemory> flush_mapped(1);
+  ZArray<ZMappedMemory> flush_mapped;
   size_t flushed;
 
   {

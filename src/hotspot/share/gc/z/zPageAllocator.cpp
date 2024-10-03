@@ -468,7 +468,7 @@ void ZPageAllocator::safe_destroy_page(ZPage* page) {
   _safe_destroy.schedule_delete(page);
 }
 
-void ZPageAllocator::destroy_page(ZPage* page) {
+void ZPageAllocator::destroy_page_with_memory(ZPage* page) {
   // Free virtual memory
   _virtual.free(page->virtual_memory());
 
@@ -722,7 +722,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   // part of the page into a new page and insert it into list of pages,
   // so that it will be re-inserted into the page cache.
   ZPage* const committed_page = page->split_committed();
-  destroy_page(page);
+  destroy_page_with_memory(page);
 
   if (committed_page != nullptr) {
     map_page(committed_page);
@@ -822,9 +822,10 @@ ZPage* ZPageAllocator::prepare_to_harvest(ZPage* page, bool allow_defragment) {
   return to_recycle;
 }
 
-void ZPageAllocator::harvest_page(ZPage* page) {
+void ZPageAllocator::harvest_page_and_destroy(ZPage* page) {
   // Cache mapped memory from page
   _mapped_cache.free_mapped(page);
+  safe_destroy_page(page);
 }
 
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
@@ -841,7 +842,7 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   decrease_used_generation(generation_id, size);
 
   // Free page
-  harvest_page(to_recycle);
+  harvest_page_and_destroy(to_recycle);
 
   // Try satisfy stalled allocations
   satisfy_stalled();
@@ -879,8 +880,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   // Free pages
   ZArrayIterator<ZPage*> iter(&to_recycle_pages);
   for (ZPage* page; iter.next(&page);) {
-    harvest_page(page);
-    destroy_page(page);
+    harvest_page_and_destroy(page);
   }
 
   // Try satisfy stalled allocations

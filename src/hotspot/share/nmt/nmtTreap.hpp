@@ -112,7 +112,6 @@ public:
 
       *elem = _next;
 
-      // Start by adding all the left nodes from the right tree onto the to_visit stack.
       _next = Forward ? _next->right() : _next->left();
       while (_next != nullptr) {
         _to_visit.push(_next);

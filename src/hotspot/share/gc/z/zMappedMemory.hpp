@@ -44,8 +44,10 @@ public:
   // Harvest virtual/physical memory from page
   ZMappedMemory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
 
+  bool is_null() const;
   zoffset start() const;
   size_t size() const;
+
   ZMappedMemory split(size_t size);
 
   bool virtually_adjacent_to(const ZMappedMemory& other) const;

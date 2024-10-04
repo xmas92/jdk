@@ -27,7 +27,7 @@
 #include "gc/z/zVirtualMemory.inline.hpp"
 
 ZMappedMemory::ZMappedMemory()
-  : _vmem(zoffset(0), 0),
+  : _vmem(),
     _pmem() {}
 
 ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZPhysicalMemory& pmem)
@@ -42,6 +42,10 @@ const ZMappedMemory& ZMappedMemory::operator=(const ZMappedMemory& other) {
   _vmem = other._vmem;
   _pmem = other._pmem;
   return *this;
+}
+
+bool ZMappedMemory::is_null() const {
+  return _vmem.is_null();
 }
 
 zoffset ZMappedMemory::start() const {

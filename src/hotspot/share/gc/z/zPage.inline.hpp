@@ -42,16 +42,6 @@
 #include "utilities/checkedCast.hpp"
 #include "utilities/debug.hpp"
 
-inline ZPageType ZPage::type_from_size(size_t size) const {
-  if (size == ZPageSizeSmall) {
-    return ZPageType::small;
-  } else if (size == ZPageSizeMedium) {
-    return ZPageType::medium;
-  } else {
-    return ZPageType::large;
-  }
-}
-
 inline const char* ZPage::type_to_string() const {
   switch (type()) {
   case ZPageType::small:

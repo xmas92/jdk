@@ -531,15 +531,15 @@ bool ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArr
     return true;
   }
 
-  // If we've failed to allocate a contiguous "chunk" from the mapped cache, there
+  // If we've failed to allocate a contiguous range from the mapped cache, there
   // is still a possibility that the cache holds enough memory for the allocation,
-  // but dispersed over more than one chunk.
+  // but dispersed over more than one range.
 
   // Try increase capacity
   const size_t increased = increase_capacity(size);
   if (increased < size) {
-    // Could not increase capacity enough to satisfy the allocation
-    // completely. Flush the page cache to satisfy the remainder.
+    // Could not increase capacity enough to satisfy the allocation completely.
+    // Try removing multiple ranges from the mapped cache.
     const size_t remaining = size - increased;
     _mapped_cache.remove_mapped(mappings, remaining);
   }

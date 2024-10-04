@@ -77,4 +77,6 @@ const ZPhysicalMemory& ZMappedMemory::physical_memory() const {
   return _pmem;
 }
 
-
+ZPhysicalMemory& ZMappedMemory::physical_memory() {
+  return _pmem;
+}

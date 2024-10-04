@@ -35,7 +35,6 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
-#include "gc/z/zPageCache.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
@@ -526,7 +525,7 @@ bool ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArr
 
   // Try allocate from the mapped cache
   ZMappedMemory mapping = _mapped_cache.remove_mapped_contiguous(size);
-  if (mapping.size() != 0) {
+  if (!mapping.is_null()) {
     // Success
     mappings->append(mapping);
     return true;
@@ -715,13 +714,13 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
     return page;
   }
 
-  // Completely or partially failed to ccommit. Split off any successfully
+  // Completely or partially failed to commit. Split off any successfully
   // committed memory and insert it into the list of mapped memory so that
-  // it is re-inserted to the mapped cache.
+  // it will be re-inserted into the mapped cache.
   ZMappedMemory mapping = page->split_committed_mapped();
   destroy_page_with_memory(page);
 
-  if (mapping.size() != 0) {
+  if (!mapping.is_null()) {
     map_mapping(mapping);
     allocation->mappings()->append(mapping);
   }

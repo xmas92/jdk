@@ -67,9 +67,6 @@ size_t ZMappedCache::remove_mapped(ZArray<ZMappedMemory>* mappings, size_t size)
   return removed;
 }
 
-// Returns a contiguous chunk of mapped memory of size from the cache. If there
-// does not exist a large enough contiguous mapping in the cache, a mapped chunk
-// where (start() = 0 and size() = 0) is returned.
 ZMappedMemory ZMappedCache::remove_mapped_contiguous(size_t size) {
   ZMappedTreap::InOrderIterator iterator(&_tree);
   for (ZMappedTreapNode* node; iterator.next(&node);) {
@@ -88,7 +85,7 @@ ZMappedMemory ZMappedCache::remove_mapped_contiguous(size_t size) {
     }
   }
 
-  return ZMappedMemory(ZVirtualMemory(zoffset(0), 0), ZPhysicalMemory());
+  return ZMappedMemory();
 }
 
 size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {

@@ -148,27 +148,19 @@ ZPage* ZPage::split(ZPageType type, size_t split_of_size) {
   return split_with_pmem(type, pmem);
 }
 
-ZPage* ZPage::split_committed() {
-  // Split any committed part of this page into a separate page,
-  // leaving this page with only uncommitted physical memory.
+ZMappedMemory ZPage::split_committed_mapped() {
   const ZPhysicalMemory pmem = _physical.split_committed();
   if (pmem.is_null()) {
-    // Nothing committed
-    return nullptr;
+    return ZMappedMemory();
   }
 
   assert(!_physical.is_null(), "Should not be null");
 
-  return split_with_pmem(type_from_size(pmem.size()), pmem);
-}
-
-ZMappedMemory ZPage::split_committed_mapped() {
-  const ZPhysicalMemory pmem = _physical.split_committed();
   const ZVirtualMemory vmem = _virtual.split(pmem.size());
 
   assert(vmem.end() == _virtual.start(), "Should be consecutive");
 
-  log_trace(gc, page)("Split page [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+  log_trace(gc, page)("Split page into mapped [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
       untype(vmem.start()),
       untype(vmem.end()),
       untype(_virtual.end()));

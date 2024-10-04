@@ -121,7 +121,6 @@ public:
   ZPage* retype(ZPageType type);
   ZPage* split(size_t split_of_size);
   ZPage* split(ZPageType type, size_t split_of_size);
-  ZPage* split_committed();
 
   ZMappedMemory split_committed_mapped();
 

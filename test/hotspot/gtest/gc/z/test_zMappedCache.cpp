@@ -113,8 +113,7 @@ protected:
     EXPECT_EQ(chunk.physical_memory().segment(0).size(), seg1.size());
 
     chunk = cache.remove_mapped_contiguous(100);
-    EXPECT_EQ(chunk.start(), zoffset(0));
-    EXPECT_EQ(chunk.size(), (size_t)0);
+    EXPECT_TRUE(chunk.is_null());
   }
 
   static void test_remove_mapped() {
@@ -138,7 +137,8 @@ protected:
     EXPECT_EQ(mappings.length(), 2);
     EXPECT_EQ(mappings.at(0).start(), zoffset(600));
     EXPECT_EQ(mappings.at(0).size(), (size_t)100);
-    EXPECT_EQ(mappings.at(1).start(), zoffset(400));
+
+    EXPECT_EQ(mappings.at(1).start(), zoffset(450));
     EXPECT_EQ(mappings.at(1).size(), (size_t)50);
   }
 

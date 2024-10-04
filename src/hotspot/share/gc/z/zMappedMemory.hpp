@@ -53,6 +53,7 @@ public:
 
   const ZVirtualMemory& virtual_memory() const;
   const ZPhysicalMemory& physical_memory() const;
+  ZPhysicalMemory& physical_memory();
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

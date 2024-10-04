@@ -37,7 +37,7 @@ class ThreadIdentifier : AllStatic {
  public:
   static int64_t next();
   static int64_t current();
-  static int64_t unsafe_offset();
+  static uintptr_t unsafe_offset();
   DEBUG_ONLY(static int64_t initial();)
 };
 

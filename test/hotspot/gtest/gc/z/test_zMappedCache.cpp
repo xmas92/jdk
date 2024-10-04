@@ -35,8 +35,8 @@ protected:
     ZVirtualMemory vmem2(zoffset(100), 100);
     ZPhysicalMemory pmem;
 
-    cache.free_mapped(vmem1, pmem);
-    cache.free_mapped(vmem2, pmem);
+    cache.free_mapped(ZMappedMemory(vmem1, pmem));
+    cache.free_mapped(ZMappedMemory(vmem2, pmem));
 
     EXPECT_EQ(cache._tree._node_count, 1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
@@ -51,8 +51,8 @@ protected:
     ZVirtualMemory vmem2(zoffset(100), 100);
     ZPhysicalMemory pmem;
 
-    cache.free_mapped(vmem2, pmem);
-    cache.free_mapped(vmem1, pmem);
+    cache.free_mapped(ZMappedMemory(vmem2, pmem));
+    cache.free_mapped(ZMappedMemory(vmem1, pmem));
 
     EXPECT_EQ(cache._tree._node_count, 1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
@@ -69,10 +69,9 @@ protected:
 
     ZPhysicalMemory pmem;
 
-    cache.free_mapped(vmem1, pmem);
-    cache.free_mapped(vmem3, pmem);
-
-    cache.free_mapped(vmem2, pmem);
+    cache.free_mapped(ZMappedMemory(vmem1, pmem));
+    cache.free_mapped(ZMappedMemory(vmem3, pmem));
+    cache.free_mapped(ZMappedMemory(vmem2, pmem));
 
     EXPECT_EQ(cache._tree._node_count, 1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
@@ -97,9 +96,9 @@ protected:
     ZVirtualMemory vmem2(zoffset(100), 50);
     ZVirtualMemory vmem3(zoffset(200), 50);
 
-    cache.free_mapped(vmem1, pmem1);
-    cache.free_mapped(vmem2, pmem2);
-    cache.free_mapped(vmem3, pmem1);
+    cache.free_mapped(ZMappedMemory(vmem1, pmem1));
+    cache.free_mapped(ZMappedMemory(vmem2, pmem2));
+    cache.free_mapped(ZMappedMemory(vmem3, pmem1));
 
     ZMappedMemory chunk = cache.remove_mapped_contiguous(50);
     EXPECT_EQ(chunk.start(), zoffset(0));
@@ -126,10 +125,10 @@ protected:
     ZVirtualMemory vmem3(zoffset(400), 100);
     ZVirtualMemory vmem4(zoffset(600), 100);
 
-    cache.free_mapped(vmem1, pmem);
-    cache.free_mapped(vmem2, pmem);
-    cache.free_mapped(vmem3, pmem);
-    cache.free_mapped(vmem4, pmem);
+    cache.free_mapped(ZMappedMemory(vmem1, pmem));
+    cache.free_mapped(ZMappedMemory(vmem2, pmem));
+    cache.free_mapped(ZMappedMemory(vmem3, pmem));
+    cache.free_mapped(ZMappedMemory(vmem4, pmem));
 
     ZArray<ZMappedMemory> mappings;
     cache.remove_mapped(&mappings, 150);

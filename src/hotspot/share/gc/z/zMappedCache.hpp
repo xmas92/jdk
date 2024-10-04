@@ -61,8 +61,7 @@ public:
   void set_last_commit();
 
   void free_mapped(ZPage* page);
-  void free_mapped(const ZMappedMemory& mapping);
-  void free_mapped(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  void free_mapped(ZMappedMemory mapping);
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

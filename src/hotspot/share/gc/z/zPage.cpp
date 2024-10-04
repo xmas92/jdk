@@ -109,46 +109,7 @@ void ZPage::reset_top_for_allocation() {
   _top = to_zoffset_end(start());
 }
 
-void ZPage::reset_type_and_size(ZPageType type) {
-  _type = type;
-  _livemap.resize(object_max_count());
-}
-
-ZPage* ZPage::retype(ZPageType type) {
-  assert(_type != type, "Invalid retype");
-  reset_type_and_size(type);
-  return this;
-}
-
-ZPage* ZPage::split(size_t split_of_size) {
-  return split(type_from_size(split_of_size), split_of_size);
-}
-
-ZPage* ZPage::split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem) {
-  // Resize this page
-  const ZVirtualMemory vmem = _virtual.split(pmem.size());
-  assert(vmem.end() == _virtual.start(), "Should be consecutive");
-
-  reset_type_and_size(type_from_size(_virtual.size()));
-
-  log_trace(gc, page)("Split page [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
-      untype(vmem.start()),
-      untype(vmem.end()),
-      untype(_virtual.end()));
-
-  // Create new page
-  return new ZPage(type, vmem, pmem);
-}
-
-ZPage* ZPage::split(ZPageType type, size_t split_of_size) {
-  assert(_virtual.size() > split_of_size, "Invalid split");
-
-  const ZPhysicalMemory pmem = _physical.split(split_of_size);
-
-  return split_with_pmem(type, pmem);
-}
-
-ZMappedMemory ZPage::split_committed_mapped() {
+ZMappedMemory ZPage::split_committed() {
   const ZPhysicalMemory pmem = _physical.split_committed();
   if (pmem.is_null()) {
     return ZMappedMemory();
@@ -234,10 +195,6 @@ void ZPage::print_on_msg(outputStream* out, const char* msg) const {
 
 void ZPage::print_on(outputStream* out) const {
   print_on_msg(out, nullptr);
-}
-
-void ZPage::print() const {
-  print_on(tty);
 }
 
 void ZPage::verify_live(uint32_t live_objects, size_t live_bytes, bool in_place) const {

@@ -717,7 +717,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   // Completely or partially failed to commit. Split off any successfully
   // committed memory and insert it into the list of mapped memory so that
   // it will be re-inserted into the mapped cache.
-  ZMappedMemory mapping = page->split_committed_mapped();
+  ZMappedMemory mapping = page->split_committed();
   destroy_page_with_memory(page);
 
   if (!mapping.is_null()) {
@@ -762,8 +762,6 @@ retry:
   // be done after we potentially blocked in a safepoint (stalled)
   // where the global sequence number was updated.
   page->reset(age);
-  page->reset_top_for_allocation();
-  page->reset_livemap();
   if (age == ZPageAge::old) {
     page->remset_alloc();
   }

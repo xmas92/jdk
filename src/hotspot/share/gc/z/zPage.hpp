@@ -57,7 +57,6 @@ private:
   ZPhysicalMemory      _physical;
   ZListNode<ZPage>     _node;
 
-  ZPageType type_from_size(size_t size) const;
   const char* type_to_string() const;
 
   BitMap::idx_t bit_index(zaddress addr) const;
@@ -71,8 +70,6 @@ private:
   const ZGeneration* generation() const;
 
   void reset_seqnum();
-
-  ZPage* split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem);
 
 public:
   ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
@@ -116,13 +113,8 @@ public:
   void reset(ZPageAge age);
   void reset_livemap();
   void reset_top_for_allocation();
-  void reset_type_and_size(ZPageType type);
 
-  ZPage* retype(ZPageType type);
-  ZPage* split(size_t split_of_size);
-  ZPage* split(ZPageType type, size_t split_of_size);
-
-  ZMappedMemory split_committed_mapped();
+  ZMappedMemory split_committed();
 
   bool is_in(zoffset offset) const;
   bool is_in(zaddress addr) const;
@@ -197,7 +189,6 @@ public:
 
   void print_on_msg(outputStream* out, const char* msg) const;
   void print_on(outputStream* out) const;
-  void print() const;
 
   // Verification
   bool was_remembered(volatile zpointer* p);
@@ -205,11 +196,6 @@ public:
   void verify_live(uint32_t live_objects, size_t live_bytes, bool in_place) const;
 
   void fatal_msg(const char* msg) const;
-};
-
-class ZPageClosure {
-public:
-  virtual void do_page(const ZPage* page) = 0;
 };
 
 #endif // SHARE_GC_Z_ZPAGE_HPP

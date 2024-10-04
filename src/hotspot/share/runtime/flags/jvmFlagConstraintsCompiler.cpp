@@ -425,3 +425,16 @@ JVMFlag::Error ControlIntrinsicConstraintFunc(ccstrlist value, bool verbose) {
   return JVMFlag::SUCCESS;
 }
 
+#ifndef _LP64
+JVMFlag::Error NotLP64UseG1GCConstraintFunc(bool value, bool verbose) {
+#ifndef ARM32
+  if (value && CompilerConfig::is_c2_enabled()) {
+    JVMFlag::printError(verbose, "G1 GC and C2 not compatible, mumble, mumble...\n");
+    return JVMFlag::VIOLATES_CONSTRAINT;
+  }
+#endif // ARM32
+
+  return JVMFlag::SUCCESS;
+}
+#endif // !_LP64
+

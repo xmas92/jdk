@@ -97,7 +97,7 @@ void GCConfig::fail_if_non_included_gc_is_selected() {
 
 void GCConfig::select_gc_ergonomically() {
   if (os::is_server_class_machine()) {
-#if INCLUDE_G1GC
+#if INCLUDE_G1GC && (defined(_LP64) || defined(ARM32))
     FLAG_SET_ERGO_IF_DEFAULT(UseG1GC, true);
 #elif INCLUDE_PARALLELGC
     FLAG_SET_ERGO_IF_DEFAULT(UseParallelGC, true);

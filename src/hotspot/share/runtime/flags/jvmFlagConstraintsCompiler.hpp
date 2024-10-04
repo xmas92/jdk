@@ -51,6 +51,7 @@
   f(intx,  InitArrayShortSizeConstraintFunc)            \
   f(ccstrlist, DisableIntrinsicConstraintFunc)          \
   f(ccstrlist, ControlIntrinsicConstraintFunc)          \
+  NOT_LP64(f(bool, NotLP64UseG1GCConstraintFunc))       \
 COMPILER2_PRESENT(                                      \
   f(intx,  InteriorEntryAlignmentConstraintFunc)        \
   f(intx,  NodeLimitFudgeFactorConstraintFunc)          \

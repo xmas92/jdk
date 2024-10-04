@@ -598,6 +598,14 @@ void CompilerConfig::ergo_initialize() {
   }
 
 #ifdef COMPILER2
+#if !defined(_LP64) && !defined(ARM32)
+  if (is_c2_enabled() && UseG1GC) {
+    // G1 is not supported by C2 on 32bit platforms with the exception of ARM32
+    if (FLAG_IS_DEFAULT(TieredStopAtLevel)) {
+      FLAG_SET_ERGO(TieredStopAtLevel, CompLevel_simple);
+    }
+  }
+#endif
   if (!EliminateLocks) {
     EliminateNestedLocks = false;
   }

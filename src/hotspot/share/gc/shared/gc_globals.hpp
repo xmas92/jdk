@@ -108,6 +108,7 @@
                                                                             \
   product(bool, UseG1GC, false,                                             \
           "Use the Garbage-First garbage collector")                        \
+          NOT_LP64(constraint(NotLP64UseG1GCConstraintFunc, AfterErgo))     \
                                                                             \
   product(bool, UseParallelGC, false,                                       \
           "Use the Parallel garbage collector.")                            \

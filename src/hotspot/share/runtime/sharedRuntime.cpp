@@ -1940,6 +1940,7 @@ void SharedRuntime::monitor_enter_helper(oopDesc* obj, BasicLock* lock, JavaThre
     // Only try quick_enter() if we're not trying to reach a safepoint
     // so that the calling thread reaches the safepoint more quickly.
     if (ObjectSynchronizer::quick_enter(obj, lock, current)) {
+      current->inc_held_monitor_count();
       return;
     }
   }

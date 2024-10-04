@@ -432,7 +432,6 @@ bool ObjectSynchronizer::quick_enter_legacy(oop obj, BasicLock* lock, JavaThread
 
     if (m->is_owner(current)) {
       m->_recursions++;
-      current->inc_held_monitor_count();
       return true;
     }
 
@@ -449,7 +448,6 @@ bool ObjectSynchronizer::quick_enter_legacy(oop obj, BasicLock* lock, JavaThread
 
     if (!m->has_owner() && m->try_set_owner(current)) {
       assert(m->_recursions == 0, "invariant");
-      current->inc_held_monitor_count();
       return true;
     }
   }
@@ -521,6 +519,7 @@ void ObjectSynchronizer::enter_for(Handle obj, BasicLock* lock, JavaThread* lock
   // the locking_thread with respect to the current thread. Currently only used when
   // deoptimizing and re-locking locks. See Deoptimization::relock_objects
   assert(locking_thread == Thread::current() || locking_thread->is_obj_deopt_suspend(), "must be");
+  locking_thread->inc_held_monitor_count();
 
   if (LockingMode == LM_LIGHTWEIGHT) {
     return LightweightSynchronizer::enter_for(obj, lock, locking_thread);
@@ -567,8 +566,6 @@ bool ObjectSynchronizer::enter_fast_impl(Handle obj, BasicLock* lock, JavaThread
   if (obj->klass()->is_value_based()) {
     handle_sync_on_value_based_class(obj, locking_thread);
   }
-
-  locking_thread->inc_held_monitor_count();
 
   if (!useHeavyMonitors()) {
     if (LockingMode == LM_LEGACY) {

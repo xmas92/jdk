@@ -643,6 +643,9 @@ void C2_MacroAssembler::fast_lock_lightweight(Register obj, Register box, Regist
   }
 
   bind(locked);
+#if defined(SUPPORT_MONITOR_COUNT) && !defined(LOOM_MONITOR_SUPPORT)
+  incrementl(Address(thread, JavaThread::held_monitor_count_offset()));
+#endif
   // Set ZF = 1
   xorl(rax_reg, rax_reg);
 
@@ -812,6 +815,9 @@ void C2_MacroAssembler::fast_unlock_lightweight(Register obj, Register reg_rax, 
   }
 
   bind(unlocked);
+#if defined(SUPPORT_MONITOR_COUNT) && !defined(LOOM_MONITOR_SUPPORT)
+  decrementl(Address(thread, JavaThread::held_monitor_count_offset()));
+#endif
   xorl(t, t); // Fast Unlock ZF = 1
 
 #ifdef ASSERT

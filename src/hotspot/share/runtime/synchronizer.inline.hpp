@@ -44,6 +44,7 @@ inline ObjectMonitor* ObjectSynchronizer::read_monitor(Thread* current, oop obj,
 
 inline void ObjectSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current) {
   assert(current == Thread::current(), "must be");
+  current->inc_held_monitor_count();
 
   if (LockingMode == LM_LIGHTWEIGHT) {
     LightweightSynchronizer::enter(obj, lock, current);

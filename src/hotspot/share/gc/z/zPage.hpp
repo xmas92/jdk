@@ -123,6 +123,8 @@ public:
   ZPage* split(ZPageType type, size_t split_of_size);
   ZPage* split_committed();
 
+  ZMappedMemory split_committed_mapped();
+
   bool is_in(zoffset offset) const;
   bool is_in(zaddress addr) const;
 

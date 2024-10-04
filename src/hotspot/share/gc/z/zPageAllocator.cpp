@@ -463,6 +463,10 @@ void ZPageAllocator::map_page(const ZPage* page) const {
   _physical.map(page->start(), page->physical_memory());
 }
 
+void ZPageAllocator::map_mapping(const ZMappedMemory& mapping) const {
+  _physical.map(mapping.start(), mapping.physical_memory());
+}
+
 void ZPageAllocator::safe_destroy_page(ZPage* page) {
   // Destroy page safely
   _safe_destroy.schedule_delete(page);
@@ -713,19 +717,15 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
     return page;
   }
 
-  // TODO: Just split off mapped memory, do not create page unnecessarily for a
-  // few seconds.
-
-  // Failed or partially failed. Split of any successfully committed part of the
-  // page into a new page and insert it into the list of mapped memory so that
-  // it will be re-inserted into the mapped cache.
-  ZPage* const committed_page = page->split_committed();
+  // Completely or partially failed to ccommit. Split off any successfully
+  // committed memory and insert it into the list of mapped memory so that
+  // it is re-inserted to the mapped cache.
+  ZMappedMemory mapping = page->split_committed_mapped();
   destroy_page_with_memory(page);
 
-  if (committed_page != nullptr) {
-    map_page(committed_page);
-    allocation->mappings()->append(ZMappedMemory(committed_page->virtual_memory(), committed_page->physical_memory()));
-    safe_destroy_page(page);
+  if (mapping.size() != 0) {
+    map_mapping(mapping);
+    allocation->mappings()->append(mapping);
   }
 
   return nullptr;

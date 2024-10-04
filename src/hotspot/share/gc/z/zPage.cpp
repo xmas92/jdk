@@ -162,6 +162,20 @@ ZPage* ZPage::split_committed() {
   return split_with_pmem(type_from_size(pmem.size()), pmem);
 }
 
+ZMappedMemory ZPage::split_committed_mapped() {
+  const ZPhysicalMemory pmem = _physical.split_committed();
+  const ZVirtualMemory vmem = _virtual.split(pmem.size());
+
+  assert(vmem.end() == _virtual.start(), "Should be consecutive");
+
+  log_trace(gc, page)("Split page [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+      untype(vmem.start()),
+      untype(vmem.end()),
+      untype(_virtual.end()));
+
+  return ZMappedMemory(vmem, pmem);
+}
+
 class ZFindBaseOopClosure : public ObjectClosure {
 private:
   volatile zpointer* _p;

@@ -105,6 +105,7 @@ private:
   void uncommit_page(ZPage* page);
 
   void map_page(const ZPage* page) const;
+  void map_mapping(const ZMappedMemory& mapping) const;
 
   void destroy_page_with_memory(ZPage* page);
 

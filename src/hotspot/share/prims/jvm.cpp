@@ -3101,7 +3101,7 @@ JVM_ENTRY_NO_ENV(void, JVM_SetCurrentLockId(JNIEnv* env, jclass threadClass, jlo
 JVM_END
 
 JVM_ENTRY(jlong, JVM_GetNextThreadIdOffset(JNIEnv* env, jclass threadClass))
-  return ThreadIdentifier::unsafe_offset();
+  return static_cast<jlong>(ThreadIdentifier::unsafe_offset());
 JVM_END
 
 JVM_ENTRY(void, JVM_Interrupt(JNIEnv* env, jobject jthread))

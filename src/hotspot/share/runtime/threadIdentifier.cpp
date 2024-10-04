@@ -36,8 +36,8 @@ int64_t ThreadIdentifier::initial() {
 }
 #endif
 
-int64_t ThreadIdentifier::unsafe_offset() {
-  return reinterpret_cast<int64_t>(&next_thread_id);
+uintptr_t ThreadIdentifier::unsafe_offset() {
+  return reinterpret_cast<uintptr_t>(&next_thread_id);
 }
 
 int64_t ThreadIdentifier::current() {

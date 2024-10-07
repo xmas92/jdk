@@ -497,7 +497,8 @@ ZPage* ZPageAllocator::defragment_page(ZPage* page) {
   pmem.add_segments(old_pmem);
   old_pmem.remove_segments();
 
-  _unmapper->unmap_and_destroy_page(page);
+  _unmapper->unmap_memory(new ZMappedMemory(page->virtual_memory(), page->physical_memory()));
+  safe_destroy_page(page);
 
   // Allocate new virtual memory at a low address
   const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);

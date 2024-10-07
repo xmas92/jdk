@@ -97,8 +97,8 @@ private:
   void decrease_used_generation(ZGenerationId id, size_t size);
 
   // TODO: New
-  void unmap_and_uncommit_mapped(ZMappedMemory& mapped);
-  void unmap_mapped(const ZMappedMemory& mapped);
+  void unmap_and_uncommit_mapped(ZMappedMemory& mapping);
+  void unmap_mapped(const ZMappedMemory& mapping);
 
   bool commit_page(ZPage* page);
   void uncommit_page(ZPage* page);

@@ -431,14 +431,14 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::unmap_and_uncommit_mapped(ZMappedMemory& mapped) {
-  unmap_mapped(mapped);
-  _physical.uncommit(mapped.physical_memory());
+void ZPageAllocator::unmap_and_uncommit_mapped(ZMappedMemory& mapping) {
+  unmap_mapped(mapping);
+  _physical.uncommit(mapping.physical_memory());
 }
 
-void ZPageAllocator::unmap_mapped(const ZMappedMemory& mapped) {
+void ZPageAllocator::unmap_mapped(const ZMappedMemory& mapping) {
   // Unmap physical memory
-  _physical.unmap(mapped.start(), mapped.size());
+  _physical.unmap(mapping.start(), mapping.size());
 }
 
 bool ZPageAllocator::commit_page(ZPage* page) {

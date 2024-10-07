@@ -99,6 +99,7 @@ public:
   const ZVirtualMemory& virtual_memory() const;
   const ZPhysicalMemory& physical_memory() const;
   ZPhysicalMemory& physical_memory();
+  const ZMappedMemory mapped_memory() const;
 
   uint8_t numa_id();
   ZPageAge age() const;

@@ -89,8 +89,8 @@ protected:
     ZPhysicalMemory pmem2;
     ZPhysicalMemorySegment seg1(zoffset(25), 25, true);
     ZPhysicalMemorySegment seg2(zoffset(0), 25, true);
-    pmem2.add_segment_unsorted(seg1);
-    pmem2.add_segment_unsorted(seg2);
+    pmem2.append_segment(seg1);
+    pmem2.append_segment(seg2);
 
     ZVirtualMemory vmem1(zoffset(0), 50);
     ZVirtualMemory vmem2(zoffset(100), 50);

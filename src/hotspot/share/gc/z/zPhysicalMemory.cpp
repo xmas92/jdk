@@ -96,7 +96,7 @@ void ZPhysicalMemory::add_segments(const ZPhysicalMemory& pmem) {
   }
 }
 
-void ZPhysicalMemory::add_segments_unsorted(const ZPhysicalMemory& pmem) {
+void ZPhysicalMemory::append_segments(const ZPhysicalMemory& pmem) {
   _segments.appendAll(&pmem._segments);
 }
 
@@ -155,7 +155,7 @@ void ZPhysicalMemory::add_segment(const ZPhysicalMemorySegment& segment) {
   insert_segment(0, segment.start(), segment.size(), segment.is_committed());
 }
 
-void ZPhysicalMemory::add_segment_unsorted(const ZPhysicalMemorySegment& segment) {
+void ZPhysicalMemory::append_segment(const ZPhysicalMemorySegment& segment) {
   _segments.append(segment);
 }
 
@@ -233,11 +233,11 @@ ZPhysicalMemory ZPhysicalMemory::split_unsorted(size_t size) {
     if (pmem.size() < size) {
       if (pmem.size() + segment.size() <= size) {
         // Transfer segment
-        pmem.add_segment_unsorted(segment);
+        pmem.append_segment(segment);
       } else {
         // Split segment
         const size_t split_size = size - pmem.size();
-        pmem.add_segment_unsorted(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
+        pmem.append_segment(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
         _segments.at_put(nsegments++, ZPhysicalMemorySegment(segment.start() + split_size, segment.size() - split_size, segment.is_committed()));
       }
     } else {

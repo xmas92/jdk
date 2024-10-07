@@ -70,7 +70,7 @@ void ZMappedMemory::extend_mapping(const ZMappedMemory& right) {
   _vmem = ZVirtualMemory(_vmem.start(), _vmem.size() + right.size());
 
   // Combine physical memory segments in the order the appear (i.e unsorted).
-  _pmem.add_segments_unsorted(right.physical_memory());
+  _pmem.append_segments(right.physical_memory());
 }
 
 const ZVirtualMemory& ZMappedMemory::virtual_memory() const {

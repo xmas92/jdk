@@ -104,10 +104,6 @@ void ZMappedCache::set_last_commit() {
   _last_commit = (uint64_t)ceil(os::elapsedTime());
 }
 
-void ZMappedCache::free_mapped(ZPage* page) {
-  free_mapped(ZMappedMemory(page->virtual_memory(), page->physical_memory()));
-}
-
 void ZMappedCache::free_mapped(ZMappedMemory mapping) {
   bool merged_left = false;
 

@@ -490,27 +490,22 @@ bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
          mapping.start() > _virtual.lowest_available_address();
 }
 
-ZPage* ZPageAllocator::defragment_page(ZPage* page) {
-  // Harvest the physical memory (which is committed)
-  ZPhysicalMemory pmem;
-  ZPhysicalMemory& old_pmem = page->physical_memory();
-  pmem.add_segments(old_pmem);
-  old_pmem.remove_segments();
+ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
+  // Copy physical memory
+  ZPhysicalMemory pmem(mapping.physical_memory());
 
-  _unmapper->unmap_memory(new ZMappedMemory(page->virtual_memory(), page->physical_memory()));
-  safe_destroy_page(page);
+  _unmapper->unmap_memory(new ZMappedMemory(mapping));
 
   // Allocate new virtual memory at a low address
   const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
 
-  // Create the new page and map it
-  ZPage* new_page = new ZPage(ZPageType::small, vmem, pmem);
-  map_page(new_page);
+  ZMappedMemory new_mapping = ZMappedMemory(vmem, pmem);
+  map_mapping(mapping);
 
   // Update statistics
   ZStatInc(ZCounterDefragment);
 
-  return new_page;
+  return new_mapping;
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
@@ -552,7 +547,6 @@ bool ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArr
 bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
   const ZPageType type = allocation->type();
   const size_t size = allocation->size();
-  const ZAllocationFlags flags = allocation->flags();
   ZArray<ZMappedMemory>* const mappings = allocation->mappings();
 
   if (!alloc_memory_common_inner(type, size, mappings)) {
@@ -804,52 +798,34 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-ZPage* ZPageAllocator::prepare_to_harvest(ZPage* page, bool allow_defragment) {
-  // Make sure we have a page that is safe to recycle
-  ZPage* const to_recycle = _safe_recycle.register_and_clone_if_activated(page);
-  ZMappedMemory mapping = ZMappedMemory(to_recycle->virtual_memory(), to_recycle->physical_memory());
-
-  // Defragment the page before recycle if allowed and needed
-  if (allow_defragment && should_defragment(mapping)) {
-    return defragment_page(to_recycle);
-  }
-
-  // Remove the remset before recycling
-  if (to_recycle->is_old() && to_recycle == page) {
-    to_recycle->remset_delete();
-  }
-
-  return to_recycle;
-}
-
-void ZPageAllocator::harvest_page_and_destroy(ZPage* page) {
-  // Cache mapped memory from page
-  _mapped_cache.free_mapped(page);
-  safe_destroy_page(page);
-}
-
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   const ZGenerationId generation_id = page->generation_id();
 
-  // Prepare page for recycling before taking the lock
-  ZPage* const to_recycle = prepare_to_harvest(page, allow_defragment);
+  // Prepare mapped memory before taking the lock
+  ZMappedMemory mapping = page->mapped_memory();
+  safe_destroy_page(page);
+
+  // Defragment if needed
+  if (allow_defragment && should_defragment(mapping)) {
+    mapping = defragment_mapping(mapping);
+  }
 
   ZLocker<ZLock> locker(&_lock);
 
   // Update used statistics
-  const size_t size = to_recycle->size();
+  const size_t size = mapping.size();
   decrease_used(size);
   decrease_used_generation(generation_id, size);
 
-  // Free page
-  harvest_page_and_destroy(to_recycle);
+  // Free mapped memory
+  _mapped_cache.free_mapped(mapping);
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZPage*> to_recycle_pages;
+  ZArray<ZMappedMemory> to_free_mappings;
 
   size_t young_size = 0;
   size_t old_size = 0;
@@ -863,11 +839,15 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
       old_size += page->size();
     }
 
-    // Prepare to recycle
-    ZPage* const to_recycle = prepare_to_harvest(page, true /* allow_defragment */);
+    ZMappedMemory mapping = page->mapped_memory();
+    safe_destroy_page(page);
 
-    // Register for recycling
-    to_recycle_pages.push(to_recycle);
+    // Defragment if needed
+    if (should_defragment(mapping)) {
+      mapping = defragment_mapping(mapping);
+    }
+
+    to_free_mappings.append(mapping);
   }
 
   ZLocker<ZLock> locker(&_lock);
@@ -877,10 +857,10 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   decrease_used_generation(ZGenerationId::young, young_size);
   decrease_used_generation(ZGenerationId::old, old_size);
 
-  // Free pages
-  ZArrayIterator<ZPage*> iter(&to_recycle_pages);
-  for (ZPage* page; iter.next(&page);) {
-    harvest_page_and_destroy(page);
+  // Free mappings
+  ZArrayIterator<ZMappedMemory> iter(&to_free_mappings);
+  for (ZMappedMemory mapping; iter.next(&mapping);) {
+    _mapped_cache.free_mapped(mapping);
   }
 
   // Try satisfy stalled allocations

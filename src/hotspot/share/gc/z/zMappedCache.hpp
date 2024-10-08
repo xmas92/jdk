@@ -60,7 +60,6 @@ public:
   size_t flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout);
   void set_last_commit();
 
-  void free_mapped(ZPage* page);
   void free_mapped(ZMappedMemory mapping);
 };
 

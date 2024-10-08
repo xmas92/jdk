@@ -481,10 +481,10 @@ void ZPageAllocator::destroy_page_with_memory(ZPage* page) {
 }
 
 bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
-  // A small page can end up at a high address (second half of the address space)
-  // if we've split a larger page or we have a constrained address space. To help
-  // fight address space fragmentation we remap such pages to a lower address, if
-  // a lower address is available.
+  // The memory of a small page can end up at a high address (second half of the
+  // address space) if we have a constrained address space. To help fight address
+  // space fragmentation we remap such memory to a lower address, if a lower address
+  // is available.
   return mapping.size() == ZPageSizeSmall &&
          mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
          mapping.start() > _virtual.lowest_available_address();
@@ -494,6 +494,7 @@ ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
   // Copy physical memory
   ZPhysicalMemory pmem(mapping.physical_memory());
 
+  // Unmap the previous mapping
   _unmapper->unmap_memory(new ZMappedMemory(mapping));
 
   // Allocate new virtual memory at a low address
@@ -670,17 +671,9 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
-  // exactly one mapping, wihich is the exact size requested. However, even if
-  // the allocation is immediately satisfied we might still want to return false
-  // here to force the mapping to be remapped to fight address space fragmentation.
+  // exactly one mapping, wihich is guaranteed to be the exact size requested.
 
   if (allocation->mappings()->length() != 1) {
-    return false;
-  }
-
-  if (should_defragment(allocation->mappings()->first())) {
-    // Defragment address space
-    ZStatInc(ZCounterDefragment);
     return false;
   }
 

@@ -494,14 +494,14 @@ ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
   // Copy physical memory
   ZPhysicalMemory pmem(mapping.physical_memory());
 
-  // Unmap the previous mapping
+  // Unmap the previous mapping asynchronously
   _unmapper->unmap_memory(new ZMappedMemory(mapping));
 
   // Allocate new virtual memory at a low address
   const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
 
   ZMappedMemory new_mapping = ZMappedMemory(vmem, pmem);
-  map_mapping(mapping);
+  map_mapping(new_mapping);
 
   // Update statistics
   ZStatInc(ZCounterDefragment);

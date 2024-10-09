@@ -96,17 +96,13 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
-  // TODO: New
+  bool commit_mapping(ZMappedMemory& mapping);
   void uncommit_mapping(ZMappedMemory& mapping);
+
+  void map_mapping(const ZMappedMemory& mapping) const;
   void unmap_mapping(const ZMappedMemory& mapping);
 
-  void uncommit_page(ZPage* page);
-
-  bool commit_mapping(ZMappedMemory& mapping);
-  void map_mapping(const ZMappedMemory& mapping) const;
-
   void free_mapping(const ZMappedMemory& mapping);
-  void destroy_page_with_memory(ZPage* page);
 
   bool should_defragment(const ZMappedMemory& mapping) const;
   ZMappedMemory defragment_mapping(const ZMappedMemory& mapping);

@@ -431,35 +431,28 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::uncommit_mapping(ZMappedMemory& mapping) {
-  if (!ZUncommit) {
-    return;
-  }
-
-  _physical.uncommit(mapping.physical_memory());
-}
-
-void ZPageAllocator::unmap_mapping(const ZMappedMemory& mapping) {
-  // Unmap physical memory
-  _physical.unmap(mapping.start(), mapping.size());
-}
-
-void ZPageAllocator::uncommit_page(ZPage* page) {
-  if (!ZUncommit) {
-    return;
-  }
-
-  // Uncommit physical memory
-  _physical.uncommit(page->physical_memory());
-}
-
 bool ZPageAllocator::commit_mapping(ZMappedMemory& mapping) {
   // Commit physical memory
   return _physical.commit(mapping.physical_memory());
 }
 
+void ZPageAllocator::uncommit_mapping(ZMappedMemory& mapping) {
+  if (!ZUncommit) {
+    return;
+  }
+
+  // Uncommit physical memory
+  _physical.uncommit(mapping.physical_memory());
+}
+
 void ZPageAllocator::map_mapping(const ZMappedMemory& mapping) const {
+  // Map physical memory
   _physical.map(mapping.start(), mapping.physical_memory());
+}
+
+void ZPageAllocator::unmap_mapping(const ZMappedMemory& mapping) {
+  // Unmap physical memory
+  _physical.unmap(mapping.start(), mapping.size());
 }
 
 void ZPageAllocator::safe_destroy_page(ZPage* page) {
@@ -473,17 +466,6 @@ void ZPageAllocator::free_mapping(const ZMappedMemory& mapping) {
 
   // Free physical memory
   _physical.free(mapping.physical_memory());
-}
-
-void ZPageAllocator::destroy_page_with_memory(ZPage* page) {
-  // Free virtual memory
-  _virtual.free(page->virtual_memory());
-
-  // Free physical memory
-  _physical.free(page->physical_memory());
-
-  // Destroy page safely
-  safe_destroy_page(page);
 }
 
 bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
@@ -694,6 +676,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   }
 
   // Slow path
+
   // Although we store the returned memory from alloc_unmapped_memory in a
   // ZMappedMemory here, it is not mapped (yet).
   ZMappedMemory mapping = alloc_unmapped_memory(allocation);

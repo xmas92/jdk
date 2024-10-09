@@ -658,9 +658,16 @@ ZMappedMemory ZPageAllocator::alloc_unmapped_memory(ZPageAllocation* allocation)
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
-  // exactly one mapping, wihich is guaranteed to be the exact size requested.
+  // exactly one mapping and is of the correct size.
 
   if (allocation->mappings()->length() != 1) {
+    // Not a contiguous mapping
+    return false;
+  }
+
+  const ZMappedMemory& mapping = allocation->mappings()->first();
+  if (mapping.size() != allocation->size()) {
+    // Not correct sized mapping
     return false;
   }
 

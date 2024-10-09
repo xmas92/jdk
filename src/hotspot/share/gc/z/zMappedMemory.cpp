@@ -72,7 +72,7 @@ ZMappedMemory ZMappedMemory::split_committed() {
 
   assert(vmem.end() == _vmem.start(), "Should be consecutive");
 
-  log_trace(gc, page)("Split off committed part of mapped memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+  log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
       untype(vmem.start()),
       untype(vmem.end()),
       untype(_vmem.end()));

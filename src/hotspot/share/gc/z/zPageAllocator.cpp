@@ -431,19 +431,17 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::unmap_and_uncommit_mapping(ZMappedMemory& mapping) {
-  unmap_mapping(mapping);
+void ZPageAllocator::uncommit_mapping(ZMappedMemory& mapping) {
+  if (!ZUncommit) {
+    return;
+  }
+
   _physical.uncommit(mapping.physical_memory());
 }
 
 void ZPageAllocator::unmap_mapping(const ZMappedMemory& mapping) {
   // Unmap physical memory
   _physical.unmap(mapping.start(), mapping.size());
-}
-
-bool ZPageAllocator::commit_page(ZPage* page) {
-  // Commit physical memory
-  return _physical.commit(page->physical_memory());
 }
 
 void ZPageAllocator::uncommit_page(ZPage* page) {
@@ -455,9 +453,9 @@ void ZPageAllocator::uncommit_page(ZPage* page) {
   _physical.uncommit(page->physical_memory());
 }
 
-void ZPageAllocator::map_page(const ZPage* page) const {
-  // Map physical memory
-  _physical.map(page->start(), page->physical_memory());
+bool ZPageAllocator::commit_mapping(ZMappedMemory& mapping) {
+  // Commit physical memory
+  return _physical.commit(mapping.physical_memory());
 }
 
 void ZPageAllocator::map_mapping(const ZMappedMemory& mapping) const {
@@ -467,6 +465,14 @@ void ZPageAllocator::map_mapping(const ZMappedMemory& mapping) const {
 void ZPageAllocator::safe_destroy_page(ZPage* page) {
   // Destroy page safely
   _safe_destroy.schedule_delete(page);
+}
+
+void ZPageAllocator::free_mapping(const ZMappedMemory& mapping) {
+  // Free virtual memory
+  _virtual.free(mapping.virtual_memory());
+
+  // Free physical memory
+  _physical.free(mapping.physical_memory());
 }
 
 void ZPageAllocator::destroy_page_with_memory(ZPage* page) {
@@ -622,7 +628,7 @@ bool ZPageAllocator::alloc_mapped_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
+ZMappedMemory ZPageAllocator::alloc_unmapped_memory(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
 
   // Allocate virtual memory. To make error handling a lot more straight
@@ -632,7 +638,7 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   const ZVirtualMemory vmem = _virtual.alloc(size, allocation->flags().low_address());
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");
-    return nullptr;
+    return ZMappedMemory();
   }
 
   ZPhysicalMemory pmem;
@@ -665,8 +671,7 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
     _physical.alloc(pmem, remaining);
   }
 
-  // Create new page
-  return new ZPage(allocation->type(), vmem, pmem);
+  return ZMappedMemory(vmem, pmem);
 }
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
@@ -685,32 +690,34 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   // Fast path
   if (is_alloc_satisfied(allocation)) {
     ZMappedMemory mapping = allocation->mappings()->pop();
-    return new ZPage(allocation->type(), mapping.virtual_memory(), mapping.physical_memory());
+    return new ZPage(allocation->type(), mapping);
   }
 
   // Slow path
-  ZPage* const page = alloc_page_create(allocation);
-  if (page == nullptr) {
+  // Although we store the returned memory from alloc_unmapped_memory in a
+  // ZMappedMemory here, it is not mapped (yet).
+  ZMappedMemory mapping = alloc_unmapped_memory(allocation);
+  if (mapping.is_null()) {
     // Out of address space
     return nullptr;
   }
 
-  // Commit page
-  if (commit_page(page)) {
+  // Commit all physical memory in the mapping
+  if (commit_mapping(mapping)) {
     // Success
-    map_page(page);
-    return page;
+    map_mapping(mapping);
+    return new ZPage(allocation->type(), mapping);
   }
 
   // Completely or partially failed to commit. Split off any successfully
   // committed memory and insert it into the list of mapped memory so that
   // it will be re-inserted into the mapped cache.
-  ZMappedMemory mapping = page->split_committed();
-  destroy_page_with_memory(page);
+  ZMappedMemory committed = mapping.split_committed();
+  free_mapping(mapping);
 
-  if (!mapping.is_null()) {
-    map_mapping(mapping);
-    allocation->mappings()->append(mapping);
+  if (!committed.is_null()) {
+    map_mapping(committed);
+    allocation->mappings()->append(committed);
   }
 
   return nullptr;
@@ -915,8 +922,9 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
 
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZMappedMemory> it(&flush_mapped);
-  for (ZMappedMemory mapped; it.next(&mapped);) {
-    unmap_and_uncommit_mapping(mapped);
+  for (ZMappedMemory mapping; it.next(&mapping);) {
+    unmap_mapping(mapping);
+    uncommit_mapping(mapping);
   }
 
   {

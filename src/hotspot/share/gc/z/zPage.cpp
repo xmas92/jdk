@@ -56,6 +56,9 @@ ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& 
          "Page type/size mismatch");
 }
 
+ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
+  : ZPage(type, mapping.virtual_memory(), mapping.physical_memory()) {}
+
 ZPage* ZPage::clone_limited() const {
   // Only copy type and memory layouts, and also update _top. Let the rest be
   // lazily reconstructed when needed.
@@ -107,26 +110,6 @@ void ZPage::reset_livemap() {
 
 void ZPage::reset_top_for_allocation() {
   _top = to_zoffset_end(start());
-}
-
-ZMappedMemory ZPage::split_committed() {
-  const ZPhysicalMemory pmem = _physical.split_committed();
-  if (pmem.is_null()) {
-    return ZMappedMemory();
-  }
-
-  assert(!_physical.is_null(), "Should not be null");
-
-  const ZVirtualMemory vmem = _virtual.split(pmem.size());
-
-  assert(vmem.end() == _virtual.start(), "Should be consecutive");
-
-  log_trace(gc, page)("Split page into mapped [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
-      untype(vmem.start()),
-      untype(vmem.end()),
-      untype(_virtual.end()));
-
-  return ZMappedMemory(vmem, pmem);
 }
 
 class ZFindBaseOopClosure : public ObjectClosure {

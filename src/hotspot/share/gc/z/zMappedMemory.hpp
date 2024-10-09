@@ -49,6 +49,7 @@ public:
   size_t size() const;
 
   ZMappedMemory split(size_t size);
+  ZMappedMemory split_committed();
 
   bool virtually_adjacent_to(const ZMappedMemory& other) const;
   void extend_mapping(const ZMappedMemory& right);

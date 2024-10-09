@@ -97,15 +97,15 @@ private:
   void decrease_used_generation(ZGenerationId id, size_t size);
 
   // TODO: New
-  void unmap_and_uncommit_mapping(ZMappedMemory& mapping);
+  void uncommit_mapping(ZMappedMemory& mapping);
   void unmap_mapping(const ZMappedMemory& mapping);
 
-  bool commit_page(ZPage* page);
   void uncommit_page(ZPage* page);
 
-  void map_page(const ZPage* page) const;
+  bool commit_mapping(ZMappedMemory& mapping);
   void map_mapping(const ZMappedMemory& mapping) const;
 
+  void free_mapping(const ZMappedMemory& mapping);
   void destroy_page_with_memory(ZPage* page);
 
   bool should_defragment(const ZMappedMemory& mapping) const;
@@ -118,7 +118,9 @@ private:
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool alloc_mapped_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
-  ZPage* alloc_page_create(ZPageAllocation* allocation);
+
+  ZMappedMemory alloc_unmapped_memory(ZPageAllocation* allocation);
+
   ZPage* alloc_page_finalize(ZPageAllocation* allocation);
   void free_mapped_alloc_failed(ZPageAllocation* allocation);
 

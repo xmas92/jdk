@@ -431,12 +431,12 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::unmap_and_uncommit_mapped(ZMappedMemory& mapping) {
-  unmap_mapped(mapping);
+void ZPageAllocator::unmap_and_uncommit_mapping(ZMappedMemory& mapping) {
+  unmap_mapping(mapping);
   _physical.uncommit(mapping.physical_memory());
 }
 
-void ZPageAllocator::unmap_mapped(const ZMappedMemory& mapping) {
+void ZPageAllocator::unmap_mapping(const ZMappedMemory& mapping) {
   // Unmap physical memory
   _physical.unmap(mapping.start(), mapping.size());
 }
@@ -916,7 +916,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZMappedMemory> it(&flush_mapped);
   for (ZMappedMemory mapped; it.next(&mapped);) {
-    unmap_and_uncommit_mapped(mapped);
+    unmap_and_uncommit_mapping(mapped);
   }
 
   {

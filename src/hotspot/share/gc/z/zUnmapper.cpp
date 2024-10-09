@@ -97,7 +97,7 @@ void ZUnmapper::do_unmap(ZMappedMemory* mapping) const {
   const size_t unmapped = mapping->size();
 
   // Unmap and destroy
-  _page_allocator->unmap_mapped(*mapping);
+  _page_allocator->unmap_mapping(*mapping);
 
   // Send event
   event.commit(unmapped);

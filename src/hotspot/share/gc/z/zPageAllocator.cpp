@@ -613,10 +613,10 @@ bool ZPageAllocator::alloc_mapped_or_stall(ZPageAllocation* allocation) {
 ZMappedMemory ZPageAllocator::alloc_unmapped_memory(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
 
-  // Allocate virtual memory. To make error handling a lot more straight
-  // forward, we allocate virtual memory before destroying flushed pages.
-  // Flushed pages are also unmapped and destroyed asynchronously, so we
-  // can't immediately reuse that part of the address space anyway.
+  // Allocate virtual memory. To make error handling a lot more straight forward,
+  // we allocate virtual memory before harvesting memory from collected mappings.
+  // The collected mappings are also unmapped asynchronously, so we can't
+  // immediately reuse that part of the address space anyway.
   const ZVirtualMemory vmem = _virtual.alloc(size, allocation->flags().low_address());
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");

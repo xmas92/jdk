@@ -73,6 +73,7 @@ private:
 
 public:
   ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  ZPage(ZPageType type, const ZMappedMemory& mapping);
 
   ZPage* clone_limited() const;
 
@@ -114,8 +115,6 @@ public:
   void reset(ZPageAge age);
   void reset_livemap();
   void reset_top_for_allocation();
-
-  ZMappedMemory split_committed();
 
   bool is_in(zoffset offset) const;
   bool is_in(zaddress addr) const;

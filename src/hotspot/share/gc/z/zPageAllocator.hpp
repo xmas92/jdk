@@ -109,7 +109,7 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  bool alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  void alloc_memory_mapped_cache(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
   bool alloc_memory_common(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool alloc_mapped_or_stall(ZPageAllocation* allocation);
@@ -135,7 +135,6 @@ public:
 
   bool is_initialized() const;
 
-  bool prime_mapped_cache(ZWorkers* workers, size_t size);
   bool prime_cache(ZWorkers* workers, size_t size);
 
   size_t initial_capacity() const;

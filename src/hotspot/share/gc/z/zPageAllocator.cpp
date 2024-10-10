@@ -272,19 +272,29 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   ZAllocationFlags flags;
   flags.set_non_blocking();
   flags.set_low_address();
+  ZPageAllocation allocation(ZPageType::large, size, flags);
 
-  ZPage* const page = alloc_page(ZPageType::large, size, flags, ZPageAge::eden);
-  if (page == nullptr) {
-    return false;
+  increase_capacity(size);
+
+  ZMappedMemory mapping = alloc_mapped_memory(&allocation);
+  if (mapping.is_null()) {
+    if (!allocation.mappings()->is_empty()) {
+      log_info(gc)("prime_cache smaller than requested");
+      mapping = allocation.mappings()->pop();
+    } else {
+      return false;
+    }
   }
 
   if (AlwaysPreTouch) {
-    // Pre-touch page
-    ZPreTouchTask task(page->start(), page->end());
+    // Pre-touch memory
+    ZPreTouchTask task(mapping.start(), mapping.end());
     workers->run_all(&task);
   }
 
-  free_page(page, false /* allow_defragment */);
+  // We don't have to take a lock here as no other threads
+  // will access the mapped cache until we're finished.
+  _mapped_cache.free_mapping(mapping);
 
   return true;
 }
@@ -508,7 +518,7 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-void ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
+void ZPageAllocator::alloc_cached_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
   // Try allocate a contiguous range when not allocating a large page
   if (type != ZPageType::large) {
     ZMappedMemory mapping = _mapped_cache.remove_mapping_contiguous(size);
@@ -534,7 +544,7 @@ void ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArr
   }
 }
 
-bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
+bool ZPageAllocator::alloc_cached(ZPageAllocation* allocation) {
   const ZPageType type = allocation->type();
   const size_t size = allocation->size();
   ZArray<ZMappedMemory>* const mappings = allocation->mappings();
@@ -545,7 +555,7 @@ bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
   }
 
   // Try allocate memory from the mapped cache
-  alloc_memory_common_inner(type, size, mappings);
+  alloc_cached_inner(type, size, mappings);
 
   // Updated used statistics
   increase_used(size);
@@ -591,11 +601,11 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   return result;
 }
 
-bool ZPageAllocator::alloc_mapped_or_stall(ZPageAllocation* allocation) {
+bool ZPageAllocator::alloc_cached_or_stall(ZPageAllocation* allocation) {
   {
     ZLocker<ZLock> locker(&_lock);
 
-    if (alloc_memory_common(allocation)) {
+    if (alloc_cached(allocation)) {
       // Success
       return true;
     }
@@ -679,11 +689,10 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   return true;
 }
 
-ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
+ZMappedMemory ZPageAllocator::alloc_mapped_memory(ZPageAllocation* allocation) {
   // Fast path
   if (is_alloc_satisfied(allocation)) {
-    ZMappedMemory mapping = allocation->mappings()->pop();
-    return new ZPage(allocation->type(), mapping);
+    return allocation->mappings()->pop();
   }
 
   // Slow path
@@ -693,14 +702,14 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   ZMappedMemory mapping = alloc_unmapped_memory(allocation);
   if (mapping.is_null()) {
     // Out of address space
-    return nullptr;
+    return mapping;
   }
 
   // Commit all physical memory in the mapping
   if (commit_mapping(mapping)) {
     // Success
     map_mapping(mapping);
-    return new ZPage(allocation->type(), mapping);
+    return mapping;
   }
 
   // Completely or partially failed to commit. Split off any successfully
@@ -714,7 +723,7 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
     allocation->mappings()->append(committed);
   }
 
-  return nullptr;
+  return ZMappedMemory();
 }
 
 ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
@@ -723,23 +732,25 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 retry:
   ZPageAllocation allocation(type, size, flags);
 
-  // Allocate memory from the mapped cache. If the allocation succeeds but the
-  // returned mapped memory is not enough to cover the complete allocation, the
-  // finalize phase is allowedto allocate the remaining memory directly from the
-  // physical memory manager. Note that this call might block in a safepoint if
-  // the non-blocking flag is not set.
-  if (!alloc_mapped_or_stall(&allocation)) {
+  // Allocate memory from the mapped cache. If the allocation succeeds
+  // but the returned mapped memory is not enough to cover the complete
+  // allocation, the remaining mapped memory can be allocated from the
+  // virtual/physical memory manager. Note that this call might block in
+  // a safepoint if the non-blocking flag is not set.
+  if (!alloc_cached_or_stall(&allocation)) {
     // Out of memory
     return nullptr;
   }
 
-  ZPage* const page = alloc_page_finalize(&allocation);
-  if (page == nullptr) {
+  ZMappedMemory mapping = alloc_mapped_memory(&allocation);
+  if (mapping.is_null()) {
     // Failed to commit or map. Clean up and retry, in the hope that
     // we can still allocate by flushing the mapped cache (more aggressively).
     free_mapped_alloc_failed(&allocation);
     goto retry;
   }
+
+  ZPage* const page = new ZPage(type, mapping);
 
   // The generation's used is tracked here when the page is handed out
   // to the allocating thread. The overall heap "used" is tracked in
@@ -779,7 +790,7 @@ void ZPageAllocator::satisfy_stalled() {
       return;
     }
 
-    if (!alloc_memory_common(allocation)) {
+    if (!alloc_cached(allocation)) {
       // Allocation could not be satisfied, give up
       return;
     }

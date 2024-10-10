@@ -46,6 +46,7 @@ public:
 
   bool is_null() const;
   zoffset start() const;
+  zoffset_end end() const;
   size_t size() const;
 
   ZMappedMemory split(size_t size);

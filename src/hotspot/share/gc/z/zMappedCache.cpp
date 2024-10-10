@@ -89,6 +89,10 @@ ZMappedMemory ZMappedCache::remove_mapped_contiguous(size_t size) {
 }
 
 size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {
+  // TODO: Flush is for uncommit, which is not yet handled.
+  return 0;
+
+  /*
   const uint64_t now = (uint64_t)os::elapsedTime();
   const uint64_t expires = _last_commit + ZUncommitDelay;
   if (expires > now) {
@@ -98,6 +102,7 @@ size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_
   }
 
   return remove_mapped(mappings, size);
+  */
 }
 
 void ZMappedCache::set_last_commit() {

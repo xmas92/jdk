@@ -110,15 +110,15 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  void alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
-  bool alloc_memory_common(ZPageAllocation* allocation);
+  void alloc_cached_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  bool alloc_cached(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
-  bool alloc_mapped_or_stall(ZPageAllocation* allocation);
+  bool alloc_cached_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
 
   ZMappedMemory alloc_unmapped_memory(ZPageAllocation* allocation);
 
-  ZPage* alloc_page_finalize(ZPageAllocation* allocation);
+  ZMappedMemory alloc_mapped_memory(ZPageAllocation* allocation);
   void free_mapped_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();

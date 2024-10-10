@@ -53,6 +53,10 @@ zoffset ZMappedMemory::start() const {
   return _vmem.start();
 }
 
+zoffset_end ZMappedMemory::end() const {
+  return _vmem.end();
+}
+
 size_t ZMappedMemory::size() const {
   return _vmem.size();
 }

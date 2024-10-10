@@ -102,6 +102,7 @@ private:
   void map_mapping(const ZMappedMemory& mapping) const;
   void unmap_mapping(const ZMappedMemory& mapping);
 
+  void unmap_uncommit_free_mapping(ZMappedMemory& mapping);
   void free_mapping(const ZMappedMemory& mapping);
 
   bool should_defragment(const ZMappedMemory& mapping) const;
@@ -109,7 +110,7 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  void alloc_memory_mapped_cache(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  void alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
   bool alloc_memory_common(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool alloc_mapped_or_stall(ZPageAllocation* allocation);

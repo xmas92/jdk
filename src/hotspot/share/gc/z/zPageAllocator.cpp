@@ -502,23 +502,18 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-bool ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
-  if (!is_alloc_allowed(size)) {
-    // Out of memory
-    return false;
-  }
-
-  // Try allocate from the mapped cache
+void ZPageAllocator::alloc_memory_mapped_cache(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
+  // Try allocate a contiguous range
   ZMappedMemory mapping = _mapped_cache.remove_mapped_contiguous(size);
   if (!mapping.is_null()) {
-    // Success
     mappings->append(mapping);
-    return true;
+    // Finished
+    return;
   }
 
   // If we've failed to allocate a contiguous range from the mapped cache, there
-  // is still a possibility that the cache holds enough memory for the allocation,
-  // but dispersed over more than one range.
+  // is still a possibility that the cache holds enough memory for the allocation
+  // dispersed over more than one range.
 
   // Try increase capacity
   const size_t increased = increase_capacity(size);
@@ -528,9 +523,6 @@ bool ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArr
     const size_t remaining = size - increased;
     _mapped_cache.remove_mapped(mappings, remaining);
   }
-
-  // Success
-  return true;
 }
 
 bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
@@ -538,10 +530,13 @@ bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
   ZArray<ZMappedMemory>* const mappings = allocation->mappings();
 
-  if (!alloc_memory_common_inner(type, size, mappings)) {
+  if (!is_alloc_allowed(size)) {
     // Out of memory
     return false;
   }
+
+  // Try allocate memory from the mapped cache
+  alloc_memory_mapped_cache(type, size, mappings);
 
   // Updated used statistics
   increase_used(size);

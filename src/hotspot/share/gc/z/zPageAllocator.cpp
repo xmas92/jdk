@@ -460,6 +460,12 @@ void ZPageAllocator::safe_destroy_page(ZPage* page) {
   _safe_destroy.schedule_delete(page);
 }
 
+void ZPageAllocator::unmap_uncommit_free_mapping(ZMappedMemory& mapping) {
+  unmap_mapping(mapping);
+  uncommit_mapping(mapping);
+  free_mapping(mapping);
+}
+
 void ZPageAllocator::free_mapping(const ZMappedMemory& mapping) {
   // Free virtual memory
   _virtual.free(mapping.virtual_memory());
@@ -502,18 +508,21 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-void ZPageAllocator::alloc_memory_mapped_cache(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
-  // Try allocate a contiguous range
-  ZMappedMemory mapping = _mapped_cache.remove_mapping_contiguous(size);
-  if (!mapping.is_null()) {
-    mappings->append(mapping);
-    // Finished
-    return;
+void ZPageAllocator::alloc_memory_common_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
+  // Try allocate a contiguous range when not allocating a large page
+  if (type != ZPageType::large) {
+    ZMappedMemory mapping = _mapped_cache.remove_mapping_contiguous(size);
+    if (!mapping.is_null()) {
+      mappings->append(mapping);
+      // Finished
+      return;
+    }
   }
 
-  // If we've failed to allocate a contiguous range from the mapped cache, there
-  // is still a possibility that the cache holds enough memory for the allocation
-  // dispersed over more than one range.
+  // If we've failed to allocate a contiguous range from the mapped cache,
+  // there is still a possibility that the cache holds enough memory for the
+  // allocation dispersed over more than one range if the capacity cannot be
+  // increased to satisfy the allocation.
 
   // Try increase capacity
   const size_t increased = increase_capacity(size);
@@ -536,7 +545,7 @@ bool ZPageAllocator::alloc_memory_common(ZPageAllocation* allocation) {
   }
 
   // Try allocate memory from the mapped cache
-  alloc_memory_mapped_cache(type, size, mappings);
+  alloc_memory_common_inner(type, size, mappings);
 
   // Updated used statistics
   increase_used(size);
@@ -788,11 +797,17 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
 
   // Prepare mapped memory before taking the lock
   ZMappedMemory mapping = page->mapped_memory();
+  bool page_is_large = page->type() == ZPageType::large;
   safe_destroy_page(page);
 
-  // Defragment if needed
-  if (allow_defragment && should_defragment(mapping)) {
-    mapping = defragment_mapping(mapping);
+  // Memory from a large page is not cached
+  if (page_is_large) {
+    unmap_uncommit_free_mapping(mapping);
+  } else {
+    // Defragment if needed
+    if (allow_defragment && should_defragment(mapping)) {
+      mapping = defragment_mapping(mapping);
+    }
   }
 
   ZLocker<ZLock> locker(&_lock);
@@ -802,15 +817,17 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   decrease_used(size);
   decrease_used_generation(generation_id, size);
 
-  // Free mapped memory
-  _mapped_cache.free_mapping(mapping);
+  // Insert mapping to the cache
+  if (!page_is_large) {
+    _mapped_cache.free_mapping(mapping);
+  }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZMappedMemory> to_free_mappings;
+  ZArray<ZMappedMemory> to_cache;
 
   size_t young_size = 0;
   size_t old_size = 0;
@@ -825,14 +842,21 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     }
 
     ZMappedMemory mapping = page->mapped_memory();
+    ZPageType type = page->type();
     safe_destroy_page(page);
+
+    // Memory from a large page is not cached
+    if (type == ZPageType::large) {
+      unmap_uncommit_free_mapping(mapping);
+      continue;
+    }
 
     // Defragment if needed
     if (should_defragment(mapping)) {
       mapping = defragment_mapping(mapping);
     }
 
-    to_free_mappings.append(mapping);
+    to_cache.append(mapping);
   }
 
   ZLocker<ZLock> locker(&_lock);
@@ -842,8 +866,8 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   decrease_used_generation(ZGenerationId::young, young_size);
   decrease_used_generation(ZGenerationId::old, old_size);
 
-  // Free mappings
-  ZArrayIterator<ZMappedMemory> iter(&to_free_mappings);
+  // Insert mappings to the cache
+  ZArrayIterator<ZMappedMemory> iter(&to_cache);
   for (ZMappedMemory mapping; iter.next(&mapping);) {
     _mapped_cache.free_mapping(mapping);
   }

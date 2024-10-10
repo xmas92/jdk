@@ -150,7 +150,6 @@ public:
   void swap_remset_bitmaps();
 
   void remset_alloc();
-  void remset_delete();
 
   ZBitMap::ReverseIterator remset_reverse_iterator_previous();
   BitMap::Iterator remset_iterator_limited_current(uintptr_t l_offset, size_t size);

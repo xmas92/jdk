@@ -89,10 +89,6 @@ void ZPage::remset_alloc() {
   _remembered_set.initialize(size());
 }
 
-void ZPage::remset_delete() {
-  _remembered_set.delete_all();
-}
-
 void ZPage::reset(ZPageAge age) {
   _age = age;
   _last_used = 0;

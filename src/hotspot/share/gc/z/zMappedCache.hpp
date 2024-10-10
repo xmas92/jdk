@@ -54,13 +54,14 @@ private:
 public:
   ZMappedCache();
 
-  size_t remove_mapped(ZArray<ZMappedMemory>* mappings, size_t size);
-  ZMappedMemory remove_mapped_contiguous(size_t size);
+  size_t remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size);
+  ZMappedMemory remove_mapping_contiguous(size_t size);
+
+  void free_mapping(ZMappedMemory mapping);
 
   size_t flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout);
   void set_last_commit();
 
-  void free_mapped(ZMappedMemory mapping);
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

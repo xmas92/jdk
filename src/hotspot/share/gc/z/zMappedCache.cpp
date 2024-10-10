@@ -32,7 +32,7 @@ ZMappedCache::ZMappedCache()
   : _tree(),
     _last_commit(0) {}
 
-size_t ZMappedCache::remove_mapped(ZArray<ZMappedMemory>* mappings, size_t size) {
+size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size) {
   ZArray<ZMappedMemory> to_remove;
   size_t removed = 0;
 
@@ -67,7 +67,7 @@ size_t ZMappedCache::remove_mapped(ZArray<ZMappedMemory>* mappings, size_t size)
   return removed;
 }
 
-ZMappedMemory ZMappedCache::remove_mapped_contiguous(size_t size) {
+ZMappedMemory ZMappedCache::remove_mapping_contiguous(size_t size) {
   ZMappedTreap::InOrderIterator iterator(&_tree);
   for (ZMappedTreapNode* node; iterator.next(&node);) {
     ZMappedMemory mapped = node->val();
@@ -88,28 +88,7 @@ ZMappedMemory ZMappedCache::remove_mapped_contiguous(size_t size) {
   return ZMappedMemory();
 }
 
-size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {
-  // TODO: Flush is for uncommit, which is not yet handled.
-  return 0;
-
-  /*
-  const uint64_t now = (uint64_t)os::elapsedTime();
-  const uint64_t expires = _last_commit + ZUncommitDelay;
-  if (expires > now) {
-    // Delay uncommit, set next timeout
-    *timeout = expires - now;
-    return 0;
-  }
-
-  return remove_mapped(mappings, size);
-  */
-}
-
-void ZMappedCache::set_last_commit() {
-  _last_commit = (uint64_t)ceil(os::elapsedTime());
-}
-
-void ZMappedCache::free_mapped(ZMappedMemory mapping) {
+void ZMappedCache::free_mapping(ZMappedMemory mapping) {
   bool merged_left = false;
 
   // Check left node.
@@ -141,4 +120,13 @@ void ZMappedCache::free_mapped(ZMappedMemory mapping) {
   if (!merged_left) {
     _tree.upsert(mapping.start(), mapping);
   }
+}
+
+size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {
+  // TODO: Flush is for uncommit, which is not yet handled.
+  return 0;
+}
+
+void ZMappedCache::set_last_commit() {
+  _last_commit = (uint64_t)ceil(os::elapsedTime());
 }

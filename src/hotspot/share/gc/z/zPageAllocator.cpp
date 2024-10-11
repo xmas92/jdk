@@ -278,12 +278,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
 
   ZMappedMemory mapping = alloc_mapped_memory(&allocation);
   if (mapping.is_null()) {
-    if (!allocation.mappings()->is_empty()) {
-      log_info(gc)("prime_cache smaller than requested");
-      mapping = allocation.mappings()->pop();
-    } else {
-      return false;
-    }
+    return false;
   }
 
   if (AlwaysPreTouch) {

@@ -276,7 +276,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
 
   increase_capacity(size);
 
-  ZMappedMemory mapping = alloc_mapped_memory(&allocation);
+  const ZMappedMemory mapping = alloc_mapped_memory(&allocation);
   if (mapping.is_null()) {
     return false;
   }
@@ -516,7 +516,7 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
 void ZPageAllocator::alloc_cached_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
   // Try allocate a contiguous range when not allocating a large page
   if (type != ZPageType::large) {
-    ZMappedMemory mapping = _mapped_cache.remove_mapping_contiguous(size);
+    const ZMappedMemory mapping = _mapped_cache.remove_mapping_contiguous(size);
     if (!mapping.is_null()) {
       mappings->append(mapping);
       // Finished
@@ -710,7 +710,7 @@ ZMappedMemory ZPageAllocator::alloc_mapped_memory(ZPageAllocation* allocation) {
   // Completely or partially failed to commit. Split off any successfully
   // committed memory and insert it into the list of mapped memory so that
   // it will be re-inserted into the mapped cache.
-  ZMappedMemory committed = mapping.split_committed();
+  const ZMappedMemory committed = mapping.split_committed();
   free_mapping(mapping);
 
   if (!committed.is_null()) {
@@ -737,7 +737,7 @@ retry:
     return nullptr;
   }
 
-  ZMappedMemory mapping = alloc_mapped_memory(&allocation);
+  const ZMappedMemory mapping = alloc_mapped_memory(&allocation);
   if (mapping.is_null()) {
     // Failed to commit or map. Clean up and retry, in the hope that
     // we can still allocate by flushing the mapped cache (more aggressively).

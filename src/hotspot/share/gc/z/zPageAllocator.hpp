@@ -96,10 +96,10 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
-  bool commit_mapping(ZMappedMemory& mapping);
-  void uncommit_mapping(ZMappedMemory& mapping);
+  bool commit_physical(ZPhysicalMemory& pmem);
+  void uncommit_physical(ZPhysicalMemory& pmem);
 
-  void map_mapping(const ZMappedMemory& mapping) const;
+  ZMappedMemory map_memory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const;
   void unmap_mapping(const ZMappedMemory& mapping);
 
   void unmap_uncommit_free_mapping(ZMappedMemory& mapping);
@@ -110,16 +110,16 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  void alloc_cached_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
-  bool alloc_cached(ZPageAllocation* allocation);
+  void claim_physical_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  bool claim_physical(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
-  bool alloc_cached_or_stall(ZPageAllocation* allocation);
+  bool claim_physical_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
 
-  ZMappedMemory alloc_unmapped_memory(ZPageAllocation* allocation);
+  ZPhysicalMemory collect_claimed_physical(ZPageAllocation* allocation);
 
-  ZMappedMemory alloc_mapped_memory(ZPageAllocation* allocation);
-  void free_mapped_alloc_failed(ZPageAllocation* allocation);
+  bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
+  void free_memory_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();
 

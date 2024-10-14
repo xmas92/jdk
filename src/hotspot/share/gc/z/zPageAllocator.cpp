@@ -437,6 +437,7 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
+// TODO: Commit physical only
 bool ZPageAllocator::commit_mapping(ZMappedMemory& mapping) {
   // Commit physical memory
   return _physical.commit(mapping.physical_memory());
@@ -514,6 +515,7 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
+// TODO: "Gather" uppåt
 void ZPageAllocator::alloc_cached_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
   // Try allocate a contiguous range when not allocating a large page
   if (type != ZPageType::large) {
@@ -692,9 +694,12 @@ ZMappedMemory ZPageAllocator::alloc_mapped_memory(ZPageAllocation* allocation) {
   }
 
   // Slow path
+  
+  // TODO: Allokera virtuellt minne först, sen allokera physical.
 
   // Although we store the returned memory from alloc_unmapped_memory in a
   // ZMappedMemory here, it is not mapped (yet).
+  // TODO: Fixa en unmappedmemory
   ZMappedMemory mapping = alloc_unmapped_memory(allocation);
   if (mapping.is_null()) {
     // Out of address space
@@ -738,8 +743,10 @@ retry:
     return nullptr;
   }
 
+  // TODO: Kanske värt att baka in mapping i allocation och returnera bool här
   const ZMappedMemory mapping = alloc_mapped_memory(&allocation);
   if (mapping.is_null()) {
+    // TODO: Fixa kommentar
     // Failed to commit or map. Clean up and retry, in the hope that
     // we can still allocate by flushing the mapped cache (more aggressively).
     free_mapped_alloc_failed(&allocation);

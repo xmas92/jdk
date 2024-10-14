@@ -173,7 +173,7 @@ int Continuation::try_preempt(JavaThread* target, oop continuation) {
 
 #ifndef PRODUCT
 static jlong java_tid(JavaThread* thread) {
-  return java_lang_Thread::thread_id(thread->threadObj());
+  return static_cast<jlong>(java_lang_Thread::thread_id(thread->threadObj()));
 }
 #endif
 

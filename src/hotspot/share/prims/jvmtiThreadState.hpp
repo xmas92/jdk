@@ -137,9 +137,9 @@ class JvmtiVTMSTransitionDisabler {
 // Used for Virtual Threads Suspend/Resume management.
 // It's a list of thread IDs.
 //
-class VirtualThreadList : public GrowableArrayCHeap<int64_t, mtServiceability> {
+class VirtualThreadList : public GrowableArrayCHeap<ThreadID, mtServiceability> {
  public:
-  VirtualThreadList() : GrowableArrayCHeap<int64_t, mtServiceability>(0) {}
+  VirtualThreadList() : GrowableArrayCHeap<ThreadID, mtServiceability>(0) {}
   void invalidate() { clear(); }
 };
 
@@ -168,7 +168,7 @@ class JvmtiVTSuspender : AllStatic {
   static void register_vthread_suspend(oop vt);
   static void register_vthread_resume(oop vt);
   static bool is_vthread_suspended(oop vt);
-  static bool is_vthread_suspended(int64_t thread_id);
+  static bool is_vthread_suspended(ThreadID thread_id);
 };
 
 ///////////////////////////////////////////////////////////////

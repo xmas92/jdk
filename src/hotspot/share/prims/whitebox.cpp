@@ -2535,7 +2535,7 @@ WB_END
 //
 WB_ENTRY(void, WB_CheckThreadObjOfTerminatingThread(JNIEnv* env, jobject wb, jobject target_handle))
   oop target_oop = JNIHandles::resolve_non_null(target_handle);
-  jlong tid = java_lang_Thread::thread_id(target_oop);
+  ThreadID tid = java_lang_Thread::thread_id(target_oop);
   JavaThread* target = java_lang_Thread::thread(target_oop);
 
   // Grab a ThreadsListHandle to protect the target thread whilst terminating

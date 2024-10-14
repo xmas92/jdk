@@ -53,6 +53,7 @@ static JNINativeMethod methods[] = {
     {"scopedValueCache", "()[" OBJ,    (void *)&JVM_ScopedValueCache},
     {"setScopedValueCache", "([" OBJ ")V",(void *)&JVM_SetScopedValueCache},
     {"getNextThreadIdOffset", "()J",   (void *)&JVM_GetNextThreadIdOffset},
+    {"getPrimordialThreadId", "()J",   (void *)&JVM_GetPrimordialThreadId},
     {"findScopedValueBindings", "()" OBJ, (void *)&JVM_FindScopedValueBindings},
     {"ensureMaterializedForStackWalk",
                          "(" OBJ ")V", (void*)&JVM_EnsureMaterializedForStackWalk_func},

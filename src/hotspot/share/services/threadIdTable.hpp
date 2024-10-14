@@ -27,6 +27,9 @@
 #define SHARE_SERVICES_THREADIDTABLE_HPP
 
 #include "memory/allStatic.hpp"
+#include "runtime/threadIdentifier.hpp"
+
+#include <cstddef>
 
 class JavaThread;
 class ThreadsList;
@@ -44,9 +47,9 @@ public:
   static bool is_initialized() { return _is_initialized; }
 
   // Lookup and list management
-  static JavaThread* find_thread_by_tid(jlong tid);
-  static JavaThread* add_thread(jlong tid, JavaThread* thread);
-  static bool remove_thread(jlong tid);
+  static JavaThread* find_thread_by_tid(ThreadID tid);
+  static JavaThread* add_thread(ThreadID tid, JavaThread* thread);
+  static bool remove_thread(ThreadID tid);
 
   // Growing
   static bool has_work() { return _has_work; }

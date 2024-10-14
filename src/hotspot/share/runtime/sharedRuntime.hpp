@@ -332,7 +332,7 @@ class SharedRuntime: AllStatic {
 
   // Utility method for retrieving the Java thread id, returns 0 if the
   // thread is not a well formed Java thread.
-  static jlong get_java_tid(JavaThread* thread);
+  static ThreadID get_java_tid(JavaThread* thread);
 
 
   // used by native wrappers to re-enable yellow if overflow happened in native code

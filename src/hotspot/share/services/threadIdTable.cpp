@@ -28,6 +28,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.inline.hpp"
+#include "runtime/threadIdentifier.hpp"
 #include "runtime/threadSMR.hpp"
 #include "runtime/timerTrace.hpp"
 #include "services/threadIdTable.hpp"
@@ -51,13 +52,13 @@ volatile bool ThreadIdTable::_has_work = false;
 
 class ThreadIdTableEntry : public CHeapObj<mtInternal> {
 private:
-  jlong _tid;
+  ThreadID _tid;
   JavaThread* _java_thread;
 public:
-  ThreadIdTableEntry(jlong tid, JavaThread* java_thread) :
+  ThreadIdTableEntry(ThreadID tid, JavaThread* java_thread) :
     _tid(tid), _java_thread(java_thread) {}
 
-  jlong tid() const { return _tid; }
+  ThreadID tid() const { return _tid; }
   JavaThread* thread() const { return _java_thread; }
 };
 
@@ -66,7 +67,7 @@ class ThreadIdTableConfig : public AllStatic {
     typedef ThreadIdTableEntry* Value;
 
     static uintx get_hash(Value const& value, bool* is_dead) {
-      jlong tid = value->tid();
+      ThreadID tid = value->tid();
       return primitive_hash(tid);
     }
     static void* allocate_node(void* context, size_t size, Value const& value) {
@@ -98,7 +99,7 @@ void ThreadIdTable::lazy_initialize(const ThreadsList *threads) {
       JavaThread* thread = threads->thread_at(i);
       oop tobj = thread->threadObj();
       if (tobj != nullptr) {
-        jlong java_tid = java_lang_Thread::thread_id(tobj);
+        ThreadID java_tid = java_lang_Thread::thread_id(tobj);
         MutexLocker ml(Threads_lock);
         if (!thread->is_exiting()) {
           // Must be inside the lock to ensure that we don't add a thread to the table
@@ -179,10 +180,10 @@ void ThreadIdTable::grow(JavaThread* jt) {
 
 class ThreadIdTableLookup : public StackObj {
 private:
-  jlong _tid;
+  ThreadID _tid;
   uintx _hash;
 public:
-  ThreadIdTableLookup(jlong tid)
+  ThreadIdTableLookup(ThreadID tid)
     : _tid(tid), _hash(primitive_hash(tid)) {}
   uintx get_hash() const {
     return _hash;
@@ -222,7 +223,7 @@ void ThreadIdTable::do_concurrent_work(JavaThread* jt) {
   }
 }
 
-JavaThread* ThreadIdTable::add_thread(jlong tid, JavaThread* java_thread) {
+JavaThread* ThreadIdTable::add_thread(ThreadID tid, JavaThread* java_thread) {
   assert(_is_initialized, "Thread table is not initialized");
   Thread* thread = Thread::current();
   ThreadIdTableLookup lookup(tid);
@@ -241,7 +242,7 @@ JavaThread* ThreadIdTable::add_thread(jlong tid, JavaThread* java_thread) {
   }
 }
 
-JavaThread* ThreadIdTable::find_thread_by_tid(jlong tid) {
+JavaThread* ThreadIdTable::find_thread_by_tid(ThreadID tid) {
   assert(_is_initialized, "Thread table is not initialized");
   Thread* thread = Thread::current();
   ThreadIdTableLookup lookup(tid);
@@ -250,7 +251,7 @@ JavaThread* ThreadIdTable::find_thread_by_tid(jlong tid) {
   return tg.get_res_thread();
 }
 
-bool ThreadIdTable::remove_thread(jlong tid) {
+bool ThreadIdTable::remove_thread(ThreadID tid) {
   assert(_is_initialized, "Thread table is not initialized");
   Thread* thread = Thread::current();
   ThreadIdTableLookup lookup(tid);

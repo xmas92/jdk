@@ -1048,7 +1048,7 @@ static void do_thread_dump(ThreadDumpResult* dump_result,
     // VM op below so we can't use it yet.
     ThreadsListHandle tlh;
     for (int i = 0; i < num_threads; i++) {
-      jlong tid = ids_ah->long_at(i);
+      ThreadID tid = static_cast<ThreadID>(ids_ah->long_at(i));
       JavaThread* jt = tlh.list()->find_JavaThread_from_java_tid(tid);
       oop thread_obj = is_platform_thread(jt) ? jt->threadObj() : (oop)nullptr;
       instanceHandle threadObj_h(THREAD, (instanceOop) thread_obj);
@@ -1122,7 +1122,7 @@ JVM_ENTRY(jint, jmm_GetThreadInfo(JNIEnv *env, jlongArray ids, jint maxDepth, jo
     // Since we never do the VM op here we must set the threads list.
     dump_result.set_t_list();
     for (int i = 0; i < num_threads; i++) {
-      jlong tid = ids_ah->long_at(i);
+      ThreadID tid = static_cast<ThreadID>(ids_ah->long_at(i));
       JavaThread* jt = dump_result.t_list()->find_JavaThread_from_java_tid(tid);
       if (jt == nullptr) {
         // if the thread does not exist or now it is terminated,
@@ -1344,7 +1344,7 @@ JVM_ENTRY(jboolean, jmm_ResetStatistic(JNIEnv *env, jvalue obj, jmmStatisticType
         }
       } else {
         // reset contention statistics for a given thread
-        JavaThread* java_thread = jtiwh.list()->find_JavaThread_from_java_tid(tid);
+        JavaThread* java_thread = jtiwh.list()->find_JavaThread_from_java_tid(static_cast<ThreadID>(tid));
         if (java_thread == nullptr) {
           return false;
         }
@@ -1413,7 +1413,8 @@ JVM_ENTRY(jlong, jmm_GetThreadCpuTime(JNIEnv *env, jlong thread_id))
     return os::current_thread_cpu_time();
   } else {
     ThreadsListHandle tlh;
-    java_thread = tlh.list()->find_JavaThread_from_java_tid(thread_id);
+    ThreadID tid = static_cast<ThreadID>(thread_id);
+    java_thread = tlh.list()->find_JavaThread_from_java_tid(tid);
     if (is_platform_thread(java_thread)) {
       return os::thread_cpu_time((Thread*) java_thread);
     }
@@ -2143,7 +2144,8 @@ JVM_ENTRY(jlong, jmm_GetOneThreadAllocatedMemory(JNIEnv *env, jlong thread_id))
   }
 
   ThreadsListHandle tlh;
-  JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(thread_id);
+  ThreadID tid = static_cast<ThreadID>(thread_id);
+  JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(tid);
   if (is_platform_thread(java_thread)) {
     return java_thread->cooked_allocated_bytes();
   }
@@ -2182,7 +2184,8 @@ JVM_ENTRY(void, jmm_GetThreadAllocatedMemory(JNIEnv *env, jlongArray ids,
 
   ThreadsListHandle tlh;
   for (int i = 0; i < num_threads; i++) {
-    JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(ids_ah->long_at(i));
+    ThreadID tid = static_cast<ThreadID>(ids_ah->long_at(i));
+    JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(tid);
     if (is_platform_thread(java_thread)) {
       sizeArray_h->long_at_put(i, java_thread->cooked_allocated_bytes());
     }
@@ -2210,7 +2213,8 @@ JVM_ENTRY(jlong, jmm_GetThreadCpuTimeWithKind(JNIEnv *env, jlong thread_id, jboo
     return os::current_thread_cpu_time(user_sys_cpu_time != 0);
   } else {
     ThreadsListHandle tlh;
-    java_thread = tlh.list()->find_JavaThread_from_java_tid(thread_id);
+    ThreadID tid = static_cast<ThreadID>(thread_id);
+    java_thread = tlh.list()->find_JavaThread_from_java_tid(tid);
     if (is_platform_thread(java_thread)) {
       return os::thread_cpu_time((Thread*) java_thread, user_sys_cpu_time != 0);
     }
@@ -2253,7 +2257,8 @@ JVM_ENTRY(void, jmm_GetThreadCpuTimesWithKind(JNIEnv *env, jlongArray ids,
 
   ThreadsListHandle tlh;
   for (int i = 0; i < num_threads; i++) {
-    JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(ids_ah->long_at(i));
+    ThreadID tid = static_cast<ThreadID>(ids_ah->long_at(i));
+    JavaThread* java_thread = tlh.list()->find_JavaThread_from_java_tid(tid);
     if (is_platform_thread(java_thread)) {
       timeArray_h->long_at_put(i, os::thread_cpu_time((Thread*)java_thread,
                                                       user_sys_cpu_time != 0));

@@ -643,11 +643,17 @@ public class Thread implements Runnable {
     static final int NO_INHERIT_THREAD_LOCALS = 1 << 2;
 
     /**
+     * The primordial thread identifier.
+     * See Thread initialization.
+     */
+    private static final long PRIMORDIAL_TID = Thread.getPrimordialThreadId();
+
+    /**
      * Helper class to generate thread identifiers. The identifiers start at
-     * 2 as this class cannot be used during early startup to generate the
-     * identifier for the primordial thread. The counter is off-heap and
-     * shared with the VM to allow it assign thread identifiers to non-Java
-     * threads.
+     * {@code PRIMORDIAL_TID} as this class cannot be used during early startup
+     * to generate the identifier for the primordial thread. The counter is
+     * off-heap and shared with the VM to allow it assign thread identifiers to
+     * non-Java threads.
      * See Thread initialization.
      */
     private static class ThreadIdentifiers {
@@ -728,7 +734,7 @@ public class Thread implements Runnable {
         }
 
         if (attached && VM.initLevel() < 1) {
-            this.tid = 3;  // primordial thread
+            this.tid = Thread.PRIMORDIAL_TID;  // primordial thread
         } else {
             this.tid = ThreadIdentifiers.next();
         }
@@ -2928,4 +2934,5 @@ public class Thread implements Runnable {
 
     // The address of the next thread identifier, see ThreadIdentifiers.
     private static native long getNextThreadIdOffset();
+    private static native long getPrimordialThreadId();
 }

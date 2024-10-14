@@ -94,22 +94,21 @@ void ZMappedCache::free_mapping(ZMappedMemory mapping) {
   // Check left node.
   ZMappedTreapNode* lnode = _tree.closest_leq(mapping.start());
   if (lnode != nullptr) {
-    ZMappedMemory left_mapped = lnode->val();
+    ZMappedMemory& left_mapping = lnode->val();
 
-    if (mapping.virtually_adjacent_to(left_mapped)) {
-      left_mapped.extend_mapping(mapping);
-      _tree.upsert(lnode->key(), left_mapped);
+    if (mapping.virtually_adjacent_to(left_mapping)) {
+      left_mapping.extend_mapping(mapping);
 
-      // Update mapped to the larger mapping
-      mapping = left_mapped;
+      // Update mapping to the larger mapping
+      mapping = ZMappedMemory(left_mapping);
       merged_left = true;
     }
   }
 
   // Check right node.
-  ZMappedTreapNode* rnode = _tree.closest_leq(zoffset(mapping.virtual_memory().end()));
+  ZMappedTreapNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
   if (rnode != lnode) {
-    // If there exists a node that is LEQ than vmem.end() which is not the
+    // If there exists a node that is LEQ than mapping.end() which is not the
     // left_node, it is adjacent.
     mapping.extend_mapping(rnode->val());
     _tree.remove(rnode->key());

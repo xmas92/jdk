@@ -3097,11 +3097,15 @@ JVM_ENTRY(void, JVM_SetCurrentThread(JNIEnv* env, jobject thisThread,
 JVM_END
 
 JVM_ENTRY_NO_ENV(void, JVM_SetCurrentLockId(JNIEnv* env, jclass threadClass, jlong tid))
-  thread->set_lock_id(tid);
+  thread->set_lock_id(static_cast<ThreadID>(tid));
 JVM_END
 
 JVM_ENTRY(jlong, JVM_GetNextThreadIdOffset(JNIEnv* env, jclass threadClass))
   return static_cast<jlong>(ThreadIdentifier::unsafe_offset());
+JVM_END
+
+JVM_ENTRY(jlong, JVM_GetPrimordialThreadId(JNIEnv* env, jclass threadClass))
+  return static_cast<jlong>(ThreadID::PRIMORDIAL_TID);
 JVM_END
 
 JVM_ENTRY(void, JVM_Interrupt(JNIEnv* env, jobject jthread))

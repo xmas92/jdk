@@ -54,6 +54,8 @@
 #include "services/threadService.hpp"
 #include "utilities/ticks.hpp"
 
+#include <cstdint>
+
 #define VM_OP_NAME_INITIALIZE(name) #name,
 
 const char* VM_Operation::_names[VM_Operation::VMOp_Terminating] = \

@@ -25,7 +25,11 @@
 #ifndef SHARE_RUNTIME_THREADIDENTIFIER_HPP
 #define SHARE_RUNTIME_THREADIDENTIFIER_HPP
 
+#include "jni_md.h"
 #include "memory/allStatic.hpp"
+
+#include <cstdint>
+#include <limits>
 
 /*
  * Provides unique monotonic identifiers for threads.
@@ -33,12 +37,20 @@
  * Java uses unsafe to initialize the tid field for Thread and VirtualThread on construction.
  * JFR uses next() for a non-reusable id for non-java threads.
  */
+
+enum class ThreadID : int64_t {
+  ZERO_TID = 0,
+  MIN_TID = 3,
+  PRIMORDIAL_TID = MIN_TID,
+  INITIAL_TID = PRIMORDIAL_TID + 1,
+  MAX_TID = std::numeric_limits<jlong>::max(),
+};
+
 class ThreadIdentifier : AllStatic {
  public:
-  static int64_t next();
-  static int64_t current();
+  static ThreadID next();
+  static ThreadID current();
   static uintptr_t unsafe_offset();
-  DEBUG_ONLY(static int64_t initial();)
 };
 
 #endif // SHARE_RUNTIME_THREADIDENTIFIER_HPP

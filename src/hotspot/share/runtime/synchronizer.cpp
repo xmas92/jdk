@@ -214,11 +214,11 @@ ObjectMonitor* MonitorList::Iterator::next() {
 // TODO-FIXME: probes should not fire when caller is _blocked.  assert() accordingly.
 
 #define DTRACE_MONITOR_PROBE_COMMON(obj, thread)                           \
-  char* bytes = nullptr;                                                      \
+  char* bytes = nullptr;                                                   \
   int len = 0;                                                             \
-  jlong jtid = SharedRuntime::get_java_tid(thread);                        \
+  jlong jtid = static_cast<jlong>(SharedRuntime::get_java_tid(thread));    \
   Symbol* klassname = obj->klass()->name();                                \
-  if (klassname != nullptr) {                                                 \
+  if (klassname != nullptr) {                                              \
     bytes = (char*)klassname->bytes();                                     \
     len = klassname->utf8_length();                                        \
   }

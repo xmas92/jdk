@@ -90,10 +90,10 @@ traceid JfrThreadId::id(const Thread* t, oop vthread) {
     return os_id(t);
   }
   if (vthread != nullptr) {
-    return java_lang_Thread::thread_id(vthread);
+    return static_cast<traceid>(java_lang_Thread::thread_id(vthread));
   }
   const oop thread_obj = JavaThread::cast(t)->threadObj();
-  return thread_obj != nullptr ? java_lang_Thread::thread_id(thread_obj) : 0;
+  return thread_obj != nullptr ? static_cast<traceid>(java_lang_Thread::thread_id(thread_obj)) : 0;
 }
 
 traceid JfrThreadId::os_id(const Thread* t) {

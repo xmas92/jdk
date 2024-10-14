@@ -444,7 +444,7 @@ JvmtiVTMSTransitionDisabler::start_VTMS_transition(jthread vthread, bool is_moun
 
   // Do not allow suspends inside VTMS transitions.
   // Block while transitions are disabled or there are suspend requests.
-  int64_t thread_id = java_lang_Thread::thread_id(vth());  // Cannot use oops while blocked.
+  ThreadID thread_id = java_lang_Thread::thread_id(vth());  // Cannot use oops while blocked.
 
   if (_VTMS_transition_disable_for_all_count > 0 ||
       java_lang_Thread::VTMS_transition_disable_count(vth()) > 0 ||
@@ -505,7 +505,7 @@ JvmtiVTMSTransitionDisabler::finish_VTMS_transition(jthread vthread, bool is_mou
   if (!sync_protocol_enabled()) {
     return;
   }
-  int64_t thread_id = java_lang_Thread::thread_id(vt);
+  ThreadID thread_id = java_lang_Thread::thread_id(vt);
 
   // Unblock waiting VTMS transition disablers.
   if (_VTMS_transition_disable_for_one_count > 0 ||
@@ -706,7 +706,7 @@ JvmtiVTSuspender::register_all_vthreads_resume() {
 
 void
 JvmtiVTSuspender::register_vthread_suspend(oop vt) {
-  int64_t id = java_lang_Thread::thread_id(vt);
+  ThreadID id = java_lang_Thread::thread_id(vt);
   MonitorLocker ml(JvmtiVTMSTransition_lock);
 
   if (_SR_mode == SR_all) {
@@ -723,7 +723,7 @@ JvmtiVTSuspender::register_vthread_suspend(oop vt) {
 
 void
 JvmtiVTSuspender::register_vthread_resume(oop vt) {
-  int64_t id = java_lang_Thread::thread_id(vt);
+  ThreadID id = java_lang_Thread::thread_id(vt);
   MonitorLocker ml(JvmtiVTMSTransition_lock);
 
   if (_SR_mode == SR_all) {
@@ -743,7 +743,7 @@ JvmtiVTSuspender::register_vthread_resume(oop vt) {
 }
 
 bool
-JvmtiVTSuspender::is_vthread_suspended(int64_t thread_id) {
+JvmtiVTSuspender::is_vthread_suspended(ThreadID thread_id) {
   bool suspend_is_needed =
    (_SR_mode == SR_all && !_not_suspended_list->contains(thread_id)) ||
    (_SR_mode == SR_ind && _suspended_list->contains(thread_id));

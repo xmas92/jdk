@@ -163,14 +163,14 @@ class JavaThread: public Thread {
   // ID used as owner for inflated monitors. Same as the j.l.Thread.tid of the
   // current _vthread object, except during creation of the primordial and JNI
   // attached thread cases where this field can have a temporal value.
-  int64_t _lock_id;
+  ThreadID _lock_id;
 
  public:
-  void set_lock_id(int64_t tid) {
-    assert(tid >= ThreadIdentifier::initial() && tid < ThreadIdentifier::current(), "invalid tid");
+  void set_lock_id(ThreadID tid) {
+    assert(tid >= ThreadID::MIN_TID && tid < ThreadIdentifier::current(), "invalid tid");
     _lock_id = tid;
   }
-  int64_t lock_id() const { return _lock_id; }
+  ThreadID lock_id() const { return _lock_id; }
 
   // For tracking the heavyweight monitor the thread is pending on.
   ObjectMonitor* current_pending_monitor() {

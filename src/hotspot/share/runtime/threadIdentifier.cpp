@@ -25,29 +25,34 @@
 #include "precompiled.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/threadIdentifier.hpp"
+#include "utilities/debug.hpp"
+
+#include <type_traits>
 
 // starting at 3, excluding reserved values defined in ObjectMonitor.hpp
-static const int64_t INITIAL_TID = 3;
-static volatile int64_t next_thread_id = INITIAL_TID;
-
-#ifdef ASSERT
-int64_t ThreadIdentifier::initial() {
-  return INITIAL_TID;
-}
-#endif
+static volatile ThreadID next_thread_id = ThreadID::INITIAL_TID;
 
 uintptr_t ThreadIdentifier::unsafe_offset() {
   return reinterpret_cast<uintptr_t>(&next_thread_id);
 }
 
-int64_t ThreadIdentifier::current() {
+ThreadID ThreadIdentifier::current() {
   return Atomic::load(&next_thread_id);
 }
 
-int64_t ThreadIdentifier::next() {
-  int64_t next_tid;
-  do {
-    next_tid = Atomic::load(&next_thread_id);
-  } while (Atomic::cmpxchg(&next_thread_id, next_tid, next_tid + 1) != next_tid);
-  return next_tid;
+ThreadID operator+(ThreadID a, ThreadID b) {
+  return static_cast<ThreadID>(
+    static_cast<std::underlying_type_t<ThreadID>>(a) +
+    static_cast<std::underlying_type_t<ThreadID>>(b)
+  );
+}
+
+ThreadID ThreadIdentifier::next() {
+  ThreadID tid = static_cast<ThreadID>(
+    Atomic::fetch_then_add(
+      reinterpret_cast<volatile std::underlying_type_t<ThreadID>*>(&next_thread_id),
+      static_cast<std::underlying_type_t<ThreadID>>(1),
+      memory_order_relaxed));
+  guarantee(tid < ThreadID::MAX_TID, "Running out of tids.");
+  return tid;
 }

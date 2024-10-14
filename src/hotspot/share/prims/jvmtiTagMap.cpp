@@ -2271,7 +2271,7 @@ public:
 bool StackRefCollector::set_thread(oop o) {
   _threadObj = o;
   _thread_tag = tag_for(_tag_map, _threadObj);
-  _tid = java_lang_Thread::thread_id(_threadObj);
+  _tid = static_cast<jlong>(java_lang_Thread::thread_id(_threadObj));
 
   _is_top_frame = true;
   _depth = 0;
@@ -2819,7 +2819,7 @@ inline bool VM_HeapWalkOperation::collect_stack_refs(JavaThread* java_thread,
       return false;
     }
     // no last java frame but there may be JNI locals
-    blk->set_context(tag_for(_tag_map, threadObj), java_lang_Thread::thread_id(threadObj), 0, (jmethodID)nullptr);
+    blk->set_context(tag_for(_tag_map, threadObj), static_cast<jlong>(java_lang_Thread::thread_id(threadObj)), 0, (jmethodID)nullptr);
     java_thread->active_handles()->oops_do(blk);
     return !blk->stopped();
   }

@@ -34,6 +34,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "oops/typeArrayOop.inline.hpp"
+#include "runtime/threadIdentifier.hpp"
 
 void java_lang_String::set_coder(oop string, jbyte coder) {
   string->byte_field_put(_coder_offset, coder);
@@ -211,8 +212,8 @@ inline oop java_lang_Thread::continuation(oop java_thread) {
   return java_thread->obj_field(_continuation_offset);
 }
 
-inline int64_t java_lang_Thread::thread_id(oop java_thread) {
-  return java_thread->long_field(_tid_offset);
+inline ThreadID java_lang_Thread::thread_id(oop java_thread) {
+  return static_cast<ThreadID>(java_thread->long_field(_tid_offset));
 }
 
 inline oop java_lang_VirtualThread::vthread_scope() {

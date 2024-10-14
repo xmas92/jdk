@@ -224,7 +224,7 @@
   nonstatic_field(JavaThread,                  _vthread,                                      OopHandle)                             \
   nonstatic_field(JavaThread,                  _scopedValueCache,                             OopHandle)                             \
   nonstatic_field(JavaThread,                  _anchor,                                       JavaFrameAnchor)                       \
-  nonstatic_field(JavaThread,                  _lock_id,                                      int64_t)                               \
+  nonstatic_field(JavaThread,                  _lock_id,                                      ThreadID)                              \
   nonstatic_field(JavaThread,                  _vm_result,                                    oop)                                   \
   nonstatic_field(JavaThread,                  _stack_overflow_state._stack_overflow_limit,   address)                               \
   volatile_nonstatic_field(JavaThread,         _exception_oop,                                oop)                                   \
@@ -329,7 +329,7 @@
   volatile_nonstatic_field(ObjectMonitor,      _recursions,                                   intptr_t)                              \
   volatile_nonstatic_field(ObjectMonitor,      _cxq,                                          ObjectWaiter*)                         \
   volatile_nonstatic_field(ObjectMonitor,      _EntryList,                                    ObjectWaiter*)                         \
-  volatile_nonstatic_field(ObjectMonitor,      _succ,                                         int64_t)                               \
+  volatile_nonstatic_field(ObjectMonitor,      _succ,                                         ThreadID)                              \
   volatile_nonstatic_field(ObjectMonitor,      _stack_locker,                                 BasicLock*)                            \
                                                                                                                                      \
   volatile_nonstatic_field(oopDesc,            _mark,                                         markWord)                              \

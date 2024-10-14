@@ -71,6 +71,7 @@
 #include "runtime/stackWatermarkSet.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/synchronizer.inline.hpp"
+#include "runtime/threadIdentifier.hpp"
 #include "runtime/timerTrace.hpp"
 #include "runtime/vframe.inline.hpp"
 #include "runtime/vframeArray.hpp"
@@ -1075,15 +1076,15 @@ JRT_ENTRY_NO_ASYNC(void, SharedRuntime::register_finalizer(JavaThread* current, 
   InstanceKlass::register_finalizer(instanceOop(obj), CHECK);
 JRT_END
 
-jlong SharedRuntime::get_java_tid(JavaThread* thread) {
+ThreadID SharedRuntime::get_java_tid(JavaThread* thread) {
   assert(thread != nullptr, "No thread");
   if (thread == nullptr) {
-    return 0;
+    return ThreadID::ZERO_TID;
   }
   guarantee(Thread::current() != thread || thread->is_oop_safe(),
             "current cannot touch oops after its GC barrier is detached.");
   oop obj = thread->threadObj();
-  return (obj == nullptr) ? 0 : java_lang_Thread::thread_id(obj);
+  return (obj == nullptr) ? ThreadID::ZERO_TID : java_lang_Thread::thread_id(obj);
 }
 
 /**
@@ -1104,7 +1105,7 @@ int SharedRuntime::dtrace_object_alloc(JavaThread* thread, oopDesc* o, size_t si
   Klass* klass = o->klass();
   Symbol* name = klass->name();
   HOTSPOT_OBJECT_ALLOC(
-                   get_java_tid(thread),
+                   e2u(get_java_tid(thread)),
                    (char *) name->bytes(), name->utf8_length(), size * HeapWordSize);
   return 0;
 }
@@ -1118,7 +1119,7 @@ JRT_LEAF(int, SharedRuntime::dtrace_method_entry(
   Symbol* name = method->name();
   Symbol* sig = method->signature();
   HOTSPOT_METHOD_ENTRY(
-      get_java_tid(current),
+      e2u(get_java_tid(current)),
       (char *) kname->bytes(), kname->utf8_length(),
       (char *) name->bytes(), name->utf8_length(),
       (char *) sig->bytes(), sig->utf8_length());
@@ -1133,7 +1134,7 @@ JRT_LEAF(int, SharedRuntime::dtrace_method_exit(
   Symbol* name = method->name();
   Symbol* sig = method->signature();
   HOTSPOT_METHOD_RETURN(
-      get_java_tid(current),
+      e2u(get_java_tid(current)),
       (char *) kname->bytes(), kname->utf8_length(),
       (char *) name->bytes(), name->utf8_length(),
       (char *) sig->bytes(), sig->utf8_length());
@@ -2007,11 +2008,11 @@ JRT_LEAF(void,  SharedRuntime::log_jni_monitor_still_held())
   assert(CheckJNICalls, "Only call this when checking JNI usage");
   if (log_is_enabled(Debug, jni)) {
     JavaThread* current = JavaThread::current();
-    int64_t vthread_id = java_lang_Thread::thread_id(current->vthread());
-    int64_t carrier_id = java_lang_Thread::thread_id(current->threadObj());
+    ThreadID vthread_id = java_lang_Thread::thread_id(current->vthread());
+    ThreadID carrier_id = java_lang_Thread::thread_id(current->threadObj());
     log_debug(jni)("VirtualThread (tid: " INT64_FORMAT ", carrier id: " INT64_FORMAT
                    ") exiting with Objects still locked by JNI MonitorEnter.",
-                   vthread_id, carrier_id);
+                   e2u(vthread_id), e2u(carrier_id));
   }
 JRT_END
 

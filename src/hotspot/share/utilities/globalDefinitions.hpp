@@ -185,6 +185,11 @@ inline intptr_t p2i(const volatile void* p) {
   return (intptr_t) p;
 }
 
+template<typename Enum>
+typename std::enable_if_t<std::is_enum<Enum>::value, std::underlying_type_t<Enum>> e2u(Enum e) {
+  return static_cast<std::underlying_type_t<Enum>>(e);
+}
+
 #define BOOL_TO_STR(_b_) ((_b_) ? "true" : "false")
 
 //----------------------------------------------------------------------------------------------------

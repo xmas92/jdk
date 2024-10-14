@@ -87,6 +87,7 @@
 #include "runtime/statSampler.hpp"
 #include "runtime/stubCodeGenerator.hpp"
 #include "runtime/thread.inline.hpp"
+#include "runtime/threadIdentifier.hpp"
 #include "runtime/threadSMR.inline.hpp"
 #include "runtime/threads.hpp"
 #include "runtime/timer.hpp"
@@ -165,7 +166,7 @@ static void create_initial_thread(Handle thread_group, JavaThread* thread,
                           string,
                           CHECK);
 
-  assert(thread->lock_id() == ThreadIdentifier::initial(), "invariant");
+  assert(thread->lock_id() == ThreadID::PRIMORDIAL_TID, "invariant");
 
   // Set thread status to running since main thread has
   // been started and running.
@@ -535,8 +536,8 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Set the lock_id now since we will run Java code before the Thread instance
   // is even created. The same value will be assigned to the Thread instance on init.
-  main_thread->set_lock_id(ThreadIdentifier::next());
-  assert(main_thread->lock_id() == ThreadIdentifier::initial(), "invariant");
+  main_thread->set_lock_id(ThreadID::PRIMORDIAL_TID);
+  assert(ThreadIdentifier::current() == ThreadID::INITIAL_TID, "invariant");
 
   if (!main_thread->set_as_starting_thread()) {
     vm_shutdown_during_initialization(
@@ -1044,7 +1045,7 @@ void Threads::remove(JavaThread* p, bool is_daemon) {
     if (ThreadIdTable::is_initialized()) {
       // This cleanup must be done before the current thread's GC barrier
       // is detached since we need to touch the threadObj oop.
-      jlong tid = SharedRuntime::get_java_tid(p);
+      ThreadID tid = SharedRuntime::get_java_tid(p);
       ThreadIdTable::remove_thread(tid);
     }
 
@@ -1329,7 +1330,7 @@ void Threads::print_on(outputStream* st, bool print_stacks,
         p->print_stack_on(st);
         if (p->is_vthread_mounted()) {
           // _lock_id is the thread ID of the mounted virtual thread
-          st->print_cr("   Mounted virtual thread #" INT64_FORMAT, p->lock_id());
+          st->print_cr("   Mounted virtual thread #" INT64_FORMAT, e2u(p->lock_id()));
           p->print_vthread_stack_on(st);
         }
       }

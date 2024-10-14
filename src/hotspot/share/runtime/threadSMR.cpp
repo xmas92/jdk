@@ -32,6 +32,7 @@
 #include "runtime/orderAccess.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/thread.inline.hpp"
+#include "runtime/threadIdentifier.hpp"
 #include "runtime/threads.hpp"
 #include "runtime/threadSMR.inline.hpp"
 #include "runtime/vmOperations.hpp"
@@ -704,7 +705,7 @@ int ThreadsList::find_index_of_JavaThread(JavaThread *target) {
   return -1;
 }
 
-JavaThread* ThreadsList::find_JavaThread_from_java_tid(jlong java_tid) const {
+JavaThread* ThreadsList::find_JavaThread_from_java_tid(ThreadID java_tid) const {
   ThreadIdTable::lazy_initialize(this);
   JavaThread* thread = ThreadIdTable::find_thread_by_tid(java_tid);
   if (thread == nullptr) {
@@ -865,7 +866,7 @@ void ThreadsSMRSupport::add_thread(JavaThread *thread){
   ThreadsList *old_list = xchg_java_thread_list(new_list);
   free_list(old_list);
   if (ThreadIdTable::is_initialized()) {
-    jlong tid = SharedRuntime::get_java_tid(thread);
+    ThreadID tid = SharedRuntime::get_java_tid(thread);
     ThreadIdTable::add_thread(tid, thread);
   }
 }

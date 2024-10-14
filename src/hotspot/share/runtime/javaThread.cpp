@@ -129,7 +129,7 @@ size_t      JavaThread::_stack_size_at_create = 0;
       len = strlen(name);                                                  \
       HOTSPOT_THREAD_PROBE_##probe(/* probe = start, stop */               \
         (char *) name, len,                                                \
-        java_lang_Thread::thread_id((javathread)->threadObj()),            \
+        e2u(java_lang_Thread::thread_id((javathread)->threadObj())),       \
         (uintptr_t) (javathread)->osthread()->thread_id(),                 \
         java_lang_Thread::is_daemon((javathread)->threadObj()));           \
     }
@@ -435,7 +435,7 @@ JavaThread::JavaThread(MemTag mem_tag) :
   _current_waiting_monitor(nullptr),
   _active_handles(nullptr),
   _free_handle_block(nullptr),
-  _lock_id(0),
+  _lock_id(ThreadID::ZERO_TID),
 
   _suspend_flags(0),
 
@@ -1542,7 +1542,7 @@ void JavaThread::print_on(outputStream *st, bool print_extended_info) const {
   if (thread_oop != nullptr) {
     if (is_vthread_mounted()) {
       // _lock_id is the thread ID of the mounted virtual thread
-      st->print_cr("   Carrying virtual thread #" INT64_FORMAT, lock_id());
+      st->print_cr("   Carrying virtual thread #" INT64_FORMAT, e2u(lock_id()));
     } else {
       st->print_cr("   java.lang.Thread.State: %s", java_lang_Thread::thread_status_name(thread_oop));
     }

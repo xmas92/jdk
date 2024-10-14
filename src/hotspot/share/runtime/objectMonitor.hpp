@@ -200,7 +200,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
                                       // acting as proxies for Threads.
 
   ObjectWaiter* volatile _cxq;      // LL of recently-arrived threads blocked on entry.
-  int64_t volatile _succ;           // Heir presumptive thread - used for futile wakeup throttling
+  ThreadID volatile _succ;          // Heir presumptive thread - used for futile wakeup throttling
 
   volatile int _SpinDuration;
 

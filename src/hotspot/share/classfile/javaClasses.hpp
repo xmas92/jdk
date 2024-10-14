@@ -410,7 +410,7 @@ class java_lang_Thread : AllStatic {
   // Stack size hint
   static jlong stackSize(oop java_thread);
   // Thread ID
-  static int64_t thread_id(oop java_thread);
+  static ThreadID thread_id(oop java_thread);
   static ByteSize thread_id_offset();
   // Continuation
   static inline oop continuation(oop java_thread);

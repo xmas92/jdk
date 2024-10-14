@@ -74,7 +74,7 @@
 #define DTRACE_MONITOR_PROBE_COMMON(obj, thread)                           \
   char* bytes = nullptr;                                                   \
   int len = 0;                                                             \
-  jlong jtid = SharedRuntime::get_java_tid(thread);                        \
+  jlong jtid = static_cast<jlong>(SharedRuntime::get_java_tid(thread));    \
   Symbol* klassname = obj->klass()->name();                                \
   if (klassname != nullptr) {                                              \
     bytes = (char*)klassname->bytes();                                     \
@@ -257,7 +257,7 @@ ObjectMonitor::ObjectMonitor(oop object) :
   _recursions(0),
   _EntryList(nullptr),
   _cxq(nullptr),
-  _succ(NO_OWNER),
+  _succ(ThreadID::ZERO_TID),
   _SpinDuration(ObjectMonitor::Knob_SpinLimit),
   _contentions(0),
   _WaitSet(nullptr),
@@ -2559,7 +2559,7 @@ void ObjectMonitor::print_debug_style_on(outputStream* st) const {
   st->print_cr("  _recursions = " INTX_FORMAT, _recursions);
   st->print_cr("  _EntryList = " INTPTR_FORMAT, p2i(_EntryList));
   st->print_cr("  _cxq = " INTPTR_FORMAT, p2i(_cxq));
-  st->print_cr("  _succ = " INT64_FORMAT, _succ);
+  st->print_cr("  _succ = " INT64_FORMAT, e2u(_succ));
   st->print_cr("  _SpinDuration = %d", _SpinDuration);
   st->print_cr("  _contentions = %d", contentions());
   st->print_cr("  _WaitSet = " INTPTR_FORMAT, p2i(_WaitSet));

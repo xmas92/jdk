@@ -40,9 +40,9 @@
 #include "utilities/globalDefinitions.hpp"
 
 inline int64_t ObjectMonitor::owner_for(JavaThread* thread) {
-  int64_t tid = thread->lock_id();
-  assert(tid >= 3 && tid < ThreadIdentifier::current(), "must be reasonable");
-  return tid;
+  ThreadID tid = thread->lock_id();
+  assert(tid >= ThreadID::MIN_TID && tid < ThreadIdentifier::current(), "must be reasonable");
+  return static_cast<uintptr_t>(tid);
 }
 
 inline bool ObjectMonitor::is_entered(JavaThread* current) const {
@@ -170,7 +170,7 @@ inline void ObjectMonitor::release_clear_owner(JavaThread* old_owner) {
 inline void ObjectMonitor::set_owner_from_raw(int64_t old_value, int64_t new_value) {
 #ifdef ASSERT
   int64_t prev = Atomic::load(&_owner);
-  assert((int64_t)prev < ThreadIdentifier::current(), "must be reasonable");
+  assert(static_cast<ThreadID>(prev) < ThreadIdentifier::current(), "must be reasonable");
   assert(prev == old_value, "unexpected prev owner=" INT64_FORMAT
          ", expected=" INT64_FORMAT, prev, old_value);
 #endif
@@ -205,7 +205,7 @@ inline void ObjectMonitor::set_owner_from_BasicLock(JavaThread* current) {
 // old_value. Otherwise, does not change the _owner field. Returns
 // the prior value of the _owner field.
 inline int64_t ObjectMonitor::try_set_owner_from_raw(int64_t old_value, int64_t new_value) {
-  assert((int64_t)new_value < ThreadIdentifier::current(), "must be reasonable");
+  assert(static_cast<ThreadID>(new_value) < ThreadIdentifier::current(), "must be reasonable");
   int64_t prev = Atomic::cmpxchg(&_owner, old_value, new_value);
   if (prev == old_value) {
     log_trace(monitorinflation, owner)("try_set_owner_from(): mid="
@@ -221,11 +221,11 @@ inline int64_t ObjectMonitor::try_set_owner_from(int64_t old_value, JavaThread* 
 }
 
 inline bool ObjectMonitor::is_succesor(JavaThread* thread) {
-  return owner_for(thread) == Atomic::load(&_succ);
+  return static_cast<ThreadID>(owner_for(thread)) == Atomic::load(&_succ);
 }
 
 inline void ObjectMonitor::set_succesor(JavaThread* thread) {
-  Atomic::store(&_succ, owner_for(thread));
+  Atomic::store(&_succ, static_cast<ThreadID>(owner_for(thread)));
 }
 
 inline void ObjectMonitor::set_succesor(oop vthread) {
@@ -233,11 +233,11 @@ inline void ObjectMonitor::set_succesor(oop vthread) {
 }
 
 inline void ObjectMonitor::clear_succesor() {
-  Atomic::store(&_succ, NO_OWNER);
+  Atomic::store(&_succ, ThreadID::ZERO_TID);
 }
 
 inline bool ObjectMonitor::has_succesor() {
-  return Atomic::load(&_succ) != NO_OWNER;
+  return Atomic::load(&_succ) != ThreadID::ZERO_TID;
 }
 
 // The _next_om field can be concurrently read and modified so we

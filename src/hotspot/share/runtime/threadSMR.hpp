@@ -205,7 +205,7 @@ public:
 
   // Returns -1 if target is not found.
   int find_index_of_JavaThread(JavaThread* target);
-  JavaThread* find_JavaThread_from_java_tid(jlong java_tid) const;
+  JavaThread* find_JavaThread_from_java_tid(ThreadID java_tid) const;
   bool includes(const JavaThread * const p) const;
 
 #ifdef ASSERT

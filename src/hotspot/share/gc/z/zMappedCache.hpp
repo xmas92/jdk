@@ -53,13 +53,10 @@ private:
 public:
   ZMappedCache();
 
+  void insert_mapping(ZMappedMemory mapping);
+
   size_t remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size);
   ZMappedMemory remove_mapping_contiguous(size_t size);
-
-  // TODO: Insert istället
-  void free_mapping(ZMappedMemory mapping);
-
-  size_t flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout);
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

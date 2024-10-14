@@ -31,6 +31,39 @@
 ZMappedCache::ZMappedCache()
   : _tree() {}
 
+void ZMappedCache::insert_mapping(ZMappedMemory mapping) {
+  bool merged_left = false;
+
+  // Check left node.
+  ZMappedTreapNode* lnode = _tree.closest_leq(mapping.start());
+  if (lnode != nullptr) {
+    ZMappedMemory& left_mapping = lnode->val();
+
+    if (mapping.virtually_adjacent_to(left_mapping)) {
+      left_mapping.extend_mapping(mapping);
+
+      // Update mapping to the larger mapping
+      mapping = ZMappedMemory(left_mapping);
+      merged_left = true;
+    }
+  }
+
+  // Check right node.
+  ZMappedTreapNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
+  if (rnode != lnode) {
+    // If there exists a node that is LEQ than mapping.end() which is not the
+    // left_node, it is adjacent.
+    mapping.extend_mapping(rnode->val());
+    _tree.remove(rnode->key());
+    _tree.upsert(mapping.start(), mapping);
+    return;
+  }
+
+  if (!merged_left) {
+    _tree.upsert(mapping.start(), mapping);
+  }
+}
+
 size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size) {
   ZArray<ZMappedMemory> to_remove;
   size_t removed = 0;
@@ -85,42 +118,4 @@ ZMappedMemory ZMappedCache::remove_mapping_contiguous(size_t size) {
   }
 
   return ZMappedMemory();
-}
-
-void ZMappedCache::free_mapping(ZMappedMemory mapping) {
-  bool merged_left = false;
-
-  // Check left node.
-  ZMappedTreapNode* lnode = _tree.closest_leq(mapping.start());
-  if (lnode != nullptr) {
-    ZMappedMemory& left_mapping = lnode->val();
-
-    if (mapping.virtually_adjacent_to(left_mapping)) {
-      left_mapping.extend_mapping(mapping);
-
-      // Update mapping to the larger mapping
-      mapping = ZMappedMemory(left_mapping);
-      merged_left = true;
-    }
-  }
-
-  // Check right node.
-  ZMappedTreapNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
-  if (rnode != lnode) {
-    // If there exists a node that is LEQ than mapping.end() which is not the
-    // left_node, it is adjacent.
-    mapping.extend_mapping(rnode->val());
-    _tree.remove(rnode->key());
-    _tree.upsert(mapping.start(), mapping);
-    return;
-  }
-
-  if (!merged_left) {
-    _tree.upsert(mapping.start(), mapping);
-  }
-}
-
-size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {
-  // TODO: Flush is for uncommit, which is not yet handled.
-  return 0;
 }

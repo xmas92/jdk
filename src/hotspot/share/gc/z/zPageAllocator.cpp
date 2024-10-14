@@ -362,12 +362,13 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
     // Update atomically since we have concurrent readers
     Atomic::add(&_capacity, increased);
 
+    // TODO: Fix uncommit
     // Record time of last commit. When allocation, we prefer increasing
     // the capacity over flushing the cache. That means there could be
     // expired memory in the cache at this time. However, since we are
     // increasing the capacity we are obviously in need of committed
     // memory and should therefore not be uncommitting memory.
-    _mapped_cache.set_last_commit();
+    // _mapped_cache.set_last_commit();
   }
 
   return increased;

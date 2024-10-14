@@ -49,7 +49,6 @@ private:
   using ZMappedTreapNode = ZMappedTreap::TreapNode;
 
   ZMappedTreap _tree;
-  uint64_t _last_commit;
 
 public:
   ZMappedCache();
@@ -60,8 +59,6 @@ public:
   void free_mapping(ZMappedMemory mapping);
 
   size_t flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout);
-  void set_last_commit();
-
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

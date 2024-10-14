@@ -49,22 +49,24 @@ class ContinuationWrapper;
 class ObjectWaiter : public CHeapObj<mtThread> {
  public:
   enum TStates : uint8_t { TS_UNDEF, TS_READY, TS_RUN, TS_WAIT, TS_ENTER, TS_CXQ };
-  ObjectWaiter* volatile _next;
-  ObjectWaiter* volatile _prev;
-  JavaThread*     _thread;
-  OopHandle      _vthread;
-  ObjectMonitor* _monitor;
-  uint64_t  _notifier_tid;
-  int         _recursions;
-  volatile TStates TState;
-  volatile bool _notified;
-  bool           _is_wait;
-  bool        _at_reenter;
-  bool       _interrupted;
-  bool            _active;    // Contention monitoring is enabled
+  ObjectWaiter* volatile  _next;
+  ObjectWaiter* volatile  _prev;
+  JavaThread* const     _thread;
+  OopHandle            _vthread;
+  ObjectMonitor* const _monitor;
+  uint64_t        _notifier_tid;
+  int               _recursions;
+  volatile TStates       TState;
+  volatile bool       _notified;
+  const bool           _is_wait;
+  bool              _at_reenter;
+  bool             _interrupted;
+  bool                  _active;    // Contention monitoring is enabled
+
+  ObjectWaiter(JavaThread* current, OopHandle vthread, ObjectMonitor* monitor, bool is_wait);
  public:
-  ObjectWaiter(JavaThread* current);
-  ObjectWaiter(oop vthread, ObjectMonitor* mon);
+  ObjectWaiter(JavaThread* current, ObjectMonitor* monitor, bool is_wait);
+  ObjectWaiter(oop vthread, ObjectMonitor* monitor, bool is_wait);
   ~ObjectWaiter();
   JavaThread* thread() { return _thread; }
   bool is_vthread()    { return _thread == nullptr; }
@@ -269,7 +271,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
 
   bool is_busy() const {
     // TODO-FIXME: assert _owner == null implies _recursions = 0
-    intptr_t ret_code = intptr_t(_waiters) | intptr_t(_cxq) | intptr_t(_EntryList);
+    intptr_t ret_code = intptr_t(_cxq) | intptr_t(_EntryList);
     int cnts = contentions(); // read once
     if (cnts > 0) {
       ret_code |= intptr_t(cnts);

@@ -29,8 +29,7 @@
 #include "gc/z/zVirtualMemory.inline.hpp"
 
 ZMappedCache::ZMappedCache()
-  : _tree(),
-    _last_commit(0) {}
+  : _tree() {}
 
 size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size) {
   ZArray<ZMappedMemory> to_remove;
@@ -124,8 +123,4 @@ void ZMappedCache::free_mapping(ZMappedMemory mapping) {
 size_t ZMappedCache::flush(ZArray<ZMappedMemory>* mappings, size_t size, uint64_t* timeout) {
   // TODO: Flush is for uncommit, which is not yet handled.
   return 0;
-}
-
-void ZMappedCache::set_last_commit() {
-  _last_commit = (uint64_t)ceil(os::elapsedTime());
 }

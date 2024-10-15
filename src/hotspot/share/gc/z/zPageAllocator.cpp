@@ -105,7 +105,7 @@ private:
   const ZAllocationFlags     _flags;
   const uint32_t             _young_seqnum;
   const uint32_t             _old_seqnum;
-  size_t                     _flushed;
+  size_t                     _harvested;
   size_t                     _committed;
   ZArray<ZMappedMemory>      _mappings;
   ZListNode<ZPageAllocation> _node;
@@ -119,7 +119,7 @@ public:
       _flags(flags),
       _young_seqnum(ZGeneration::young()->seqnum()),
       _old_seqnum(ZGeneration::old()->seqnum()),
-      _flushed(0),
+      _harvested(0),
       _committed(0),
       _mappings(),
       _node(),
@@ -147,11 +147,11 @@ public:
   }
 
   size_t harvested() const {
-    return _flushed;
+    return _harvested;
   }
 
-  void set_harvested(size_t flushed) {
-    _flushed = flushed;
+  void set_harvested(size_t harvested) {
+    _harvested = harvested;
   }
 
   size_t committed() const {
@@ -278,16 +278,17 @@ public:
 };
 
 bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
-  ZAllocationFlags flags;
-  ZPageAllocation allocation(ZPageType::large, size, flags);
-
-  increase_capacity(size);
-
   ZVirtualMemory vmem = _virtual.alloc(size, true /* force_low_address */);
-  ZPhysicalMemory pmem = consolidate_claimed_physical(&allocation);
-  if (!commit_and_map_memory(&allocation, vmem, pmem)) {
+  ZPhysicalMemory pmem;
+
+  // Increase capacity, allocate and commit physical memory.
+  increase_capacity(size);
+  _physical.alloc(pmem, size);
+  if (!commit_physical(pmem)) {
     return false;
   }
+
+  map_memory(vmem, pmem);
 
   if (AlwaysPreTouch) {
     // Pre-touch memory
@@ -295,9 +296,9 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
     workers->run_all(&task);
   }
 
-  // We don't have to take a lock here as no other threads
-  // will access the mapped cache until we're finished.
-  _mapped_cache.insert_mapping(allocation.allocated_mapping());
+  // We don't have to take a lock here as no other threads will access the
+  // mapped cache until we're finished.
+  _mapped_cache.insert_mapping(ZMappedMemory(vmem, pmem));
 
   return true;
 }
@@ -702,9 +703,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   return false;
 }
 
-ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
-  EventZPageAllocation event;
-
+ZPage* ZPageAllocator::alloc_page_inner(ZPageType type, size_t size, ZAllocationFlags flags) {
 retry:
   ZPageAllocation allocation(type, size, flags);
 
@@ -736,7 +735,13 @@ retry:
     }
   }
 
-  ZPage* const page = new ZPage(type, allocation.allocated_mapping());
+  return new ZPage(type, allocation.allocated_mapping());
+}
+
+ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
+  EventZPageAllocation event;
+
+  ZPage* const page = alloc_page_inner(type, size, flags);
 
   // The generation's used is tracked here when the page is handed out
   // to the allocating thread. The overall heap "used" is tracked in
@@ -762,8 +767,7 @@ retry:
   }
 
   // Send event
-  event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
-               page->physical_memory().nsegments(), flags.non_blocking());
+  event.commit((u8)type, size, page->physical_memory().nsegments(), flags.non_blocking());
 
   return page;
 }

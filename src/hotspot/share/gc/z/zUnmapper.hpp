@@ -54,7 +54,7 @@ protected:
 public:
   ZUnmapper(ZPageAllocator* page_allocator);
 
-  void unmap_memory(ZMappedMemory* mapping);
+  void unmap_memory(const ZMappedMemory& mapping);
 };
 
 #endif // SHARE_GC_Z_ZUNMAPPER_HPP

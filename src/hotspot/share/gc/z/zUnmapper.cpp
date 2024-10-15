@@ -99,14 +99,17 @@ void ZUnmapper::do_unmap(ZMappedMemory* mapping) const {
   // Unmap and destroy
   _page_allocator->unmap_mapping(*mapping);
 
+  free(mapping);
+
   // Send event
   event.commit(unmapped);
 }
 
-void ZUnmapper::unmap_memory(ZMappedMemory* mapping) {
-  if (!try_enqueue(mapping)) {
+void ZUnmapper::unmap_memory(const ZMappedMemory& mapping) {
+  ZMappedMemory* m = new ZMappedMemory(mapping);
+  if (!try_enqueue(m)) {
     // Synchronously unmap and destroy
-    do_unmap(mapping);
+    do_unmap(m);
   }
 }
 

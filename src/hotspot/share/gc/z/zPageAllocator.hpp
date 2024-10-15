@@ -116,7 +116,7 @@ private:
   bool claim_physical_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
 
-  ZPhysicalMemory collect_claimed_physical(ZPageAllocation* allocation);
+  ZPhysicalMemory consolidate_claimed_physical(ZPageAllocation* allocation);
 
   bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
   void free_memory_alloc_failed(ZPageAllocation* allocation);

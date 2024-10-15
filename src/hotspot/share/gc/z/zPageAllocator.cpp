@@ -284,7 +284,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   increase_capacity(size);
 
   ZVirtualMemory vmem = _virtual.alloc(size, true /* force_low_address */);
-  ZPhysicalMemory pmem = collect_claimed_physical(&allocation);
+  ZPhysicalMemory pmem = consolidate_claimed_physical(&allocation);
   if (!commit_and_map_memory(&allocation, vmem, pmem)) {
     return false;
   }
@@ -627,7 +627,7 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-ZPhysicalMemory ZPageAllocator::collect_claimed_physical(ZPageAllocation* allocation) {
+ZPhysicalMemory ZPageAllocator::consolidate_claimed_physical(ZPageAllocation* allocation) {
   ZPhysicalMemory pmem;
   size_t harvested = 0;
 
@@ -728,7 +728,7 @@ retry:
       return nullptr;
     }
 
-    ZPhysicalMemory pmem = collect_claimed_physical(&allocation);
+    ZPhysicalMemory pmem = consolidate_claimed_physical(&allocation);
     if (!commit_and_map_memory(&allocation, vmem, pmem)) {
       free_memory_alloc_failed(&allocation);
       goto retry;

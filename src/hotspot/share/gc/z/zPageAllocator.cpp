@@ -719,7 +719,8 @@ retry:
 
   // If the claimed physical memory also holds a large enough contiguous virtual
   // address range, we're done. Otherwise, we need to allocate a new virtual
-  // address range and make sure the physical memory is committed and mapped.
+  // address range and make sure the claimed physical memory is committed and
+  // mapped to the new virtual address range.
   if (!is_alloc_satisfied(&allocation)) {
     ZVirtualMemory vmem = _virtual.alloc(allocation.size(), allocation.flags().low_address());
     if (vmem.is_null()) {

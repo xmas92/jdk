@@ -742,6 +742,9 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   EventZPageAllocation event;
 
   ZPage* const page = alloc_page_inner(type, size, flags);
+  if (page == nullptr) {
+    return nullptr;
+  }
 
   // The generation's used is tracked here when the page is handed out
   // to the allocating thread. The overall heap "used" is tracked in

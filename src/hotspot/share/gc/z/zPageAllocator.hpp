@@ -116,7 +116,8 @@ private:
   bool claim_physical_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
 
-  ZPage* alloc_page_inner(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page_inner(ZPageAllocation* allocation);
+  void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age);
 
   ZPhysicalMemory consolidate_claimed_physical(ZPageAllocation* allocation);
 

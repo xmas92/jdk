@@ -121,7 +121,7 @@ bool CDSEnumKlass::initialize_enum_klass(InstanceKlass* k, TRAPS) {
     log_info(cds, heap)("Initializing Enum class: %s", k->external_name());
   }
 
-  oop mirror = k->java_mirror();
+  instanceMirrorOop mirror = k->java_mirror();
   int i = 0;
   for (JavaFieldStream fs(k); !fs.done(); fs.next()) {
     if (fs.access_flags().is_static()) {

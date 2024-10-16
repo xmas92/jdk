@@ -250,7 +250,7 @@ public:
 
   void do_field(fieldDescriptor* fd) {
     if (fd->name() == vmSymbols::compact_strings_name()) {
-      oop mirror = fd->field_holder()->java_mirror();
+      instanceMirrorOop mirror = fd->field_holder()->java_mirror();
       assert(fd->field_holder() == vmClasses::String_klass(), "Should be String");
       assert(mirror != nullptr, "String must have mirror already");
       mirror->bool_field_put(fd->offset(), _value);
@@ -1029,7 +1029,7 @@ void java_lang_Class::allocate_fixup_lists() {
 void java_lang_Class::allocate_mirror(Klass* k, bool is_scratch, Handle protection_domain, Handle classData,
                                       Handle& mirror, Handle& comp_mirror, TRAPS) {
   // Allocate mirror (java.lang.Class instance)
-  oop mirror_oop = InstanceMirrorKlass::cast(vmClasses::Class_klass())->allocate_instance(k, CHECK);
+  instanceMirrorOop mirror_oop = InstanceMirrorKlass::cast(vmClasses::Class_klass())->allocate_instance(k, CHECK);
   mirror = Handle(THREAD, mirror_oop);
 
   // Setup indirection from mirror->klass
@@ -1248,11 +1248,11 @@ void java_lang_Class::set_protection_domain(oop java_class, oop pd) {
 
 void java_lang_Class::set_component_mirror(oop java_class, oop comp_mirror) {
   assert(_component_mirror_offset != 0, "must be set");
-    java_class->obj_field_put(_component_mirror_offset, comp_mirror);
-  }
-oop java_lang_Class::component_mirror(oop java_class) {
+  java_class->obj_field_put(_component_mirror_offset, comp_mirror);
+}
+instanceMirrorOop java_lang_Class::component_mirror(oop java_class) {
   assert(_component_mirror_offset != 0, "must be set");
-  return java_class->obj_field(_component_mirror_offset);
+  return instanceMirrorOop(java_class->obj_field(_component_mirror_offset));
 }
 
 oop java_lang_Class::init_lock(oop java_class) {
@@ -1454,8 +1454,8 @@ BasicType java_lang_Class::as_BasicType(oop java_class, Klass** reference_klass)
 }
 
 
-oop java_lang_Class::primitive_mirror(BasicType t) {
-  oop mirror = Universe::java_mirror(t);
+instanceMirrorOop java_lang_Class::primitive_mirror(BasicType t) {
+  instanceMirrorOop mirror = Universe::java_mirror(t);
   assert(mirror != nullptr && mirror->is_a(vmClasses::Class_klass()), "must be a Class");
   assert(is_primitive(mirror), "must be primitive");
   return mirror;
@@ -1591,7 +1591,7 @@ void java_lang_Thread_Constants::serialize_offsets(SerializeClosure* f) {
 
 oop java_lang_Thread_Constants::get_VTHREAD_GROUP() {
   InstanceKlass* k = vmClasses::Thread_Constants_klass();
-  oop base = k->static_field_base_raw();
+  instanceMirrorOop base = k->static_field_base_raw();
   return base->obj_field(_static_VTHREAD_GROUP_offset);
 }
 
@@ -2120,7 +2120,7 @@ void java_lang_Throwable::serialize_offsets(SerializeClosure* f) {
 
 oop java_lang_Throwable::unassigned_stacktrace() {
   InstanceKlass* ik = vmClasses::Throwable_klass();
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return base->obj_field(_static_unassigned_stacktrace_offset);
 }
 
@@ -3755,7 +3755,7 @@ Handle reflect_ConstantPool::create(TRAPS) {
 
 
 void reflect_ConstantPool::set_cp(oop reflect, ConstantPool* value) {
-  oop mirror = value->pool_holder()->java_mirror();
+  instanceMirrorOop mirror = value->pool_holder()->java_mirror();
   // Save the mirror to get back the constant pool.
   reflect->obj_field_put(_oop_offset, mirror);
 }
@@ -4007,13 +4007,13 @@ jlong java_lang_ref_SoftReference::timestamp(oop ref) {
 
 jlong java_lang_ref_SoftReference::clock() {
   InstanceKlass* ik = vmClasses::SoftReference_klass();
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return base->long_field(_static_clock_offset);
 }
 
 void java_lang_ref_SoftReference::set_clock(jlong value) {
   InstanceKlass* ik = vmClasses::SoftReference_klass();
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   base->long_field_put(_static_clock_offset, value);
 }
 
@@ -4831,7 +4831,7 @@ bool java_lang_System::allow_security_manager() {
   static int initialized = false;
   static bool allowed = true; // default
   if (!initialized) {
-    oop base = vmClasses::System_klass()->static_field_base_raw();
+    instanceMirrorOop base = vmClasses::System_klass()->static_field_base_raw();
     int never = base->int_field(_static_never_offset);
     allowed = (base->int_field(_static_allow_security_offset) != never);
     initialized = true;
@@ -4841,7 +4841,7 @@ bool java_lang_System::allow_security_manager() {
 
 // This field tells us that a security manager is installed.
 bool java_lang_System::has_security_manager() {
-  oop base = vmClasses::System_klass()->static_field_base_raw();
+  instanceMirrorOop base = vmClasses::System_klass()->static_field_base_raw();
   return base->obj_field(_static_security_offset) != nullptr;
 }
 
@@ -4871,7 +4871,7 @@ public:
   }
 
   void do_field(fieldDescriptor* fd) {
-    oop mirror = fd->field_holder()->java_mirror();
+    instanceMirrorOop mirror = fd->field_holder()->java_mirror();
     assert(mirror != nullptr, "UnsafeConstants must have mirror already");
     assert(fd->field_holder() == vmClasses::UnsafeConstants_klass(), "Should be UnsafeConstants");
     assert(fd->is_final(), "fields of UnsafeConstants must be final");
@@ -5071,7 +5071,7 @@ void java_lang_Integer_IntegerCache::compute_offsets(InstanceKlass *k) {
 }
 
 objArrayOop java_lang_Integer_IntegerCache::cache(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return objArrayOop(base->obj_field(_static_cache_offset));
 }
 
@@ -5101,7 +5101,7 @@ void java_lang_Long_LongCache::compute_offsets(InstanceKlass *k) {
 }
 
 objArrayOop java_lang_Long_LongCache::cache(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return objArrayOop(base->obj_field(_static_cache_offset));
 }
 
@@ -5131,7 +5131,7 @@ void java_lang_Character_CharacterCache::compute_offsets(InstanceKlass *k) {
 }
 
 objArrayOop java_lang_Character_CharacterCache::cache(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return objArrayOop(base->obj_field(_static_cache_offset));
 }
 
@@ -5161,7 +5161,7 @@ void java_lang_Short_ShortCache::compute_offsets(InstanceKlass *k) {
 }
 
 objArrayOop java_lang_Short_ShortCache::cache(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return objArrayOop(base->obj_field(_static_cache_offset));
 }
 
@@ -5191,7 +5191,7 @@ void java_lang_Byte_ByteCache::compute_offsets(InstanceKlass *k) {
 }
 
 objArrayOop java_lang_Byte_ByteCache::cache(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return objArrayOop(base->obj_field(_static_cache_offset));
 }
 
@@ -5226,12 +5226,12 @@ void java_lang_Boolean::compute_offsets(InstanceKlass *k) {
 }
 
 oop java_lang_Boolean::get_TRUE(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return base->obj_field(_static_TRUE_offset);
 }
 
 oop java_lang_Boolean::get_FALSE(InstanceKlass *ik) {
-  oop base = ik->static_field_base_raw();
+  instanceMirrorOop base = ik->static_field_base_raw();
   return base->obj_field(_static_FALSE_offset);
 }
 

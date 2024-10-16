@@ -227,7 +227,7 @@ void HotSpotJVMCI::compute_offsets(TRAPS) {
     type HotSpotJVMCI::className::name(JVMCIEnv* env) {                                                                   \
       assert(className::klass() != nullptr && className::klass()->is_linked(), "Class not yet linked: " #className);      \
       InstanceKlass* ik = className::klass();                                                                             \
-      oop base = ik->static_field_base_raw();                                                                             \
+      instanceMirrorOop base = ik->static_field_base_raw();                                                               \
       oop result = HeapAccess<>::oop_load_at(base, className::_##name##_offset);                                          \
       return type(result);                                                                                                \
     }                                                                                                                     \
@@ -235,20 +235,20 @@ void HotSpotJVMCI::compute_offsets(TRAPS) {
       assert(className::klass() != nullptr && className::klass()->is_linked(), "Class not yet linked: " #className);      \
       assert(className::klass() != nullptr, "Class not yet loaded: " #className);                                         \
       InstanceKlass* ik = className::klass();                                                                             \
-      oop base = ik->static_field_base_raw();                                                                             \
+      instanceMirrorOop base = ik->static_field_base_raw();                                                               \
       HeapAccess<>::oop_store_at(base, className::_##name##_offset, x);                                                   \
     }
 #define STATIC_PRIMITIVE_FIELD(className, name, jtypename)                                                                \
     jtypename HotSpotJVMCI::className::get_##name(JVMCIEnv* env) {                                                        \
       assert(className::klass() != nullptr && className::klass()->is_linked(), "Class not yet linked: " #className);      \
       InstanceKlass* ik = className::klass();                                                                             \
-      oop base = ik->static_field_base_raw();                                                                             \
+      instanceMirrorOop base = ik->static_field_base_raw();                                                               \
       return *base->field_addr<jtypename>(className::_##name##_offset);                                                   \
     }                                                                                                                     \
     void HotSpotJVMCI::className::set_##name(JVMCIEnv* env, jtypename x) {                                                \
       assert(className::klass() != nullptr && className::klass()->is_linked(), "Class not yet linked: " #className);      \
       InstanceKlass* ik = className::klass();                                                                             \
-      oop base = ik->static_field_base_raw();                                                                             \
+      instanceMirrorOop base = ik->static_field_base_raw();                                                               \
       *base->field_addr<jtypename>(className::_##name##_offset) = x;                                                      \
     }
 

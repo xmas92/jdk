@@ -1053,7 +1053,7 @@ class CompileReplay : public StackObj {
       return;
     }
 
-    oop java_mirror = k->java_mirror();
+    instanceMirrorOop java_mirror = k->java_mirror();
     if (field_signature[0] == JVM_SIGNATURE_ARRAY) {
       int length = parse_int("array length");
       oop value = nullptr;
@@ -1196,7 +1196,7 @@ class CompileReplay : public StackObj {
   void new_ciInstanceKlass(const InstanceKlass* klass) {
     ciInstanceKlassRecord* rec = NEW_RESOURCE_OBJ(ciInstanceKlassRecord);
     rec->_klass = klass;
-    oop java_mirror = klass->java_mirror();
+    instanceMirrorOop java_mirror = klass->java_mirror();
     Handle h_java_mirror(_thread, java_mirror);
     rec->_java_mirror = JNIHandles::make_global(h_java_mirror);
     _ci_instance_klass_records.append(rec);

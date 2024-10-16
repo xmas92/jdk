@@ -51,12 +51,12 @@ inline bool Klass::is_loader_alive() const {
   return class_loader_data()->is_alive();
 }
 
-inline oop Klass::java_mirror() const {
-  return _java_mirror.resolve();
+inline instanceMirrorOop Klass::java_mirror() const {
+  return instanceMirrorOop(_java_mirror.resolve());
 }
 
-inline oop Klass::java_mirror_no_keepalive() const {
-  return _java_mirror.peek();
+inline instanceMirrorOop Klass::java_mirror_no_keepalive() const {
+  return instanceMirrorOop(_java_mirror.peek());
 }
 
 inline klassVtable Klass::vtable() const {

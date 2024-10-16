@@ -95,6 +95,9 @@ public:
   static jobject make_local(oop obj);
   static jobject make_local(JavaThread* thread, oop obj,  // Faster version when current thread is known
                             AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
+  static jobject make_local(instanceMirrorOop obj);
+  static jobject make_local(JavaThread* thread, instanceMirrorOop obj,  // Faster version when current thread is known
+                            AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
   inline static void destroy_local(jobject handle);
 
   // Global handles

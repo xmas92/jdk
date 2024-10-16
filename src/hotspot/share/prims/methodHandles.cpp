@@ -364,7 +364,7 @@ oop MethodHandles::init_field_MemberName(Handle mname, fieldDescriptor& fd, bool
   java_lang_invoke_MemberName::set_vmindex(mname_oop, vmindex);
   java_lang_invoke_MemberName::set_clazz  (mname_oop, ik->java_mirror());
 
-  oop type = field_signature_type_or_null(fd.signature());
+  instanceMirrorOop type = field_signature_type_or_null(fd.signature());
   oop name = field_name_or_null(fd.name());
   if (name != nullptr)
     java_lang_invoke_MemberName::set_name(mname_oop,   name);
@@ -651,7 +651,7 @@ void MethodHandles::print_as_basic_type_signature_on(outputStream* st,
 
 
 
-static oop object_java_mirror() {
+static instanceMirrorOop object_java_mirror() {
   return vmClasses::Object_klass()->java_mirror();
 }
 
@@ -660,7 +660,7 @@ oop MethodHandles::field_name_or_null(Symbol* s) {
   return StringTable::lookup(s);
 }
 
-oop MethodHandles::field_signature_type_or_null(Symbol* s) {
+instanceMirrorOop MethodHandles::field_signature_type_or_null(Symbol* s) {
   if (s == nullptr)  return nullptr;
   BasicType bt = Signature::basic_type(s);
   if (is_java_primitive(bt)) {
@@ -1455,8 +1455,8 @@ JVM_ENTRY(void, JVM_RegisterMethodHandleMethods(JNIEnv *env, jclass MHN_class)) 
   assert(vmClasses::MethodHandle_klass() != nullptr, "should be present");
   assert(vmClasses::VarHandle_klass() != nullptr, "should be present");
 
-  oop mh_mirror = vmClasses::MethodHandle_klass()->java_mirror();
-  oop vh_mirror = vmClasses::VarHandle_klass()->java_mirror();
+  instanceMirrorOop mh_mirror = vmClasses::MethodHandle_klass()->java_mirror();
+  instanceMirrorOop vh_mirror = vmClasses::VarHandle_klass()->java_mirror();
   jclass MH_class = (jclass) JNIHandles::make_local(THREAD, mh_mirror);
   jclass VH_class = (jclass) JNIHandles::make_local(THREAD, vh_mirror);
 

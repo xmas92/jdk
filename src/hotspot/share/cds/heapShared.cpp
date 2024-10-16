@@ -1006,7 +1006,7 @@ void HeapShared::init_archived_fields_for(Klass* k, const ArchivedKlassSubGraphI
 
   // Load the subgraph entry fields from the record and store them back to
   // the corresponding fields within the mirror.
-  oop m = k->java_mirror();
+  instanceMirrorOop m = k->java_mirror();
   Array<int>* entry_field_records = record->entry_field_records();
   if (entry_field_records != nullptr) {
     int efr_len = entry_field_records->length();
@@ -1249,7 +1249,7 @@ void HeapShared::archive_reachable_objects_from_static_field(InstanceKlass *k,
   assert(CDSConfig::is_dumping_heap(), "dump time only");
   assert(k->is_shared_boot_class(), "must be boot class");
 
-  oop m = k->java_mirror();
+  instanceMirrorOop m = k->java_mirror();
 
   KlassSubGraphInfo* subgraph_info = get_subgraph_info(k);
   oop f = m->obj_field(field_offset);
@@ -1300,7 +1300,7 @@ void HeapShared::verify_subgraph_from_static_field(InstanceKlass* k, int field_o
   assert(CDSConfig::is_dumping_heap(), "dump time only");
   assert(k->is_shared_boot_class(), "must be boot class");
 
-  oop m = k->java_mirror();
+  instanceMirrorOop m = k->java_mirror();
   oop f = m->obj_field(field_offset);
   if (!CompressedOops::is_null(f)) {
     verify_subgraph_from(f);
@@ -1751,7 +1751,7 @@ bool HeapShared::is_archived_boot_layer_available(JavaThread* current) {
     TempNewSymbol field_signature = SymbolTable::new_symbol("Ljdk/internal/module/ArchivedBootLayer;");
     fieldDescriptor fd;
     if (k->find_field(field_name, field_signature, true, &fd) != nullptr) {
-      oop m = k->java_mirror();
+      instanceMirrorOop m = k->java_mirror();
       oop f = m->obj_field(fd.offset());
       if (CompressedOops::is_null(f)) {
         return false;

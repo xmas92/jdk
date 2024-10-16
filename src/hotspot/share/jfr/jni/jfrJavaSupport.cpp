@@ -83,6 +83,14 @@ jobject JfrJavaSupport::local_jni_handle(const oop obj, JavaThread* t) {
   return t->active_handles()->allocate_handle(t, obj);
 }
 
+jobject JfrJavaSupport::local_jni_handle(const instanceMirrorOop obj, JavaThread* t) {
+  DEBUG_ONLY(check_java_thread_in_vm(t));
+  if (obj != nullptr) {
+    obj->keep_holder_alive();
+  }
+  return t->active_handles()->allocate_handle(t, obj);
+}
+
 jobject JfrJavaSupport::local_jni_handle(const jobject handle, JavaThread* t) {
   DEBUG_ONLY(check_java_thread_in_vm(t));
   const oop obj = JNIHandles::resolve(handle);
@@ -99,6 +107,12 @@ jobject JfrJavaSupport::global_jni_handle(const oop obj, JavaThread* t) {
   return JNIHandles::make_global(Handle(t, obj));
 }
 
+jobject JfrJavaSupport::global_jni_handle(const instanceMirrorOop obj, JavaThread* t) {
+  DEBUG_ONLY(check_java_thread_in_vm(t));
+  HandleMark hm(t);
+  return JNIHandles::make_global(Handle(t, obj));
+}
+
 jobject JfrJavaSupport::global_jni_handle(const jobject handle, JavaThread* t) {
   const oop obj = JNIHandles::resolve(handle);
   return obj == nullptr ? nullptr : global_jni_handle(obj, t);
@@ -109,6 +123,12 @@ void JfrJavaSupport::destroy_global_jni_handle(jobject handle) {
 }
 
 jweak JfrJavaSupport::global_weak_jni_handle(const oop obj, JavaThread* t) {
+  DEBUG_ONLY(check_java_thread_in_vm(t));
+  HandleMark hm(t);
+  return JNIHandles::make_weak_global(Handle(t, obj));
+}
+
+jweak JfrJavaSupport::global_weak_jni_handle(const instanceMirrorOop obj, JavaThread* t) {
   DEBUG_ONLY(check_java_thread_in_vm(t));
   HandleMark hm(t);
   return JNIHandles::make_weak_global(Handle(t, obj));

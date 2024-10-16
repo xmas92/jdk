@@ -426,7 +426,7 @@ void ClassLoaderData::loaded_classes_do(KlassClosure* klass_closure) {
     }
 
 #ifdef ASSERT
-    oop m = k->java_mirror();
+    instanceMirrorOop m = k->java_mirror();
     assert(m != nullptr, "nullptr mirror");
     assert(m->is_a(vmClasses::Class_klass()), "invalid mirror");
 #endif

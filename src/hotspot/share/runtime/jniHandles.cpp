@@ -71,6 +71,20 @@ jobject JNIHandles::make_local(JavaThread* thread, oop obj, AllocFailType alloc_
   }
 }
 
+jobject JNIHandles::make_local(instanceMirrorOop obj) {
+  return make_local(JavaThread::current(), obj);
+}
+
+// Used by NewLocalRef which requires null on out-of-memory
+jobject JNIHandles::make_local(JavaThread* thread, instanceMirrorOop obj, AllocFailType alloc_failmode) {
+  if (obj == nullptr) {
+    return nullptr;                // ignore null handles
+  } else {
+    obj->keep_holder_alive();
+    return make_local(thread, cast_to_oop(obj), alloc_failmode);
+  }
+}
+
 static void report_handle_allocation_failure(AllocFailType alloc_failmode,
                                              const char* handle_kind) {
   if (alloc_failmode == AllocFailStrategy::EXIT_OOM) {

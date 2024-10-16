@@ -659,7 +659,7 @@ class StaticFinalFieldPrinter : public FieldClosure {
   void do_field(fieldDescriptor* fd) {
     if (fd->is_final() && !fd->has_initial_value()) {
       ResourceMark rm;
-      oop mirror = fd->field_holder()->java_mirror();
+      instanceMirrorOop mirror = fd->field_holder()->java_mirror();
       _out->print("staticfield %s %s %s ", _holder, fd->name()->as_quoted_ascii(), fd->signature()->as_quoted_ascii());
       BasicType field_type = fd->field_type();
       switch (field_type) {

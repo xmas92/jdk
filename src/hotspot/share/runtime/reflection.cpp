@@ -736,7 +736,7 @@ static objArrayHandle get_parameter_types(const methodHandle& method,
   // Collect parameter types
   ResourceMark rm(THREAD);
   for (ResolvingSignatureStream ss(method()); !ss.is_done(); ss.next()) {
-    oop mirror = ss.as_java_mirror(SignatureStream::NCDFError, CHECK_(objArrayHandle()));
+    instanceMirrorOop mirror = ss.as_java_mirror(SignatureStream::NCDFError, CHECK_(objArrayHandle()));
     if (log_is_enabled(Debug, class, resolve)) {
       trace_class_resolution(mirror);
     }
@@ -758,7 +758,7 @@ static objArrayHandle get_exception_types(const methodHandle& method, TRAPS) {
 
 static Handle new_type(Symbol* signature, Klass* k, TRAPS) {
   ResolvingSignatureStream ss(signature, k, false);
-  oop nt = ss.as_java_mirror(SignatureStream::NCDFError, CHECK_NH);
+  instanceMirrorOop nt = ss.as_java_mirror(SignatureStream::NCDFError, CHECK_NH);
   if (log_is_enabled(Debug, class, resolve)) {
     trace_class_resolution(nt);
   }

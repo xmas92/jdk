@@ -563,7 +563,7 @@ class SignatureStream : public StackObj {
   // free-standing lookups (bring your own CL/PD pair)
   enum FailureMode { ReturnNull, NCDFError, CachedOrNull };
   Klass* as_klass(Handle class_loader, Handle protection_domain, FailureMode failure_mode, TRAPS);
-  oop as_java_mirror(Handle class_loader, Handle protection_domain, FailureMode failure_mode, TRAPS);
+  instanceMirrorOop as_java_mirror(Handle class_loader, Handle protection_domain, FailureMode failure_mode, TRAPS);
 };
 
 // Specialized SignatureStream: used for invoking SystemDictionary to either find
@@ -597,7 +597,7 @@ class ResolvingSignatureStream : public SignatureStream {
     return SignatureStream::as_klass(_class_loader, _protection_domain,
                                      failure_mode, THREAD);
   }
-  oop as_java_mirror(FailureMode failure_mode, TRAPS) {
+  instanceMirrorOop as_java_mirror(FailureMode failure_mode, TRAPS) {
     if (is_reference()) {
       need_handles();
     }

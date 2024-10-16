@@ -51,14 +51,14 @@ size_t InstanceMirrorKlass::instance_size(Klass* k) {
   return size_helper();
 }
 
-instanceOop InstanceMirrorKlass::allocate_instance(Klass* k, TRAPS) {
+instanceMirrorOop InstanceMirrorKlass::allocate_instance(Klass* k, TRAPS) {
   // Query before forming handle.
   size_t size = instance_size(k);
   assert(size > 0, "total object size must be non-zero: " SIZE_FORMAT, size);
 
   // Since mirrors can be variable sized because of the static fields, store
   // the size in the mirror itself.
-  return (instanceOop)Universe::heap()->class_allocate(this, size, THREAD);
+  return (instanceMirrorOop)Universe::heap()->class_allocate(this, size, THREAD);
 }
 
 size_t InstanceMirrorKlass::oop_size(oop obj) const {

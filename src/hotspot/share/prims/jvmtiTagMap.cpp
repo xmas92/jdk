@@ -2523,7 +2523,7 @@ inline bool VM_HeapWalkOperation::iterate_over_array(oop o) {
   objArrayOop array = objArrayOop(o);
 
   // array reference to its class
-  oop mirror = ObjArrayKlass::cast(array->klass())->java_mirror();
+  instanceMirrorOop mirror = ObjArrayKlass::cast(array->klass())->java_mirror();
   if (!CallbackInvoker::report_class_reference(o, mirror)) {
     return false;
   }
@@ -2547,7 +2547,7 @@ inline bool VM_HeapWalkOperation::iterate_over_array(oop o) {
 // a type array references its class
 inline bool VM_HeapWalkOperation::iterate_over_type_array(oop o) {
   Klass* k = o->klass();
-  oop mirror = k->java_mirror();
+  instanceMirrorOop mirror = k->java_mirror();
   if (!CallbackInvoker::report_class_reference(o, mirror)) {
     return false;
   }
@@ -2593,12 +2593,12 @@ inline bool VM_HeapWalkOperation::iterate_over_class(oop java_class) {
     }
 
     // get the java mirror
-    oop mirror = klass->java_mirror();
+    instanceMirrorOop mirror = klass->java_mirror();
 
     // super (only if something more interesting than java.lang.Object)
     InstanceKlass* java_super = ik->java_super();
     if (java_super != nullptr && java_super != vmClasses::Object_klass()) {
-      oop super = java_super->java_mirror();
+      instanceMirrorOop super = java_super->java_mirror();
       if (!CallbackInvoker::report_superclass_reference(mirror, super)) {
         return false;
       }

@@ -531,7 +531,7 @@ Klass* SignatureStream::as_klass(Handle class_loader, Handle protection_domain,
   return k;
 }
 
-oop SignatureStream::as_java_mirror(Handle class_loader, Handle protection_domain,
+instanceMirrorOop SignatureStream::as_java_mirror(Handle class_loader, Handle protection_domain,
                                     FailureMode failure_mode, TRAPS) {
   if (!is_reference()) {
     return Universe::java_mirror(type());

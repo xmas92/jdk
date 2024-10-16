@@ -34,14 +34,17 @@ class outputStream;
 class JfrJavaSupport : public AllStatic {
  public:
   static jobject local_jni_handle(const oop obj, JavaThread* t);
+  static jobject local_jni_handle(const instanceMirrorOop obj, JavaThread* t);
   static jobject local_jni_handle(const jobject handle, JavaThread* t);
   static void destroy_local_jni_handle(jobject handle);
 
   static jobject global_jni_handle(const oop obj, JavaThread* t);
+  static jobject global_jni_handle(const instanceMirrorOop obj, JavaThread* t);
   static jobject global_jni_handle(const jobject handle, JavaThread* t);
   static void destroy_global_jni_handle(jobject handle);
 
   static jweak global_weak_jni_handle(const oop obj, JavaThread* t);
+  static jweak global_weak_jni_handle(const instanceMirrorOop obj, JavaThread* t);
   static jweak global_weak_jni_handle(const jobject handle, JavaThread* t);
   static void destroy_global_weak_jni_handle(jweak handle);
 

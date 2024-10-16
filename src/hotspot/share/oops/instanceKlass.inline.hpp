@@ -38,7 +38,7 @@
 inline intptr_t* InstanceKlass::start_of_itable()   const { return (intptr_t*)start_of_vtable() + vtable_length(); }
 inline intptr_t* InstanceKlass::end_of_itable()     const { return start_of_itable() + itable_length(); }
 
-inline oop InstanceKlass::static_field_base_raw() { return java_mirror(); }
+inline instanceMirrorOop InstanceKlass::static_field_base_raw() { return java_mirror(); }
 
 inline Symbol* InstanceKlass::field_name(int index) const { return field(index).name(constants()); }
 inline Symbol* InstanceKlass::field_signature(int index) const { return field(index).signature(constants()); }

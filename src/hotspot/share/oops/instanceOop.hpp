@@ -45,7 +45,13 @@ class instanceOopDesc : public oopDesc {
   }
 };
 
+class instanceMirrorOopDesc : public oopDesc {
+ public:
+  inline void keep_holder_alive() const;
+};
+
 // See similar requirement for oopDesc.
 static_assert(std::is_trivially_default_constructible<instanceOopDesc>::value, "required");
+static_assert(std::is_trivially_default_constructible<instanceMirrorOopDesc>::value, "required");
 
 #endif // SHARE_OOPS_INSTANCEOOP_HPP

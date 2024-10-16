@@ -255,17 +255,17 @@ oop Universe::class_cast_exception_instance()     { return _class_cast_exception
 
 oop Universe::the_null_sentinel()                 { return _the_null_sentinel.resolve(); }
 
-oop Universe::int_mirror()                        { return check_mirror(_basic_type_mirrors[T_INT].resolve()); }
-oop Universe::float_mirror()                      { return check_mirror(_basic_type_mirrors[T_FLOAT].resolve()); }
-oop Universe::double_mirror()                     { return check_mirror(_basic_type_mirrors[T_DOUBLE].resolve()); }
-oop Universe::byte_mirror()                       { return check_mirror(_basic_type_mirrors[T_BYTE].resolve()); }
-oop Universe::bool_mirror()                       { return check_mirror(_basic_type_mirrors[T_BOOLEAN].resolve()); }
-oop Universe::char_mirror()                       { return check_mirror(_basic_type_mirrors[T_CHAR].resolve()); }
-oop Universe::long_mirror()                       { return check_mirror(_basic_type_mirrors[T_LONG].resolve()); }
-oop Universe::short_mirror()                      { return check_mirror(_basic_type_mirrors[T_SHORT].resolve()); }
-oop Universe::void_mirror()                       { return check_mirror(_basic_type_mirrors[T_VOID].resolve()); }
+instanceMirrorOop Universe::int_mirror()                        { return check_mirror(_basic_type_mirrors[T_INT].resolve()); }
+instanceMirrorOop Universe::float_mirror()                      { return check_mirror(_basic_type_mirrors[T_FLOAT].resolve()); }
+instanceMirrorOop Universe::double_mirror()                     { return check_mirror(_basic_type_mirrors[T_DOUBLE].resolve()); }
+instanceMirrorOop Universe::byte_mirror()                       { return check_mirror(_basic_type_mirrors[T_BYTE].resolve()); }
+instanceMirrorOop Universe::bool_mirror()                       { return check_mirror(_basic_type_mirrors[T_BOOLEAN].resolve()); }
+instanceMirrorOop Universe::char_mirror()                       { return check_mirror(_basic_type_mirrors[T_CHAR].resolve()); }
+instanceMirrorOop Universe::long_mirror()                       { return check_mirror(_basic_type_mirrors[T_LONG].resolve()); }
+instanceMirrorOop Universe::short_mirror()                      { return check_mirror(_basic_type_mirrors[T_SHORT].resolve()); }
+instanceMirrorOop Universe::void_mirror()                       { return check_mirror(_basic_type_mirrors[T_VOID].resolve()); }
 
-oop Universe::java_mirror(BasicType t) {
+instanceMirrorOop Universe::java_mirror(BasicType t) {
   assert((uint)t < T_VOID+1, "range check");
   assert(!is_reference_type(t), "sanity");
   return check_mirror(_basic_type_mirrors[t].resolve());

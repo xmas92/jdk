@@ -150,9 +150,9 @@ class Universe: AllStatic {
   static void genesis(TRAPS);                         // Create the initial world
 
   // Mirrors for primitive classes (created eagerly)
-  static oop check_mirror(oop m) {
+  static instanceMirrorOop check_mirror(oop m) {
     assert(m != nullptr, "mirror not initialized");
-    return m;
+    return instanceMirrorOop(m);
   }
 
   // Debugging
@@ -198,17 +198,17 @@ class Universe: AllStatic {
   }
 
   // Known objects in the VM
-  static oop int_mirror();
-  static oop float_mirror();
-  static oop double_mirror();
-  static oop byte_mirror();
-  static oop bool_mirror();
-  static oop char_mirror();
-  static oop long_mirror();
-  static oop short_mirror();
-  static oop void_mirror();
+  static instanceMirrorOop int_mirror();
+  static instanceMirrorOop float_mirror();
+  static instanceMirrorOop double_mirror();
+  static instanceMirrorOop byte_mirror();
+  static instanceMirrorOop bool_mirror();
+  static instanceMirrorOop char_mirror();
+  static instanceMirrorOop long_mirror();
+  static instanceMirrorOop short_mirror();
+  static instanceMirrorOop void_mirror();
 
-  static oop java_mirror(BasicType t);
+  static instanceMirrorOop java_mirror(BasicType t);
 
   static void load_archived_object_instances() NOT_CDS_JAVA_HEAP_RETURN;
 #if INCLUDE_CDS_JAVA_HEAP

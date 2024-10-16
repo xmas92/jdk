@@ -1092,7 +1092,7 @@ void CodeInstaller::read_virtual_objects(HotSpotCompiledCodeStream* stream, JVMC
     if (is_auto_box) {
       _has_auto_box = true;
     }
-    oop javaMirror = klass->java_mirror();
+    instanceMirrorOop javaMirror = klass->java_mirror();
     ScopeValue *klass_sv = new ConstantOopWriteValue(JNIHandles::make_local(javaMirror));
     ObjectValue* sv = is_auto_box ? new AutoBoxObjectValue(id, klass_sv) : new ObjectValue(id, klass_sv);
     objects->at_put(id, sv);

@@ -285,7 +285,7 @@ class java_lang_Class : AllStatic {
 
   static bool is_primitive(oop java_class);
   static BasicType primitive_type(oop java_class);
-  static oop primitive_mirror(BasicType t);
+  static instanceMirrorOop primitive_mirror(BasicType t);
   // JVM_NewArray support
   static Klass* array_klass_acquire(oop java_class);
   static void release_set_array_klass(oop java_class, Klass* klass);
@@ -302,7 +302,7 @@ class java_lang_Class : AllStatic {
   static void clear_init_lock(oop java_class) {
     set_init_lock(java_class, nullptr);
   }
-  static oop  component_mirror(oop java_class);
+  static instanceMirrorOop  component_mirror(oop java_class);
   static objArrayOop signers(oop java_class);
   static oop  class_data(oop java_class);
   static void set_class_data(oop java_class, oop classData);

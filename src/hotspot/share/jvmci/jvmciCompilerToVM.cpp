@@ -2001,8 +2001,8 @@ C2V_VMENTRY_NULL(jobject, getComponentType, (JNIEnv* env, jobject, ARGUMENT_PAIR
   if (!klass->is_array_klass()) {
     return nullptr;
   }
-  oop mirror = klass->java_mirror();
-  oop component_mirror = java_lang_Class::component_mirror(mirror);
+  instanceMirrorOop mirror = klass->java_mirror();
+  instanceMirrorOop component_mirror = java_lang_Class::component_mirror(mirror);
   if (component_mirror == nullptr) {
     JVMCI_THROW_MSG_NULL(NullPointerException,
                          err_msg("Component mirror for array class %s is null", klass->external_name()))

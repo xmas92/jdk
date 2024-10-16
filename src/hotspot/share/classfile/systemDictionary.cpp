@@ -2154,7 +2154,7 @@ Handle SystemDictionary::find_java_mirror_for_type(Symbol* signature,
     protection_domain = Handle(THREAD, accessing_klass->protection_domain());
   }
   ResolvingSignatureStream ss(signature, class_loader, protection_domain, false);
-  oop mirror_oop = ss.as_java_mirror(failure_mode, CHECK_NH);
+  instanceMirrorOop mirror_oop = ss.as_java_mirror(failure_mode, CHECK_NH);
   if (mirror_oop == nullptr) {
     return Handle();  // report failure this way
   }
@@ -2206,7 +2206,7 @@ Handle SystemDictionary::find_method_handle_type(Symbol* signature,
   Handle rt; // the return type from the signature
   ResourceMark rm(THREAD);
   for (SignatureStream ss(signature); !ss.is_done(); ss.next()) {
-    oop mirror = nullptr;
+    instanceMirrorOop mirror = nullptr;
     if (can_be_cached) {
       // Use neutral class loader to lookup candidate classes to be placed in the cache.
       mirror = ss.as_java_mirror(Handle(), Handle(),
@@ -2277,7 +2277,7 @@ Handle SystemDictionary::find_field_handle_type(Symbol* signature,
       class_loader      = Handle(THREAD, accessing_klass->class_loader());
       protection_domain = Handle(THREAD, accessing_klass->protection_domain());
     }
-    oop mirror = ss.as_java_mirror(class_loader, protection_domain, SignatureStream::NCDFError, CHECK_(empty));
+    instanceMirrorOop mirror = ss.as_java_mirror(class_loader, protection_domain, SignatureStream::NCDFError, CHECK_(empty));
     ss.next();
     if (ss.is_done()) {
       return Handle(THREAD, mirror);

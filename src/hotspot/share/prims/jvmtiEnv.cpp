@@ -2873,7 +2873,7 @@ JvmtiEnv::GetImplementedInterfaces(oop k_mirror, jint* interface_count_ptr, jcla
       InstanceKlass* klass_at = interface_list->at(i_index);
       assert(klass_at->is_klass(), "interfaces must be Klass*s");
       assert(klass_at->is_interface(), "interfaces must be interfaces");
-      oop mirror_at = klass_at->java_mirror();
+      instanceMirrorOop mirror_at = klass_at->java_mirror();
       Handle handle_at = Handle(current_thread, mirror_at);
       result_list[i_index] = (jclass) jni_reference(handle_at);
     }

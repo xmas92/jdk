@@ -73,7 +73,9 @@ class Handle {
  public:
   // Constructors
   Handle()                                       { _handle = nullptr; }
+  inline Handle(Thread* thread, std::nullptr_t);
   inline Handle(Thread* thread, oop obj);
+  inline Handle(Thread* thread, instanceMirrorOop obj);
 
   // General access
   oop     operator () () const                   { return obj(); }

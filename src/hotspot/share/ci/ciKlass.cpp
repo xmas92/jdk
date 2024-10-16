@@ -203,7 +203,7 @@ ciInstance* ciKlass::java_mirror() {
   GUARDED_VM_ENTRY(
     if (!is_loaded())
       return ciEnv::current()->get_unloaded_klass_mirror(this);
-    oop java_mirror = get_Klass()->java_mirror();
+    instanceMirrorOop java_mirror = get_Klass()->java_mirror();
     return CURRENT_ENV->get_instance(java_mirror);
   )
 }

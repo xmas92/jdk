@@ -60,7 +60,7 @@ class MethodHandles: AllStatic {
 
   // utility functions for reifying names and types
   static oop field_name_or_null(Symbol* s);
-  static oop field_signature_type_or_null(Symbol* s);
+  static instanceMirrorOop field_signature_type_or_null(Symbol* s);
 
  public:
   // working with member names

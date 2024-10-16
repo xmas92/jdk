@@ -89,7 +89,7 @@ class InstanceMirrorKlass: public InstanceKlass {
   size_t instance_size(Klass* k);
 
   // allocation
-  instanceOop allocate_instance(Klass* k, TRAPS);
+  instanceMirrorOop allocate_instance(Klass* k, TRAPS);
 
   static void serialize_offsets(class SerializeClosure* f) NOT_CDS_RETURN;
 

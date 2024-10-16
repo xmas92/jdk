@@ -27,18 +27,30 @@
 
 #include "runtime/handles.hpp"
 
-#include "runtime/javaThread.hpp"
+#include "oops/instanceOop.inline.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
 
 // these inline functions are in a separate file to break an include cycle
 // between Thread and Handle
 
+inline Handle::Handle(Thread* thread, std::nullptr_t) : Handle(thread, oop(nullptr)) {}
+
 inline Handle::Handle(Thread* thread, oop obj) {
   assert(thread == Thread::current(), "sanity check");
   if (obj == nullptr) {
     _handle = nullptr;
   } else {
+    _handle = thread->handle_area()->allocate_handle(obj);
+  }
+}
+
+inline Handle::Handle(Thread* thread, instanceMirrorOop obj) {
+  assert(thread == Thread::current(), "sanity check");
+  if (obj == nullptr) {
+    _handle = nullptr;
+  } else {
+    obj->keep_holder_alive();
     _handle = thread->handle_area()->allocate_handle(obj);
   }
 }
@@ -57,10 +69,11 @@ inline type##Handle::type##Handle (Thread* thread, type##Oop obj) : Handle(threa
   assert(is_null() || ((oop)obj)->is_a(), "illegal type");                \
 }
 
-DEF_HANDLE_CONSTR(instance , is_instance_noinline )
-DEF_HANDLE_CONSTR(array    , is_array_noinline    )
-DEF_HANDLE_CONSTR(objArray , is_objArray_noinline )
-DEF_HANDLE_CONSTR(typeArray, is_typeArray_noinline)
+DEF_HANDLE_CONSTR(instance  , is_instance_noinline  )
+DEF_HANDLE_CONSTR(stackChunk, is_stackChunk_noinline)
+DEF_HANDLE_CONSTR(array     , is_array_noinline     )
+DEF_HANDLE_CONSTR(objArray  , is_objArray_noinline  )
+DEF_HANDLE_CONSTR(typeArray , is_typeArray_noinline )
 
 // Constructor for metadata handles
 #define DEF_METADATA_HANDLE_FN(name, type) \

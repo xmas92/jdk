@@ -110,7 +110,7 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  void claim_physical_inner(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  void claim_mapped_cache_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
   bool claim_physical(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);
@@ -119,7 +119,7 @@ private:
   ZPage* alloc_page_inner(ZPageAllocation* allocation);
   void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age);
 
-  ZPhysicalMemory consolidate_claimed_physical(ZPageAllocation* allocation);
+  void harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAllocation* allocation);
 
   bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
   void free_memory_alloc_failed(ZPageAllocation* allocation);

@@ -99,23 +99,25 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
   return removed;
 }
 
-ZMappedMemory ZMappedCache::remove_mapping_contiguous(size_t size) {
+bool ZMappedCache::remove_mapping_contiguous(ZMappedMemory* mapping, size_t size) {
   ZMappedTreap::InOrderIterator iterator(&_tree);
   for (ZMappedTreapNode* node; iterator.next(&node);) {
-    ZMappedMemory mapping = node->val();
+    ZMappedMemory node_mapping = node->val();
 
-    if (mapping.size() == size) {
+    if (node_mapping.size() == size) {
       // Perfect match
       _tree.remove(node->key());
-      return mapping;
-    } else if (mapping.size() > size) {
+      *mapping = node_mapping;
+      return true;
+    } else if (node_mapping.size() > size) {
       // Larger than necessary
-      ZMappedMemory initial_chunk = mapping.split(size);
+      ZMappedMemory initial_chunk = node_mapping.split(size);
       _tree.remove(node->key());
-      _tree.upsert(mapping.start(), mapping);
-      return initial_chunk;
+      _tree.upsert(node_mapping.start(), node_mapping);
+      *mapping = initial_chunk;
+      return true;
     }
   }
 
-  return ZMappedMemory();
+  return false;
 }

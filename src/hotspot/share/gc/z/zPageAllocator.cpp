@@ -278,7 +278,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
     return false;
   }
 
-  map_memory(vmem, pmem);
+  ZMappedMemory mapping = map_memory(vmem, pmem);
 
   if (AlwaysPreTouch) {
     // Pre-touch memory
@@ -288,7 +288,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
 
   // We don't have to take a lock here as no other threads will access the
   // mapped cache until we're finished.
-  _mapped_cache.insert_mapping(ZMappedMemory(vmem, pmem));
+  _mapped_cache.insert_mapping(mapping);
 
   return true;
 }
@@ -694,7 +694,7 @@ retry:
   }
 
   // We need to allocate a new virtual address range and make sure the claimed
-  // physicla memory is committed and mapped to the same virtual address range.
+  // physical memory is committed and mapped to the same virtual address range.
   ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->flags().low_address());
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");
@@ -758,7 +758,8 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   }
 
   // Send event
-  event.commit((u8)type, size, allocation.harvested(), allocation.committed(), page->physical_memory().nsegments(), flags.non_blocking());
+  event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
+               page->physical_memory().nsegments(), flags.non_blocking());
 
   return page;
 }

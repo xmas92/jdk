@@ -688,13 +688,13 @@ retry:
   }
 
   // If the claimed physical memory also holds a large enough contiguous virtual
-  // address range, we're done. Otherwise, we need to allocate a new virtual
-  // address range and make sure the claimed physical memory is committed and
-  // mapped to the new virtual address range.
+  // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
     return new ZPage(allocation->type(), allocation->mappings()->pop());
   }
 
+  // We need to allocate a new virtual address range and make sure the claimed
+  // physicla memory is committed and mapped to the same virtual address range.
   ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->flags().low_address());
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");

@@ -27,14 +27,10 @@
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
-class ZMappedMemory : public CHeapObj<mtGC> {
-  friend class ZList<ZMappedMemory>;
-
+class ZMappedMemory {
 private:
   ZVirtualMemory  _vmem;
   ZPhysicalMemory _pmem;
-
-  ZListNode<ZMappedMemory> _node;
 
 public:
   ZMappedMemory();

@@ -32,20 +32,41 @@
 class ZPage;
 class ZPageAllocator;
 
+class ZUnmapperEntry : public CHeapObj<mtGC> {
+  friend class ZList<ZUnmapperEntry>;
+
+private:
+  ZMappedMemory _mapping;
+
+  ZListNode<ZUnmapperEntry> _node;
+
+public:
+  ZUnmapperEntry(const ZMappedMemory& mapping)
+    : _mapping(mapping) {}
+
+  const ZMappedMemory& mapping() {
+    return _mapping;
+  }
+
+  size_t size() {
+    return _mapping.size();
+  }
+};
+
 class ZUnmapper : public ZThread {
 private:
   ZPageAllocator* const _page_allocator;
   ZConditionLock        _lock;
-  ZList<ZMappedMemory>  _queue;
+  ZList<ZUnmapperEntry> _queue;
   size_t                _enqueued_bytes;
   bool                  _warned_sync_unmapping;
   bool                  _stop;
 
-  ZMappedMemory* dequeue();
-  bool try_enqueue(ZMappedMemory* mapping);
+  ZUnmapperEntry* dequeue();
+  bool try_enqueue(const ZMappedMemory& mapping);
   size_t queue_capacity() const;
   bool is_saturated() const;
-  void do_unmap(ZMappedMemory* mapping) const;
+  void do_unmap(const ZMappedMemory& mapping) const;
 
 protected:
   virtual void run_thread();

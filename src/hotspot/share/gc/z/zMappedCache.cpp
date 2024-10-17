@@ -31,7 +31,7 @@
 ZMappedCache::ZMappedCache()
   : _tree() {}
 
-void ZMappedCache::insert_mapping(ZMappedMemory mapping) {
+void ZMappedCache::insert_mapping(const ZMappedMemory& mapping) {
   bool merged_left = false;
 
   // Check left node.
@@ -39,11 +39,8 @@ void ZMappedCache::insert_mapping(ZMappedMemory mapping) {
   if (lnode != nullptr) {
     ZMappedMemory& left_mapping = lnode->val();
 
-    if (mapping.virtually_adjacent_to(left_mapping)) {
+    if (left_mapping.virtually_adjacent_to(mapping)) {
       left_mapping.extend_mapping(mapping);
-
-      // Update mapping to the larger mapping
-      mapping = ZMappedMemory(left_mapping);
       merged_left = true;
     }
   }
@@ -53,9 +50,19 @@ void ZMappedCache::insert_mapping(ZMappedMemory mapping) {
   if (rnode != lnode) {
     // If there exists a node that is LEQ than mapping.end() which is not the
     // left_node, it is adjacent.
-    mapping.extend_mapping(rnode->val());
-    _tree.remove(rnode->key());
-    _tree.upsert(mapping.start(), mapping);
+    ZMappedMemory& right_mapping = rnode->val();
+
+    if (merged_left) {
+      // Extend the left mapping, again
+      lnode->val().extend_mapping(right_mapping);
+      _tree.remove(rnode->key());
+    } else {
+      ZMappedMemory extended_mapping = mapping;
+      extended_mapping.extend_mapping(right_mapping);
+      _tree.remove(rnode->key());
+      _tree.upsert(mapping.start(), extended_mapping);
+    }
+
     return;
   }
 

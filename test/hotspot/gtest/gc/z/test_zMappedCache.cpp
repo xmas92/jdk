@@ -100,19 +100,21 @@ protected:
     cache.insert_mapping(ZMappedMemory(vmem2, pmem2));
     cache.insert_mapping(ZMappedMemory(vmem3, pmem1));
 
-    ZMappedMemory chunk = cache.remove_mapping_contiguous(50);
+    ZMappedMemory chunk;
+    cache.remove_mapping_contiguous(&chunk, 50);
     EXPECT_EQ(chunk.start(), zoffset(0));
     EXPECT_EQ(chunk.size(), (size_t)50);
 
-    chunk = cache.remove_mapping_contiguous(25);
+    cache.remove_mapping_contiguous(&chunk, 25);
     EXPECT_EQ(chunk.start(), zoffset(100));
     EXPECT_EQ(chunk.size(), (size_t)25);
     EXPECT_EQ(chunk.physical_memory().nsegments(), 1);
     EXPECT_EQ(chunk.physical_memory().segment(0).start(), seg1.start());
     EXPECT_EQ(chunk.physical_memory().segment(0).size(), seg1.size());
 
-    chunk = cache.remove_mapping_contiguous(100);
-    EXPECT_TRUE(chunk.is_null());
+    ZMappedMemory chunk2;
+    cache.remove_mapping_contiguous(&chunk2, 100);
+    EXPECT_TRUE(chunk2.is_null());
   }
 
   static void test_remove_mapped() {

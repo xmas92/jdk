@@ -56,7 +56,7 @@ public:
   void insert_mapping(ZMappedMemory mapping);
 
   size_t remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size);
-  ZMappedMemory remove_mapping_contiguous(size_t size);
+  bool remove_mapping_contiguous(ZMappedMemory* mapping, size_t size);
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

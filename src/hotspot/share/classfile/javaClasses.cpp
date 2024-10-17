@@ -250,7 +250,7 @@ public:
 
   void do_field(fieldDescriptor* fd) {
     if (fd->name() == vmSymbols::compact_strings_name()) {
-      oop mirror = fd->field_holder()->java_mirror();
+      oop mirror = fd->field_holder()->java_mirror_no_keepalive();
       assert(fd->field_holder() == vmClasses::String_klass(), "Should be String");
       assert(mirror != nullptr, "String must have mirror already");
       mirror->bool_field_put(fd->offset(), _value);
@@ -989,7 +989,7 @@ void java_lang_Class::set_mirror_module_field(JavaThread* current, Klass* k, Han
       MutexLocker m1(current, Module_lock);
       // Keep list of classes needing java.base module fixup
       if (!ModuleEntryTable::javabase_defined()) {
-        assert(k->java_mirror() != nullptr, "Class's mirror is null");
+        assert(k->java_mirror_no_keepalive() != nullptr, "Class's mirror is null");
         k->class_loader_data()->inc_keep_alive_ref_count();
         assert(fixup_module_field_list() != nullptr, "fixup_module_field_list not initialized");
         fixup_module_field_list()->push(k);
@@ -1001,7 +1001,7 @@ void java_lang_Class::set_mirror_module_field(JavaThread* current, Klass* k, Han
     // If java.base was already defined then patch this particular class with java.base.
     if (javabase_was_defined) {
       ModuleEntry *javabase_entry = ModuleEntryTable::javabase_moduleEntry();
-      assert(javabase_entry != nullptr && javabase_entry->module() != nullptr,
+      assert(javabase_entry != nullptr && javabase_entry->module_no_keepalive() != nullptr,
              "Setting class module field, " JAVA_BASE_NAME " should be defined");
       Handle javabase_handle(current, javabase_entry->module());
       set_module(mirror(), javabase_handle());
@@ -1009,7 +1009,7 @@ void java_lang_Class::set_mirror_module_field(JavaThread* current, Klass* k, Han
   } else {
     assert(Universe::is_module_initialized() ||
            (ModuleEntryTable::javabase_defined() &&
-            (module() == ModuleEntryTable::javabase_moduleEntry()->module())),
+            (module() == ModuleEntryTable::javabase_moduleEntry()->module_no_keepalive())),
            "Incorrect java.lang.Module specification while creating mirror");
     set_module(mirror(), module());
   }
@@ -1085,7 +1085,7 @@ void java_lang_Class::create_mirror(Klass* k, Handle class_loader,
                                     Handle module, Handle protection_domain,
                                     Handle classData, TRAPS) {
   assert(k != nullptr, "Use create_basic_type_mirror for primitive types");
-  assert(k->java_mirror() == nullptr, "should only assign mirror once");
+  assert(k->java_mirror_no_keepalive() == nullptr, "should only assign mirror once");
 
   // Use this moment of initialization to cache modifier_flags also,
   // to support Class.getModifiers().  Instance classes recalculate
@@ -1102,7 +1102,7 @@ void java_lang_Class::create_mirror(Klass* k, Handle class_loader,
     allocate_mirror(k, /*is_scratch=*/false, protection_domain, classData, mirror, comp_mirror, CHECK);
 
     // set the classLoader field in the java_lang_Class instance
-    assert(class_loader() == k->class_loader(), "should be same");
+    assert(class_loader() == k->class_loader_no_keepalive(), "should be same");
     set_class_loader(mirror(), class_loader());
 
     // Setup indirection from klass->mirror
@@ -1140,9 +1140,9 @@ void java_lang_Class::create_mirror(Klass* k, Handle class_loader,
 // latter may contain dumptime-specific information that cannot be archived
 // (e.g., ClassLoaderData*, or static fields that are modified by Java code execution).
 void java_lang_Class::create_scratch_mirror(Klass* k, TRAPS) {
-  if (k->class_loader() != nullptr &&
-      k->class_loader() != SystemDictionary::java_platform_loader() &&
-      k->class_loader() != SystemDictionary::java_system_loader()) {
+  if (k->class_loader_no_keepalive() != nullptr &&
+      k->class_loader_no_keepalive() != SystemDictionary::java_platform_loader() &&
+      k->class_loader_no_keepalive() != SystemDictionary::java_system_loader()) {
     // We only archive the mirrors of classes loaded by the built-in loaders
     return;
   }
@@ -1196,7 +1196,7 @@ bool java_lang_Class::restore_archived_mirror(Klass *k,
     }
   }
 
-  assert(class_loader() == k->class_loader(), "should be same");
+  assert(class_loader() == k->class_loader_no_keepalive(), "should be same");
   if (class_loader.not_null()) {
     set_class_loader(mirror(), class_loader());
   }
@@ -2336,7 +2336,7 @@ class BacktraceBuilder: public StackObj {
 
     // We need to save the mirrors in the backtrace to keep the class
     // from being unloaded while we still have this stack trace.
-    assert(method->method_holder()->java_mirror() != nullptr, "never push null for mirror");
+    assert(method->method_holder()->java_mirror_no_keepalive() != nullptr, "never push null for mirror");
     _mirrors->obj_at_put(_index, method->method_holder()->java_mirror());
 
     _index++;
@@ -2945,7 +2945,7 @@ void java_lang_StackTraceElement::fill_in(Handle element,
   java_lang_StackTraceElement::set_declaringClass(element(), classname);
   java_lang_StackTraceElement::set_declaringClassObject(element(), java_class());
 
-  oop loader = holder->class_loader();
+  oop loader = holder->class_loader_no_keepalive();
   if (loader != nullptr) {
     oop loader_name = java_lang_ClassLoader::name(loader);
     if (loader_name != nullptr)
@@ -4871,7 +4871,7 @@ public:
   }
 
   void do_field(fieldDescriptor* fd) {
-    oop mirror = fd->field_holder()->java_mirror();
+    oop mirror = fd->field_holder()->java_mirror_no_keepalive();
     assert(mirror != nullptr, "UnsafeConstants must have mirror already");
     assert(fd->field_holder() == vmClasses::UnsafeConstants_klass(), "Should be UnsafeConstants");
     assert(fd->is_final(), "fields of UnsafeConstants must be final");

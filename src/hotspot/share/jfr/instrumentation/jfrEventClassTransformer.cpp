@@ -1643,7 +1643,7 @@ static void bless_commit_method(const InstanceKlass* new_ik) {
   assert(new_ik != nullptr, "invariant");
   assert(JdkJfrEvent::is_subklass(new_ik), "invariant");
   const Array<Method*>* const methods = new_ik->methods();
-  if (new_ik->class_loader() == nullptr) {
+  if (new_ik->class_loader_no_keepalive() == nullptr) {
     // JDK events are allowed an additional commit method that is static.
     // Search precedence must therefore inspect static methods first.
     if (bless_static_commit_method(methods)) {
@@ -1808,7 +1808,7 @@ bool JfrEventClassTransformer::is_instrumented(const InstanceKlass* ik) {
   assert(ik != nullptr, "invariant");
   assert(JdkJfrEvent::is_subklass(ik), "invariant");
   const Array<Method*>* const methods = ik->methods();
-  if (ik->class_loader() == nullptr) {
+  if (ik->class_loader_no_keepalive() == nullptr) {
     // JDK events are allowed an additional commit method that is static.
     // Search precedence must therefore inspect static methods first.
     if (is_static_commit_method_blessed(methods)) {

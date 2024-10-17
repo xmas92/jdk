@@ -44,7 +44,7 @@ public class TestHotSpotVMConfig extends HotSpotVMConfigAccess {
     public final long narrowKlassBase = getFieldValue("CompilerToVM::Data::Universe_narrow_klass_base", Long.class, "address");
     public final int narrowKlassShift = getFieldValue("CompilerToVM::Data::Universe_narrow_klass_shift", Integer.class, "int");
 
-    public final int classMirrorHandleOffset = getFieldOffset("Klass::_java_mirror", Integer.class, "OopHandle");
+    public final int classMirrorHandleOffset = getFieldOffset("Klass::_java_mirror", Integer.class, "CLDOopHandle");
 
     // Checkstyle: stop
     public final int MARKID_DEOPT_HANDLER_ENTRY = getConstant("CodeInstaller::DEOPT_HANDLER_ENTRY", Integer.class);

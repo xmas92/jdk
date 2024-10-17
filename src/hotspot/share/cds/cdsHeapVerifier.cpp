@@ -151,7 +151,7 @@ public:
       return;
     }
 
-    oop static_obj_field = _ik->java_mirror()->obj_field(fd->offset());
+    oop static_obj_field = _ik->java_mirror_no_keepalive()->obj_field(fd->offset());
     if (static_obj_field != nullptr) {
       Klass* klass = static_obj_field->klass();
       if (_exclusions != nullptr) {

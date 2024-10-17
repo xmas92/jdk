@@ -92,7 +92,7 @@ BasicType VectorSupport::klass2bt(InstanceKlass* ik) {
   } else if (is_vector_mask(ik)) {
     return T_BOOLEAN;
   } else { // vector and mask
-    oop value = ik->java_mirror()->obj_field(fd.offset());
+    oop value = ik->java_mirror_no_keepalive()->obj_field(fd.offset());
     BasicType elem_bt = java_lang_Class::as_BasicType(value);
     return elem_bt;
   }
@@ -107,7 +107,7 @@ jint VectorSupport::klass2length(InstanceKlass* ik) {
   assert(fd.is_static(), "");
   assert(fd.offset() > 0, "");
 
-  jint vlen = ik->java_mirror()->int_field(fd.offset());
+  jint vlen = ik->java_mirror_no_keepalive()->int_field(fd.offset());
   assert(vlen > 0, "");
   return vlen;
 }

@@ -39,12 +39,14 @@ class OopStorage;
 
 class OopHandle {
   friend class VMStructs;
+  friend class CLDOopHandle;
+
 private:
   oop* _obj;
 
+  explicit OopHandle(oop* w) : _obj(w) {}
 public:
   OopHandle() : _obj(nullptr) {}
-  explicit OopHandle(oop* w) : _obj(w) {}
   OopHandle(OopStorage* storage, oop obj);
 
   OopHandle(const OopHandle& copy) : _obj(copy._obj) {}

@@ -589,8 +589,8 @@ void InstanceKlass::deallocate_record_components(ClassLoaderData* loader_data,
 // InstanceKlass points to.
 void InstanceKlass::deallocate_contents(ClassLoaderData* loader_data) {
   // Orphan the mirror first, CMS thinks it's still live.
-  if (java_mirror() != nullptr) {
-    java_lang_Class::set_klass(java_mirror(), nullptr);
+  if (java_mirror_no_keepalive() != nullptr) {
+    java_lang_Class::set_klass(java_mirror_no_keepalive(), nullptr);
   }
 
   // Also remove mirror from handles
@@ -744,14 +744,24 @@ oop InstanceKlass::protection_domain() const {
   return java_lang_Class::protection_domain(java_mirror());
 }
 
+oop InstanceKlass::protection_domain_no_keepalive() const {
+  // return the protection_domain from the mirror
+  return java_lang_Class::protection_domain(java_mirror_no_keepalive());
+}
+
 objArrayOop InstanceKlass::signers() const {
   // return the signers from the mirror
   return java_lang_Class::signers(java_mirror());
 }
 
+objArrayOop InstanceKlass::signers_no_keepalive() const {
+  // return the signers from the mirror
+  return java_lang_Class::signers(java_mirror_no_keepalive());
+}
+
 oop InstanceKlass::init_lock() const {
   // return the init lock from the mirror
-  oop lock = java_lang_Class::init_lock(java_mirror());
+  oop lock = java_lang_Class::init_lock(java_mirror_no_keepalive());
   // Prevent reordering with any access of initialization state
   OrderAccess::loadload();
   assert(lock != nullptr || !is_not_initialized(), // initialized or in_error state
@@ -766,7 +776,7 @@ oop InstanceKlass::init_lock() const {
 void InstanceKlass::fence_and_clear_init_lock() {
   // make sure previous stores are all done, notably the init_state.
   OrderAccess::storestore();
-  java_lang_Class::clear_init_lock(java_mirror());
+  java_lang_Class::clear_init_lock(java_mirror_no_keepalive());
   assert(!is_not_initialized(), "class must be initialized now");
 }
 
@@ -1574,7 +1584,7 @@ Method* InstanceKlass::class_initializer() const {
 void InstanceKlass::call_class_initializer(TRAPS) {
   if (ReplayCompiles &&
       (ReplaySuppressInitializers == 1 ||
-       (ReplaySuppressInitializers >= 2 && class_loader() != nullptr))) {
+       (ReplaySuppressInitializers >= 2 && class_loader_no_keepalive() != nullptr))) {
     // Hide the existence of the initializer for the purpose of replaying the compile
     return;
   }
@@ -3016,7 +3026,7 @@ void InstanceKlass::set_classpath_index(s2 path_index) {
 // different versions of is_same_class_package
 
 bool InstanceKlass::is_same_class_package(const Klass* class2) const {
-  oop classloader1 = this->class_loader();
+  oop classloader1 = this->class_loader_no_keepalive();
   PackageEntry* classpkg1 = this->package();
   if (class2->is_objArray_klass()) {
     class2 = ObjArrayKlass::cast(class2)->bottom_klass();
@@ -3025,7 +3035,7 @@ bool InstanceKlass::is_same_class_package(const Klass* class2) const {
   oop classloader2;
   PackageEntry* classpkg2;
   if (class2->is_instance_klass()) {
-    classloader2 = class2->class_loader();
+    classloader2 = class2->class_loader_no_keepalive();
     classpkg2 = class2->package();
   } else {
     assert(class2->is_typeArray_klass(), "should be type array");
@@ -3048,7 +3058,7 @@ bool InstanceKlass::is_same_class_package(const Klass* class2) const {
 // and classname information is enough to determine a class's package
 bool InstanceKlass::is_same_class_package(oop other_class_loader,
                                           const Symbol* other_class_name) const {
-  if (class_loader() != other_class_loader) {
+  if (class_loader_no_keepalive() != other_class_loader) {
     return false;
   }
   if (name()->fast_compare(other_class_name) == 0) {
@@ -3594,9 +3604,9 @@ void InstanceKlass::print_on(outputStream* st) const {
   st->print(BULLET"nest members:     "); nest_members()->print_value_on(st);     st->cr();
   print_on_maybe_null(st, BULLET"record components:     ", record_components());
   st->print(BULLET"permitted subclasses:     "); permitted_subclasses()->print_value_on(st);     st->cr();
-  if (java_mirror() != nullptr) {
+  if (java_mirror_no_keepalive() != nullptr) {
     st->print(BULLET"java mirror:       ");
-    java_mirror()->print_value_on(st);
+    java_mirror_no_keepalive()->print_value_on(st);
     st->cr();
   } else {
     st->print_cr(BULLET"java mirror:       null");
@@ -3802,7 +3812,7 @@ void InstanceKlass::print_class_load_helper(ClassLoaderData* loader_data,
         // source is unknown
       }
     } else {
-      oop class_loader = loader_data->class_loader();
+      oop class_loader = loader_data->class_loader_no_keepalive();
       info_stream.print(" source: %s", class_loader->klass()->external_name());
     }
   } else {

@@ -635,9 +635,11 @@ public:
 
   // protection domain
   oop protection_domain() const;
+  oop protection_domain_no_keepalive() const;
 
   // signers
   objArrayOop signers() const;
+  objArrayOop signers_no_keepalive() const;
 
   bool is_contended() const                { return _misc_flags.is_contended(); }
   void set_is_contended(bool value)        { _misc_flags.set_is_contended(value); }

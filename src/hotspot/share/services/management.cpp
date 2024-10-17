@@ -200,7 +200,7 @@ InstanceKlass* Management::initialize_klass(Klass* k, TRAPS) {
   }
   // If these classes change to not be owned by the boot loader, they need
   // to be walked to keep their class loader alive in oops_do.
-  assert(ik->class_loader() == nullptr, "need to follow in oops_do");
+  assert(ik->class_loader_no_keepalive() == nullptr, "need to follow in oops_do");
   return ik;
 }
 

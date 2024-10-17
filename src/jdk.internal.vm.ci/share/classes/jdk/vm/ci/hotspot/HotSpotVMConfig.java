@@ -82,7 +82,7 @@ class HotSpotVMConfig extends HotSpotVMConfigAccess {
     /**
      * The offset of the _java_mirror field (of type {@link Class}) in a Klass.
      */
-    final int javaMirrorOffset = getFieldOffset("Klass::_java_mirror", Integer.class, "OopHandle");
+    final int javaMirrorOffset = getFieldOffset("Klass::_java_mirror", Integer.class, "CLDOopHandle");
 
     final int klassAccessFlagsOffset = getFieldOffset("Klass::_access_flags", Integer.class, "AccessFlags");
     final int klassLayoutHelperOffset = getFieldOffset("Klass::_layout_helper", Integer.class, "jint");

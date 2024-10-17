@@ -28,7 +28,7 @@
 #include "interpreter/bytecodes.hpp"
 #include "memory/allocation.hpp"
 #include "oops/array.hpp"
-#include "oops/oopHandle.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "runtime/handles.hpp"
 #include "utilities/align.hpp"
 #include "utilities/constantTag.hpp"
@@ -65,7 +65,7 @@ class ConstantPoolCache: public MetaspaceObj {
   // stored in the ConstantPool, which is read-only.
   // Array of resolved objects from the constant pool and map from resolved
   // object index to original constant pool index
-  OopHandle            _resolved_references;
+  CLDOopHandle          _resolved_references;
   Array<u2>*           _reference_map;
 
   // RedefineClasses support
@@ -114,9 +114,9 @@ class ConstantPoolCache: public MetaspaceObj {
   void clear_archived_references() NOT_CDS_JAVA_HEAP_RETURN;
 
   inline objArrayOop resolved_references();
-  void set_resolved_references(OopHandle s) { _resolved_references = s; }
-  Array<u2>* reference_map() const        { return _reference_map; }
-  void set_reference_map(Array<u2>* o)    { _reference_map = o; }
+  void set_resolved_references(CLDOopHandle s) { _resolved_references = s; }
+  Array<u2>* reference_map() const             { return _reference_map; }
+  void set_reference_map(Array<u2>* o)         { _reference_map = o; }
 
  private:
   void set_direct_or_vtable_call(

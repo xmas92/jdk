@@ -31,7 +31,7 @@
 #include "oops/markWord.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
-#include "oops/oopHandle.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "utilities/accessFlags.hpp"
 #include "utilities/macros.hpp"
 #if INCLUDE_JFR
@@ -145,7 +145,7 @@ class Klass : public Metadata {
   // Ordered list of all primary supertypes
   Klass*      _primary_supers[_primary_super_limit];
   // java/lang/Class instance mirroring this class
-  OopHandle   _java_mirror;
+  CLDOopHandle _java_mirror;
   // Superclass
   Klass*      _super;
   // First subclass (null if none); _subklass->next_sibling() is next one
@@ -282,12 +282,12 @@ protected:
   void set_archived_java_mirror(int mirror_index) NOT_CDS_JAVA_HEAP_RETURN;
 
   // Temporary mirror switch used by RedefineClasses
-  OopHandle java_mirror_handle() const { return _java_mirror; }
-  void swap_java_mirror_handle(OopHandle& mirror) { _java_mirror.swap(mirror); }
+  CLDOopHandle java_mirror_handle() const { return _java_mirror; }
+  void swap_java_mirror_handle(CLDOopHandle& mirror) { _java_mirror.swap(mirror); }
 
-  // Set java mirror OopHandle to null for CDS
-  // This leaves the OopHandle in the CLD, but that's ok, you can't release them.
-  void clear_java_mirror_handle() { _java_mirror = OopHandle(); }
+  // Set java mirror CLDOopHandle to null for CDS
+  // This leaves the CLDOopHandle in the CLD, but that's ok, you can't release them.
+  void clear_java_mirror_handle() { _java_mirror = CLDOopHandle(); }
 
   // modifier flags
   jint modifier_flags() const          { return _modifier_flags; }
@@ -582,7 +582,8 @@ protected:
 
   virtual oop protection_domain() const = 0;
 
-  oop class_loader() const;
+  inline oop class_loader() const;
+  inline oop class_loader_no_keepalive() const;
 
   inline oop klass_holder() const;
 
@@ -613,7 +614,7 @@ protected:
   bool is_unshareable_info_restored() const {
     assert(is_shared(), "use this for shared classes only");
     if (has_archived_mirror_index()) {
-      // _java_mirror is not a valid OopHandle but rather an encoded reference in the shared heap
+      // _java_mirror is not a valid CLDOopHandle but rather an encoded reference in the shared heap
       return false;
     } else if (_java_mirror.is_empty()) {
       return false;

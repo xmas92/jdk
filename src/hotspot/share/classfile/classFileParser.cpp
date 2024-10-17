@@ -3974,7 +3974,7 @@ void ClassFileParser::set_precomputed_flags(InstanceKlass* ik) {
   // See documentation of InstanceKlass::can_be_fastpath_allocated().
   assert(ik->size_helper() > 0, "layout_helper is initialized");
   if (ik->is_abstract() || ik->is_interface()
-      || (ik->name() == vmSymbols::java_lang_Class() && ik->class_loader() == nullptr)
+      || (ik->name() == vmSymbols::java_lang_Class() && ik->class_loader_no_keepalive() == nullptr)
       || ik->size_helper() >= FastAllocateSizeLimit) {
     // Forbid fast-path allocation.
     const jint lh = Klass::instance_layout_helper(ik->size_helper(), true);
@@ -4083,7 +4083,7 @@ void ClassFileParser::check_super_class_access(const InstanceKlass* this_klass, 
       PackageEntry* super_package = super->package();
       if (super_package != nullptr &&
           super_package->name()->fast_compare(vmSymbols::jdk_internal_reflect()) == 0 &&
-          !java_lang_ClassLoader::is_reflection_class_loader(this_klass->class_loader())) {
+          !java_lang_ClassLoader::is_reflection_class_loader(this_klass->class_loader_no_keepalive())) {
         ResourceMark rm(THREAD);
         Exceptions::fthrow(
           THREAD_AND_LOCATION,
@@ -5361,7 +5361,7 @@ ClassFileParser::ClassFileParser(ClassFileStream* stream,
                                               BytecodeVerificationLocal;
   }
   else {
-    _need_verify = Verifier::should_verify_for(_loader_data->class_loader(),
+    _need_verify = Verifier::should_verify_for(_loader_data->class_loader_no_keepalive(),
                                                stream->need_verify());
   }
 

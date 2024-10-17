@@ -110,7 +110,7 @@ public class ClhsdbInspect {
             // hsdb> inspect 0x000000080000f388
             // Type is InstanceKlass (size of 480)
             // ...
-            // OopHandle Klass::_java_mirror: OopHandle @ 0x000000080000f400
+            // CLDOopHandle Klass::_java_mirror: CLDOopHandle @ 0x000000080000f400
             // ...
             //
             // hsdb> examine 0x000000080000f400
@@ -143,11 +143,11 @@ public class ClhsdbInspect {
             cmd = "inspect " + classAddress;
             cmds = List.of(cmd);
             expStrMap = new HashMap<>();
-            expStrMap.put(cmd, List.of("Type is InstanceKlass", "Klass::_java_mirror: OopHandle @"));
+            expStrMap.put(cmd, List.of("Type is InstanceKlass", "Klass::_java_mirror: CLDOopHandle @"));
             String inspectCmdOutput = test.run(theApp.getPid(), cmds, expStrMap, null);
 
             // Get the Klass::_java_mirror value from the InstanceKlass
-            String mirrorPattern = "Klass::_java_mirror: OopHandle @ ";
+            String mirrorPattern = "Klass::_java_mirror: CLDOopHandle @ ";
             String mirrorAddress = inspectCmdOutput.substring(
                      inspectCmdOutput.indexOf(mirrorPattern) + mirrorPattern.length());
             lines = mirrorAddress.split("\\R");

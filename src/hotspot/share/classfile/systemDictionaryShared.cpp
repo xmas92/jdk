@@ -343,7 +343,7 @@ bool SystemDictionaryShared::check_for_exclusion_impl(InstanceKlass* k) {
 }
 
 bool SystemDictionaryShared::is_builtin_loader(ClassLoaderData* loader_data) {
-  oop class_loader = loader_data->class_loader();
+  oop class_loader = loader_data->class_loader_no_keepalive();
   return (class_loader == nullptr ||
           SystemDictionary::is_system_class_loader(class_loader) ||
           SystemDictionary::is_platform_class_loader(class_loader));
@@ -756,9 +756,9 @@ void SystemDictionaryShared::add_lambda_proxy_class(InstanceKlass* caller_ik,
                                                     Symbol* instantiated_method_type,
                                                     TRAPS) {
 
-  assert(caller_ik->class_loader() == lambda_ik->class_loader(), "mismatched class loader");
+  assert(caller_ik->class_loader_no_keepalive() == lambda_ik->class_loader_no_keepalive(), "mismatched class loader");
   assert(caller_ik->class_loader_data() == lambda_ik->class_loader_data(), "mismatched class loader data");
-  assert(java_lang_Class::class_data(lambda_ik->java_mirror()) == nullptr, "must not have class data");
+  assert(java_lang_Class::class_data(lambda_ik->java_mirror_no_keepalive()) == nullptr, "must not have class data");
 
   MutexLocker ml(DumpTimeTable_lock, Mutex::_no_safepoint_check_flag);
 
@@ -973,7 +973,7 @@ void SystemDictionaryShared::record_linking_constraint(Symbol* name, InstanceKla
   // NOTE: type T may or may not be currently resolved in
   // either of these two loaders. The check itself does not
   // try to resolve T.
-  oop klass_loader = klass->class_loader();
+  oop klass_loader = klass->class_loader_no_keepalive();
 
   if (!is_system_class_loader(klass_loader) &&
       !is_platform_class_loader(klass_loader)) {

@@ -26,7 +26,7 @@
 #define SHARE_CLASSFILE_MODULEENTRY_HPP
 
 #include "jni.h"
-#include "oops/oopHandle.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "oops/symbol.hpp"
 #include "oops/symbolHandle.hpp"
 #include "runtime/mutexLocker.hpp"
@@ -63,8 +63,8 @@ class ModuleClosure;
 // data structure.  This lock must be taken on all accesses to either table.
 class ModuleEntry : public CHeapObj<mtModule> {
 private:
-  OopHandle _module;                   // java.lang.Module
-  OopHandle _shared_pd;                // java.security.ProtectionDomain, cached
+  CLDOopHandle _module;                   // java.lang.Module
+  CLDOopHandle _shared_pd;                // java.security.ProtectionDomain, cached
                                        // for shared classes from this module
   Symbol*          _name;              // name of this module
   ClassLoaderData* _loader_data;
@@ -97,15 +97,17 @@ public:
 
   Symbol*          name() const                        { return _name; }
   oop              module() const;
-  OopHandle        module_handle() const               { return _module; }
-  void             set_module(OopHandle j)             { _module = j; }
+  oop              module_no_keepalive() const;
+  CLDOopHandle     module_handle() const               { return _module; }
+  void             set_module(CLDOopHandle j)             { _module = j; }
 
   // The shared ProtectionDomain reference is set once the VM loads a shared class
   // originated from the current Module. The referenced ProtectionDomain object is
   // created by the ClassLoader when loading a class (shared or non-shared) from the
   // Module for the first time. This ProtectionDomain object is used for all
   // classes from the Module loaded by the same ClassLoader.
-  oop              shared_protection_domain();
+  oop              shared_protection_domain() const;
+  oop              shared_protection_domain_no_keepalive() const;
   void             set_shared_protection_domain(ClassLoaderData *loader_data, Handle pd);
 
   ClassLoaderData* loader_data() const                 { return _loader_data; }
@@ -259,7 +261,7 @@ public:
   }
 
   static bool javabase_defined() { return ((_javabase_module != nullptr) &&
-                                           (_javabase_module->module() != nullptr)); }
+                                           (_javabase_module->module_no_keepalive() != nullptr)); }
   static void finalize_javabase(Handle module_handle, Symbol* version, Symbol* location);
   static void patch_javabase_entries(JavaThread* current, Handle module_handle);
 

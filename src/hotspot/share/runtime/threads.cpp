@@ -183,7 +183,7 @@ static const char* get_java_version_info(InstanceKlass* ik,
                ik->find_local_field(field_name,
                                     vmSymbols::string_signature(), &fd);
   if (found) {
-    oop name_oop = ik->java_mirror()->obj_field(fd.offset());
+    oop name_oop = ik->java_mirror_no_keepalive()->obj_field(fd.offset());
     if (name_oop == nullptr) {
       return nullptr;
     }

@@ -393,7 +393,7 @@ void ConstantPool::remove_unshareable_info() {
   if (cache() != nullptr) {
     set_resolved_reference_length(
         resolved_references() != nullptr ? resolved_references()->length() : 0);
-    set_resolved_references(OopHandle());
+    set_resolved_references(CLDOopHandle());
   }
   remove_unshareable_entries();
 }
@@ -416,7 +416,7 @@ static const char* get_type(Klass* k) {
     type = "prim";
   } else {
     InstanceKlass* src_ik = InstanceKlass::cast(src_k);
-    oop loader = src_ik->class_loader();
+    oop loader = src_ik->class_loader_no_keepalive();
     if (loader == nullptr) {
       type = "boot";
     } else if (loader == SystemDictionary::java_platform_loader()) {

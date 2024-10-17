@@ -531,10 +531,10 @@ bool Modules::check_archived_module_oop(oop orig_module_obj) {
       assert(!loader_data->is_boot_class_loader_data(), "unnamed module for boot loader should be not archived");
       assert(!orig_module_ent->has_been_archived(), "sanity");
 
-      if (SystemDictionary::is_platform_class_loader(loader_data->class_loader())) {
+      if (SystemDictionary::is_platform_class_loader(loader_data->class_loader_no_keepalive())) {
         assert(!_seen_platform_unnamed_module, "only once");
         _seen_platform_unnamed_module = true;
-      } else if (SystemDictionary::is_system_class_loader(loader_data->class_loader())) {
+      } else if (SystemDictionary::is_system_class_loader(loader_data->class_loader_no_keepalive())) {
         assert(!_seen_system_unnamed_module, "only once");
         _seen_system_unnamed_module = true;
       } else {
@@ -628,11 +628,11 @@ void Modules::define_archived_modules(Handle h_platform_loader, Handle h_system_
   }
 
   ClassLoaderData* platform_loader_data = SystemDictionary::register_loader(h_platform_loader);
-  SystemDictionary::set_platform_loader(platform_loader_data);
+  SystemDictionary::set_platform_loader(platform_loader_data->class_loader_handle().handle());
   ClassLoaderDataShared::restore_java_platform_loader_from_archive(platform_loader_data);
 
   ClassLoaderData* system_loader_data = SystemDictionary::register_loader(h_system_loader);
-  SystemDictionary::set_system_loader(system_loader_data);
+  SystemDictionary::set_system_loader(system_loader_data->class_loader_handle().handle());
   // system_loader_data here is always an instance of jdk.internal.loader.ClassLoader$AppClassLoader.
   // However, if -Djava.system.class.loader=xxx is specified, java_platform_loader() would
   // be an instance of a user-defined class, so make sure this never happens.

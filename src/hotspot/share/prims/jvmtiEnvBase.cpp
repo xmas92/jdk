@@ -2321,12 +2321,12 @@ JvmtiMonitorClosure::do_monitor(ObjectMonitor* mon) {
   }
 }
 
-GrowableArray<OopHandle>* JvmtiModuleClosure::_tbl = nullptr;
+GrowableArray<CLDOopHandle>* JvmtiModuleClosure::_tbl = nullptr;
 
 void JvmtiModuleClosure::do_module(ModuleEntry* entry) {
   assert_locked_or_safepoint(Module_lock);
-  OopHandle module = entry->module_handle();
-  guarantee(module.resolve() != nullptr, "module object is null");
+  CLDOopHandle module = entry->module_handle();
+  guarantee(module.peek() != nullptr, "module object is null");
   _tbl->push(module);
 }
 
@@ -2336,7 +2336,7 @@ JvmtiModuleClosure::get_all_modules(JvmtiEnv* env, jint* module_count_ptr, jobje
   MutexLocker mcld(ClassLoaderDataGraph_lock);
   MutexLocker ml(Module_lock);
 
-  _tbl = new GrowableArray<OopHandle>(77);
+  _tbl = new GrowableArray<CLDOopHandle>(77);
   if (_tbl == nullptr) {
     return JVMTI_ERROR_OUT_OF_MEMORY;
   }

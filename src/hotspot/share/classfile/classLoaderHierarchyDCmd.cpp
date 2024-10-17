@@ -497,7 +497,7 @@ public:
       return;
     }
 
-    const oop loader_oop = cld->class_loader();
+    const oop loader_oop = cld->class_loader_no_keepalive();
 
     LoaderTreeNode* info = find_node_or_add_empty_node(loader_oop);
     assert(info != nullptr, "must be");

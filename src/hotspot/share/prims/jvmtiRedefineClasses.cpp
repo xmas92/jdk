@@ -1308,7 +1308,7 @@ class RedefineVerifyMark : public StackObj {
  private:
   JvmtiThreadState* _state;
   Klass*            _scratch_class;
-  OopHandle         _scratch_mirror;
+  CLDOopHandle      _scratch_mirror;
 
  public:
 
@@ -4411,7 +4411,7 @@ void VM_RedefineClasses::redefine_single_class(Thread* current, jclass the_jclas
 
   if (EventClassRedefinition::is_enabled()) {
     EventClassRedefinition event;
-    event.set_classModificationCount(java_lang_Class::classRedefinedCount(the_class->java_mirror()));
+    event.set_classModificationCount(java_lang_Class::classRedefinedCount(the_class->java_mirror_no_keepalive()));
     event.set_redefinedClass(the_class);
     event.set_redefinitionId(_id);
     event.commit();
@@ -4423,10 +4423,10 @@ void VM_RedefineClasses::redefine_single_class(Thread* current, jclass the_jclas
     // direct and indirect subclasses of the_class
     log_info(redefine, class, load)
       ("redefined name=%s, count=%d (avail_mem=" UINT64_FORMAT "K)",
-       the_class->external_name(), java_lang_Class::classRedefinedCount(the_class->java_mirror()), os::available_memory() >> 10);
+       the_class->external_name(), java_lang_Class::classRedefinedCount(the_class->java_mirror_no_keepalive()), os::available_memory() >> 10);
     Events::log_redefinition(current, "redefined class name=%s, count=%d",
                              the_class->external_name(),
-                             java_lang_Class::classRedefinedCount(the_class->java_mirror()));
+                             java_lang_Class::classRedefinedCount(the_class->java_mirror_no_keepalive()));
 
   }
   _timer_rsc_phase2.stop();
@@ -4441,7 +4441,7 @@ void VM_RedefineClasses::increment_class_counter(InstanceKlass* ik) {
     // Only update instanceKlasses
     Klass* sub = iter.klass();
     if (sub->is_instance_klass()) {
-      oop class_mirror = InstanceKlass::cast(sub)->java_mirror();
+      oop class_mirror = InstanceKlass::cast(sub)->java_mirror_no_keepalive();
       Klass* class_oop = java_lang_Class::as_Klass(class_mirror);
       int new_count = java_lang_Class::classRedefinedCount(class_mirror) + 1;
       java_lang_Class::set_classRedefinedCount(class_mirror, new_count);

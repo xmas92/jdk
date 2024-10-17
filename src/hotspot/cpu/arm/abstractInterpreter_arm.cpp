@@ -155,5 +155,5 @@ void AbstractInterpreter::layout_activation(Method* method,
   *interpreter_frame->interpreter_frame_cache_addr() =
     method->constants()->cache();
   *interpreter_frame->interpreter_frame_mirror_addr() =
-    method->method_holder()->java_mirror();
+    method->method_holder()->java_mirror_no_keepalive();
 }

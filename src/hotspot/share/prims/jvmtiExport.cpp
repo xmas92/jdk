@@ -940,7 +940,7 @@ class JvmtiClassFileLoadHookPoster : public StackObj {
         ModuleEntry* module_entry = InstanceKlass::cast(klass)->module();
         assert(module_entry != nullptr, "module_entry should always be set");
         if (module_entry->is_named() &&
-            module_entry->module() != nullptr &&
+            module_entry->module_no_keepalive() != nullptr &&
             !module_entry->has_default_read_edges()) {
           if (!module_entry->set_has_default_read_edges()) {
             // We won a potential race.

@@ -1476,7 +1476,7 @@ methodHandle Method::make_method_handle_intrinsic(vmIntrinsics::ID iid,
 }
 
 Klass* Method::check_non_bcp_klass(Klass* klass) {
-  if (klass != nullptr && klass->class_loader() != nullptr) {
+  if (klass != nullptr && klass->class_loader_no_keepalive() != nullptr) {
     if (klass->is_objArray_klass())
       klass = ObjArrayKlass::cast(klass)->bottom_klass();
     return klass;
@@ -1599,7 +1599,7 @@ vmSymbolID Method::klass_id_for_intrinsics(const Klass* holder) {
   // exception: the AES intrinsics come from lib/ext/sunjce_provider.jar
   // which does not use the class default class loader so we check for its loader here
   const InstanceKlass* ik = InstanceKlass::cast(holder);
-  if ((ik->class_loader() != nullptr) && !SystemDictionary::is_platform_class_loader(ik->class_loader())) {
+  if ((ik->class_loader_no_keepalive() != nullptr) && !SystemDictionary::is_platform_class_loader(ik->class_loader_no_keepalive())) {
     return vmSymbolID::NO_SID;   // regardless of name, no intrinsics here
   }
 
@@ -2172,9 +2172,9 @@ jmethodID Method::jmethod_id() {
 void Method::change_method_associated_with_jmethod_id(jmethodID jmid, Method* new_method) {
   // Can't assert the method_holder is the same because the new method has the
   // scratch method holder.
-  assert(resolve_jmethod_id(jmid)->method_holder()->class_loader()
-           == new_method->method_holder()->class_loader() ||
-           new_method->method_holder()->class_loader() == nullptr, // allow Unsafe substitution
+  assert(resolve_jmethod_id(jmid)->method_holder()->class_loader_no_keepalive()
+           == new_method->method_holder()->class_loader_no_keepalive() ||
+           new_method->method_holder()->class_loader_no_keepalive() == nullptr, // allow Unsafe substitution
          "changing to a different class loader");
   // Just change the method in place, jmethodID pointer doesn't change.
   *((Method**)jmid) = new_method;

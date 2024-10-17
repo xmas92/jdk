@@ -196,7 +196,7 @@ void AbstractInterpreter::layout_activation(Method* method,
   }
 
   interpreter_frame->interpreter_frame_set_method(method);
-  interpreter_frame->interpreter_frame_set_mirror(method->method_holder()->java_mirror());
+  interpreter_frame->interpreter_frame_set_mirror(method->method_holder()->java_mirror_no_keepalive());
   interpreter_frame->interpreter_frame_set_locals(locals_base);
   interpreter_frame->interpreter_frame_set_monitor_end((BasicObjectLock *)monitor);
   *interpreter_frame->interpreter_frame_cache_addr() = method->constants()->cache();

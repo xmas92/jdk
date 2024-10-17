@@ -309,7 +309,7 @@ void ClassLoaderExt::record_result(const s2 classpath_index, InstanceKlass* resu
   assert(CDSConfig::is_dumping_archive(), "sanity");
 
   // We need to remember where the class comes from during dumping.
-  oop loader = result->class_loader();
+  oop loader = result->class_loader_no_keepalive();
   s2 classloader_type = ClassLoader::BOOT_LOADER;
   if (SystemDictionary::is_system_class_loader(loader)) {
     classloader_type = ClassLoader::APP_LOADER;

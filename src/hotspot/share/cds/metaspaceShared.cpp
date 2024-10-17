@@ -843,7 +843,7 @@ bool MetaspaceShared::try_link_class(JavaThread* current, InstanceKlass* ik) {
   if (!ik->is_shared() && ik->is_loaded() && !ik->is_linked() && ik->can_be_verified_at_dumptime() &&
       !SystemDictionaryShared::has_class_failed_verification(ik)) {
     bool saved = BytecodeVerificationLocal;
-    if (ik->is_shared_unregistered_class() && ik->class_loader() == nullptr) {
+    if (ik->is_shared_unregistered_class() && ik->class_loader_no_keepalive() == nullptr) {
       // The verification decision is based on BytecodeVerificationRemote
       // for non-system classes. Since we are using the null classloader
       // to load non-system classes for customized class loaders during dumping,

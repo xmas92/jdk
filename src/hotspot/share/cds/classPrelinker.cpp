@@ -134,7 +134,7 @@ bool ClassPrelinker::is_class_resolution_deterministic(InstanceKlass* cp_holder,
     }
 
     if (is_vm_class(ik)) {
-      if (ik->class_loader() != cp_holder->class_loader()) {
+      if (ik->class_loader_no_keepalive() != cp_holder->class_loader_no_keepalive()) {
         // At runtime, cp_holder() may not be able to resolve to the same
         // ik. For example, a different version of ik may be defined in
         // cp->pool_holder()'s loader using MethodHandles.Lookup.defineClass().

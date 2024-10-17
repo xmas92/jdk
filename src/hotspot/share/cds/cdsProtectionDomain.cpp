@@ -258,7 +258,7 @@ Handle CDSProtectionDomain::get_shared_protection_domain(Handle class_loader,
 Handle CDSProtectionDomain::get_shared_protection_domain(Handle class_loader,
                                                          ModuleEntry* mod, TRAPS) {
   ClassLoaderData *loader_data = mod->loader_data();
-  if (mod->shared_protection_domain() == nullptr) {
+  if (mod->shared_protection_domain_no_keepalive() == nullptr) {
     Symbol* location = mod->location();
     if (location != nullptr) {
       Handle location_string = java_lang_String::create_from_symbol(

@@ -188,7 +188,7 @@ void LambdaFormInvokers::regenerate_class(char* class_name, ClassFileStream& st,
                                                    cl_info,
                                                    CHECK);
 
-  assert(result->java_mirror() != nullptr, "must be");
+  assert(result->java_mirror_no_keepalive() != nullptr, "must be");
   RegeneratedClasses::add_class(InstanceKlass::cast(klass), result);
 
   result->add_to_hierarchy(THREAD);

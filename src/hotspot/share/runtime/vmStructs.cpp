@@ -64,6 +64,7 @@
 #include "oops/array.hpp"
 #include "oops/arrayKlass.hpp"
 #include "oops/arrayOop.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "oops/constMethod.hpp"
 #include "oops/constantPool.hpp"
 #include "oops/cpCache.hpp"
@@ -221,7 +222,7 @@
   nonstatic_field(ConstantPool,                _major_version,                                u2)                                    \
   nonstatic_field(ConstantPool,                _generic_signature_index,                      u2)                                    \
   nonstatic_field(ConstantPool,                _source_file_name_index,                       u2)                                    \
-  nonstatic_field(ConstantPoolCache,           _resolved_references,                          OopHandle)                             \
+  nonstatic_field(ConstantPoolCache,           _resolved_references,                          CLDOopHandle)                          \
   nonstatic_field(ConstantPoolCache,           _reference_map,                                Array<u2>*)                            \
   nonstatic_field(ConstantPoolCache,           _constant_pool,                                ConstantPool*)                         \
   nonstatic_field(ConstantPoolCache,           _resolved_field_entries,                       Array<ResolvedFieldEntry>*)            \
@@ -262,7 +263,7 @@
   nonstatic_field(Klass,                       _secondary_super_cache,                        Klass*)                                \
   nonstatic_field(Klass,                       _secondary_supers,                             Array<Klass*>*)                        \
   nonstatic_field(Klass,                       _primary_supers[0],                            Klass*)                                \
-  nonstatic_field(Klass,                       _java_mirror,                                  OopHandle)                             \
+  nonstatic_field(Klass,                       _java_mirror,                                  CLDOopHandle)                          \
   nonstatic_field(Klass,                       _modifier_flags,                               jint)                                  \
   nonstatic_field(Klass,                       _super,                                        Klass*)                                \
   volatile_nonstatic_field(Klass,              _subklass,                                     Klass*)                                \
@@ -332,6 +333,7 @@
   nonstatic_field(Symbol,                      _body[0],                                      u1)                                    \
   nonstatic_field(TypeArrayKlass,              _max_length,                                   jint)                                  \
   nonstatic_field(OopHandle,                   _obj,                                          oop*)                                  \
+  nonstatic_field(CLDOopHandle,                _handle,                                       OopHandle)                             \
   nonstatic_field(Annotations,                 _class_annotations,                            Array<u1>*)                            \
   nonstatic_field(Annotations,                 _fields_annotations,                           Array<Array<u1>*>*)                    \
   nonstatic_field(Annotations,                 _class_type_annotations,                       Array<u1>*)                            \
@@ -464,7 +466,7 @@
   /*******************/                                                                                                              \
   /* ClassLoaderData */                                                                                                              \
   /*******************/                                                                                                              \
-  nonstatic_field(ClassLoaderData,             _class_loader,                                 OopHandle)                             \
+  nonstatic_field(ClassLoaderData,             _class_loader,                                 CLDOopHandle)                          \
   nonstatic_field(ClassLoaderData,             _next,                                         ClassLoaderData*)                      \
   volatile_nonstatic_field(ClassLoaderData,    _klasses,                                      Klass*)                                \
   nonstatic_field(ClassLoaderData,             _has_class_mirror_holder,                      bool)                                  \
@@ -1200,6 +1202,7 @@
   declare_oop_type(typeArrayOop)                                          \
                                                                           \
   declare_toplevel_type(OopHandle)                                        \
+  declare_toplevel_type(CLDOopHandle)                                     \
                                                                           \
   /**********************************/                                    \
   /* Method related data structures */                                    \

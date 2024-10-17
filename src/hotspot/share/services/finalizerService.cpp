@@ -79,7 +79,7 @@ static oop codesource(oop pd) {
 
 static const char* get_codesource(const InstanceKlass* ik) {
   assert(ik != nullptr, "invariant");
-  oop pd = java_lang_Class::protection_domain(ik->java_mirror());
+  oop pd = java_lang_Class::protection_domain(ik->java_mirror_no_keepalive());
   if (pd == nullptr) {
     return nullptr;
   }

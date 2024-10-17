@@ -198,15 +198,15 @@ ClassLoaderData* SystemDictionary::register_loader(Handle class_loader, bool cre
   }
 }
 
-void SystemDictionary::set_system_loader(ClassLoaderData *cld) {
+void SystemDictionary::set_system_loader(OopHandle loader) {
   assert(_java_system_loader.is_empty(), "already set!");
-  _java_system_loader = cld->class_loader_handle();
+  _java_system_loader = loader;
 
 }
 
-void SystemDictionary::set_platform_loader(ClassLoaderData *cld) {
+void SystemDictionary::set_platform_loader(OopHandle loader) {
   assert(_java_platform_loader.is_empty(), "already set!");
-  _java_platform_loader = cld->class_loader_handle();
+  _java_platform_loader = loader;
 }
 
 // ----------------------------------------------------------------------------
@@ -457,7 +457,7 @@ InstanceKlass* SystemDictionary::resolve_with_circularity_detection(Symbol* clas
     if (klassk != nullptr && is_superclass &&
        ((quicksuperk = klassk->java_super()) != nullptr) &&
        ((quicksuperk->name() == next_name) &&
-         (quicksuperk->class_loader() == class_loader()))) {
+         (quicksuperk->class_loader_no_keepalive() == class_loader()))) {
       return quicksuperk;
     } else {
       // Must check ClassCircularity before checking if superclass is already loaded.
@@ -1134,7 +1134,7 @@ InstanceKlass* SystemDictionary::load_shared_lambda_proxy_class(InstanceKlass* i
            "lambda proxy class and its nest host must be in the same package");
     // The lambda proxy class and its nest host have the same class loader and class loader data,
     // as verified in SystemDictionaryShared::add_lambda_proxy_class()
-    assert(shared_nest_host->class_loader() == class_loader(), "mismatched class loader");
+    assert(shared_nest_host->class_loader_no_keepalive() == class_loader(), "mismatched class loader");
     assert(shared_nest_host->class_loader_data() == class_loader_data(class_loader), "mismatched class loader data");
     ik->set_nest_host(shared_nest_host);
   }
@@ -1369,7 +1369,7 @@ InstanceKlass* SystemDictionary::load_instance_class(Symbol* name,
   // If everything was OK (no exceptions, no null return value), and
   // class_loader is NOT the defining loader, do a little more bookkeeping.
   if (loaded_class != nullptr &&
-      loaded_class->class_loader() != class_loader()) {
+      loaded_class->class_loader_no_keepalive() != class_loader()) {
 
     ClassLoaderData* loader_data = class_loader_data(class_loader);
     check_constraints(loaded_class, loader_data, false, CHECK_NULL);
@@ -1402,7 +1402,7 @@ static void post_class_define_event(InstanceKlass* k, const ClassLoaderData* def
 void SystemDictionary::define_instance_class(InstanceKlass* k, Handle class_loader, TRAPS) {
 
   ClassLoaderData* loader_data = k->class_loader_data();
-  assert(loader_data->class_loader() == class_loader(), "they must be the same");
+  assert(loader_data->class_loader_no_keepalive() == class_loader(), "they must be the same");
 
   // Bootstrap and other parallel classloaders don't acquire a lock,
   // they use placeholder token.
@@ -1431,7 +1431,7 @@ void SystemDictionary::define_instance_class(InstanceKlass* k, Handle class_load
   // fail with an OutOfMemoryError (if it does, we will *not* put this
   // class in the dictionary and will not update the class hierarchy).
   // JVMTI FollowReferences needs to find the classes this way.
-  if (k->class_loader() != nullptr) {
+  if (k->class_loader_no_keepalive() != nullptr) {
     methodHandle m(THREAD, Universe::loader_addClass_method());
     JavaValue result(T_VOID);
     JavaCallArguments args(class_loader);

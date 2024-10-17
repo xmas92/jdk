@@ -270,7 +270,7 @@
   nonstatic_field(Klass,                       _layout_helper,                                jint)                                  \
   nonstatic_field(Klass,                       _name,                                         Symbol*)                               \
   volatile_nonstatic_field(Klass,              _next_sibling,                                 Klass*)                                \
-  nonstatic_field(Klass,                       _java_mirror,                                  OopHandle)                             \
+  nonstatic_field(Klass,                       _java_mirror,                                  CLDOopHandle)                          \
   nonstatic_field(Klass,                       _modifier_flags,                               jint)                                  \
   nonstatic_field(Klass,                       _access_flags,                                 AccessFlags)                           \
   nonstatic_field(Klass,                       _class_loader_data,                            ClassLoaderData*)                      \

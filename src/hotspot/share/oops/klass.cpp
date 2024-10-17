@@ -790,7 +790,7 @@ void Klass::restore_unshareable_info(ClassLoaderData* loader_data, Handle protec
   JFR_ONLY(RESTORE_ID(this);)
   if (log_is_enabled(Trace, cds, unshareable)) {
     ResourceMark rm(THREAD);
-    oop class_loader = loader_data->class_loader();
+    oop class_loader = loader_data->class_loader_no_keepalive();
     log_trace(cds, unshareable)("restore: %s with class loader: %s", external_name(),
       class_loader != nullptr ? class_loader->klass()->external_name() : "boot");
   }
@@ -842,7 +842,7 @@ void Klass::restore_unshareable_info(ClassLoaderData* loader_data, Handle protec
 
   // Only recreate it if not present.  A previous attempt to restore may have
   // gotten an OOM later but keep the mirror if it was created.
-  if (java_mirror() == nullptr) {
+  if (java_mirror_no_keepalive() == nullptr) {
     ResourceMark rm(THREAD);
     log_trace(cds, mirror)("Recreate mirror for %s", external_name());
     java_lang_Class::create_mirror(this, loader, module_handle, protection_domain, Handle(), CHECK);
@@ -1137,7 +1137,7 @@ const char* Klass::class_in_module_of_loader(bool use_are, bool include_parent_l
   const char* parent_loader_name_and_id = "";
   if (include_parent_loader &&
       !cld->is_builtin_class_loader_data()) {
-    oop parent_loader = java_lang_ClassLoader::parent(class_loader());
+    oop parent_loader = java_lang_ClassLoader::parent(class_loader_no_keepalive());
     ClassLoaderData *parent_cld = ClassLoaderData::class_loader_data_or_null(parent_loader);
     // The parent loader's ClassLoaderData could be null if it is
     // a delegating class loader that has never defined a class.

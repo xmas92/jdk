@@ -1286,7 +1286,7 @@ void ClassLoader::record_result(JavaThread* current, InstanceKlass* ik,
     return;
   }
 
-  oop loader = ik->class_loader();
+  oop loader = ik->class_loader_no_keepalive();
   char* src = (char*)stream->source();
   if (src == nullptr) {
     if (loader == nullptr) {

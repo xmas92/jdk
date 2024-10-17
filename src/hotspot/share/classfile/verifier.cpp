@@ -167,8 +167,8 @@ bool Verifier::verify(InstanceKlass* klass, bool should_verify_class, TRAPS) {
   // effect (sic!) for external_name(), but instead of doing that, we opt to
   // explicitly push the hashcode in here. This is signify the following block
   // is IMPORTANT:
-  if (klass->java_mirror() != nullptr) {
-    klass->java_mirror()->identity_hash();
+  if (klass->java_mirror_no_keepalive() != nullptr) {
+    klass->java_mirror_no_keepalive()->identity_hash();
   }
 
   if (!is_eligible_for_verification(klass, should_verify_class)) {
@@ -280,7 +280,7 @@ bool Verifier::is_eligible_for_verification(InstanceKlass* klass, bool should_ve
   bool is_reflect_accessor = refl_serialization_ctor_klass != nullptr &&
                                 klass->is_subtype_of(refl_serialization_ctor_klass);
 
-  return (should_verify_for(klass->class_loader(), should_verify_class) &&
+  return (should_verify_for(klass->class_loader_no_keepalive(), should_verify_class) &&
     // return if the class is a bootstrapping class
     // or defineClass specified not to verify by default (flags override passed arg)
     // We need to skip the following four for bootstraping

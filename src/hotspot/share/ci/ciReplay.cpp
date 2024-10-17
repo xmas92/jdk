@@ -1034,7 +1034,7 @@ class CompileReplay : public StackObj {
     InstanceKlass* k = (InstanceKlass *)parse_klass(CHECK);
 
     if (k == nullptr || ReplaySuppressInitializers == 0 ||
-        (ReplaySuppressInitializers == 2 && k->class_loader() == nullptr)) {
+        (ReplaySuppressInitializers == 2 && k->class_loader_no_keepalive() == nullptr)) {
       skip_remaining();
       return;
     }

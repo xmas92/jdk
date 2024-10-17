@@ -128,7 +128,7 @@ bool DictionaryEntry::is_in_package_access_cache(oop protection_domain) const {
   // This cannot safepoint while reading the protection domain set.
   NoSafepointVerifier nsv;
 #ifdef ASSERT
-  if (protection_domain == instance_klass()->protection_domain()) {
+  if (protection_domain == instance_klass()->protection_domain_no_keepalive()) {
     // Ensure this doesn't show up in the package_access_cache (invariant)
     bool in_package_access_cache = false;
     for (ProtectionDomainEntry* current = package_access_cache_acquire();
@@ -146,7 +146,7 @@ bool DictionaryEntry::is_in_package_access_cache(oop protection_domain) const {
   }
 #endif /* ASSERT */
 
-  if (protection_domain == instance_klass()->protection_domain()) {
+  if (protection_domain == instance_klass()->protection_domain_no_keepalive()) {
     // Succeeds trivially
     return true;
   }
@@ -175,7 +175,7 @@ void DictionaryEntry::add_to_package_access_cache(ClassLoaderData* loader_data, 
     LogStream ls(lt);
     ls.print("adding protection domain that can access class %s", instance_klass()->name()->as_C_string());
     ls.print(" class loader: ");
-    loader_data->class_loader()->print_value_on(&ls);
+    loader_data->class_loader_no_keepalive()->print_value_on(&ls);
     ls.print(" protection domain: ");
     protection_domain->print_value_on(&ls);
     ls.print(" ");
@@ -437,7 +437,7 @@ void Dictionary::remove_from_package_access_cache(GrowableArray<ProtectionDomain
             // Print out trace information
             LogStream ls(lt);
             ls.print_cr("PD in set is not alive:");
-            ls.print("class loader: "); _loader_data->class_loader()->print_value_on(&ls);
+            ls.print("class loader: "); _loader_data->class_loader_no_keepalive()->print_value_on(&ls);
             ls.print(" loading: "); probe->instance_klass()->print_value_on(&ls);
             ls.cr();
           }

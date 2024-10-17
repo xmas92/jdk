@@ -2436,7 +2436,7 @@ JVM_ENTRY(jboolean, JVM_DesiredAssertionStatus(JNIEnv *env, jclass unused, jclas
 
   ResourceMark rm(THREAD);
   const char* name = k->name()->as_C_string();
-  bool system_class = k->class_loader() == nullptr;
+  bool system_class = k->class_loader_no_keepalive() == nullptr;
   return JavaAssertions::enabled(name, system_class);
 
 JVM_END

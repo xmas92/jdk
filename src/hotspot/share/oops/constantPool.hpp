@@ -27,9 +27,9 @@
 
 #include "memory/allocation.hpp"
 #include "oops/arrayOop.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "oops/cpCache.hpp"
 #include "oops/objArrayOop.hpp"
-#include "oops/oopHandle.hpp"
 #include "oops/symbol.hpp"
 #include "oops/typeArrayOop.hpp"
 #include "runtime/handles.hpp"
@@ -786,7 +786,7 @@ private:
 
  private:
 
-  void set_resolved_references(OopHandle s) { _cache->set_resolved_references(s); }
+  void set_resolved_references(CLDOopHandle s) { _cache->set_resolved_references(s); }
   Array<u2>* reference_map() const        {  return (_cache == nullptr) ? nullptr :  _cache->reference_map(); }
   void set_reference_map(Array<u2>* o)    { _cache->set_reference_map(o); }
 

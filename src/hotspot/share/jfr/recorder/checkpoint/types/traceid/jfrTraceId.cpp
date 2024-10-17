@@ -92,7 +92,7 @@ static void check_klass(const Klass* klass) {
   const Symbol* const klass_name = klass->name();
 
   if (!found_jdk_internal_event_klass) {
-    if (jdk_internal_event_sym == klass_name && klass->class_loader() == nullptr) {
+    if (jdk_internal_event_sym == klass_name && klass->class_loader_no_keepalive() == nullptr) {
       found_jdk_internal_event_klass = true;
       JfrTraceId::tag_as_jdk_jfr_event(klass);
       return;
@@ -100,7 +100,7 @@ static void check_klass(const Klass* klass) {
   }
 
   if (!found_jdk_jfr_event_klass) {
-    if (jdk_jfr_event_sym == klass_name && klass->class_loader() == nullptr) {
+    if (jdk_jfr_event_sym == klass_name && klass->class_loader_no_keepalive() == nullptr) {
       found_jdk_jfr_event_klass = true;
       JfrTraceId::tag_as_jdk_jfr_event(klass);
       return;

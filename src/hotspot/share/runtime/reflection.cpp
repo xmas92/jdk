@@ -406,9 +406,9 @@ static bool can_relax_access_check_for(const Klass* accessor,
     accessor_ik->major_version() < Verifier::NO_RELAX_ACCESS_CTRL_CHECK_VERSION &&
     accessee_ik->major_version() < Verifier::NO_RELAX_ACCESS_CTRL_CHECK_VERSION) {
     return classloader_only &&
-      Verifier::relax_access_for(accessor_ik->class_loader()) &&
-      accessor_ik->protection_domain() == accessee_ik->protection_domain() &&
-      accessor_ik->class_loader() == accessee_ik->class_loader();
+      Verifier::relax_access_for(accessor_ik->class_loader_no_keepalive()) &&
+      accessor_ik->protection_domain_no_keepalive() == accessee_ik->protection_domain_no_keepalive() &&
+      accessor_ik->class_loader_no_keepalive() == accessee_ik->class_loader_no_keepalive();
   }
 
   return false;
@@ -548,7 +548,7 @@ char* Reflection::verify_class_access_msg(const Klass* current_class,
           current_class_name, module_from_name, new_class_name,
           module_to_name, module_from_name, module_to_name);
       } else {
-        oop jlm = module_to->module();
+        oop jlm = module_to->module_no_keepalive();
         assert(jlm != nullptr, "Null jlm in module_to ModuleEntry");
         intptr_t identity_hash = jlm->identity_hash();
         size_t len = 160 + strlen(current_class_name) + 2*strlen(module_from_name) +
@@ -575,7 +575,7 @@ char* Reflection::verify_class_access_msg(const Klass* current_class,
           current_class_name, module_from_name, new_class_name,
           module_to_name, module_to_name, package_name, module_from_name);
       } else {
-        oop jlm = module_from->module();
+        oop jlm = module_from->module_no_keepalive();
         assert(jlm != nullptr, "Null jlm in module_from ModuleEntry");
         intptr_t identity_hash = jlm->identity_hash();
         size_t len = 170 + strlen(current_class_name) + strlen(new_class_name) +

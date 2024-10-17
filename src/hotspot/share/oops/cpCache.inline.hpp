@@ -47,7 +47,7 @@ inline ConstantPoolCache::ConstantPoolCache(const intStack& invokedynamic_refere
 }
 
 inline objArrayOop ConstantPoolCache::resolved_references() {
-  oop obj = _resolved_references.resolve();
+  oop obj = _resolved_references.peek();
   assert(obj == nullptr || obj->is_objArray(), "should be objArray");
   return (objArrayOop)obj;
 }

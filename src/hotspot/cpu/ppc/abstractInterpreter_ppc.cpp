@@ -138,7 +138,7 @@ void AbstractInterpreter::layout_activation(Method* method,
   intptr_t* top_frame_sp = is_top_frame ? sp : sp + (frame::parent_ijava_frame_abi_size - frame::top_ijava_frame_abi_size) / Interpreter::stackElementSize;
 
   interpreter_frame->interpreter_frame_set_method(method);
-  interpreter_frame->interpreter_frame_set_mirror(method->method_holder()->java_mirror());
+  interpreter_frame->interpreter_frame_set_mirror(method->method_holder()->java_mirror_no_keepalive());
   interpreter_frame->interpreter_frame_set_locals(locals_base);
   interpreter_frame->interpreter_frame_set_cpcache(method->constants()->cache());
   interpreter_frame->interpreter_frame_set_esp(esp);

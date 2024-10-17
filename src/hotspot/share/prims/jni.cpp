@@ -330,7 +330,7 @@ JNI_ENTRY(jclass, jni_FindClass(JNIEnv *env, const char *name))
   if (k != nullptr) {
     // Special handling to make sure JNI_OnLoad and JNI_OnUnload are executed
     // in the correct class context.
-    if (k->class_loader() == nullptr &&
+    if (k->class_loader_no_keepalive() == nullptr &&
         k->name() == vmSymbols::jdk_internal_loader_NativeLibraries()) {
       JavaValue result(T_OBJECT);
       JavaCalls::call_static(&result, k,
@@ -2647,7 +2647,7 @@ JNI_ENTRY(jint, jni_RegisterNatives(JNIEnv *env, jclass clazz,
 
   // Only instanceKlasses can have native methods
   if (k->is_instance_klass()) {
-    oop cl = k->class_loader();
+    oop cl = k->class_loader_no_keepalive();
     InstanceKlass* ik = InstanceKlass::cast(k);
     // Check for a platform class
     if ((cl ==  nullptr || SystemDictionary::is_platform_class_loader(cl)) &&
@@ -2655,7 +2655,7 @@ JNI_ENTRY(jint, jni_RegisterNatives(JNIEnv *env, jclass clazz,
       Klass* caller = thread->security_get_caller_class(1);
       // If no caller class, or caller class has a different loader, then
       // issue a warning below.
-      do_warning = (caller == nullptr) || caller->class_loader() != cl;
+      do_warning = (caller == nullptr) || caller->class_loader_no_keepalive() != cl;
     }
   }
 

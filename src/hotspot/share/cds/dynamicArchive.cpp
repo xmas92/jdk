@@ -256,7 +256,7 @@ void DynamicArchiveBuilder::sort_methods(InstanceKlass* ik) const {
     return;
   }
   assert(is_in_buffer_space(ik), "method sorting must be done on buffered class, not original class");
-  if (ik->java_mirror() == nullptr) {
+  if (ik->java_mirror_no_keepalive() == nullptr) {
     // null mirror means this class has already been visited and methods are already sorted
     return;
   }

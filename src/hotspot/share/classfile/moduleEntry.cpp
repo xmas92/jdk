@@ -51,6 +51,7 @@
 ModuleEntry* ModuleEntryTable::_javabase_module = nullptr;
 
 oop ModuleEntry::module() const { return _module.resolve(); }
+oop ModuleEntry::module_no_keepalive() const { return _module.peek(); }
 
 void ModuleEntry::set_location(Symbol* location) {
   // _location symbol's refcounts are managed by ModuleEntry,
@@ -108,8 +109,12 @@ void ModuleEntry::set_version(Symbol* version) {
 }
 
 // Returns the shared ProtectionDomain
-oop ModuleEntry::shared_protection_domain() {
+oop ModuleEntry::shared_protection_domain() const {
   return _shared_pd.resolve();
+}
+
+oop ModuleEntry::shared_protection_domain_no_keepalive() const {
+  return _shared_pd.peek();
 }
 
 // Set the shared ProtectionDomain atomically
@@ -496,10 +501,9 @@ void ModuleEntry::update_oops_in_archived_module(int root_oop_index) {
 
   _archived_module_index = root_oop_index;
 
-  assert(shared_protection_domain() == nullptr, "never set during -Xshare:dump");
+  assert(shared_protection_domain_no_keepalive() == nullptr, "never set during -Xshare:dump");
   // Clear handles and restore at run time. Handles cannot be archived.
-  OopHandle null_handle;
-  _module = null_handle;
+  _module = CLDOopHandle();
 
   // For verify_archived_module_entries()
   DEBUG_ONLY(_num_inited_module_entries++);
@@ -530,7 +534,7 @@ void ModuleEntry::restore_archived_oops(ClassLoaderData* loader_data) {
   // because it may be affected by archive relocation.
   java_lang_Module::set_module_entry(module_handle(), this);
 
-  assert(java_lang_Module::loader(module_handle()) == loader_data->class_loader(),
+  assert(java_lang_Module::loader(module_handle()) == loader_data->class_loader_no_keepalive(),
          "must be set in dump time");
 
   if (log_is_enabled(Info, cds, module)) {
@@ -743,7 +747,7 @@ void ModuleEntry::print(outputStream* st) {
   st->print_cr("entry " PTR_FORMAT " name %s module " PTR_FORMAT " loader %s version %s location %s strict %s",
                p2i(this),
                name() == nullptr ? UNNAMED_MODULE : name()->as_C_string(),
-               p2i(module()),
+               p2i(module_no_keepalive()),
                loader_data()->loader_name_and_id(),
                version() != nullptr ? version()->as_C_string() : "nullptr",
                location() != nullptr ? location()->as_C_string() : "nullptr",

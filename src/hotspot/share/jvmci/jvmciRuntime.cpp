@@ -1762,7 +1762,7 @@ Klass* JVMCIRuntime::get_klass_by_index_impl(const constantPoolHandle& cpool,
     // Calculate accessibility the hard way.
     if (k == nullptr) {
       is_accessible = false;
-    } else if (k->class_loader() != accessor->class_loader() &&
+    } else if (k->class_loader_no_keepalive() != accessor->class_loader_no_keepalive() &&
                get_klass_by_name_impl(accessor, cpool, k->name(), true) == nullptr) {
       // Loaded only remotely.  Not linked yet.
       is_accessible = false;

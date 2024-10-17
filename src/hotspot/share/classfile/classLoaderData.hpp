@@ -26,7 +26,7 @@
 #define SHARE_CLASSFILE_CLASSLOADERDATA_HPP
 
 #include "memory/allocation.hpp"
-#include "oops/oopHandle.hpp"
+#include "oops/cldOopHandle.hpp"
 #include "oops/weakHandle.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/mutex.hpp"
@@ -89,7 +89,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
 
     // Only one thread at a time can add, guarded by ClassLoaderData::metaspace_lock().
     // However, multiple threads can execute oops_do concurrently with add.
-    OopHandle add(oop o);
+    CLDOopHandle add(oop o);
     bool contains(oop p);
     NOT_PRODUCT(bool owner_of(oop* p);)
     void oops_do(OopClosure* f);
@@ -109,9 +109,9 @@ class ClassLoaderData : public CHeapObj<mtClass> {
 
   static ClassLoaderData * _the_null_class_loader_data;
 
-  WeakHandle _holder;       // The oop that determines lifetime of this class loader
-  OopHandle  _class_loader; // The instance of java/lang/ClassLoader associated with
-                            // this ClassLoaderData
+  WeakHandle   _holder;       // The oop that determines lifetime of this class loader
+  CLDOopHandle _class_loader; // The instance of java/lang/ClassLoader associated with
+                              // this ClassLoaderData
 
   ClassLoaderMetaspace * volatile _metaspace;  // Meta-space where meta-data defined by the
                                     // classes in the class loader are allocated.
@@ -286,7 +286,7 @@ private:
   bool is_builtin_class_loader_data() const;
   bool is_permanent_class_loader_data() const;
 
-  OopHandle class_loader_handle() const { return _class_loader; }
+  CLDOopHandle class_loader_handle() const { return _class_loader; }
 
   // The Metaspace is created lazily so may be null.  This
   // method will allocate a Metaspace if needed.
@@ -325,9 +325,9 @@ private:
   void print_value_on(outputStream* out) const;
   void verify();
 
-  OopHandle add_handle(Handle h);
-  void remove_handle(OopHandle h);
-  void init_handle_locked(OopHandle& pd, Handle h);  // used for concurrent access to ModuleEntry::_pd field
+  CLDOopHandle add_handle(Handle h);
+  void remove_handle(CLDOopHandle h);
+  void init_handle_locked(CLDOopHandle& pd, Handle h);  // used for concurrent access to ModuleEntry::_pd field
   void add_class(Klass* k, bool publicize = true);
   void remove_class(Klass* k);
   bool contains_klass(Klass* k);

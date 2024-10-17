@@ -541,7 +541,7 @@ void AbstractDumpWriter::write_id(u4 x) {
 
 // We use java mirror as the class ID
 void AbstractDumpWriter::write_classID(Klass* k) {
-  write_objectID(k->java_mirror());
+  write_objectID(k->java_mirror_no_keepalive());
 }
 
 void AbstractDumpWriter::finish_dump_segment() {
@@ -1114,7 +1114,7 @@ void DumperSupport::dump_static_fields(AbstractDumpWriter* writer, Klass* k) {
       writer->write_u1(sig2tag(sig));       // type
 
       // value
-      dump_field_value(writer, sig->char_at(0), ik->java_mirror(), fld.offset());
+      dump_field_value(writer, sig->char_at(0), ik->java_mirror_no_keepalive(), fld.offset());
     }
   }
 
@@ -1234,9 +1234,9 @@ void DumperSupport::dump_instance_class(AbstractDumpWriter* writer, Klass* k) {
     writer->write_classID(java_super);
   }
 
-  writer->write_objectID(ik->class_loader());
-  writer->write_objectID(ik->signers());
-  writer->write_objectID(ik->protection_domain());
+  writer->write_objectID(ik->class_loader_no_keepalive());
+  writer->write_objectID(ik->signers_no_keepalive());
+  writer->write_objectID(ik->protection_domain_no_keepalive());
 
   // reserved
   writer->write_objectID(oop(nullptr));
@@ -1280,9 +1280,9 @@ void DumperSupport::dump_array_class(AbstractDumpWriter* writer, Klass* k) {
   assert(java_super != nullptr, "checking");
   writer->write_classID(java_super);
 
-  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->class_loader());
-  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->signers());
-  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->protection_domain());
+  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->class_loader_no_keepalive());
+  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->signers_no_keepalive());
+  writer->write_objectID(ik == nullptr ? oop(nullptr) : ik->protection_domain_no_keepalive());
 
   writer->write_objectID(oop(nullptr));    // reserved
   writer->write_objectID(oop(nullptr));

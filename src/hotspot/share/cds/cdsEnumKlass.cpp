@@ -75,7 +75,7 @@ void CDSEnumKlass::handle_enum_obj(int level,
   ik->set_has_archived_enum_objs();
   ArchiveBuilder::get_buffered_klass(ik)->set_has_archived_enum_objs();
 
-  oop mirror = ik->java_mirror();
+  oop mirror = ik->java_mirror_no_keepalive();
   for (JavaFieldStream fs(ik); !fs.done(); fs.next()) {
     if (fs.access_flags().is_static()) {
       archive_static_field(level, subgraph_info, ik, mirror, fs);

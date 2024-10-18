@@ -37,6 +37,7 @@
 #include "runtime/init.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
+#include "utilities/copy.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
@@ -195,6 +196,25 @@ bool ZPhysicalMemory::uncommit_segment(int index, size_t size) {
   }
 
   return false;
+}
+
+void ZPhysicalMemory::mark_uninitialized() {
+  for (int i = 0; i < _segments.length(); i++) {
+    _segments.at(i).set_initialized(false);
+  }
+}
+
+void ZPhysicalMemory::clear_uninitialized(zoffset base) {
+  for (int i = 0; i < _segments.length(); i++) {
+    ZPhysicalMemorySegment& segment = _segments.at(i);
+
+    if (!segment.is_initialized()) {
+      Copy::fill_to_bytes((void *)ZOffset::address(base), segment.size());
+      segment.set_initialized(true);
+    }
+
+    base += segment.size();
+  }
 }
 
 ZPhysicalMemory ZPhysicalMemory::split(size_t size) {

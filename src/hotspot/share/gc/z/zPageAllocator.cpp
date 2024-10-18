@@ -124,6 +124,12 @@ public:
       _node(),
       _stall_result() {}
 
+  void reset_for_retry() {
+    _harvested = 0;
+    _committed = 0;
+    _mappings.clear();
+  }
+
   ZPageType type() const {
     return _type;
   }
@@ -175,6 +181,7 @@ public:
   bool gc_relocation() const {
     return _flags.gc_relocation();
   }
+
 };
 
 ZPageAllocator::ZPageAllocator(size_t min_capacity,
@@ -632,6 +639,12 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
   if (harvested > 0) {
     allocation->set_harvested(harvested);
     log_debug(gc, heap)("Mapped Cache Harvest: " SIZE_FORMAT "M", harvested / M);
+
+    // If we've harvested memory for a large page allocation, it must be cleared.
+    // So we mark the segments that needs to be cleared as uninitialized.
+    if (allocation->type() == ZPageType::large) {
+      pmem.mark_uninitialized();
+    }
   }
 }
 
@@ -716,6 +729,11 @@ retry:
   if (!commit_and_map_memory(allocation, vmem, pmem)) {
     free_memory_alloc_failed(allocation);
     goto retry;
+  }
+
+  // For large page allocations, harvested memory must be cleared.
+  if (allocation->type() == ZPageType::large && allocation->harvested() > 0) {
+    pmem.clear_uninitialized(vmem.start());
   }
 
   return new ZPage(allocation->type(), allocation->mappings()->pop());
@@ -885,9 +903,8 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
     _mapped_cache.insert_mapping(mapping);
   }
 
-  // Clear the array of collected mappings after inserting them back into the
-  // mapped cache.
-  allocation->mappings()->clear();
+  // Reset allocation for a potential retry
+  allocation->reset_for_retry();
 
   // Adjust capacity and used to reflect the failed capacity increase
   const size_t remaining = allocation->size() - freed;

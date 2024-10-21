@@ -205,15 +205,16 @@ void ZPhysicalMemory::mark_uninitialized() {
 }
 
 void ZPhysicalMemory::clear_uninitialized(zoffset base) {
+  zoffset current = base;
   for (int i = 0; i < _segments.length(); i++) {
     ZPhysicalMemorySegment& segment = _segments.at(i);
 
     if (!segment.is_initialized()) {
-      Copy::fill_to_bytes((void *)ZOffset::address(base), segment.size());
+      Copy::fill_to_bytes((void *)ZOffset::address(current), segment.size());
       segment.set_initialized(true);
     }
 
-    base += segment.size();
+    current += segment.size();
   }
 }
 

@@ -31,6 +31,7 @@
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPhysicalMemory.inline.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
@@ -205,12 +206,13 @@ void ZPhysicalMemory::mark_uninitialized() {
 }
 
 void ZPhysicalMemory::clear_uninitialized(zoffset base) {
-  zoffset current = base;
+  uintptr_t current = untype(ZOffset::address(base));
+
   for (int i = 0; i < _segments.length(); i++) {
     ZPhysicalMemorySegment& segment = _segments.at(i);
 
     if (!segment.is_initialized()) {
-      Copy::fill_to_bytes((void *)ZOffset::address(current), segment.size());
+      ZUtils::fill((uintptr_t *)current, ZUtils::bytes_to_words(segment.size()), 0);
       segment.set_initialized(true);
     }
 

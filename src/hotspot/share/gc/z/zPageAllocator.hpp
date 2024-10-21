@@ -131,6 +131,8 @@ private:
   void notify_out_of_memory();
   void restart_gc() const;
 
+  void free_page_finish(const ZMappedMemory& mapping, ZGenerationId generation_id, bool should_cache);
+
 public:
   ZPageAllocator(size_t min_capacity,
                  size_t initial_capacity,

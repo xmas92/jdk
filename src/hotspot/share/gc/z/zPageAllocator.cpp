@@ -803,38 +803,42 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
-  const ZGenerationId generation_id = page->generation_id();
-
-  // Prepare mapped memory before taking the lock
-  ZMappedMemory mapping = page->mapped_memory();
-  bool page_is_large = page->type() == ZPageType::large;
-  safe_destroy_page(page);
-
-  // Memory from a large page is not cached
-  if (page_is_large) {
-    unmap_uncommit_free_mapping(mapping);
-  } else {
-    // Defragment if needed
-    if (allow_defragment && should_defragment(mapping)) {
-      mapping = defragment_mapping(mapping);
-    }
-  }
-
+void ZPageAllocator::free_page_finish(const ZMappedMemory& mapping, ZGenerationId generation_id, bool should_cache) {
   ZLocker<ZLock> locker(&_lock);
 
   // Update used statistics
-  const size_t size = mapping.size();
-  decrease_used(size);
-  decrease_used_generation(generation_id, size);
+  decrease_used(mapping.size());
+  decrease_used_generation(generation_id, mapping.size());
 
-  // Insert mapping to the cache
-  if (!page_is_large) {
+  if (should_cache) {
     _mapped_cache.insert_mapping(mapping);
   }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
+}
+
+void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
+  const ZGenerationId generation_id = page->generation_id();
+
+  // Prepare mapped memory
+  ZMappedMemory mapping = page->mapped_memory();
+  const bool page_is_large = page->is_large();
+  safe_destroy_page(page);
+
+  // Memory from a large page is not cached, free separately and finish
+  if (page_is_large) {
+    unmap_uncommit_free_mapping(mapping);
+    free_page_finish(mapping, generation_id, false /* should_cache */);
+    return;
+  }
+
+  // Defragment if needed
+  if (allow_defragment && should_defragment(mapping)) {
+    mapping = defragment_mapping(mapping);
+  }
+
+  free_page_finish(mapping, generation_id, true /* should_cache */);
 }
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
@@ -853,11 +857,11 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     }
 
     ZMappedMemory mapping = page->mapped_memory();
-    ZPageType type = page->type();
+    const bool page_is_large = page->is_large();
     safe_destroy_page(page);
 
     // Memory from a large page is not cached
-    if (type == ZPageType::large) {
+    if (page_is_large) {
       unmap_uncommit_free_mapping(mapping);
       continue;
     }

@@ -35,7 +35,6 @@ private:
   zoffset     _start;
   zoffset_end _end;
   bool        _committed;
-  bool        _initialized;
 
 public:
   ZPhysicalMemorySegment();
@@ -47,9 +46,6 @@ public:
 
   bool is_committed() const;
   void set_committed(bool committed);
-
-  bool is_initialized() const;
-  void set_initialized(bool initialized);
 };
 
 class ZPhysicalMemory {
@@ -80,9 +76,6 @@ public:
   void append_segment(const ZPhysicalMemorySegment& segment);
   bool commit_segment(int index, size_t size);
   bool uncommit_segment(int index, size_t size);
-
-  void mark_uninitialized();
-  void clear_uninitialized(zoffset base);
 
   ZPhysicalMemory split(size_t size);
   ZPhysicalMemory split_unsorted(size_t size);

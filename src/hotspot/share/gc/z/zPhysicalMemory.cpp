@@ -199,27 +199,6 @@ bool ZPhysicalMemory::uncommit_segment(int index, size_t size) {
   return false;
 }
 
-void ZPhysicalMemory::mark_uninitialized() {
-  for (int i = 0; i < _segments.length(); i++) {
-    _segments.at(i).set_initialized(false);
-  }
-}
-
-void ZPhysicalMemory::clear_uninitialized(zoffset base) {
-  uintptr_t current = untype(ZOffset::address(base));
-
-  for (int i = 0; i < _segments.length(); i++) {
-    ZPhysicalMemorySegment& segment = _segments.at(i);
-
-    if (!segment.is_initialized()) {
-      ZUtils::fill((uintptr_t *)current, ZUtils::bytes_to_words(segment.size()), 0);
-      segment.set_initialized(true);
-    }
-
-    current += segment.size();
-  }
-}
-
 ZPhysicalMemory ZPhysicalMemory::split(size_t size) {
   ZPhysicalMemory pmem;
   int nsegments = 0;

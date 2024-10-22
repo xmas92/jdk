@@ -170,7 +170,7 @@ public:
     return _stall_result.get();
   }
 
-  ZArray<ZMappedMemory>* mappings() {
+  ZArray<ZMappedMemory> *mappings() {
     return &_mappings;
   }
 
@@ -630,21 +630,21 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
   for (ZMappedMemory mapping; iter.next(&mapping);) {
     harvested += mapping.size();
     pmem.add_segments(mapping.physical_memory());
+
+    // Any harvested memory for large page allocation needs to be cleared
+    if (allocation->type() == ZPageType::large) {
+      mapping.clear();
+    }
+
     _unmapper->unmap_memory(mapping);
   }
 
-  // Clear all the stored mappings
+  // Clear the array of stored mappings
   allocation->mappings()->clear();
 
   if (harvested > 0) {
     allocation->set_harvested(harvested);
     log_debug(gc, heap)("Mapped Cache Harvest: " SIZE_FORMAT "M", harvested / M);
-
-    // If we've harvested memory for a large page allocation, it must be cleared.
-    // So we mark the segments that needs to be cleared as uninitialized.
-    if (allocation->type() == ZPageType::large) {
-      pmem.mark_uninitialized();
-    }
   }
 }
 
@@ -729,11 +729,6 @@ retry:
   if (!commit_and_map_memory(allocation, vmem, pmem)) {
     free_memory_alloc_failed(allocation);
     goto retry;
-  }
-
-  // For large page allocations, harvested memory must be cleared.
-  if (allocation->type() == ZPageType::large && allocation->harvested() > 0) {
-    pmem.clear_uninitialized(vmem.start());
   }
 
   return new ZPage(allocation->type(), allocation->mappings()->pop());

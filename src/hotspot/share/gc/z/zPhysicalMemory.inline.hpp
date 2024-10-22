@@ -32,8 +32,7 @@
 inline ZPhysicalMemorySegment::ZPhysicalMemorySegment()
   : _start(zoffset(UINTPTR_MAX)),
     _end(zoffset_end(UINTPTR_MAX)),
-    _committed(false),
-    _initialized(true) {}
+    _committed(false) {}
 
 inline ZPhysicalMemorySegment::ZPhysicalMemorySegment(zoffset start, size_t size, bool committed)
   : _start(start),
@@ -58,14 +57,6 @@ inline bool ZPhysicalMemorySegment::is_committed() const {
 
 inline void ZPhysicalMemorySegment::set_committed(bool committed) {
   _committed = committed;
-}
-
-inline bool ZPhysicalMemorySegment::is_initialized() const {
-  return _initialized;
-}
-
-inline void ZPhysicalMemorySegment::set_initialized(bool initialized) {
-  _initialized = initialized;
 }
 
 inline bool ZPhysicalMemory::is_null() const {

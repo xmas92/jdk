@@ -26,6 +26,7 @@
 #include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPhysicalMemory.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
+#include "gc/z/zUtils.inline.hpp"
 
 ZMappedMemory::ZMappedMemory()
   : _vmem(),
@@ -59,6 +60,10 @@ zoffset_end ZMappedMemory::end() const {
 
 size_t ZMappedMemory::size() const {
   return _vmem.size();
+}
+
+void ZMappedMemory::clear() {
+  ZUtils::fill((uintptr_t *)ZOffset::address(_vmem.start()), ZUtils::bytes_to_words(_vmem.size()), 0);
 }
 
 ZMappedMemory ZMappedMemory::split(size_t size) {

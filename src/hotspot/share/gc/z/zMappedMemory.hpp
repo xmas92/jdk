@@ -45,6 +45,8 @@ public:
   zoffset_end end() const;
   size_t size() const;
 
+  void clear();
+
   ZMappedMemory split(size_t size);
   ZMappedMemory split_committed();
 

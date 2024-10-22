@@ -34,11 +34,9 @@ private:
 
 public:
   ZMappedMemory();
+  ZMappedMemory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
   ZMappedMemory(const ZMappedMemory& other);
   const ZMappedMemory& operator=(const ZMappedMemory& other);
-
-  // Harvest virtual/physical memory from page
-  ZMappedMemory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
 
   bool is_null() const;
   zoffset start() const;

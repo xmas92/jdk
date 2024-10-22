@@ -181,7 +181,6 @@ public:
   bool gc_relocation() const {
     return _flags.gc_relocation();
   }
-
 };
 
 ZPageAllocator::ZPageAllocator(size_t min_capacity,
@@ -519,7 +518,7 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
 }
 
 void ZPageAllocator::claim_mapped_cache_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
-  // Try to allocate a contiguous range when not allocating a large page
+  // Try to allocate a contiguous mapping when not allocating a large page.
   if (type != ZPageType::large) {
     ZMappedMemory mapping;
     if (_mapped_cache.remove_mapping_contiguous(&mapping, size)) {
@@ -537,7 +536,7 @@ void ZPageAllocator::claim_mapped_cache_or_increase_capacity(ZPageType type, siz
   const size_t increased = increase_capacity(size);
   if (increased < size) {
     // Could not increase capacity enough to satisfy the allocation completely.
-    // Try removing multiple ranges from the mapped cache.
+    // Try removing multiple mappings from the mapped cache.
     const size_t remaining = size - increased;
     _mapped_cache.remove_mappings(mappings, remaining);
   }

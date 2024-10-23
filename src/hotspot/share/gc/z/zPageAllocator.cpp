@@ -702,7 +702,13 @@ retry:
   // If the claimed physical memory also holds a large enough contiguous virtual
   // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
-    return new ZPage(allocation->type(), allocation->mappings()->pop());
+    ZMappedMemory mapping = allocation->mappings()->pop();
+
+    if (allocation->type() == ZPageType::large) {
+      mapping.clear();
+    }
+
+    return new ZPage(allocation->type(), mapping);
   }
 
   // We need to allocate a new virtual address range and make sure the claimed

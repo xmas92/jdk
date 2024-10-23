@@ -152,13 +152,11 @@ HeapWord* ZCollectedHeap::allocate_new_tlab(size_t min_size, size_t requested_si
 }
 
 oop ZCollectedHeap::array_allocate(Klass* klass, size_t size, int length, bool do_zero, TRAPS) {
-  const size_t large_object_limit = ZObjectSizeLimitMedium > 0
-    ? ZObjectSizeLimitMedium
-    : ZObjectSizeLimitSmall;
+  const size_t large_object_limit = MAX2(ZObjectSizeLimitSmall, ZObjectSizeLimitMedium);
+  const size_t large_object_limit_words = ZUtils::bytes_to_words(large_object_limit);
 
-  // Large pages are already initialized by the page allocator,
-  // no need to initialize again.
-  if (size > large_object_limit) {
+  // Large pages are initialized by the page allocator, no need to initialize again.
+  if (size > large_object_limit_words) {
     do_zero = false;
   }
 

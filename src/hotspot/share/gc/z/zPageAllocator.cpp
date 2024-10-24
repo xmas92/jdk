@@ -822,7 +822,7 @@ void ZPageAllocator::free_page_finish(const ZMappedMemory& mapping, ZGenerationI
   if (should_cache) {
     _mapped_cache.insert_mapping(mapping);
   } else {
-    decrease_capacity(mapping.size(), true /* set_max_capacity */);
+    decrease_capacity(mapping.size(), false /* set_max_capacity */);
   }
 
   // Try satisfy stalled allocations
@@ -896,7 +896,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   decrease_used_generation(ZGenerationId::old, old_size);
 
   if (large_page_size > 0) {
-    decrease_capacity(large_page_size, true /* set_max_capacity */);
+    decrease_capacity(large_page_size, false /* set_max_capacity */);
   }
 
   // Insert mappings to the cache

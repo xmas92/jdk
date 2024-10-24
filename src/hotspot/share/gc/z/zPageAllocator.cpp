@@ -380,6 +380,10 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
 }
 
 void ZPageAllocator::decrease_capacity(size_t size, bool set_max_capacity) {
+  if (size == 0) {
+    return;
+  }
+
   // Update atomically since we have concurrent readers
   Atomic::sub(&_capacity, size);
 
@@ -476,6 +480,11 @@ void ZPageAllocator::unmap_uncommit_free_mapping(ZMappedMemory& mapping) {
   unmap_mapping(mapping);
   uncommit_physical(mapping.physical_memory());
   free_mapping(mapping);
+}
+
+void ZPageAllocator::free_virtual(const ZMappedMemory& mapping) {
+  // Free virtual memory
+  _virtual.free(mapping.virtual_memory());
 }
 
 void ZPageAllocator::free_mapping(const ZMappedMemory& mapping) {
@@ -812,6 +821,8 @@ void ZPageAllocator::free_page_finish(const ZMappedMemory& mapping, ZGenerationI
 
   if (should_cache) {
     _mapped_cache.insert_mapping(mapping);
+  } else {
+    decrease_capacity(mapping.size(), true /* set_max_capacity */);
   }
 
   // Try satisfy stalled allocations
@@ -847,6 +858,8 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   size_t young_size = 0;
   size_t old_size = 0;
 
+  size_t large_page_size = 0;
+
   // Prepare pages for recycling before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
@@ -862,6 +875,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
     // Memory from a large page is not cached
     if (page_is_large) {
+      large_page_size += mapping.size();
       unmap_uncommit_free_mapping(mapping);
       continue;
     }
@@ -880,6 +894,10 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   decrease_used(young_size + old_size);
   decrease_used_generation(ZGenerationId::young, young_size);
   decrease_used_generation(ZGenerationId::old, old_size);
+
+  if (large_page_size > 0) {
+    decrease_capacity(large_page_size, true /* set_max_capacity */);
+  }
 
   // Insert mappings to the cache
   ZArrayIterator<ZMappedMemory> iter(&to_cache);
@@ -907,12 +925,12 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
     _mapped_cache.insert_mapping(mapping);
   }
 
-  // Reset allocation for a potential retry
-  allocation->reset_for_retry();
-
-  // Adjust capacity and used to reflect the failed capacity increase
+  // Adjust capacity to reflect the failed capacity increase
   const size_t remaining = allocation->size() - freed;
   decrease_capacity(remaining, true /* set_max_capacity */);
+
+  // Reset allocation for a potential retry
+  allocation->reset_for_retry();
 
   // Try satisfy stalled allocations
   satisfy_stalled();

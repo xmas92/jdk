@@ -103,6 +103,8 @@ private:
   void unmap_mapping(const ZMappedMemory& mapping);
 
   void unmap_uncommit_free_mapping(ZMappedMemory& mapping);
+
+  void free_virtual(const ZMappedMemory& mapping);
   void free_mapping(const ZMappedMemory& mapping);
 
   bool should_defragment(const ZMappedMemory& mapping) const;

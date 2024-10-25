@@ -61,7 +61,7 @@ ZUnmapperEntry* ZUnmapper::dequeue() {
   }
 }
 
-bool ZUnmapper::try_enqueue(const ZMappedMemory& mapping) {
+bool ZUnmapper::try_enqueue(const ZVirtualMemory& vmem) {
   // Enqueue for asynchronous unmap and destroy
   ZLocker<ZConditionLock> locker(&_lock);
   if (is_saturated()) {
@@ -70,16 +70,16 @@ bool ZUnmapper::try_enqueue(const ZMappedMemory& mapping) {
       _warned_sync_unmapping = true;
       log_warning_p(gc)("WARNING: Encountered synchronous unmapping because asynchronous unmapping could not keep up");
     }
-    log_debug(gc, unmap)("Synchronous unmapping " SIZE_FORMAT "M mapped memory", mapping.size() / M);
+    log_debug(gc, unmap)("Synchronous unmapping " SIZE_FORMAT "M mapped memory", vmem.size() / M);
     return false;
   }
 
   log_trace(gc, unmap)("Asynchronous unmapping " SIZE_FORMAT "M mapped memory (" SIZE_FORMAT "M / " SIZE_FORMAT "M enqueued)",
-                       mapping.size() / M, _enqueued_bytes / M, queue_capacity() / M);
+                       vmem.size() / M, _enqueued_bytes / M, queue_capacity() / M);
 
-  ZUnmapperEntry* entry = new ZUnmapperEntry(mapping);
+  ZUnmapperEntry* entry = new ZUnmapperEntry(vmem);
   _queue.insert_last(entry);
-  _enqueued_bytes += mapping.size();
+  _enqueued_bytes += vmem.size();
   _lock.notify_all();
 
   return true;
@@ -93,22 +93,22 @@ bool ZUnmapper::is_saturated() const {
   return _enqueued_bytes >= queue_capacity();
 }
 
-void ZUnmapper::do_unmap(const ZMappedMemory& mapping) const {
+void ZUnmapper::do_unmap(const ZVirtualMemory& vmem) const {
   EventZUnmap event;
-  const size_t unmapped = mapping.size();
+  const size_t unmapped = vmem.size();
 
   // Unmap and destroy
-  _page_allocator->unmap_mapping(mapping);
-  _page_allocator->free_virtual(mapping);
+  _page_allocator->unmap_virtual(vmem);
+  _page_allocator->free_virtual(vmem);
 
   // Send event
   event.commit(unmapped);
 }
 
-void ZUnmapper::unmap_memory(const ZMappedMemory& mapping) {
-  if (!try_enqueue(mapping)) {
+void ZUnmapper::unmap_virtual(const ZVirtualMemory& vmem) {
+  if (!try_enqueue(vmem)) {
     // Synchronously unmap and destroy
-    do_unmap(mapping);
+    do_unmap(vmem);
   }
 }
 
@@ -120,7 +120,7 @@ void ZUnmapper::run_thread() {
       return;
     }
 
-    do_unmap(entry->mapping());
+    do_unmap(entry->vmem());
     delete entry;
   }
 }

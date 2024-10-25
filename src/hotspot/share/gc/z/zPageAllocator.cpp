@@ -284,7 +284,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
     return false;
   }
 
-  ZMappedMemory mapping = map_memory(vmem, pmem);
+  ZMappedMemory mapping = map_virtual_to_physical(vmem, pmem);
 
   if (AlwaysPreTouch) {
     // Pre-touch memory
@@ -460,38 +460,32 @@ void ZPageAllocator::uncommit_physical(ZPhysicalMemory& pmem) {
   _physical.uncommit(pmem);
 }
 
-ZMappedMemory ZPageAllocator::map_memory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const {
-  // Map physical memory
+ZMappedMemory ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const {
+  // Map virtual memory to physical memory
   _physical.map(vmem.start(), pmem);
   return ZMappedMemory(vmem, pmem);
 }
 
-void ZPageAllocator::unmap_mapping(const ZMappedMemory& mapping) {
-  // Unmap physical memory
-  _physical.unmap(mapping.start(), mapping.size());
+void ZPageAllocator::unmap_virtual(const ZVirtualMemory& vmem) {
+  // Unmap virtual memory from physical memory
+  _physical.unmap(vmem.start(), vmem.size());
 }
 
-void ZPageAllocator::safe_destroy_page(ZPage* page) {
-  // Destroy page safely
-  _safe_destroy.schedule_delete(page);
+void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
+  // Free virtual memory
+  _virtual.free(vmem);
 }
 
-void ZPageAllocator::unmap_uncommit_free_mapping(ZMappedMemory& mapping) {
-  unmap_mapping(mapping);
+void ZPageAllocator::destroy_large_page_memory(ZMappedMemory& mapping) {
+  // Memory from large pages is not cached in the mapped cache. Instead we
+  // unmap, uncommit and hand back the memory to the virtual and physical
+  // managers.
+
+  unmap_virtual(mapping.virtual_memory());
   uncommit_physical(mapping.physical_memory());
-  free_mapping(mapping);
-}
 
-void ZPageAllocator::free_virtual(const ZMappedMemory& mapping) {
-  // Free virtual memory
+  // Free virtual and physical memory
   _virtual.free(mapping.virtual_memory());
-}
-
-void ZPageAllocator::free_mapping(const ZMappedMemory& mapping) {
-  // Free virtual memory
-  _virtual.free(mapping.virtual_memory());
-
-  // Free physical memory
   _physical.free(mapping.physical_memory());
 }
 
@@ -510,7 +504,7 @@ ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
   ZPhysicalMemory pmem(mapping.physical_memory());
 
   // Unmap the previous mapping asynchronously
-  _unmapper->unmap_memory(mapping);
+  _unmapper->unmap_virtual(mapping.virtual_memory());
 
   // Allocate new virtual memory at a low address
   const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
@@ -518,7 +512,7 @@ ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
   // Update statistics
   ZStatInc(ZCounterDefragment);
 
-  return map_memory(vmem, pmem);
+  return map_virtual_to_physical(vmem, pmem);
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
@@ -644,7 +638,7 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
       mapping.clear();
     }
 
-    _unmapper->unmap_memory(mapping);
+    _unmapper->unmap_virtual(mapping.virtual_memory());
   }
 
   // Clear the array of stored mappings
@@ -678,7 +672,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   // Try to commit all physical memory
   if (commit_physical(pmem)) {
     // Success
-    ZMappedMemory mapping = map_memory(vmem, pmem);
+    ZMappedMemory mapping = map_virtual_to_physical(vmem, pmem);
     allocation->mappings()->append(mapping);
     return true;
   }
@@ -690,7 +684,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   ZVirtualMemory committed_vmem = vmem.split(committed_pmem.size());
 
   if (!committed_pmem.is_null()) {
-    ZMappedMemory mapping = map_memory(committed_vmem, committed_pmem);
+    ZMappedMemory mapping = map_virtual_to_physical(committed_vmem, committed_pmem);
     allocation->mappings()->append(mapping);
   }
 
@@ -713,6 +707,7 @@ retry:
   if (is_alloc_satisfied(allocation)) {
     ZMappedMemory mapping = allocation->mappings()->pop();
 
+    // Memory for a large page allocation needs to be cleared
     if (allocation->type() == ZPageType::large) {
       mapping.clear();
     }
@@ -791,6 +786,11 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   return page;
 }
 
+void ZPageAllocator::safe_destroy_page(ZPage* page) {
+  // Destroy page safely
+  _safe_destroy.schedule_delete(page);
+}
+
 void ZPageAllocator::satisfy_stalled() {
   for (;;) {
     ZPageAllocation* const allocation = _stalled.first();
@@ -839,7 +839,7 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
 
   // Memory from a large page is not cached, free separately and finish
   if (page_is_large) {
-    unmap_uncommit_free_mapping(mapping);
+    destroy_large_page_memory(mapping);
     free_page_finish(mapping, generation_id, false /* should_cache */);
     return;
   }
@@ -876,7 +876,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     // Memory from a large page is not cached
     if (page_is_large) {
       large_page_size += mapping.size();
-      unmap_uncommit_free_mapping(mapping);
+      destroy_large_page_memory(mapping);
       continue;
     }
 
@@ -968,7 +968,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZMappedMemory> it(&flush_mapped);
   for (ZMappedMemory mapping; it.next(&mapping);) {
-    unmap_mapping(mapping);
+    unmap_virtual(mapping.virtual_memory());
     uncommit_physical(mapping.physical_memory());
   }
 

@@ -99,13 +99,12 @@ private:
   bool commit_physical(ZPhysicalMemory& pmem);
   void uncommit_physical(ZPhysicalMemory& pmem);
 
-  ZMappedMemory map_memory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const;
-  void unmap_mapping(const ZMappedMemory& mapping);
+  ZMappedMemory map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const;
 
-  void unmap_uncommit_free_mapping(ZMappedMemory& mapping);
+  void unmap_virtual(const ZVirtualMemory& vmem);
+  void free_virtual(const ZVirtualMemory& vmem);
 
-  void free_virtual(const ZMappedMemory& mapping);
-  void free_mapping(const ZMappedMemory& mapping);
+  void destroy_large_page_memory(ZMappedMemory& mapping);
 
   bool should_defragment(const ZMappedMemory& mapping) const;
   ZMappedMemory defragment_mapping(const ZMappedMemory& mapping);

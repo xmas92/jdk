@@ -722,7 +722,7 @@ retry:
 
   // We need to allocate a new virtual address range and make sure the claimed
   // physical memory is committed and mapped to the same virtual address range.
-  ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->flags().low_address());
+  ZVirtualMemory vmem = _virtual.alloc(allocation->size(), false /* force_low_address */);
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");
     free_memory_alloc_failed(allocation);

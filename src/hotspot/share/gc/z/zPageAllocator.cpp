@@ -506,8 +506,8 @@ ZMappedMemory ZPageAllocator::defragment_mapping(const ZMappedMemory& mapping) {
   // Unmap the previous mapping asynchronously
   _unmapper->unmap_virtual(mapping.virtual_memory());
 
-  // Allocate new virtual memory at a low address
-  const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
+  // Allocate new virtual memory in a place that matches the allocation size
+  const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), false /* force_low_address */);
 
   // Update statistics
   ZStatInc(ZCounterDefragment);
@@ -633,7 +633,7 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
     harvested += mapping.size();
     pmem.add_segments(mapping.physical_memory());
 
-    // Any harvested memory for large page allocation needs to be cleared
+    // Any harvested memory for a large page allocation needs to be cleared
     if (allocation->type() == ZPageType::large) {
       mapping.clear();
     }
@@ -707,8 +707,12 @@ retry:
   if (is_alloc_satisfied(allocation)) {
     ZMappedMemory mapping = allocation->mappings()->pop();
 
-    // Memory for a large page allocation needs to be cleared
     if (allocation->type() == ZPageType::large) {
+      // Large pages are placed in high address space, the memory returned from
+      // the mapped cache is at low address space, need to defragment.
+      mapping = defragment_mapping(mapping);
+
+      // Memory for a large page allocation needs to be cleared
       mapping.clear();
     }
 

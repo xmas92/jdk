@@ -672,10 +672,20 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   free_virtual(vmem);
   free_physical(pmem);
 
-  if (!committed_pmem.is_null()) {
-    ZMappedMemory mapping = map_virtual_to_physical(committed_vmem, committed_pmem);
-    allocation->mappings()->append(mapping);
+  if (committed_pmem.is_null()) {
+    // Nothing to do.
+    return false;
   }
+
+  assert(committed_vmem.end() == vmem.start(), "Should be consecutive");
+
+  log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+      untype(committed_vmem.start()),
+      untype(committed_vmem.end()),
+      untype(vmem.end()));
+
+  ZMappedMemory mapping = map_virtual_to_physical(committed_vmem, committed_pmem);
+  allocation->mappings()->append(mapping);
 
   return false;
 }

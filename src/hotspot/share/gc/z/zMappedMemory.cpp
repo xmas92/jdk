@@ -66,25 +66,6 @@ ZMappedMemory ZMappedMemory::split(size_t size) {
   return ZMappedMemory(_vmem.split(size), _pmem.split_unsorted(size));
 }
 
-ZMappedMemory ZMappedMemory::split_committed() {
-  const ZPhysicalMemory pmem = _pmem.split_committed();
-  if (pmem.is_null()) {
-    return ZMappedMemory();
-  }
-
-  assert(!_pmem.is_null(), "Should not be null");
-  const ZVirtualMemory vmem = _vmem.split(pmem.size());
-
-  assert(vmem.end() == _vmem.start(), "Should be consecutive");
-
-  log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
-      untype(vmem.start()),
-      untype(vmem.end()),
-      untype(_vmem.end()));
-
-  return ZMappedMemory(vmem, pmem);
-}
-
 bool ZMappedMemory::virtually_adjacent_to(const ZMappedMemory& other) const {
   return zoffset(_vmem.end()) == other.virtual_memory().start() ||
          zoffset(other.virtual_memory().end()) == _vmem.start();

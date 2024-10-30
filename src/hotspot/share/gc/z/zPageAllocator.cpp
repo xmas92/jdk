@@ -446,6 +446,11 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
+void ZPageAllocator::free_physical(const ZPhysicalMemory& pmem) {
+  // Free physical memory
+  _physical.free(pmem);
+}
+
 bool ZPageAllocator::commit_physical(ZPhysicalMemory& pmem) {
   // Commit physical memory
   return _physical.commit(pmem);
@@ -662,6 +667,10 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   // it will be re-inserted into the mapped cache.
   ZPhysicalMemory committed_pmem = pmem.split_committed();
   ZVirtualMemory committed_vmem = vmem.split(committed_pmem.size());
+
+  // Free the uncommitted virtual and physical memory
+  free_virtual(vmem);
+  free_physical(pmem);
 
   if (!committed_pmem.is_null()) {
     ZMappedMemory mapping = map_virtual_to_physical(committed_vmem, committed_pmem);

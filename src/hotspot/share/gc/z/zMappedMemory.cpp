@@ -62,10 +62,6 @@ size_t ZMappedMemory::size() const {
   return _vmem.size();
 }
 
-void ZMappedMemory::clear() {
-  ZUtils::fill((uintptr_t *)ZOffset::address(_vmem.start()), ZUtils::bytes_to_words(_vmem.size()), 0);
-}
-
 ZMappedMemory ZMappedMemory::split(size_t size) {
   return ZMappedMemory(_vmem.split(size), _pmem.split_unsorted(size));
 }

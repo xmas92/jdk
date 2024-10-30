@@ -104,10 +104,8 @@ private:
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
 
-  void destroy_large_page_memory(ZMappedMemory& mapping);
-
+  ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
   bool should_defragment(const ZMappedMemory& mapping) const;
-  ZMappedMemory defragment_mapping(const ZMappedMemory& mapping);
 
   bool is_alloc_allowed(size_t size) const;
 
@@ -125,14 +123,14 @@ private:
   bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
   void free_memory_alloc_failed(ZPageAllocation* allocation);
 
+  void prepare_virtual_address_for_cache(ZMappedMemory& mapping, bool allow_defragment);
+
   void satisfy_stalled();
 
   size_t uncommit(uint64_t* timeout);
 
   void notify_out_of_memory();
   void restart_gc() const;
-
-  void free_page_finish(const ZMappedMemory& mapping, ZGenerationId generation_id, bool should_cache);
 
 public:
   ZPageAllocator(size_t min_capacity,

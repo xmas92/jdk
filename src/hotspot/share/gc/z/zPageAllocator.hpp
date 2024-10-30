@@ -96,6 +96,7 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
+  void free_physical(const ZPhysicalMemory& pmem);
   bool commit_physical(ZPhysicalMemory& pmem);
   void uncommit_physical(ZPhysicalMemory& pmem);
 

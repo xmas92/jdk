@@ -68,11 +68,12 @@ public:
   int nsegments() const;
   const ZPhysicalMemorySegment& segment(int index) const;
 
-  void add_segments(const ZPhysicalMemory& pmem);
+  void combine_and_sort_segments(const ZPhysicalMemory& pmem);
   void append_segments(const ZPhysicalMemory& pmem);
 
-  void add_segment(const ZPhysicalMemorySegment& segment);
+  void combine_and_sort_segment(const ZPhysicalMemorySegment& segment);
   void append_segment(const ZPhysicalMemorySegment& segment);
+
   bool commit_segment(int index, size_t size);
   bool uncommit_segment(int index, size_t size);
 

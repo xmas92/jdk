@@ -92,9 +92,9 @@ void ZPhysicalMemory::remove_segment(int index) {
   _segments.remove_at(index);
 }
 
-void ZPhysicalMemory::add_segments(const ZPhysicalMemory& pmem) {
+void ZPhysicalMemory::combine_and_sort_segments(const ZPhysicalMemory& pmem) {
   for (int i = 0; i < pmem.nsegments(); i++) {
-    add_segment(pmem.segment(i));
+    combine_and_sort_segment(pmem.segment(i));
   }
 }
 
@@ -106,7 +106,7 @@ static bool is_mergable(const ZPhysicalMemorySegment& before, const ZPhysicalMem
   return before.end() == after.start() && before.is_committed() == after.is_committed();
 }
 
-void ZPhysicalMemory::add_segment(const ZPhysicalMemorySegment& segment) {
+void ZPhysicalMemory::combine_and_sort_segment(const ZPhysicalMemorySegment& segment) {
   // Insert segments in address order, merge segments when possible
   for (int i = _segments.length(); i > 0; i--) {
     const int current = i - 1;
@@ -230,7 +230,7 @@ ZPhysicalMemory ZPhysicalMemory::split_committed() {
     const ZPhysicalMemorySegment& segment = _segments.at(i);
     if (segment.is_committed()) {
       // Transfer segment
-      pmem.add_segment(segment);
+      pmem.combine_and_sort_segment(segment);
     } else {
       // Keep segment
       _segments.at_put(nsegments++, segment);
@@ -294,7 +294,7 @@ void ZPhysicalMemoryManager::alloc(ZPhysicalMemory& pmem, size_t size) {
     size_t allocated = 0;
     const zoffset start = _manager.alloc_low_address_at_most(size, &allocated);
     assert(start != zoffset(UINTPTR_MAX), "Allocation should never fail");
-    pmem.add_segment(ZPhysicalMemorySegment(start, allocated, false /* committed */));
+    pmem.combine_and_sort_segment(ZPhysicalMemorySegment(start, allocated, false /* committed */));
     size -= allocated;
   }
 }

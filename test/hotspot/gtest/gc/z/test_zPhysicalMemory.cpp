@@ -50,13 +50,13 @@ TEST(ZPhysicalMemoryTest, copy) {
   const ZPhysicalMemorySegment seg1(zoffset(200), 100, true);
 
   ZPhysicalMemory pmem0;
-  pmem0.add_segment(seg0);
+  pmem0.combine_and_sort_segment(seg0);
   EXPECT_EQ(pmem0.nsegments(), 1);
   EXPECT_EQ(pmem0.segment(0).size(), 100u);
 
   ZPhysicalMemory pmem1;
-  pmem1.add_segment(seg0);
-  pmem1.add_segment(seg1);
+  pmem1.combine_and_sort_segment(seg0);
+  pmem1.combine_and_sort_segment(seg1);
   EXPECT_EQ(pmem1.nsegments(), 2);
   EXPECT_EQ(pmem1.segment(0).size(), 100u);
   EXPECT_EQ(pmem1.segment(1).size(), 100u);
@@ -87,35 +87,35 @@ TEST(ZPhysicalMemoryTest, add) {
   EXPECT_EQ(pmem0.is_null(), true);
 
   ZPhysicalMemory pmem1;
-  pmem1.add_segment(seg0);
-  pmem1.add_segment(seg1);
-  pmem1.add_segment(seg2);
-  pmem1.add_segment(seg3);
-  pmem1.add_segment(seg4);
-  pmem1.add_segment(seg5);
-  pmem1.add_segment(seg6);
+  pmem1.combine_and_sort_segment(seg0);
+  pmem1.combine_and_sort_segment(seg1);
+  pmem1.combine_and_sort_segment(seg2);
+  pmem1.combine_and_sort_segment(seg3);
+  pmem1.combine_and_sort_segment(seg4);
+  pmem1.combine_and_sort_segment(seg5);
+  pmem1.combine_and_sort_segment(seg6);
   EXPECT_EQ(pmem1.nsegments(), 1);
   EXPECT_EQ(pmem1.segment(0).size(), 7u);
   EXPECT_EQ(pmem1.is_null(), false);
 
   ZPhysicalMemory pmem2;
-  pmem2.add_segment(seg0);
-  pmem2.add_segment(seg1);
-  pmem2.add_segment(seg2);
-  pmem2.add_segment(seg4);
-  pmem2.add_segment(seg5);
-  pmem2.add_segment(seg6);
+  pmem2.combine_and_sort_segment(seg0);
+  pmem2.combine_and_sort_segment(seg1);
+  pmem2.combine_and_sort_segment(seg2);
+  pmem2.combine_and_sort_segment(seg4);
+  pmem2.combine_and_sort_segment(seg5);
+  pmem2.combine_and_sort_segment(seg6);
   EXPECT_EQ(pmem2.nsegments(), 2);
   EXPECT_EQ(pmem2.segment(0).size(), 3u);
   EXPECT_EQ(pmem2.segment(1).size(), 3u);
   EXPECT_EQ(pmem2.is_null(), false);
 
   ZPhysicalMemory pmem3;
-  pmem3.add_segment(seg0);
-  pmem3.add_segment(seg2);
-  pmem3.add_segment(seg3);
-  pmem3.add_segment(seg4);
-  pmem3.add_segment(seg6);
+  pmem3.combine_and_sort_segment(seg0);
+  pmem3.combine_and_sort_segment(seg2);
+  pmem3.combine_and_sort_segment(seg3);
+  pmem3.combine_and_sort_segment(seg4);
+  pmem3.combine_and_sort_segment(seg6);
   EXPECT_EQ(pmem3.nsegments(), 3);
   EXPECT_EQ(pmem3.segment(0).size(), 1u);
   EXPECT_EQ(pmem3.segment(1).size(), 3u);
@@ -123,10 +123,10 @@ TEST(ZPhysicalMemoryTest, add) {
   EXPECT_EQ(pmem3.is_null(), false);
 
   ZPhysicalMemory pmem4;
-  pmem4.add_segment(seg0);
-  pmem4.add_segment(seg2);
-  pmem4.add_segment(seg4);
-  pmem4.add_segment(seg6);
+  pmem4.combine_and_sort_segment(seg0);
+  pmem4.combine_and_sort_segment(seg2);
+  pmem4.combine_and_sort_segment(seg4);
+  pmem4.combine_and_sort_segment(seg6);
   EXPECT_EQ(pmem4.nsegments(), 4);
   EXPECT_EQ(pmem4.segment(0).size(), 1u);
   EXPECT_EQ(pmem4.segment(1).size(), 1u);
@@ -135,32 +135,14 @@ TEST(ZPhysicalMemoryTest, add) {
   EXPECT_EQ(pmem4.is_null(), false);
 }
 
-TEST(ZPhysicalMemoryTest, remove) {
-  ZAddressOffsetMaxSetter setter;
-
-  ZPhysicalMemory pmem;
-
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(10), 10, true));
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(30), 10, true));
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(50), 10, true));
-  EXPECT_EQ(pmem.nsegments(), 3);
-  EXPECT_EQ(pmem.size(), 30u);
-  EXPECT_FALSE(pmem.is_null());
-
-  pmem.remove_segments();
-  EXPECT_EQ(pmem.nsegments(), 0);
-  EXPECT_EQ(pmem.size(), 0u);
-  EXPECT_TRUE(pmem.is_null());
-}
-
 TEST(ZPhysicalMemoryTest, split_unsorted) {
   ZAddressOffsetMaxSetter setter;
 
   ZPhysicalMemory pmem;
 
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(0), 10, true));
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(10), 10, true));
-  pmem.add_segment(ZPhysicalMemorySegment(zoffset(30), 10, true));
+  pmem.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(0), 10, true));
+  pmem.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(10), 10, true));
+  pmem.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(30), 10, true));
   EXPECT_EQ(pmem.nsegments(), 2);
   EXPECT_EQ(pmem.size(), 30u);
 
@@ -187,10 +169,10 @@ TEST(ZPhysicalMemoryTest, split_committed) {
   ZAddressOffsetMaxSetter setter;
 
   ZPhysicalMemory pmem0;
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(0), 10, true));
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(10), 10, false));
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(20), 10, true));
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(30), 10, false));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(0), 10, true));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(10), 10, false));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(20), 10, true));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(30), 10, false));
   EXPECT_EQ(pmem0.nsegments(), 4);
   EXPECT_EQ(pmem0.size(), 40u);
 
@@ -206,8 +188,8 @@ TEST(ZPhysicalMemoryTest, limits) {
 
   const size_t HalfZAddressOffsetMax = ZAddressOffsetMax >> 1;
   ZPhysicalMemory pmem0;
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(0), HalfZAddressOffsetMax, true));
-  pmem0.add_segment(ZPhysicalMemorySegment(zoffset(HalfZAddressOffsetMax), HalfZAddressOffsetMax, false));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(0), HalfZAddressOffsetMax, true));
+  pmem0.combine_and_sort_segment(ZPhysicalMemorySegment(zoffset(HalfZAddressOffsetMax), HalfZAddressOffsetMax, false));
   EXPECT_EQ(pmem0.nsegments(), 2);
   EXPECT_EQ(pmem0.size(), ZAddressOffsetMax);
 

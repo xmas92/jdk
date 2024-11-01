@@ -495,7 +495,7 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
 
   // As a side effect, also sort the physical memory segments
   ZPhysicalMemory pmem;
-  pmem.add_segments(mapping.unsorted_physical_memory());
+  pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
 
   return map_virtual_to_physical(vmem, pmem);
 }
@@ -629,8 +629,8 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
 
     _unmapper->unmap_virtual(mapping.virtual_memory());
 
-    // Extract unsorted segments and sort/merge them into pmem
-    pmem.add_segments(mapping.unsorted_physical_memory());
+    // Extract unsorted segments and combine/sort them into pmem
+    pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
   }
 
   // Clear the array of stored mappings

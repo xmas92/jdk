@@ -486,14 +486,18 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
   const ZVirtualMemory vmem = _virtual.alloc(mapping.size(), force_low_address);
 
   if (vmem.is_null()) {
-    // Failed to allocate new virtual address space, do nothing.
+    // Failed to allocate new virtual address space, do nothing
     return mapping;
   }
 
   // Unmap the previous mapping asynchronously
   _unmapper->unmap_virtual(mapping.virtual_memory());
 
-  return map_virtual_to_physical(vmem, mapping.physical_memory());
+  // As a side effect, also sort the physical memory segments
+  ZPhysicalMemory pmem;
+  pmem.add_segments(mapping.unsorted_physical_memory());
+
+  return map_virtual_to_physical(vmem, pmem);
 }
 
 bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
@@ -622,8 +626,11 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
   ZArrayIterator<ZMappedMemory> iter(allocation->mappings());
   for (ZMappedMemory mapping; iter.next(&mapping);) {
     harvested += mapping.size();
-    pmem.add_segments(mapping.physical_memory());
+
     _unmapper->unmap_virtual(mapping.virtual_memory());
+
+    // Extract unsorted segments and sort/merge them into pmem
+    pmem.add_segments(mapping.unsorted_physical_memory());
   }
 
   // Clear the array of stored mappings
@@ -781,7 +788,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   // Send event
   event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
-               page->physical_memory().nsegments(), flags.non_blocking());
+               page->mapped_memory().nsegments(), flags.non_blocking());
 
   return page;
 }
@@ -819,9 +826,8 @@ void ZPageAllocator::prepare_virtual_address_for_cache(ZMappedMemory& mapping, b
     mapping = remap_mapping(mapping, false /* force_low_address */);
   }
 
-  // TODO: This is not nice
   // Large pages are always remapped to a low address when inserted into the cache
-  if (mapping.size() >= ZPageSizeSmall && mapping.size() > ZPageSizeMedium) {
+  if (mapping.size() > ZPageSizeSmall && mapping.size() > ZPageSizeMedium) {
     mapping = remap_mapping(mapping, true /* force_low_address */);
   }
 }
@@ -949,7 +955,10 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   ZArrayIterator<ZMappedMemory> it(&flush_mapped);
   for (ZMappedMemory mapping; it.next(&mapping);) {
     unmap_virtual(mapping.virtual_memory());
-    uncommit_physical(mapping.physical_memory());
+
+    ZPhysicalMemory unsorted_pmem = mapping.unsorted_physical_memory();
+    uncommit_physical(unsorted_pmem);
+    free_physical(unsorted_pmem);
   }
 
   {

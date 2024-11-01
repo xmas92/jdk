@@ -107,8 +107,8 @@ define zmarked
     set $page_index    = $obj >> ZGranuleSizeShift
     set $page_entry    = (uintptr_t)ZHeap::_heap._page_table._map._map[$page_index]
     set $page          = (ZPage*)($page_entry & ~1)
-    set $page_start    = (uintptr_t)$page._virtual._start
-    set $page_end      = (uintptr_t)$page._virtual._end
+    set $page_start    = (uintptr_t)$page._mapping._vmem._start
+    set $page_end      = (uintptr_t)$page._mapping._vmem._end
     set $page_seqnum   = $page._livemap._seqnum
     set $global_seqnum = ZGlobalSeqNum
 

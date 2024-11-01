@@ -153,7 +153,7 @@ TEST(ZPhysicalMemoryTest, remove) {
   EXPECT_TRUE(pmem.is_null());
 }
 
-TEST(ZPhysicalMemoryTest, split) {
+TEST(ZPhysicalMemoryTest, split_unsorted) {
   ZAddressOffsetMaxSetter setter;
 
   ZPhysicalMemory pmem;
@@ -164,19 +164,19 @@ TEST(ZPhysicalMemoryTest, split) {
   EXPECT_EQ(pmem.nsegments(), 2);
   EXPECT_EQ(pmem.size(), 30u);
 
-  ZPhysicalMemory pmem0 = pmem.split(1);
+  ZPhysicalMemory pmem0 = pmem.split_unsorted(1);
   EXPECT_EQ(pmem0.nsegments(), 1);
   EXPECT_EQ(pmem0.size(), 1u);
   EXPECT_EQ(pmem.nsegments(), 2);
   EXPECT_EQ(pmem.size(), 29u);
 
-  ZPhysicalMemory pmem1 = pmem.split(25);
+  ZPhysicalMemory pmem1 = pmem.split_unsorted(25);
   EXPECT_EQ(pmem1.nsegments(), 2);
   EXPECT_EQ(pmem1.size(), 25u);
   EXPECT_EQ(pmem.nsegments(), 1);
   EXPECT_EQ(pmem.size(), 4u);
 
-  ZPhysicalMemory pmem2 = pmem.split(4);
+  ZPhysicalMemory pmem2 = pmem.split_unsorted(4);
   EXPECT_EQ(pmem2.nsegments(), 1);
   EXPECT_EQ(pmem2.size(), 4u);
   EXPECT_EQ(pmem.nsegments(), 0);

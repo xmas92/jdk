@@ -70,14 +70,12 @@ public:
 
   void add_segments(const ZPhysicalMemory& pmem);
   void append_segments(const ZPhysicalMemory& pmem);
-  void remove_segments();
 
   void add_segment(const ZPhysicalMemorySegment& segment);
   void append_segment(const ZPhysicalMemorySegment& segment);
   bool commit_segment(int index, size_t size);
   bool uncommit_segment(int index, size_t size);
 
-  ZPhysicalMemory split(size_t size);
   ZPhysicalMemory split_unsorted(size_t size);
   ZPhysicalMemory split_committed();
 };

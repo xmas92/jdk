@@ -57,7 +57,7 @@ inline ZForwarding* ZForwarding::alloc(ZForwardingAllocator* allocator, ZPage* p
 }
 
 inline ZForwarding::ZForwarding(ZPage* page, ZPageAge to_age, size_t nentries)
-  : _virtual(page->virtual_memory()),
+  : _virtual(page->mapped_memory().virtual_memory()),
     _object_alignment_shift(page->object_alignment_shift()),
     _entries(nentries),
     _page(page),

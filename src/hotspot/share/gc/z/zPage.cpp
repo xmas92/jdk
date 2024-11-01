@@ -33,36 +33,30 @@
 #include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
 
-ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem)
+ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
   : _type(type),
     _generation_id(ZGenerationId::young),
     _age(ZPageAge::eden),
     _numa_id((uint8_t)-1),
     _seqnum(0),
     _seqnum_other(0),
-    _virtual(vmem),
+    _mapping(mapping),
     _top(to_zoffset_end(start())),
     _livemap(object_max_count()),
     _remembered_set(),
     _last_used(0),
-    _physical(pmem),
     _node() {
-  assert(!_virtual.is_null(), "Should not be null");
-  assert(!_physical.is_null(), "Should not be null");
-  assert(_virtual.size() == _physical.size(), "Virtual/Physical size mismatch");
+  assert(!_mapping.is_null(), "Should not be null");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
          (_type == ZPageType::medium && size() == ZPageSizeMedium) ||
          (_type == ZPageType::large && is_aligned(size(), ZGranuleSize)),
          "Page type/size mismatch");
 }
 
-ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
-  : ZPage(type, mapping.virtual_memory(), mapping.physical_memory()) {}
-
 ZPage* ZPage::clone_limited() const {
   // Only copy type and memory layouts, and also update _top. Let the rest be
   // lazily reconstructed when needed.
-  ZPage* const page = new ZPage(_type, _virtual, _physical);
+  ZPage* const page = new ZPage(_type, _mapping);
   page->_top = _top;
 
   return page;

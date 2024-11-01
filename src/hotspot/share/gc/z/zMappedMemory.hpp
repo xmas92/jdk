@@ -43,14 +43,14 @@ public:
   zoffset_end end() const;
   size_t size() const;
 
-  ZMappedMemory split(size_t size);
+  int nsegments() const;
 
+  ZMappedMemory split(size_t size);
   bool virtually_adjacent_to(const ZMappedMemory& other) const;
   void extend_mapping(const ZMappedMemory& right);
 
   const ZVirtualMemory& virtual_memory() const;
-  const ZPhysicalMemory& physical_memory() const;
-  ZPhysicalMemory& physical_memory();
+  const ZPhysicalMemory& unsorted_physical_memory() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

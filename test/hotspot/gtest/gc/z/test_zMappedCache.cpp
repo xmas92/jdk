@@ -33,7 +33,7 @@ protected:
     ZMappedCache cache;
     ZVirtualMemory vmem1(zoffset(0), 100);
     ZVirtualMemory vmem2(zoffset(100), 100);
-    ZPhysicalMemory pmem;
+    ZPhysicalMemory pmem(ZPhysicalMemorySegment(to_zoffset(0), 100, false));
 
     cache.insert_mapping(ZMappedMemory(vmem1, pmem));
     cache.insert_mapping(ZMappedMemory(vmem2, pmem));
@@ -49,7 +49,7 @@ protected:
     ZMappedCache cache;
     ZVirtualMemory vmem1(zoffset(0), 100);
     ZVirtualMemory vmem2(zoffset(100), 100);
-    ZPhysicalMemory pmem;
+    ZPhysicalMemory pmem(ZPhysicalMemorySegment(to_zoffset(0), 100, false));
 
     cache.insert_mapping(ZMappedMemory(vmem2, pmem));
     cache.insert_mapping(ZMappedMemory(vmem1, pmem));
@@ -67,7 +67,7 @@ protected:
     ZVirtualMemory vmem2(zoffset(100), 100);
     ZVirtualMemory vmem3(zoffset(200), 100);
 
-    ZPhysicalMemory pmem;
+    ZPhysicalMemory pmem(ZPhysicalMemorySegment(to_zoffset(0), 100, false));
 
     cache.insert_mapping(ZMappedMemory(vmem1, pmem));
     cache.insert_mapping(ZMappedMemory(vmem3, pmem));
@@ -83,8 +83,7 @@ protected:
   static void test_remove_mapped_contiguous() {
     ZMappedCache cache;
 
-    ZPhysicalMemory pmem1;
-    pmem1.add_segment(ZPhysicalMemorySegment(zoffset(0), 50, true));
+    ZPhysicalMemory pmem1(ZPhysicalMemorySegment(zoffset(0), 50, true));
 
     ZPhysicalMemory pmem2;
     ZPhysicalMemorySegment seg1(zoffset(25), 25, true);
@@ -108,9 +107,9 @@ protected:
     cache.remove_mapping_contiguous(&chunk, 25);
     EXPECT_EQ(chunk.start(), zoffset(100));
     EXPECT_EQ(chunk.size(), (size_t)25);
-    EXPECT_EQ(chunk.physical_memory().nsegments(), 1);
-    EXPECT_EQ(chunk.physical_memory().segment(0).start(), seg1.start());
-    EXPECT_EQ(chunk.physical_memory().segment(0).size(), seg1.size());
+    EXPECT_EQ(chunk.unsorted_physical_memory().nsegments(), 1);
+    EXPECT_EQ(chunk.unsorted_physical_memory().segment(0).start(), seg1.start());
+    EXPECT_EQ(chunk.unsorted_physical_memory().segment(0).size(), seg1.size());
 
     ZMappedMemory chunk2;
     cache.remove_mapping_contiguous(&chunk2, 100);
@@ -120,7 +119,7 @@ protected:
   static void test_remove_mapped() {
     ZMappedCache cache;
 
-    ZPhysicalMemory pmem;
+    ZPhysicalMemory pmem(ZPhysicalMemorySegment(to_zoffset(0), 100, false));
 
     ZVirtualMemory vmem1(zoffset(0), 100);
     ZVirtualMemory vmem2(zoffset(200), 100);

@@ -102,10 +102,6 @@ void ZPhysicalMemory::append_segments(const ZPhysicalMemory& pmem) {
   _segments.appendAll(&pmem._segments);
 }
 
-void ZPhysicalMemory::remove_segments() {
-  _segments.clear_and_deallocate();
-}
-
 static bool is_mergable(const ZPhysicalMemorySegment& before, const ZPhysicalMemorySegment& after) {
   return before.end() == after.start() && before.is_committed() == after.is_committed();
 }
@@ -197,33 +193,6 @@ bool ZPhysicalMemory::uncommit_segment(int index, size_t size) {
   }
 
   return false;
-}
-
-ZPhysicalMemory ZPhysicalMemory::split(size_t size) {
-  ZPhysicalMemory pmem;
-  int nsegments = 0;
-
-  for (int i = 0; i < _segments.length(); i++) {
-    const ZPhysicalMemorySegment& segment = _segments.at(i);
-    if (pmem.size() < size) {
-      if (pmem.size() + segment.size() <= size) {
-        // Transfer segment
-        pmem.add_segment(segment);
-      } else {
-        // Split segment
-        const size_t split_size = size - pmem.size();
-        pmem.add_segment(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
-        _segments.at_put(nsegments++, ZPhysicalMemorySegment(segment.start() + split_size, segment.size() - split_size, segment.is_committed()));
-      }
-    } else {
-      // Keep segment
-      _segments.at_put(nsegments++, segment);
-    }
-  }
-
-  _segments.trunc_to(nsegments);
-
-  return pmem;
 }
 
 ZPhysicalMemory ZPhysicalMemory::split_unsorted(size_t size) {

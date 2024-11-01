@@ -223,7 +223,9 @@ public:
     // Create page
     const ZVirtualMemory vmem(zoffset(_page_offset), ZPageSizeSmall);
     const ZPhysicalMemory pmem(ZPhysicalMemorySegment(zoffset(0), ZPageSizeSmall, true));
-    ZPage page(ZPageType::small, vmem, pmem);
+    const ZMappedMemory mapping(vmem, pmem);
+
+    ZPage page(ZPageType::small, mapping);
 
     page.reset(ZPageAge::eden);
 

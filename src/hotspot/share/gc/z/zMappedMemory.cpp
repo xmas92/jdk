@@ -34,7 +34,9 @@ ZMappedMemory::ZMappedMemory()
 
 ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZPhysicalMemory& pmem)
   : _vmem(vmem),
-    _pmem(pmem) {}
+    _pmem(pmem) {
+  assert(vmem.size() == pmem.size(), "Virtual/Physical size mismatch");
+}
 
 ZMappedMemory::ZMappedMemory(const ZMappedMemory& other) 
   : _vmem(other._vmem),
@@ -62,13 +64,17 @@ size_t ZMappedMemory::size() const {
   return _vmem.size();
 }
 
+int ZMappedMemory::nsegments() const {
+  return _pmem.nsegments();
+}
+
 ZMappedMemory ZMappedMemory::split(size_t size) {
   return ZMappedMemory(_vmem.split(size), _pmem.split_unsorted(size));
 }
 
 bool ZMappedMemory::virtually_adjacent_to(const ZMappedMemory& other) const {
-  return zoffset(_vmem.end()) == other.virtual_memory().start() ||
-         zoffset(other.virtual_memory().end()) == _vmem.start();
+  return zoffset(_vmem.end()) == other._vmem.start() ||
+         zoffset(other._vmem.end()) == _vmem.start();
 }
 
 void ZMappedMemory::extend_mapping(const ZMappedMemory& right) {
@@ -76,17 +82,13 @@ void ZMappedMemory::extend_mapping(const ZMappedMemory& right) {
   _vmem = ZVirtualMemory(_vmem.start(), _vmem.size() + right.size());
 
   // Combine physical memory segments in the order they appear (i.e unsorted).
-  _pmem.append_segments(right.physical_memory());
+  _pmem.append_segments(right.unsorted_physical_memory());
 }
 
 const ZVirtualMemory& ZMappedMemory::virtual_memory() const {
   return _vmem;
 }
 
-const ZPhysicalMemory& ZMappedMemory::physical_memory() const {
-  return _pmem;
-}
-
-ZPhysicalMemory& ZMappedMemory::physical_memory() {
+const ZPhysicalMemory& ZMappedMemory::unsorted_physical_memory() const {
   return _pmem;
 }

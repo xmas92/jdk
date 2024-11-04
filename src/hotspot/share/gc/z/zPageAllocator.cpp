@@ -54,48 +54,6 @@ static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocat
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
-ZSafePageRecycle::ZSafePageRecycle(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
-    _unsafe_to_recycle() {}
-
-void ZSafePageRecycle::activate() {
-  _unsafe_to_recycle.activate();
-}
-
-void ZSafePageRecycle::deactivate() {
-  auto delete_function = [&](ZPage* page) {
-    _page_allocator->safe_destroy_page(page);
-  };
-
-  _unsafe_to_recycle.deactivate_and_apply(delete_function);
-}
-
-ZPage* ZSafePageRecycle::register_and_clone_if_activated(ZPage* page) {
-  if (!_unsafe_to_recycle.is_activated()) {
-    // The page has no concurrent readers.
-    // Recycle original page.
-    return page;
-  }
-
-  // The page could have concurrent readers.
-  // It would be unsafe to recycle this page at this point.
-
-  // As soon as the page is added to _unsafe_to_recycle, it
-  // must not be used again. Hence, the extra double-checked
-  // locking to only clone the page if it is believed to be
-  // unsafe to recycle the page.
-  ZPage* const cloned_page = page->clone_limited();
-  if (!_unsafe_to_recycle.add_if_activated(page)) {
-    // It became safe to recycle the page after the is_activated check
-    delete cloned_page;
-    return page;
-  }
-
-  // The original page has been registered to be deleted by another thread.
-  // Recycle the cloned page.
-  return cloned_page;
-}
-
 class ZPageAllocation : public StackObj {
   friend class ZList<ZPageAllocation>;
 
@@ -203,7 +161,6 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _unmapper(new ZUnmapper(this)),
     _uncommitter(new ZUncommitter(this)),
     _safe_destroy(),
-    _safe_recycle(this),
     _initialized(false) {
 
   if (!_virtual.is_initialized() || !_physical.is_initialized()) {
@@ -517,6 +474,20 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
   pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
 
   return map_virtual_to_physical(vmem, pmem);
+}
+
+ZMappedMemory ZPageAllocator::prepare_virtual_address_for_cache(const ZMappedMemory& mapping, bool allow_defragment) {
+  // Small pages are only remapped if allowed and they need to be defragmented
+  if (allow_defragment && should_defragment(mapping)) {
+    return remap_mapping(mapping, false /* force_low_address */);
+  }
+
+  // Large pages are always remapped to a lower address regardless of allow_defragment
+  if (mapping.size() > ZPageSizeSmall && mapping.size() > ZPageSizeMedium) {
+    return remap_mapping(mapping, true /* force_low_address */);
+  }
+
+  return mapping;
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
@@ -833,12 +804,9 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
 
   // Extract mapped memory and destroy page
   ZMappedMemory mapping = page->mapped_memory();
-  ZPageType page_type = page->type();
   safe_destroy_page(page);
 
-  if (should_defragment(mapping) || page_type == ZPageType::large) {
-    mapping = remap_mapping(mapping, true /* force_low_address */);
-  }
+  mapping = prepare_virtual_address_for_cache(mapping, allow_defragment);
 
   ZLocker<ZLock> locker(&_lock);
 
@@ -870,12 +838,9 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
     // Extract mapped memory and destroy page
     ZMappedMemory mapping = page->mapped_memory();
-    ZPageType page_type = page->type();
     safe_destroy_page(page);
 
-    if (should_defragment(mapping) || page_type == ZPageType::large) {
-      mapping = remap_mapping(mapping, true /* force_low_address */);
-    }
+    mapping = prepare_virtual_address_for_cache(mapping, true /* allow_defragment */);
 
     to_cache.append(mapping);
   }
@@ -981,14 +946,6 @@ void ZPageAllocator::enable_safe_destroy() const {
 
 void ZPageAllocator::disable_safe_destroy() const {
   _safe_destroy.disable_deferred_delete();
-}
-
-void ZPageAllocator::enable_safe_recycle() const {
-  _safe_recycle.activate();
-}
-
-void ZPageAllocator::disable_safe_recycle() const {
-  _safe_recycle.deactivate();
 }
 
 static bool has_alloc_seen_young(const ZPageAllocation* allocation) {

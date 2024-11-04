@@ -44,20 +44,6 @@ class ZWorkers;
 class ZUncommitter;
 class ZUnmapper;
 
-class ZSafePageRecycle {
-private:
-  ZPageAllocator*        _page_allocator;
-  ZActivatedArray<ZPage> _unsafe_to_recycle;
-
-public:
-  ZSafePageRecycle(ZPageAllocator* page_allocator);
-
-  void activate();
-  void deactivate();
-
-  ZPage* register_and_clone_if_activated(ZPage* page);
-};
-
 class ZPageAllocator {
   friend class VMStructs;
   friend class ZUnmapper;
@@ -84,7 +70,6 @@ private:
   ZUnmapper*                 _unmapper;
   ZUncommitter*              _uncommitter;
   mutable ZSafeDelete<ZPage> _safe_destroy;
-  mutable ZSafePageRecycle   _safe_recycle;
   bool                       _initialized;
 
   size_t increase_capacity(size_t size);
@@ -107,6 +92,7 @@ private:
 
   bool should_defragment(const ZMappedMemory& mapping) const;
   ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
+  ZMappedMemory prepare_virtual_address_for_cache(const ZMappedMemory& mapping, bool allow_defragment);
 
   bool is_alloc_allowed(size_t size) const;
 
@@ -163,9 +149,6 @@ public:
 
   void enable_safe_destroy() const;
   void disable_safe_destroy() const;
-
-  void enable_safe_recycle() const;
-  void disable_safe_recycle() const;
 
   bool is_alloc_stalling() const;
   bool is_alloc_stalling_for_old() const;

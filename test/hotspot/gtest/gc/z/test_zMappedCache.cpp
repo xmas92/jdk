@@ -86,10 +86,11 @@ protected:
     ZPhysicalMemory pmem1(ZPhysicalMemorySegment(zoffset(0), 50, true));
 
     ZPhysicalMemory pmem2;
-    ZPhysicalMemorySegment seg1(zoffset(25), 25, true);
-    ZPhysicalMemorySegment seg2(zoffset(0), 25, true);
-    pmem2.append_segment(seg1);
-    pmem2.append_segment(seg2);
+    ZPhysicalMemorySegment seg1(zoffset(0), 25, true);
+    ZPhysicalMemorySegment seg2(zoffset(50), 25, true);
+
+    pmem2.combine_and_sort_segment(seg1);
+    pmem2.combine_and_sort_segment(seg2);
 
     ZVirtualMemory vmem1(zoffset(0), 50);
     ZVirtualMemory vmem2(zoffset(100), 50);

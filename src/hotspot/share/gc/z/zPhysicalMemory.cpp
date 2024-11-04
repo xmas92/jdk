@@ -80,6 +80,10 @@ size_t ZPhysicalMemory::size() const {
   return size;
 }
 
+void ZPhysicalMemory::append_segment(const ZPhysicalMemorySegment& segment) {
+  _segments.append(segment);
+}
+
 void ZPhysicalMemory::insert_segment(int index, zoffset start, size_t size, bool committed) {
   _segments.insert_before(index, ZPhysicalMemorySegment(start, size, committed));
 }
@@ -96,10 +100,6 @@ void ZPhysicalMemory::combine_and_sort_segments(const ZPhysicalMemory& pmem) {
   for (int i = 0; i < pmem.nsegments(); i++) {
     combine_and_sort_segment(pmem.segment(i));
   }
-}
-
-void ZPhysicalMemory::append_segments(const ZPhysicalMemory& pmem) {
-  _segments.appendAll(&pmem._segments);
 }
 
 static bool is_mergable(const ZPhysicalMemorySegment& before, const ZPhysicalMemorySegment& after) {
@@ -153,8 +153,8 @@ void ZPhysicalMemory::combine_and_sort_segment(const ZPhysicalMemorySegment& seg
   insert_segment(0, segment.start(), segment.size(), segment.is_committed());
 }
 
-void ZPhysicalMemory::append_segment(const ZPhysicalMemorySegment& segment) {
-  _segments.append(segment);
+void ZPhysicalMemory::combine_unsorted(const ZPhysicalMemory& pmem) {
+  _segments.appendAll(&pmem._segments);
 }
 
 bool ZPhysicalMemory::commit_segment(int index, size_t size) {

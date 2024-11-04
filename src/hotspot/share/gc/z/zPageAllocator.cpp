@@ -323,14 +323,6 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
   if (increased > 0) {
     // Update atomically since we have concurrent readers
     Atomic::add(&_capacity, increased);
-
-    // TODO: Fix uncommit
-    // Record time of last commit. When allocation, we prefer increasing
-    // the capacity over flushing the cache. That means there could be
-    // expired memory in the cache at this time. However, since we are
-    // increasing the capacity we are obviously in need of committed
-    // memory and should therefore not be uncommitting memory.
-    // _mapped_cache.set_last_commit();
   }
 
   return increased;
@@ -891,9 +883,12 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
 }
 
 size_t ZPageAllocator::uncommit(uint64_t* timeout) {
+  // TODO: Do nothing until implemented correctly.
+  return 0;
+
   // We need to join the suspendible thread set while manipulating capacity and
   // used, to make sure GC safepoints will have a consistent view.
-  ZArray<ZMappedMemory> flush_mapped;
+  ZArray<ZMappedMemory> flushed_mappings;
   size_t flushed = 0;
 
   {
@@ -908,8 +903,9 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
     const size_t limit = MIN2(align_up(_current_max_capacity >> 7, ZGranuleSize), 256 * M);
     const size_t flush = MIN2(release, limit);
 
-    // Flush pages to uncommit
-    // TODO: Fix uncommit, probably by calling remove_mappings()
+    // Flush memory from the mapped cache to uncommit
+    _mapped_cache.remove_mappings(&flushed_mappings, flush);
+
     if (flushed == 0) {
       // Nothing flushed
       return 0;
@@ -920,7 +916,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   }
 
   // Unmap and uncommit flushed memory
-  ZArrayIterator<ZMappedMemory> it(&flush_mapped);
+  ZArrayIterator<ZMappedMemory> it(&flushed_mappings);
   for (ZMappedMemory mapping; it.next(&mapping);) {
     unmap_virtual(mapping.virtual_memory());
 

@@ -479,6 +479,7 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
 ZMappedMemory ZPageAllocator::prepare_virtual_address_for_cache(const ZMappedMemory& mapping, bool allow_defragment) {
   // Small pages are only remapped if allowed and they need to be defragmented
   if (allow_defragment && should_defragment(mapping)) {
+    ZStatInc(ZCounterDefragment);
     return remap_mapping(mapping, false /* force_low_address */);
   }
 

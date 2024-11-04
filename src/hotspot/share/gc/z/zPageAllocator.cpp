@@ -128,7 +128,7 @@ public:
     return _stall_result.get();
   }
 
-  ZArray<ZMappedMemory> *mappings() {
+  ZArray<ZMappedMemory>* mappings() {
     return &_mappings;
   }
 

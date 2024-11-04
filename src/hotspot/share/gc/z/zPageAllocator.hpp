@@ -124,8 +124,6 @@ private:
   bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
   void free_memory_alloc_failed(ZPageAllocation* allocation);
 
-  void prepare_virtual_address_for_cache(ZMappedMemory& mapping, bool allow_defragment);
-
   void satisfy_stalled();
 
   size_t uncommit(uint64_t* timeout);

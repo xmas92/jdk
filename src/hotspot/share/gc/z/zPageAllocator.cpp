@@ -505,9 +505,18 @@ bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
   // address space) if we have a constrained address space. To help fight address
   // space fragmentation we remap such memory to a lower address, if a lower address
   // is available.
-  return mapping.size() == ZPageSizeSmall &&
-         mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
-         mapping.start() > _virtual.lowest_available_address();
+  if (mapping.size() == ZPageSizeSmall &&
+      mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
+      mapping.start() > _virtual.lowest_available_address()) {
+    return true;
+  }
+
+  // TODO: Medium pages are not defragmented. Unclear if we can check that a
+  // contiguous chunk of virtual memory is available in lower addresses. Unlike
+  // for small pages, it is not enough to check the lowest_available_address as
+  // the lowest available could (at the lowest) be only 2MiB.
+
+  return false;
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
@@ -819,27 +828,17 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-void ZPageAllocator::prepare_virtual_address_for_cache(ZMappedMemory& mapping, bool allow_defragment) {
-  // Perhaps combat fragmentation by remapping
-  if (allow_defragment && should_defragment(mapping)) {
-    ZStatInc(ZCounterDefragment);
-    mapping = remap_mapping(mapping, false /* force_low_address */);
-  }
-
-  // Large pages are always remapped to a low address when inserted into the cache
-  if (mapping.size() > ZPageSizeSmall && mapping.size() > ZPageSizeMedium) {
-    mapping = remap_mapping(mapping, true /* force_low_address */);
-  }
-}
-
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   const ZGenerationId generation_id = page->generation_id();
 
   // Extract mapped memory and destroy page
   ZMappedMemory mapping = page->mapped_memory();
+  ZPageType page_type = page->type();
   safe_destroy_page(page);
 
-  prepare_virtual_address_for_cache(mapping, allow_defragment);
+  if (should_defragment(mapping) || page_type == ZPageType::large) {
+    mapping = remap_mapping(mapping, true /* force_low_address */);
+  }
 
   ZLocker<ZLock> locker(&_lock);
 
@@ -871,9 +870,12 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
     // Extract mapped memory and destroy page
     ZMappedMemory mapping = page->mapped_memory();
+    ZPageType page_type = page->type();
     safe_destroy_page(page);
 
-    prepare_virtual_address_for_cache(mapping, true /* allow_defragment */);
+    if (should_defragment(mapping) || page_type == ZPageType::large) {
+      mapping = remap_mapping(mapping, true /* force_low_address */);
+    }
 
     to_cache.append(mapping);
   }

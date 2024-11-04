@@ -49,7 +49,6 @@ private:
   uint8_t              _numa_id;
   uint32_t             _seqnum;
   uint32_t             _seqnum_other;
-  ZVirtualMemory       _virtual;
   ZMappedMemory        _mapping;
   volatile zoffset_end _top;
   ZLiveMap             _livemap;

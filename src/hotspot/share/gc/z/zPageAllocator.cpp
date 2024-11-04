@@ -481,25 +481,6 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
   _virtual.free(vmem);
 }
 
-ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool force_low_address) {
-  // Allocate new virtual memory
-  const ZVirtualMemory vmem = _virtual.alloc(mapping.size(), force_low_address);
-
-  if (vmem.is_null()) {
-    // Failed to allocate new virtual address space, do nothing
-    return mapping;
-  }
-
-  // Unmap the previous mapping asynchronously
-  _unmapper->unmap_virtual(mapping.virtual_memory());
-
-  // As a side effect, also sort the physical memory segments
-  ZPhysicalMemory pmem;
-  pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
-
-  return map_virtual_to_physical(vmem, pmem);
-}
-
 bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
   // The memory of a small page can end up at a high address (second half of the
   // address space) if we have a constrained address space. To help fight address
@@ -517,6 +498,25 @@ bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
   // the lowest available could (at the lowest) be only 2MiB.
 
   return false;
+}
+
+ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool force_low_address) {
+  // Allocate new virtual memory
+  const ZVirtualMemory vmem = _virtual.alloc(mapping.size(), force_low_address);
+
+  if (vmem.is_null()) {
+    // Failed to allocate new virtual address space, do nothing
+    return mapping;
+  }
+
+  // Unmap the previous mapping asynchronously
+  _unmapper->unmap_virtual(mapping.virtual_memory());
+
+  // As a side effect, also sort the physical memory segments
+  ZPhysicalMemory pmem;
+  pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
+
+  return map_virtual_to_physical(vmem, pmem);
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {

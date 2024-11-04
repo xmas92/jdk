@@ -105,8 +105,8 @@ private:
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
 
-  ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
   bool should_defragment(const ZMappedMemory& mapping) const;
+  ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
 
   bool is_alloc_allowed(size_t size) const;
 

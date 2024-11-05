@@ -114,6 +114,14 @@ ZPhysicalMemory ZMappedPhysicalMemory::sorted_physical() const {
   return pmem;
 }
 
+ZPhysicalMemory ZMappedPhysicalMemory::unsorted_physical() const {
+  ZPhysicalMemory pmem;
+
+  pmem._segments.appendAll(&_segments);
+
+  return pmem;
+}
+
 ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZMappedPhysicalMemory& mpmem)
   : _vmem(vmem),
     _mpmem(mpmem) {
@@ -182,4 +190,8 @@ const ZVirtualMemory& ZMappedMemory::virtual_memory() const {
 
 ZPhysicalMemory ZMappedMemory::sorted_physical_memory() const {
   return _mpmem.sorted_physical();
+}
+
+ZPhysicalMemory ZMappedMemory::unsorted_physical_memory() const {
+  return _mpmem.unsorted_physical();
 }

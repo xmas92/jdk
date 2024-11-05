@@ -587,7 +587,7 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
     _unmapper->unmap_virtual(mapping.virtual_memory());
 
     // Combine harvested mappings
-    pmem.combine_and_sort_segments(mapping.sorted_physical_memory());
+    pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
   }
 
   // Clear the array of stored mappings
@@ -915,7 +915,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   for (ZMappedMemory mapping; it.next(&mapping);) {
     unmap_virtual(mapping.virtual_memory());
 
-    ZPhysicalMemory pmem = mapping.sorted_physical_memory();
+    ZPhysicalMemory pmem = mapping.unsorted_physical_memory();
     uncommit_physical(pmem);
     free_physical(pmem);
   }

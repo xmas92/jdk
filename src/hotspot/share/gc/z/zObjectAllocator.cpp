@@ -26,6 +26,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zAllocator.inline.hpp"
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
@@ -93,7 +94,11 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 
   if (is_null(addr)) {
     // Allocate new page
-    ZPage* const new_page = alloc_page(page_type, page_size, flags);
+    ZPage* new_page = alloc_page(page_type, page_size, flags);
+    if (UseNewCode && new_page != nullptr && ZAllocator::old()->is_allocator_for(this) && ZGeneration::young()->is_phase_mark()) {
+      undo_alloc_page(new_page);
+      new_page = alloc_page(page_type, page_size, flags);
+    }
     if (new_page != nullptr) {
       // Allocate object before installing the new page
       addr = new_page->alloc_object(size);

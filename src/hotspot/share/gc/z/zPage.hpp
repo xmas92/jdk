@@ -157,6 +157,7 @@ public:
 
   void remset_alloc();
   void remset_delete();
+  bool remset_initialized() const { return _remembered_set.is_initialized(); };
 
   ZBitMap::ReverseIterator remset_reverse_iterator_previous();
   BitMap::Iterator remset_iterator_limited_current(uintptr_t l_offset, size_t size);

@@ -512,6 +512,8 @@ public:
 
       // Scan page
       if (page != nullptr) {
+        precond(page->is_old());
+        precond(page->remset_initialized());
         if (_remembered->should_scan_page(page)) {
           // Visit all entries pointing into young gen
           bool found_roots = _remembered->scan_page_and_clear_remset(page);
@@ -532,6 +534,8 @@ public:
         // The iterator reads from the read-only copy, and then here, we install
         // entries in the current active set.
         _remembered->register_found_old(page);
+        postcond(page->is_old());
+        postcond(page->remset_initialized());
       }
 
       SuspendibleThreadSet::yield();

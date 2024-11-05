@@ -51,6 +51,8 @@ public:
   ZAllocator(ZPageAge age);
 
   void retire_pages();
+
+  bool is_allocator_for(ZObjectAllocator* other) const { return other == &_object_allocator; }
 };
 
 class ZAllocatorEden : public ZAllocator {

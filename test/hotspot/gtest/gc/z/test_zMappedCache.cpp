@@ -108,9 +108,11 @@ protected:
     cache.remove_mapping_contiguous(&chunk, 25);
     EXPECT_EQ(chunk.start(), zoffset(100));
     EXPECT_EQ(chunk.size(), (size_t)25);
-    EXPECT_EQ(chunk.physical_memory().nsegments(), 1);
-    EXPECT_EQ(chunk.physical_memory().segment(0).start(), seg1.start());
-    EXPECT_EQ(chunk.physical_memory().segment(0).size(), seg1.size());
+
+    ZPhysicalMemory chunk_pmem = chunk.sorted_physical_memory();
+    EXPECT_EQ(chunk_pmem.nsegments(), 1);
+    EXPECT_EQ(chunk_pmem.segment(0).start(), seg1.start());
+    EXPECT_EQ(chunk_pmem.segment(0).size(), seg1.size());
 
     ZMappedMemory chunk2;
     cache.remove_mapping_contiguous(&chunk2, 100);

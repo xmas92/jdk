@@ -59,10 +59,6 @@ const ZMappedPhysicalMemory& ZMappedPhysicalMemory::operator=(const ZMappedPhysi
   return *this;
 }
 
-bool ZMappedPhysicalMemory::is_null() const {
-  return _segments.is_empty();
-}
-
 size_t ZMappedPhysicalMemory::size() const {
   size_t size = 0;
 
@@ -184,6 +180,6 @@ const ZVirtualMemory& ZMappedMemory::virtual_memory() const {
   return _vmem;
 }
 
-ZPhysicalMemory ZMappedMemory::physical_memory() const {
+ZPhysicalMemory ZMappedMemory::sorted_physical_memory() const {
   return _mpmem.sorted_physical();
 }

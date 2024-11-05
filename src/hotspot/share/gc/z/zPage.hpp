@@ -25,21 +25,17 @@
 #define SHARE_GC_Z_ZPAGE_HPP
 
 #include "gc/z/zGenerationId.hpp"
-#include "gc/z/zList.hpp"
 #include "gc/z/zLiveMap.hpp"
 #include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
-#include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zRememberedSet.hpp"
-#include "gc/z/zVirtualMemory.hpp"
 #include "memory/allocation.hpp"
 
 class ZGeneration;
 
 class ZPage : public CHeapObj<mtGC> {
   friend class VMStructs;
-  friend class ZList<ZPage>;
   friend class ZForwardingTest;
 
 private:
@@ -54,7 +50,6 @@ private:
   ZLiveMap             _livemap;
   ZRememberedSet       _remembered_set;
   uint64_t             _last_used;
-  ZListNode<ZPage>     _node;
 
   const char* type_to_string() const;
 

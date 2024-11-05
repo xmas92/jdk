@@ -109,7 +109,7 @@ protected:
     EXPECT_EQ(chunk.start(), zoffset(100));
     EXPECT_EQ(chunk.size(), (size_t)25);
 
-    ZPhysicalMemory chunk_pmem = chunk.sorted_physical_memory();
+    ZPhysicalMemory chunk_pmem = chunk.unsorted_physical_memory();
     EXPECT_EQ(chunk_pmem.nsegments(), 1);
     EXPECT_EQ(chunk_pmem.segment(0).start(), seg1.start());
     EXPECT_EQ(chunk_pmem.segment(0).size(), seg1.size());

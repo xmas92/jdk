@@ -48,6 +48,7 @@ public:
   ZMappedPhysicalMemory split(size_t size);
 
   ZPhysicalMemory sorted_physical() const;
+  ZPhysicalMemory unsorted_physical() const;
 };
 
 class ZMappedMemory {
@@ -75,7 +76,9 @@ public:
   void extend_mapping(const ZMappedMemory& right);
 
   const ZVirtualMemory& virtual_memory() const;
+
   ZPhysicalMemory sorted_physical_memory() const;
+  ZPhysicalMemory unsorted_physical_memory() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

@@ -92,7 +92,6 @@ private:
 
   bool should_defragment(const ZMappedMemory& mapping) const;
   ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
-  ZMappedMemory prepare_virtual_address_for_cache(const ZMappedMemory& mapping, bool allow_defragment);
 
   bool is_alloc_allowed(size_t size) const;
 

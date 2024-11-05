@@ -27,10 +27,35 @@
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
+class ZMappedPhysicalMemory {
+private:
+  ZArray<ZPhysicalMemorySegment> _segments;
+
+  void append(const ZPhysicalMemorySegment& segment);
+
+public:
+  ZMappedPhysicalMemory();
+  ZMappedPhysicalMemory(const ZPhysicalMemory& pmem);
+  const ZMappedPhysicalMemory& operator=(const ZMappedPhysicalMemory& other);
+  ZMappedPhysicalMemory(const ZMappedPhysicalMemory& other);
+
+  bool is_null() const;
+  size_t size() const;
+
+  int nsegments() const;
+
+  void combine(const ZMappedPhysicalMemory& mpmem);
+  ZMappedPhysicalMemory split(size_t size);
+
+  ZPhysicalMemory sorted_physical() const;
+};
+
 class ZMappedMemory {
 private:
   ZVirtualMemory  _vmem;
-  ZPhysicalMemory _pmem;
+  ZMappedPhysicalMemory _mpmem;
+
+  ZMappedMemory(const ZVirtualMemory& vmem, const ZMappedPhysicalMemory& mpmem);
 
 public:
   ZMappedMemory();
@@ -50,7 +75,7 @@ public:
   void extend_mapping(const ZMappedMemory& right);
 
   const ZVirtualMemory& virtual_memory() const;
-  const ZPhysicalMemory& unsorted_physical_memory() const;
+  ZPhysicalMemory physical_memory() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

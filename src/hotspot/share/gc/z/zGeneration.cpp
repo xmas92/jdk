@@ -195,17 +195,6 @@ void ZGeneration::select_relocation_set(ZGenerationId generation, bool promote_a
     for (ZPage* page; pt_iter.next(&page);) {
       if (!page->is_relocatable()) {
         // Not relocatable, don't register
-        // Note that the seqnum can change under our feet here as the page
-        // can be concurrently freed and recycled by a concurrent generation
-        // collection. However this property is stable across such transitions.
-        // If it was not relocatable before recycling, then it won't be
-        // relocatable after it gets recycled either, as the seqnum atomically
-        // becomes allocating for the given generation. The opposite property
-        // also holds: if the page is relocatable, then it can't have been
-        // concurrently freed; if it was re-allocated it would not be
-        // relocatable, and if it was not re-allocated we know that it was
-        // allocated earlier than mark start of the current generation
-        // collection.
         continue;
       }
 
@@ -218,15 +207,14 @@ void ZGeneration::select_relocation_set(ZGenerationId generation, bool promote_a
 
         // Reclaim empty pages in bulk
 
-        // An active iterator blocks immediate recycle and delete of pages.
-        // The intent it to allow the code that iterates over the pages to
-        // safely read the properties of the pages without them being changed
-        // by another thread. However, this function both iterates over the
-        // pages AND frees/recycles them. We "yield" the iterator, so that we
-        // can perform immediate recycling (as long as no other thread is
-        // iterating over the pages). The contract is that the pages that are
-        // about to be freed are "owned" by this thread, and no other thread
-        // will change their states.
+        // An active iterator blocks immediate deletion of pages. The intent is
+        // to allow the code that iterates over pages to safely read properties
+        // of the pages without them being freed/deleted. However, this function
+        // both iterates over the pages AND frees them. We "yield" the iterator,
+        // so that we can perform immediate deletion (as long as no other thread
+        // is iterating over the pages). The contract is that the pages that are
+        // about to be freed are "owned" by this thread, and no other thread will
+        // change their states.
         pt_iter.yield([&]() {
           free_empty_pages(&selector, 64 /* bulk */);
         });

@@ -435,18 +435,9 @@ bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
   // address space) if we have a constrained address space. To help fight address
   // space fragmentation we remap such memory to a lower address, if a lower address
   // is available.
-  if (mapping.size() == ZPageSizeSmall &&
-      mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
-      mapping.start() > _virtual.lowest_available_address()) {
-    return true;
-  }
-
-  // TODO: Medium pages are not defragmented. Unclear if we can check that a
-  // contiguous chunk of virtual memory is available in lower addresses. Unlike
-  // for small pages, it is not enough to check the lowest_available_address as
-  // the lowest available could (at the lowest) be only 2MiB.
-
-  return false;
+  return mapping.size() == ZPageSizeSmall &&
+         mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
+         mapping.start() > _virtual.lowest_available_address();
 }
 
 ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool force_low_address) {
@@ -461,7 +452,7 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
   // Unmap the previous mapping asynchronously
   _unmapper->unmap_virtual(mapping.virtual_memory());
 
-  // As a side effect, also sort the physical memory segments
+  // As a side effect, also sort/merge the physical memory segments
   ZPhysicalMemory pmem = mapping.sorted_physical_memory();
 
   return map_virtual_to_physical(vmem, pmem);
@@ -810,7 +801,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   size_t young_size = 0;
   size_t old_size = 0;
 
-  // Prepare pages for recycling before taking the lock
+  // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
     if (page->is_young()) {

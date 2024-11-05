@@ -29,6 +29,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zPhysicalMemory.inline.hpp"
 #include "runtime/os.hpp"
 #include "unittest.hpp"
 

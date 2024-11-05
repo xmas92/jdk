@@ -24,11 +24,8 @@
 #include "precompiled.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGeneration.inline.hpp"
-#include "gc/z/zList.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
-#include "gc/z/zPhysicalMemory.inline.hpp"
 #include "gc/z/zRememberedSet.inline.hpp"
-#include "gc/z/zVirtualMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
@@ -44,8 +41,7 @@ ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
     _top(to_zoffset_end(start())),
     _livemap(object_max_count()),
     _remembered_set(),
-    _last_used(0),
-    _node() {
+    _last_used(0) {
   assert(!_mapping.is_null(), "Should not be null");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
          (_type == ZPageType::medium && size() == ZPageSizeMedium) ||

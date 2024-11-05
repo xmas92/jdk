@@ -462,7 +462,7 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
   _unmapper->unmap_virtual(mapping.virtual_memory());
 
   // As a side effect, also sort the physical memory segments
-  ZPhysicalMemory pmem = mapping.physical_memory();
+  ZPhysicalMemory pmem = mapping.sorted_physical_memory();
 
   return map_virtual_to_physical(vmem, pmem);
 }
@@ -587,7 +587,7 @@ void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAlloca
     _unmapper->unmap_virtual(mapping.virtual_memory());
 
     // Combine harvested mappings
-    pmem.combine_and_sort_segments(mapping.physical_memory());
+    pmem.combine_and_sort_segments(mapping.sorted_physical_memory());
   }
 
   // Clear the array of stored mappings
@@ -665,7 +665,7 @@ retry:
     return nullptr;
   }
 
-  // If the claimed physical memory also holds a large enough contiguous virtual
+  // If the claimed physical memory holds a large enough contiguous virtual
   // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
     ZMappedMemory mapping = allocation->mappings()->pop();
@@ -915,7 +915,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   for (ZMappedMemory mapping; it.next(&mapping);) {
     unmap_virtual(mapping.virtual_memory());
 
-    ZPhysicalMemory pmem = mapping.physical_memory();
+    ZPhysicalMemory pmem = mapping.sorted_physical_memory();
     uncommit_physical(pmem);
     free_physical(pmem);
   }

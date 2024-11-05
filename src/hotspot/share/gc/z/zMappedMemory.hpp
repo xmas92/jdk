@@ -27,6 +27,8 @@
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
+// ZMappedPhysicalMemory may store segments without merging them and in arbitrary
+// order.
 class ZMappedPhysicalMemory {
 private:
   ZArray<ZPhysicalMemorySegment> _segments;
@@ -39,9 +41,7 @@ public:
   const ZMappedPhysicalMemory& operator=(const ZMappedPhysicalMemory& other);
   ZMappedPhysicalMemory(const ZMappedPhysicalMemory& other);
 
-  bool is_null() const;
   size_t size() const;
-
   int nsegments() const;
 
   void combine(const ZMappedPhysicalMemory& mpmem);
@@ -75,7 +75,7 @@ public:
   void extend_mapping(const ZMappedMemory& right);
 
   const ZVirtualMemory& virtual_memory() const;
-  ZPhysicalMemory physical_memory() const;
+  ZPhysicalMemory sorted_physical_memory() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

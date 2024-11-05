@@ -28,23 +28,118 @@
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 
+void ZMappedPhysicalMemory::append(const ZPhysicalMemorySegment& segment) {
+  _segments.append(segment);
+}
+
+ZMappedPhysicalMemory::ZMappedPhysicalMemory()
+  : _segments() {}
+
+ZMappedPhysicalMemory::ZMappedPhysicalMemory(const ZPhysicalMemory& pmem)
+  : _segments(pmem.nsegments()) {
+  _segments.appendAll(&pmem._segments);
+}
+
+ZMappedPhysicalMemory::ZMappedPhysicalMemory(const ZMappedPhysicalMemory& other)
+  : _segments(other.nsegments()) {
+  _segments.appendAll(&other._segments);
+}
+
+const ZMappedPhysicalMemory& ZMappedPhysicalMemory::operator=(const ZMappedPhysicalMemory& other) {
+  // Check for self-assignment
+  if (this == &other) {
+    return *this;
+  }
+
+  // Free and copy segments
+  _segments.clear_and_deallocate();
+  _segments.reserve(other.nsegments());
+  _segments.appendAll(&other._segments);
+
+  return *this;
+}
+
+bool ZMappedPhysicalMemory::is_null() const {
+  return _segments.is_empty();
+}
+
+size_t ZMappedPhysicalMemory::size() const {
+  size_t size = 0;
+
+  for (int i = 0; i < _segments.length(); i++) {
+    size += _segments.at(i).size();
+  }
+
+  return size;
+}
+
+int ZMappedPhysicalMemory::nsegments() const {
+  return _segments.length();
+}
+
+void ZMappedPhysicalMemory::combine(const ZMappedPhysicalMemory& mpmem) {
+  _segments.appendAll(&mpmem._segments);
+}
+
+ZMappedPhysicalMemory ZMappedPhysicalMemory::split(size_t size) {
+  ZMappedPhysicalMemory mpmem;
+  int nsegments = 0;
+
+  for (int i = 0; i < _segments.length(); i++) {
+    const ZPhysicalMemorySegment& segment = _segments.at(i);
+    if (mpmem.size() < size) {
+      if (mpmem.size() + segment.size() <= size) {
+        // Transfer segment
+        mpmem.append(segment);
+      } else {
+        // Split segment
+        const size_t split_size = size - mpmem.size();
+        mpmem.append(ZPhysicalMemorySegment(segment.start(), split_size, segment.is_committed()));
+        _segments.at_put(nsegments++, ZPhysicalMemorySegment(segment.start() + split_size, segment.size() - split_size, segment.is_committed()));
+      }
+    } else {
+      // Keep segment
+      _segments.at_put(nsegments++, segment);
+    }
+  }
+
+  _segments.trunc_to(nsegments);
+
+  return mpmem;
+}
+
+ZPhysicalMemory ZMappedPhysicalMemory::sorted_physical() const {
+  ZPhysicalMemory pmem;
+
+  for (int i = 0; i < nsegments(); i++) {
+    pmem.combine_and_sort_segment(_segments.at(i));
+  }
+
+  return pmem;
+}
+
+ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZMappedPhysicalMemory& mpmem)
+  : _vmem(vmem),
+    _mpmem(mpmem) {
+}
+
 ZMappedMemory::ZMappedMemory()
   : _vmem(),
-    _pmem() {}
+    _mpmem() {}
 
 ZMappedMemory::ZMappedMemory(const ZVirtualMemory &vmem, const ZPhysicalMemory& pmem)
   : _vmem(vmem),
-    _pmem(pmem) {
+    _mpmem(pmem) {
   assert(vmem.size() == pmem.size(), "Virtual/Physical size mismatch");
 }
 
 ZMappedMemory::ZMappedMemory(const ZMappedMemory& other) 
   : _vmem(other._vmem),
-    _pmem(other._pmem) {}
+    _mpmem(other._mpmem) {}
 
 const ZMappedMemory& ZMappedMemory::operator=(const ZMappedMemory& other) {
   _vmem = other._vmem;
-  _pmem = other._pmem;
+  _mpmem = other._mpmem;
   return *this;
 }
 
@@ -65,11 +160,11 @@ size_t ZMappedMemory::size() const {
 }
 
 int ZMappedMemory::nsegments() const {
-  return _pmem.nsegments();
+  return _mpmem.nsegments();
 }
 
 ZMappedMemory ZMappedMemory::split(size_t size) {
-  return ZMappedMemory(_vmem.split(size), _pmem.split_unsorted(size));
+  return ZMappedMemory(_vmem.split(size), _mpmem.split(size));
 }
 
 bool ZMappedMemory::virtually_adjacent_to(const ZMappedMemory& other) const {
@@ -82,13 +177,13 @@ void ZMappedMemory::extend_mapping(const ZMappedMemory& right) {
   _vmem = ZVirtualMemory(_vmem.start(), _vmem.size() + right.size());
 
   // Combine physical memory segments in the order they appear
-  _pmem.combine_unsorted(right.unsorted_physical_memory());
+  _mpmem.combine(right._mpmem);
 }
 
 const ZVirtualMemory& ZMappedMemory::virtual_memory() const {
   return _vmem;
 }
 
-const ZPhysicalMemory& ZMappedMemory::unsorted_physical_memory() const {
-  return _pmem;
+ZPhysicalMemory ZMappedMemory::physical_memory() const {
+  return _mpmem.sorted_physical();
 }

@@ -49,10 +49,11 @@ public:
 };
 
 class ZPhysicalMemory {
+  friend class ZMappedPhysicalMemory;
+
 private:
   ZArray<ZPhysicalMemorySegment> _segments;
 
-  void append_segment(const ZPhysicalMemorySegment& segment);
   void insert_segment(int index, zoffset start, size_t size, bool committed);
   void replace_segment(int index, zoffset start, size_t size, bool committed);
   void remove_segment(int index);
@@ -72,12 +73,9 @@ public:
   void combine_and_sort_segments(const ZPhysicalMemory& pmem);
   void combine_and_sort_segment(const ZPhysicalMemorySegment& segment);
 
-  void combine_unsorted(const ZPhysicalMemory& pmem);
-
   bool commit_segment(int index, size_t size);
   bool uncommit_segment(int index, size_t size);
 
-  ZPhysicalMemory split_unsorted(size_t size);
   ZPhysicalMemory split_committed();
 };
 

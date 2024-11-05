@@ -468,21 +468,6 @@ ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool f
   return map_virtual_to_physical(vmem, pmem);
 }
 
-ZMappedMemory ZPageAllocator::prepare_virtual_address_for_cache(const ZMappedMemory& mapping, bool allow_defragment) {
-  // Small pages are only remapped if allowed and they need to be defragmented
-  if (allow_defragment && should_defragment(mapping)) {
-    ZStatInc(ZCounterDefragment);
-    return remap_mapping(mapping, false /* force_low_address */);
-  }
-
-  // Large pages are always remapped to a lower address regardless of allow_defragment
-  if (mapping.size() > ZPageSizeSmall && mapping.size() > ZPageSizeMedium) {
-    return remap_mapping(mapping, true /* force_low_address */);
-  }
-
-  return mapping;
-}
-
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   const size_t available = _current_max_capacity - _used - _claimed;
   return available >= size;
@@ -797,9 +782,15 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
 
   // Extract mapped memory and destroy page
   ZMappedMemory mapping = page->mapped_memory();
+  ZPageType page_type = page->type();
   safe_destroy_page(page);
 
-  mapping = prepare_virtual_address_for_cache(mapping, allow_defragment);
+  // Perhaps remap mapping
+  if ((allow_defragment && should_defragment(mapping)) ||
+       page_type == ZPageType::large) {
+    ZStatInc(ZCounterDefragment);
+    mapping = remap_mapping(mapping, true /* force_low_address */);
+  }
 
   ZLocker<ZLock> locker(&_lock);
 
@@ -831,9 +822,14 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
     // Extract mapped memory and destroy page
     ZMappedMemory mapping = page->mapped_memory();
+    ZPageType page_type = page->type();
     safe_destroy_page(page);
 
-    mapping = prepare_virtual_address_for_cache(mapping, true /* allow_defragment */);
+    // Perhaps remap mapping
+    if (should_defragment(mapping) || page_type == ZPageType::large) {
+      ZStatInc(ZCounterDefragment);
+      mapping = remap_mapping(mapping, true /* force_low_address */);
+    }
 
     to_cache.append(mapping);
   }

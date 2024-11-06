@@ -22,11 +22,9 @@
  */
 
 #include "precompiled.hpp"
-#include "logging/log.hpp"
 #include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPhysicalMemory.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
-#include "gc/z/zUtils.inline.hpp"
 
 void ZMappedPhysicalMemory::append(const ZPhysicalMemorySegment& segment) {
   _segments.append(segment);

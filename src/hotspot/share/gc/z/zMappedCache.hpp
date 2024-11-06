@@ -25,10 +25,7 @@
 #define SHARE_GC_Z_ZMAPPEDCACHE_HPP
 
 #include "gc/z/zArray.hpp"
-#include "gc/z/zList.hpp"
 #include "gc/z/zMappedMemory.hpp"
-#include "gc/z/zPage.hpp"
-
 #include "nmt/nmtTreap.hpp"
 
 class ZMappedCache {

@@ -148,6 +148,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
                                size_t soft_max_capacity,
                                size_t max_capacity)
   : _lock(),
+    _mapped_cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
     _min_capacity(min_capacity),
@@ -236,7 +237,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   ZVirtualMemory vmem = _virtual.alloc(size, true /* force_low_address */);
   ZPhysicalMemory pmem;
 
-  // Increase capacity, allocate and commit physical memory.
+  // Increase capacity, allocate and commit physical memory
   increase_capacity(size);
   _physical.alloc(pmem, size);
   if (!commit_physical(pmem)) {
@@ -331,10 +332,6 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
 }
 
 void ZPageAllocator::decrease_capacity(size_t size, bool set_max_capacity) {
-  if (size == 0) {
-    return;
-  }
-
   // Update atomically since we have concurrent readers
   Atomic::sub(&_capacity, size);
 
@@ -861,7 +858,9 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
 
   // Adjust capacity to reflect the failed capacity increase
   const size_t remaining = allocation->size() - freed;
-  decrease_capacity(remaining, true /* set_max_capacity */);
+  if (remaining > 0) {
+    decrease_capacity(remaining, true /* set_max_capacity */);
+  }
 
   // Reset allocation for a potential retry
   allocation->reset_for_retry();

@@ -29,6 +29,7 @@
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zMappedCache.hpp"
+#include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemory.hpp"

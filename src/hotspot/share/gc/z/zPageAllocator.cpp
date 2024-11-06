@@ -430,13 +430,14 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
 }
 
 bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
-  // The memory of a small page can end up at a high address (second half of the
-  // address space) if we have a constrained address space. To help fight address
-  // space fragmentation we remap such memory to a lower address, if a lower address
-  // is available.
-  return mapping.size() == ZPageSizeSmall &&
-         mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
-         mapping.start() > _virtual.lowest_available_address();
+  assert(mapping.size() <= MAX2(ZPageSizeSmall, ZPageSizeMedium), "Should not be called for large pages");
+
+  // Small and medium pages are allocated at a low address. They may end up at a
+  // high address (second half of the address space) if we have a constrained
+  // address space. To combat address space fragmentation we want to attemp to
+  // remap such memory to a lower address.
+  return mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
+         mapping.start() >= _virtual.lowest_available_address();
 }
 
 ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool force_low_address) {
@@ -775,8 +776,8 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   safe_destroy_page(page);
 
   // Perhaps remap mapping
-  if ((allow_defragment && should_defragment(mapping)) ||
-       page_type == ZPageType::large) {
+  if (page_type == ZPageType::large ||
+     (allow_defragment && should_defragment(mapping))) {
     ZStatInc(ZCounterDefragment);
     mapping = remap_mapping(mapping, true /* force_low_address */);
   }
@@ -815,7 +816,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     safe_destroy_page(page);
 
     // Perhaps remap mapping
-    if (should_defragment(mapping) || page_type == ZPageType::large) {
+    if (page_type == ZPageType::large || should_defragment(mapping)) {
       ZStatInc(ZCounterDefragment);
       mapping = remap_mapping(mapping, true /* force_low_address */);
     }

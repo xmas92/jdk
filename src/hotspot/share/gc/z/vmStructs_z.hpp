@@ -29,7 +29,6 @@
 #include "gc/z/zForwarding.hpp"
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zHeap.hpp"
-#include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zPageType.hpp"
 #include "utilities/macros.hpp"
@@ -84,7 +83,6 @@ typedef ZAttachedArray<ZForwarding, ZForwardingEntry> ZAttachedArrayForForwardin
                                                                                                      \
   nonstatic_field(ZPage,                        _type,                const ZPageType)               \
   volatile_nonstatic_field(ZPage,               _seqnum,              uint32_t)                      \
-  nonstatic_field(ZPage,                        _mapping,             const ZMappedMemory)           \
   volatile_nonstatic_field(ZPage,               _top,                 zoffset_end)                   \
                                                                                                      \
   nonstatic_field(ZPageAllocator,               _max_capacity,        const size_t)                  \
@@ -139,7 +137,6 @@ typedef ZAttachedArray<ZForwarding, ZForwardingEntry> ZAttachedArrayForForwardin
   declare_toplevel_type(ZGranuleMapForPageTable)                                                     \
   declare_toplevel_type(ZGranuleMapForForwarding)                                                    \
   declare_toplevel_type(ZVirtualMemory)                                                              \
-  declare_toplevel_type(ZMappedMemory)                                                               \
   declare_toplevel_type(ZForwardingTable)                                                            \
   declare_toplevel_type(ZForwarding)                                                                 \
   declare_toplevel_type(ZForwardingEntry)                                                            \

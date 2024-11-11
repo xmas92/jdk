@@ -26,7 +26,8 @@
 
 #include "gc/z/zArray.hpp"
 #include "gc/z/zMappedMemory.hpp"
-#include "nmt/nmtTreap.hpp"
+
+#include "utilities/rbTree.hpp"
 
 class ZMappedCache {
   friend class ZMappedCacheTest;
@@ -42,10 +43,10 @@ private:
     }
   };
 
-  using ZMappedTreap = TreapCHeap<zoffset, ZMappedMemory, ZOffsetComparator>;
-  using ZMappedTreapNode = ZMappedTreap::TreapNode;
+  using ZMappedTree = RBTreeCHeap<zoffset, ZMappedMemory, ZOffsetComparator>;
+  using ZMappedTreeNode = ZMappedTree::RBNode;
 
-  ZMappedTreap _tree;
+  ZMappedTree _tree;
 
 public:
   ZMappedCache();

@@ -127,7 +127,7 @@ public:
   };
 
   using InOrderIterator = NodeIteratorImpl<true /* Forward */>;
-  using InReverseOrderIterator = NodeIteratorImpl<false /* Forward */>;
+  using InReverseOrderIterator = NodeIteratorImpl<false /* Backward */>;
 
 private:
   ALLOCATOR _allocator;

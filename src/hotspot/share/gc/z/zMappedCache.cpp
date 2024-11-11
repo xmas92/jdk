@@ -32,7 +32,7 @@ void ZMappedCache::insert_mapping(const ZMappedMemory& mapping) {
   bool merged_left = false;
 
   // Check left node.
-  ZMappedTreapNode* lnode = _tree.closest_leq(mapping.start());
+  ZMappedTreeNode* lnode = _tree.closest_leq(mapping.start());
   if (lnode != nullptr) {
     ZMappedMemory& left_mapping = lnode->val();
 
@@ -43,7 +43,7 @@ void ZMappedCache::insert_mapping(const ZMappedMemory& mapping) {
   }
 
   // Check right node.
-  ZMappedTreapNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
+  ZMappedTreeNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
   if (rnode != lnode) {
     // If there exists a node that is LEQ than mapping.end() which is not the
     // left_node, it is adjacent.
@@ -73,8 +73,8 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
   size_t removed = 0;
 
   // Find what mappings to remove
-  ZMappedTreap::InReverseOrderIterator iterator(&_tree);
-  for (ZMappedTreapNode* node; iterator.next(&node);) {
+  ZMappedTree::InReverseOrderIterator iterator(&_tree);
+  for (ZMappedTreeNode* node; iterator.next(&node);) {
     ZMappedMemory& mapping = node->val();
     size_t after_remove = removed + mapping.size();
 
@@ -104,8 +104,8 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
 }
 
 bool ZMappedCache::remove_mapping_contiguous(ZMappedMemory* mapping, size_t size) {
-  ZMappedTreap::InOrderIterator iterator(&_tree);
-  for (ZMappedTreapNode* node; iterator.next(&node);) {
+  ZMappedTree::InOrderIterator iterator(&_tree);
+  for (ZMappedTreeNode* node; iterator.next(&node);) {
     ZMappedMemory node_mapping = node->val();
 
     if (node_mapping.size() == size) {

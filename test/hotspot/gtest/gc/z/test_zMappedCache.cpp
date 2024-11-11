@@ -38,7 +38,7 @@ protected:
     cache.insert_mapping(ZMappedMemory(vmem1, pmem));
     cache.insert_mapping(ZMappedMemory(vmem2, pmem));
 
-    EXPECT_EQ(cache._tree._node_count, 1);
+    EXPECT_EQ(cache._tree._num_nodes, (size_t)1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
 
     EXPECT_EQ(cache._tree._root->val().virtual_memory().start(), zoffset(0));
@@ -54,7 +54,7 @@ protected:
     cache.insert_mapping(ZMappedMemory(vmem2, pmem));
     cache.insert_mapping(ZMappedMemory(vmem1, pmem));
 
-    EXPECT_EQ(cache._tree._node_count, 1);
+    EXPECT_EQ(cache._tree._num_nodes, (size_t)1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
 
     EXPECT_EQ(cache._tree._root->val().virtual_memory().start(), zoffset(0));
@@ -73,7 +73,7 @@ protected:
     cache.insert_mapping(ZMappedMemory(vmem3, pmem));
     cache.insert_mapping(ZMappedMemory(vmem2, pmem));
 
-    EXPECT_EQ(cache._tree._node_count, 1);
+    EXPECT_EQ(cache._tree._num_nodes, (size_t)1);
     EXPECT_EQ(cache._tree._root->key(), zoffset(0));
 
     EXPECT_EQ(cache._tree._root->val().virtual_memory().start(), zoffset(0));

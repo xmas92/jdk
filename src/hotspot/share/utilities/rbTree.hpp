@@ -69,6 +69,7 @@ public:
           _key(k), _value(v) {}
 
     const K& key() const { return _key; }
+    K& key() { return _key; }
     V& val() { return _value; }
 
     bool is_right_child() {
@@ -350,6 +351,7 @@ public:
 
   using InOrderIterator = NodeIteratorImpl<true /* Forward */>;
   using InReverseOrderIterator = NodeIteratorImpl<false /* Backward */>;
+
 
 private:
   RBNode* _root;
@@ -636,6 +638,7 @@ private:
     free_node(node);
   }
 
+public:
   RBNode* leftmost_node() {
     if (_root == nullptr) {
       return nullptr;
@@ -647,6 +650,7 @@ private:
     return node;
   }
 
+private:
   RBNode* rightmost_node() {
     if (_root == nullptr) {
       return nullptr;

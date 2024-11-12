@@ -26,7 +26,6 @@
 
 #include "gc/z/zArray.hpp"
 #include "gc/z/zMappedMemory.hpp"
-
 #include "utilities/rbTree.hpp"
 
 class ZMappedCache {
@@ -54,6 +53,8 @@ public:
   void insert_mapping(const ZMappedMemory& mapping);
 
   size_t remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size);
+
+  bool remove_mapping_contiguous_granule(ZMappedMemory* mapping, size_t size);
   bool remove_mapping_contiguous(ZMappedMemory* mapping, size_t size);
 };
 

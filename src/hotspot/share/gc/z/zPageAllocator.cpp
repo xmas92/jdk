@@ -463,7 +463,7 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-void ZPageAllocator::claim_mapped_cache_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
+void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
   // Try to allocate a contiguous mapping when not allocating a large page.
   if (type != ZPageType::large) {
     ZMappedMemory mapping;
@@ -499,7 +499,7 @@ bool ZPageAllocator::claim_physical(ZPageAllocation* allocation) {
   }
 
   // Try to claim physical memory
-  claim_mapped_cache_or_increase_capacity(type, size, mappings);
+  claim_mapped_or_increase_capacity(type, size, mappings);
 
   // Updated used statistics
   increase_used(size);

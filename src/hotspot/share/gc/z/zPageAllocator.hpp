@@ -96,7 +96,7 @@ private:
 
   bool is_alloc_allowed(size_t size) const;
 
-  void claim_mapped_cache_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  void claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
   bool claim_physical(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);

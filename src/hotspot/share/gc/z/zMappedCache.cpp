@@ -88,7 +88,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
     } else if (after_remove > size) {
       ZMappedMemory initial_chunk = mapping.split(after_remove - size);
       to_remove.append(mapping);
-      _tree.upsert(node->key(), initial_chunk);
+      mapping = initial_chunk;
       removed = size;
       break;
     }
@@ -103,30 +103,33 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
   return removed;
 }
 
+bool ZMappedCache::remove_mapping_contiguous_granule(ZMappedMemory* mapping, size_t size) {
+  // Since the smallest possible size of a VMA that can be stored in the tree is
+  // granule-sized, we can optimize by always removing a mapping from the left-most
+  // node in the tree.
+  ZMappedTreeNode* node = _tree.leftmost_node();
+  if (node == nullptr) {
+    return false;
+  }
+
+  ZMappedMemory& node_mapping = node->val();
+
+  // Larger than necessary
+  if (node_mapping.size() > size) {
+    *mapping = node_mapping.split(size);
+    node->key() = node_mapping.start();
+    return true;
+  }
+
+  // Exact size match (i.e node is granule-sized)
+  *mapping = node_mapping;
+  _tree.remove(node->key());
+  return true;
+}
+
 bool ZMappedCache::remove_mapping_contiguous(ZMappedMemory* mapping, size_t size) {
   if (size == ZPageSizeSmall) {
-    ZMappedTreeNode* node = _tree.leftmost_node();
-    if (node == nullptr) {
-      return false;
-    }
-
-    ZMappedMemory& node_mapping = node->val();
-
-    if (node_mapping.size() > size) {
-      // Larger than necessary
-      ZMappedMemory initial_chunk = node_mapping.split(size);
-
-      node->key() = node_mapping.start();
-      node->val() = node_mapping;
-
-      *mapping = initial_chunk;
-      return true;
-    } else if (node_mapping.size() == size) {
-      // Perfect match
-      *mapping = node_mapping;
-      _tree.remove(node->key());
-      return true;
-    }
+    return remove_mapping_contiguous_granule(mapping, size);
   }
 
   ZMappedTree::InOrderIterator iterator(&_tree);

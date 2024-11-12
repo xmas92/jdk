@@ -72,6 +72,7 @@ private:
 
   bool is_array(zaddress addr) const;
   void push_partial_array(zpointer* addr, size_t length, bool finalizable);
+  zpointer* publish_partial_array(zpointer* addr, size_t length, bool finalizable);
   void follow_array_elements_small(zpointer* addr, size_t length, bool finalizable);
   void follow_array_elements_large(zpointer* addr, size_t length, bool finalizable);
   void follow_array_elements(zpointer* addr, size_t length, bool finalizable);

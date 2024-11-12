@@ -83,12 +83,15 @@ class ZMarkStripe {
 private:
   ZCACHE_ALIGNED ZMarkStackList _published;
   ZCACHE_ALIGNED ZMarkStackList _overflowed;
+  ZCACHE_ALIGNED ZMarkStackList _partial_arrays;
 
 public:
   explicit ZMarkStripe(uintptr_t base = 0);
 
   bool is_empty() const;
+  bool has_partial_arrays() const;
 
+  void publish_array_stack(ZMarkStack*, ZMarkTerminate* terminate);
   void publish_stack(ZMarkStack* stack, ZMarkTerminate* terminate, bool publish);
   ZMarkStack* steal_stack();
 };
@@ -120,9 +123,6 @@ private:
   ZMarkStackMagazine* _magazine;
   ZMarkStack*         _stacks[ZMarkStripesMax];
 
-  ZMarkStack* allocate_stack(ZMarkStackAllocator* allocator);
-  void free_stack(ZMarkStackAllocator* allocator, ZMarkStack* stack);
-
   bool push_slow(ZMarkStackAllocator* allocator,
                  ZMarkStripe* stripe,
                  ZMarkStack** stackp,
@@ -137,6 +137,9 @@ private:
 
 public:
   ZMarkThreadLocalStacks();
+
+  ZMarkStack* allocate_stack(ZMarkStackAllocator* allocator);
+  void free_stack(ZMarkStackAllocator* allocator, ZMarkStack* stack);
 
   bool is_empty(const ZMarkStripeSet* stripes) const;
 

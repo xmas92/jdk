@@ -61,6 +61,7 @@
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/continuation.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/handshake.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/prefetch.inline.hpp"
@@ -187,6 +188,59 @@ static zpointer* decode_partial_array_offset(uintptr_t offset) {
   return (zpointer*)ZOffset::address(to_zoffset(offset << ZMarkPartialArrayMinSizeShift));
 }
 
+zpointer* ZMark::publish_partial_array(zpointer* addr, size_t length, bool finalizable) {
+  ZMarkThreadLocalStacks* const stacks = ZThreadLocalData::mark_stacks(Thread::current(), _generation->id());
+  const size_t zpointers_per_granule = ZGranuleSize / sizeof(zpointer);
+  // Number of stripes may change concurrently, read it once and work from there,
+  // even if the current workers stripe might change.
+  const size_t min_stack_size_for_publish = 1;
+  const size_t nstripes = _stripes.nstripes();
+  zpointer* const end = addr + length;
+
+  log_develop_trace(gc, marking)("publish_partial_array: [" PTR_FORMAT " (" SIZE_FORMAT "), stripe: " SIZE_FORMAT " / " SIZE_FORMAT,
+                                 p2i(addr), length, _stripes.stripe_id(_stripes.stripe_for_worker(_nworkers, WorkerThread::worker_id())), nstripes);
+  if (length < nstripes * ZMarkPartialArrayMinLength * min_stack_size_for_publish) {
+    // Not enough work to publish.
+    return end;
+  }
+  ZMarkStack* array_stacks[ZMarkStripesMax]{};
+  ZMarkStripe* stripes[ZMarkStripesMax]{};
+  size_t num_stacks = 0;
+  for (size_t i = 0; i < nstripes; i++) {
+    if (!_stripes.stripe_at(i)->has_partial_arrays()) {
+      array_stacks[num_stacks] = stacks->allocate_stack(&_allocator);
+      stripes[num_stacks] = _stripes.stripe_at(i);
+      num_stacks++;
+    }
+  }
+  if (num_stacks == 0) {
+    // All stripes already have stacks
+    return end;
+  }
+  zpointer* processed = end;
+  size_t num_pushed[ZMarkStripesMax]{};
+  const size_t parts = ZMarkStackSlots * num_stacks;
+  const size_t partial_length = align_up((length / parts), ZMarkPartialArrayMinLength);
+  for (size_t i = 0; processed > addr; i = (i + 1) % num_stacks) {
+    zpointer* const next_addr = processed - partial_length;
+    if (next_addr < addr) {
+      break;
+    }
+    const uintptr_t offset = encode_partial_array_offset(next_addr);
+    const ZMarkStackEntry entry(offset, partial_length, finalizable);
+    const bool pushed = array_stacks[i]->push(entry);
+    postcond(pushed);
+    processed = next_addr;
+    num_pushed[i]++;
+  }
+  for (size_t i = 0; i < num_stacks; i++) {
+    log_develop_trace(gc, marking)("Publish Partial Array Stack: [" SIZE_FORMAT " x " SIZE_FORMAT "], stripe: " SIZE_FORMAT,
+                                  num_pushed[i], partial_length, _stripes.stripe_id(stripes[i]));
+    stripes[i]->publish_array_stack(array_stacks[i], &_terminate);
+  }
+  return processed;
+}
+
 void ZMark::push_partial_array(zpointer* addr, size_t length, bool finalizable) {
   assert(is_aligned(addr, ZMarkPartialArrayMinSize), "Address misaligned");
   ZMarkThreadLocalStacks* const stacks = ZThreadLocalData::mark_stacks(Thread::current(), _generation->id());
@@ -244,7 +298,7 @@ void ZMark::follow_array_elements_large(zpointer* addr, size_t length, bool fina
   }
 
   // Push aligned middle part(s)
-  zpointer* partial_addr = middle_end;
+  zpointer* partial_addr = publish_partial_array(middle_start, middle_length, finalizable);
   while (partial_addr > middle_start) {
     const size_t parts = 2;
     const size_t partial_length = align_up((partial_addr - middle_start) / parts, ZMarkPartialArrayMinLength);

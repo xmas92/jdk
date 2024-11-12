@@ -104,6 +104,31 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
 }
 
 bool ZMappedCache::remove_mapping_contiguous(ZMappedMemory* mapping, size_t size) {
+  if (size == ZPageSizeSmall) {
+    ZMappedTreeNode* node = _tree.leftmost_node();
+    if (node == nullptr) {
+      return false;
+    }
+
+    ZMappedMemory& node_mapping = node->val();
+
+    if (node_mapping.size() > size) {
+      // Larger than necessary
+      ZMappedMemory initial_chunk = node_mapping.split(size);
+
+      node->key() = node_mapping.start();
+      node->val() = node_mapping;
+
+      *mapping = initial_chunk;
+      return true;
+    } else if (node_mapping.size() == size) {
+      // Perfect match
+      *mapping = node_mapping;
+      _tree.remove(node->key());
+      return true;
+    }
+  }
+
   ZMappedTree::InOrderIterator iterator(&_tree);
   for (ZMappedTreeNode* node; iterator.next(&node);) {
     ZMappedMemory node_mapping = node->val();

@@ -80,7 +80,7 @@ public:
       _old_seqnum(ZGeneration::old()->seqnum()),
       _harvested(0),
       _committed(0),
-      _mappings(),
+      _mappings(1),
       _node(),
       _stall_result() {}
 

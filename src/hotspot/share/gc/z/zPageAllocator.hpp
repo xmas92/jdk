@@ -24,8 +24,10 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zPageAge.hpp"
@@ -68,6 +70,7 @@ private:
   ZPageCache                 _cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
+  ZGranuleMap<zoffset>       _mappings;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;
@@ -96,11 +99,10 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
-  bool commit_page(ZPage* page);
-  void uncommit_page(ZPage* page);
-
-  void map_page(const ZPage* page) const;
+  ZPage* map_page(ZVirtualMemory vmem);
+  ZPage* map_page(ZPageType type, ZVirtualMemory vmem);
   void unmap_page(const ZPage* page) const;
+  void uncommit_page(const ZPage* page);
 
   void destroy_page(ZPage* page);
 
@@ -114,7 +116,7 @@ private:
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool alloc_page_or_stall(ZPageAllocation* allocation);
   bool is_alloc_satisfied(ZPageAllocation* allocation) const;
-  ZPage* alloc_page_create(ZPageAllocation* allocation);
+  ZVirtualMemory alloc_memory_create(ZPageAllocation* allocation);
   ZPage* alloc_page_finalize(ZPageAllocation* allocation);
   void free_pages_alloc_failed(ZPageAllocation* allocation);
 

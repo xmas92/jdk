@@ -50,6 +50,8 @@
 #include "runtime/os.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include <cstdlib>
+#include <string.h>
 
 static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocation Rate", ZStatUnitBytesPerSecond);
 static const ZStatCounter       ZCounterPageCacheFlush("Memory", "Page Cache Flush", ZStatUnitBytesPerSecond);
@@ -187,6 +189,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
+    _mappings(ZAddressOffsetMax),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
@@ -433,28 +436,32 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-bool ZPageAllocator::commit_page(ZPage* page) {
-  // Commit physical memory
-  return _physical.commit(page->physical_memory());
-}
-
-void ZPageAllocator::uncommit_page(ZPage* page) {
-  if (!ZUncommit) {
-    return;
-  }
-
-  // Uncommit physical memory
-  _physical.uncommit(page->physical_memory());
-}
-
-void ZPageAllocator::map_page(const ZPage* page) const {
+ZPage* ZPageAllocator::map_page(ZVirtualMemory vmem) {
   // Map physical memory
-  _physical.map(page->start(), page->physical_memory());
+  _physical.map(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
+
+  return new ZPage(vmem);
+}
+
+ZPage* ZPageAllocator::map_page(ZPageType type, ZVirtualMemory vmem) {
+  // Map physical memory
+  _physical.map(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
+
+  return new ZPage(type, vmem);
 }
 
 void ZPageAllocator::unmap_page(const ZPage* page) const {
   // Unmap physical memory
-  _physical.unmap(page->start(), page->size());
+  _physical.unmap(page->start(), _mappings.get_addr(page->start()), page->size());
+}
+
+void ZPageAllocator::uncommit_page(const ZPage* page) {
+  precond(ZUncommit);
+  // Uncommit physical memory
+  _physical.uncommit(_mappings.get_addr(page->start()), page->size());
+
+  // Free physical memory
+  _physical.free(_mappings.get_addr(page->start()), page->size());
 }
 
 void ZPageAllocator::safe_destroy_page(ZPage* page) {
@@ -465,9 +472,6 @@ void ZPageAllocator::safe_destroy_page(ZPage* page) {
 void ZPageAllocator::destroy_page(ZPage* page) {
   // Free virtual memory
   _virtual.free(page->virtual_memory());
-
-  // Free physical memory
-  _physical.free(page->physical_memory());
 
   // Destroy page safely
   safe_destroy_page(page);
@@ -484,20 +488,20 @@ bool ZPageAllocator::should_defragment(const ZPage* page) const {
 }
 
 ZPage* ZPageAllocator::defragment_page(ZPage* page) {
-  // Harvest the physical memory (which is committed)
-  ZPhysicalMemory pmem;
-  ZPhysicalMemory& old_pmem = page->physical_memory();
-  pmem.add_segments(old_pmem);
-  old_pmem.remove_segments();
-
+  precond(page->is_small());
+  STATIC_ASSERT(ZGranuleSize == ZPageSizeSmall);
+  // Allocate new virtual memory at a low address
+  const ZVirtualMemory vmem = _virtual.alloc(ZPageSizeSmall, true /* force_low_address */);
+  if (vmem.is_null()) {
+    // Out of address space
+    return page;
+  }
+  // Small page is only one granule
+  _mappings.put(vmem.start(), _mappings.get(page->start()));
   _unmapper->unmap_and_destroy_page(page);
 
-  // Allocate new virtual memory at a low address
-  const ZVirtualMemory vmem = _virtual.alloc(pmem.size(), true /* force_low_address */);
-
   // Create the new page and map it
-  ZPage* new_page = new ZPage(ZPageType::small, vmem, pmem);
-  map_page(new_page);
+  ZPage* const new_page = map_page(ZPageType::small, vmem);
 
   // Update statistics
   ZStatInc(ZCounterDefragment);
@@ -615,7 +619,7 @@ bool ZPageAllocator::alloc_page_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
+ZVirtualMemory ZPageAllocator::alloc_memory_create(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
 
   // Allocate virtual memory. To make error handling a lot more straight
@@ -625,22 +629,19 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   const ZVirtualMemory vmem = _virtual.alloc(size, allocation->flags().low_address());
   if (vmem.is_null()) {
     log_error(gc)("Out of address space");
-    return nullptr;
+    return vmem;
   }
-
-  ZPhysicalMemory pmem;
   size_t flushed = 0;
 
   // Harvest physical memory from flushed pages
   ZListRemoveIterator<ZPage> iter(allocation->pages());
+  zoffset* mapping = _mappings.get_addr(vmem.start());
   for (ZPage* page; iter.next(&page);) {
     flushed += page->size();
-
-    // Harvest flushed physical memory
-    ZPhysicalMemory& fmem = page->physical_memory();
-    pmem.add_segments(fmem);
-    fmem.remove_segments();
-
+    // Copy the mappings
+    const size_t num_granules = page->size() >> ZGranuleSizeShift;
+    memcpy(mapping, _mappings.get_addr(page->start()), sizeof(zoffset) * num_granules);
+    mapping += num_granules;
     // Unmap and destroy page
     _unmapper->unmap_and_destroy_page(page);
   }
@@ -656,14 +657,32 @@ ZPage* ZPageAllocator::alloc_page_create(ZPageAllocation* allocation) {
   // Allocate any remaining physical memory. Capacity and used has
   // already been adjusted, we just need to fetch the memory, which
   // is guaranteed to succeed.
+  // And commit the memory which may partially fail
   if (flushed < size) {
     const size_t remaining = size - flushed;
     allocation->set_committed(remaining);
-    _physical.alloc(pmem, remaining);
+    _physical.alloc(mapping, remaining);
+    const size_t commited = _physical.commit(mapping, remaining);
+    const size_t not_commited = remaining - commited;
+    if (not_commited > 0) {
+      // Remove the fail vmem and pmem
+      ZVirtualMemory not_commited_vmem = vmem;
+      const ZVirtualMemory comitted_vmem = not_commited_vmem.split(vmem.size() - not_commited);
+      const size_t commited_granules = commited >> ZGranuleSizeShift;
+      mapping += commited_granules;
+      // Must free physical first, as it is tracked through _mappings
+      _physical.free(mapping, not_commited);
+      _virtual.free(not_commited_vmem);
+      return comitted_vmem;
+    }
   }
 
+  // Sort the backing memory before mapping
+  qsort(_mappings.get_addr(vmem.start()), vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
+       [](const void* a, const void* b) -> int { return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1; });
+
   // Create new page
-  return new ZPage(allocation->type(), vmem, pmem);
+  return vmem;
 }
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
@@ -696,28 +715,20 @@ ZPage* ZPageAllocator::alloc_page_finalize(ZPageAllocation* allocation) {
   }
 
   // Slow path
-  ZPage* const page = alloc_page_create(allocation);
-  if (page == nullptr) {
+  const ZVirtualMemory vmem = alloc_memory_create(allocation);
+  if (vmem.is_null()) {
     // Out of address space
     return nullptr;
   }
 
-  // Commit page
-  if (commit_page(page)) {
+  if (vmem.size() == allocation->size()) {
     // Success
-    map_page(page);
-    return page;
+    return map_page(allocation->type(), vmem);
   }
 
-  // Failed or partially failed. Split of any successfully committed
-  // part of the page into a new page and insert it into list of pages,
-  // so that it will be re-inserted into the page cache.
-  ZPage* const committed_page = page->split_committed();
-  destroy_page(page);
-
-  if (committed_page != nullptr) {
-    map_page(committed_page);
-    allocation->pages()->insert_last(committed_page);
+  // Create ZPage for the mapped memory insert it for for free_pages_alloc_failed
+  if (vmem.size() > 0) {
+    allocation->pages()->insert_last(map_page(vmem));
   }
 
   return nullptr;
@@ -774,7 +785,7 @@ retry:
 
   // Send event
   event.commit((u8)type, size, allocation.flushed(), allocation.committed(),
-               page->physical_memory().nsegments(), flags.non_blocking());
+               0 /*TODO*/, flags.non_blocking());
 
   return page;
 }

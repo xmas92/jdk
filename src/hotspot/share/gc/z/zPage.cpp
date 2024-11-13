@@ -33,7 +33,10 @@
 #include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
 
-ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem)
+ZPage::ZPage(const ZVirtualMemory& vmem)
+  : ZPage(type_from_size(vmem.size()), vmem) {}
+
+ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem)
   : _type(type),
     _generation_id(ZGenerationId::young),
     _age(ZPageAge::eden),
@@ -45,11 +48,8 @@ ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& 
     _livemap(object_max_count()),
     _remembered_set(),
     _last_used(0),
-    _physical(pmem),
     _node() {
   assert(!_virtual.is_null(), "Should not be null");
-  assert(!_physical.is_null(), "Should not be null");
-  assert(_virtual.size() == _physical.size(), "Virtual/Physical size mismatch");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
          (_type == ZPageType::medium && size() == ZPageSizeMedium) ||
          (_type == ZPageType::large && is_aligned(size(), ZGranuleSize)),
@@ -59,7 +59,7 @@ ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& 
 ZPage* ZPage::clone_limited() const {
   // Only copy type and memory layouts, and also update _top. Let the rest be
   // lazily reconstructed when needed.
-  ZPage* const page = new ZPage(_type, _virtual, _physical);
+  ZPage* const page = new ZPage(_type, _virtual);
   page->_top = _top;
 
   return page;
@@ -124,9 +124,10 @@ ZPage* ZPage::split(size_t split_of_size) {
   return split(type_from_size(split_of_size), split_of_size);
 }
 
-ZPage* ZPage::split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem) {
+ZPage* ZPage::split(ZPageType type, size_t split_of_size) {
+  assert(_virtual.size() > split_of_size, "Invalid split");
   // Resize this page
-  const ZVirtualMemory vmem = _virtual.split(pmem.size());
+  const ZVirtualMemory vmem = _virtual.split(split_of_size);
   assert(vmem.end() == _virtual.start(), "Should be consecutive");
 
   reset_type_and_size(type_from_size(_virtual.size()));
@@ -137,29 +138,7 @@ ZPage* ZPage::split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem) {
       untype(_virtual.end()));
 
   // Create new page
-  return new ZPage(type, vmem, pmem);
-}
-
-ZPage* ZPage::split(ZPageType type, size_t split_of_size) {
-  assert(_virtual.size() > split_of_size, "Invalid split");
-
-  const ZPhysicalMemory pmem = _physical.split(split_of_size);
-
-  return split_with_pmem(type, pmem);
-}
-
-ZPage* ZPage::split_committed() {
-  // Split any committed part of this page into a separate page,
-  // leaving this page with only uncommitted physical memory.
-  const ZPhysicalMemory pmem = _physical.split_committed();
-  if (pmem.is_null()) {
-    // Nothing committed
-    return nullptr;
-  }
-
-  assert(!_physical.is_null(), "Should not be null");
-
-  return split_with_pmem(type_from_size(pmem.size()), pmem);
+  return new ZPage(type, vmem);
 }
 
 class ZFindBaseOopClosure : public ObjectClosure {

@@ -53,7 +53,6 @@ private:
   ZLiveMap             _livemap;
   ZRememberedSet       _remembered_set;
   uint64_t             _last_used;
-  ZPhysicalMemory      _physical;
   ZListNode<ZPage>     _node;
 
   ZPageType type_from_size(size_t size) const;
@@ -71,10 +70,9 @@ private:
 
   void reset_seqnum();
 
-  ZPage* split_with_pmem(ZPageType type, const ZPhysicalMemory& pmem);
-
 public:
-  ZPage(ZPageType type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  ZPage(const ZVirtualMemory& vmem);
+  ZPage(ZPageType type, const ZVirtualMemory& vmem);
 
   ZPage* clone_limited() const;
 
@@ -99,8 +97,6 @@ public:
   size_t used() const;
 
   const ZVirtualMemory& virtual_memory() const;
-  const ZPhysicalMemory& physical_memory() const;
-  ZPhysicalMemory& physical_memory();
 
   uint8_t numa_id();
   ZPageAge age() const;
@@ -120,7 +116,6 @@ public:
   ZPage* retype(ZPageType type);
   ZPage* split(size_t split_of_size);
   ZPage* split(ZPageType type, size_t split_of_size);
-  ZPage* split_committed();
 
   bool is_in(zoffset offset) const;
   bool is_in(zaddress addr) const;

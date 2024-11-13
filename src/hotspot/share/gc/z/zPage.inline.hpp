@@ -170,14 +170,6 @@ inline const ZVirtualMemory& ZPage::virtual_memory() const {
   return _virtual;
 }
 
-inline const ZPhysicalMemory& ZPage::physical_memory() const {
-  return _physical;
-}
-
-inline ZPhysicalMemory& ZPage::physical_memory() {
-  return _physical;
-}
-
 inline uint8_t ZPage::numa_id() {
   if (_numa_id == (uint8_t)-1) {
     _numa_id = checked_cast<uint8_t>(ZNUMA::memory_id(untype(ZOffset::address(start()))));

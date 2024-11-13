@@ -24,8 +24,10 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zMappedCache.hpp"
@@ -34,7 +36,6 @@
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zSafeDelete.hpp"
-#include "gc/z/zSegmentTable.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
 class ThreadClosure;
@@ -56,7 +57,7 @@ private:
   ZMappedCache               _mapped_cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
-  ZSegmentTable              _segment_table;
+  ZGranuleMap<zoffset>       _mappings;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;
@@ -84,11 +85,11 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
-  void free_physical(const ZPhysicalMemory& pmem);
-  bool commit_physical(ZPhysicalMemory& pmem);
-  void uncommit_physical(ZPhysicalMemory& pmem);
+  void free_physical(const ZVirtualMemory& vmem);
+  bool commit_physical(ZVirtualMemory* vmem);
+  void uncommit_physical(const ZVirtualMemory& vmem);
 
-  void map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  void map_virtual_to_physical(const ZVirtualMemory& vmem);
 
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
@@ -107,9 +108,9 @@ private:
   ZPage* alloc_page_inner(ZPageAllocation* allocation);
   void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age);
 
-  void harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAllocation* allocation);
+  void harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation);
 
-  bool commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem);
+  bool commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem, size_t committed_size);
   void free_memory_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();

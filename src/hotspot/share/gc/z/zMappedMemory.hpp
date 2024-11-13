@@ -24,43 +24,15 @@
 #ifndef SHARE_GC_Z_ZMAPPEDMEMORY_HPP
 #define SHARE_GC_Z_ZMAPPEDMEMORY_HPP
 
-#include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
-
-// ZMappedPhysicalMemory may store segments without merging them and in arbitrary
-// order.
-class ZMappedPhysicalMemory {
-private:
-  ZArray<ZPhysicalMemorySegment> _segments;
-
-  void append(const ZPhysicalMemorySegment& segment);
-
-public:
-  ZMappedPhysicalMemory();
-  ZMappedPhysicalMemory(const ZPhysicalMemory& pmem);
-  const ZMappedPhysicalMemory& operator=(const ZMappedPhysicalMemory& other);
-  ZMappedPhysicalMemory(const ZMappedPhysicalMemory& other);
-
-  size_t size() const;
-  int nsegments() const;
-
-  void combine(const ZMappedPhysicalMemory& mpmem);
-  ZMappedPhysicalMemory split(size_t size);
-
-  ZPhysicalMemory sorted_physical() const;
-  ZPhysicalMemory unsorted_physical() const;
-};
 
 class ZMappedMemory {
 private:
   ZVirtualMemory  _vmem;
-  ZMappedPhysicalMemory _mpmem;
-
-  ZMappedMemory(const ZVirtualMemory& vmem, const ZMappedPhysicalMemory& mpmem);
 
 public:
   ZMappedMemory();
-  ZMappedMemory(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  ZMappedMemory(const ZVirtualMemory& vmem);
   ZMappedMemory(const ZMappedMemory& other);
   const ZMappedMemory& operator=(const ZMappedMemory& other);
 
@@ -69,16 +41,11 @@ public:
   zoffset_end end() const;
   size_t size() const;
 
-  int nsegments() const;
-
   ZMappedMemory split(size_t size);
   bool virtually_adjacent_to(const ZMappedMemory& other) const;
   void extend_mapping(const ZMappedMemory& right);
 
   const ZVirtualMemory& virtual_memory() const;
-
-  ZPhysicalMemory sorted_physical_memory() const;
-  ZPhysicalMemory unsorted_physical_memory() const;
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDMEMORY_HPP

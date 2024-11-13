@@ -26,49 +26,4 @@
 
 #include "gc/z/zPhysicalMemory.hpp"
 
-#include "gc/z/zAddress.inline.hpp"
-#include "utilities/debug.hpp"
-
-inline ZPhysicalMemorySegment::ZPhysicalMemorySegment()
-  : _start(zoffset(UINTPTR_MAX)),
-    _end(zoffset_end(UINTPTR_MAX)),
-    _committed(false) {}
-
-inline ZPhysicalMemorySegment::ZPhysicalMemorySegment(zoffset start, size_t size, bool committed)
-  : _start(start),
-    _end(to_zoffset_end(start, size)),
-    _committed(committed) {}
-
-inline zoffset ZPhysicalMemorySegment::start() const {
-  return _start;
-}
-
-inline zoffset_end ZPhysicalMemorySegment::end() const {
-  return _end;
-}
-
-inline size_t ZPhysicalMemorySegment::size() const {
-  return _end - _start;
-}
-
-inline bool ZPhysicalMemorySegment::is_committed() const {
-  return _committed;
-}
-
-inline void ZPhysicalMemorySegment::set_committed(bool committed) {
-  _committed = committed;
-}
-
-inline bool ZPhysicalMemory::is_null() const {
-  return _segments.length() == 0;
-}
-
-inline int ZPhysicalMemory::nsegments() const {
-  return _segments.length();
-}
-
-inline const ZPhysicalMemorySegment& ZPhysicalMemory::segment(int index) const {
-  return _segments.at(index);
-}
-
 #endif // SHARE_GC_Z_ZPHYSICALMEMORY_INLINE_HPP

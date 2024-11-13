@@ -151,7 +151,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _mapped_cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
-    _segment_table(),
+    _mappings(ZAddressOffsetMax),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
@@ -236,16 +236,15 @@ public:
 
 bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   ZVirtualMemory vmem = _virtual.alloc(size, true /* force_low_address */);
-  ZPhysicalMemory pmem;
-
   // Increase capacity, allocate and commit physical memory
   increase_capacity(size);
-  _physical.alloc(pmem, size);
-  if (!commit_physical(pmem)) {
+  _physical.alloc(_mappings.get_addr(vmem.start()), size);
+  if (!commit_physical(&vmem)) {
+    // This is a failure state. We do not cleanup the maybe partially committed memory.
     return false;
   }
 
-  map_virtual_to_physical(vmem, pmem);
+  map_virtual_to_physical(vmem);
 
   if (AlwaysPreTouch) {
     // Pre-touch memory
@@ -395,35 +394,43 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
-void ZPageAllocator::free_physical(const ZPhysicalMemory& pmem) {
+void ZPageAllocator::free_physical(const ZVirtualMemory& vmem) {
   // Free physical memory
-  _physical.free(pmem);
+  _physical.free(_mappings.get_addr(vmem.start()), vmem.size());
 }
 
-bool ZPageAllocator::commit_physical(ZPhysicalMemory& pmem) {
+bool ZPageAllocator::commit_physical(ZVirtualMemory* vmem) {
   // Commit physical memory
-  return _physical.commit(pmem);
-}
+  const size_t committed = _physical.commit(_mappings.get_addr(vmem->start()), vmem->size());
+  const size_t not_commited = vmem->size() - committed;
 
-void ZPageAllocator::uncommit_physical(ZPhysicalMemory& pmem) {
-  if (!ZUncommit) {
-    return;
+  if (not_commited > 0) {
+    // Free the uncommitted memory and update vmem with the committed memory
+    ZVirtualMemory not_commited_vmem = *vmem;
+    *vmem = not_commited_vmem.split(committed);
+    free_physical(not_commited_vmem);
+    free_virtual(not_commited_vmem);
+    return false;
   }
 
-  // Uncommit physical memory
-  _physical.uncommit(pmem);
+  return true;
 }
 
-void ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) {
-  // Map virtual memory to physical memory
-  _physical.map(vmem.start(), pmem);
+void ZPageAllocator::uncommit_physical(const ZVirtualMemory& vmem) {
+  precond(ZUncommit);
 
-  _segment_table.insert(vmem, pmem);
+  // Uncommit physical memory
+  _physical.uncommit(_mappings.get_addr(vmem.start()), vmem.size());
+}
+
+void ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem) {
+  // Map virtual memory to physical memory
+  _physical.map(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::unmap_virtual(const ZVirtualMemory& vmem) {
   // Unmap virtual memory from physical memory
-  _physical.unmap(vmem.start(), vmem.size());
+  _physical.unmap(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
@@ -451,13 +458,16 @@ ZVirtualMemory ZPageAllocator::remap_mapping(const ZVirtualMemory& vmem, bool fo
     return vmem;
   }
 
+  // Copy the physical mappings
+  const size_t num_granules = vmem.size() >> ZGranuleSizeShift;
+  memcpy(_mappings.get_addr(new_vmem.start()), _mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+
   // Unmap the previous mapping asynchronously
   _unmapper->unmap_virtual(vmem);
 
-  // Remove all the physical segments from the segment table so that we can copy
-  // them to the new virtual address range.
-  ZPhysicalMemory pmem = _segment_table.remove(vmem);
-  map_virtual_to_physical(new_vmem, pmem);
+  // Map the copied physical segments.
+  map_virtual_to_physical(new_vmem);
+
 
   return new_vmem;
 }
@@ -572,17 +582,18 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAllocation* allocation) {
+void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation) {
   size_t harvested = 0;
 
   ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
   for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    // Copy the physical mappings
+    const size_t num_granules = vmem.size() >> ZGranuleSizeShift;
+    memcpy(_mappings.get_addr(new_vmem.start() + harvested), _mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+
     harvested += vmem.size();
 
     _unmapper->unmap_virtual(vmem);
-
-    // Combine harvested mappings
-    pmem.combine_and_sort_segments(_segment_table.remove(vmem));
   }
 
   // Clear the array of stored mappings
@@ -612,42 +623,31 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   return true;
 }
 
-bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtualMemory& vmem, ZPhysicalMemory& pmem) {
-  // Try to commit all physical memory
-  if (commit_physical(pmem)) {
-    // Success
-    map_virtual_to_physical(vmem, pmem);
+bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem, size_t committed_size) {
+  ZVirtualMemory to_be_committed_vmem = vmem;
+  ZVirtualMemory committed_vmem = to_be_committed_vmem.split(committed_size);
+  // Try to commit all physical memory, commit_physical frees both the virtual
+  // and physical parts that correspond to the memory that failed to be committed.
+  commit_physical(&to_be_committed_vmem);
+  committed_vmem.extend(to_be_committed_vmem.size());
 
-    allocation->mappings()->append(vmem);
-    return true;
-  }
+  // Sort the backing memory before mapping
+  qsort(_mappings.get_addr(committed_vmem.start()), committed_vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
+        [](const void* a, const void* b) -> int {
+          return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
+        });
+  map_virtual_to_physical(committed_vmem);
+  allocation->mappings()->append(committed_vmem);
 
-  // Completely or partially failed to commit. Split off any successfully
-  // committed memory and insert it into the list of mapped memory so that
-  // it will be re-inserted into the mapped cache.
-  ZPhysicalMemory committed_pmem = pmem.split_committed();
-  ZVirtualMemory committed_vmem = vmem.split(committed_pmem.size());
-
-  // Free the uncommitted virtual and physical memory
-  free_virtual(vmem);
-  free_physical(pmem);
-
-  if (committed_pmem.is_null()) {
-    // Nothing to do.
+  if (committed_vmem.size() != vmem.size()) {
+    log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
+        untype(committed_vmem.start()),
+        untype(committed_vmem.end()),
+        untype(vmem.end()));
     return false;
   }
 
-  assert(committed_vmem.end() == vmem.start(), "Should be consecutive");
-
-  log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
-      untype(committed_vmem.start()),
-      untype(committed_vmem.end()),
-      untype(vmem.end()));
-
-  map_virtual_to_physical(committed_vmem, committed_pmem);
-  allocation->mappings()->append(vmem);
-
-  return false;
+  return true;
 }
 
 ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation) {
@@ -684,18 +684,17 @@ retry:
     return nullptr;
   }
 
-  ZPhysicalMemory pmem;
-  harvest_claimed_physical(pmem, allocation);
+  harvest_claimed_physical(vmem, allocation);
   const size_t remaining_physical = allocation->size() - allocation->harvested();
 
   // Allocate any remaining physical memory. Capacity and used has already been
   // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
   if (remaining_physical > 0) {
     allocation->set_committed(remaining_physical);
-    _physical.alloc(pmem, remaining_physical);
+    _physical.alloc(_mappings.get_addr(vmem.start() + allocation->harvested()), remaining_physical);
   }
 
-  if (!commit_and_map_memory(allocation, vmem, pmem)) {
+  if (!commit_and_map_memory(allocation, vmem, allocation->harvested())) {
     free_memory_alloc_failed(allocation);
     goto retry;
   }
@@ -911,14 +910,10 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZVirtualMemory> it(&flushed_mappings);
   for (ZVirtualMemory vmem; it.next(&vmem);) {
-    // TODO: Need to remove the physicalmemorysegments from the segment table
-    //       and insert them into the physical memory manager.
-
     unmap_virtual(vmem);
-
-    ZPhysicalMemory pmem = _segment_table.remove(vmem);
-    uncommit_physical(pmem);
-    free_physical(pmem);
+    uncommit_physical(vmem);
+    free_physical(vmem);
+    free_virtual(vmem);
   }
 
   {

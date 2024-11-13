@@ -386,12 +386,20 @@ inline bool ZBarrier::is_store_good_fast_path(zpointer ptr) {
   return ZPointer::is_store_good(ptr);
 }
 
+inline bool ZBarrier::is_store_good_or_color_null_fast_path(zpointer ptr) {
+  return ZPointer::is_store_good(ptr) || ptr == color_null();
+}
+
 inline bool ZBarrier::is_store_good_or_null_fast_path(zpointer ptr) {
   return ZPointer::is_store_good_or_null(ptr);
 }
 
 inline bool ZBarrier::is_store_good_or_null_any_fast_path(zpointer ptr) {
   return is_null_any(ptr) || !ZPointer::is_store_bad(ptr);
+}
+
+inline bool ZBarrier::is_mark_good_or_null_double_remap_bad_fast_path(zpointer ptr) {
+  return (is_null_any(ptr) && is_double_remap_bad(ptr)) || ZPointer::is_mark_good(ptr);
 }
 
 inline bool ZBarrier::is_mark_young_good_fast_path(zpointer ptr) {
@@ -449,6 +457,12 @@ inline zpointer color_remset_good(zaddress new_addr, zpointer old_ptr) {
   }
 }
 
+inline zpointer color_store_good_or_color_null(zaddress new_addr, zpointer old_ptr) {
+  if (new_addr == zaddress::null) {
+    return color_null();
+  }
+  return ZAddress::store_good(new_addr);
+}
 inline zpointer color_store_good(zaddress new_addr, zpointer old_ptr) {
   return ZAddress::store_good(new_addr);
 }
@@ -659,7 +673,7 @@ inline void ZBarrier::mark_barrier_on_old_oop_field(volatile zpointer* p, bool f
     // is already colored marked old good.
     barrier(is_finalizable_good_fast_path, mark_finalizable_from_old_slow_path, color_finalizable_good, p, o);
   } else {
-    barrier(is_mark_good_fast_path, mark_from_old_slow_path, color_mark_good, p, o);
+    barrier(is_mark_good_or_null_double_remap_bad_fast_path, mark_from_old_slow_path, color_mark_good, p, o);
   }
 }
 
@@ -679,7 +693,7 @@ inline void ZBarrier::promote_barrier_on_young_oop_field(volatile zpointer* p) {
   // This could simply be ensured in the marking above, but promotion rates
   // are typically rather low, and fixing all null pointers strictly, when
   // only a few had to be store good due to promotions, is generally not favourable
-  barrier(is_store_good_fast_path, promote_slow_path, color_store_good, p, o);
+  barrier(is_store_good_or_color_null_fast_path, promote_slow_path, color_store_good_or_color_null, p, o);
 }
 
 inline zaddress ZBarrier::remset_barrier_on_oop_field(volatile zpointer* p) {

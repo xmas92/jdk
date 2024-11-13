@@ -270,6 +270,11 @@ inline bool is_null_any(zpointer ptr) {
   return (raw_addr & ~ZPointerAllMetadataMask) == 0;
 }
 
+inline bool is_double_remap_bad(zpointer ptr) {
+  const uintptr_t raw_addr = untype(ptr);
+  return (raw_addr & ZPointerRememberedMask) == ZPointerRememberedMask;
+}
+
 // Is it null - colored or not?
 inline bool is_null_assert_load_good(zpointer ptr) {
   const bool result = is_null_any(ptr);

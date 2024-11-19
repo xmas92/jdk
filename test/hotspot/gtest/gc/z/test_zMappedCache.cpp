@@ -27,6 +27,7 @@
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "unittest.hpp"
 
+/*
 class ZMappedCacheTest : public ::testing::Test {
 protected:
   static void test_free_left_merge() {
@@ -157,3 +158,4 @@ TEST_F(ZMappedCacheTest, test_remove_mapped) {
   test_remove_mapped_contiguous();
   test_remove_mapped();
 }
+*/

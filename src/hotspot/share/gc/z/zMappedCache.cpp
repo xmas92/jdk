@@ -28,67 +28,65 @@
 ZMappedCache::ZMappedCache()
   : _tree() {}
 
-void ZMappedCache::insert_mapping(const ZMappedMemory& mapping) {
+void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
   bool merged_left = false;
 
   // Check left node.
-  ZMappedTreeNode* lnode = _tree.closest_leq(mapping.start());
+  ZMappedTreeNode* lnode = _tree.closest_leq(vmem.start());
   if (lnode != nullptr) {
-    ZMappedMemory& left_mapping = lnode->val();
+    ZVirtualMemory& left_vmem = lnode->val();
 
-    if (left_mapping.virtually_adjacent_to(mapping)) {
-      left_mapping.extend_mapping(mapping);
+    if (left_vmem.adjacent_to(vmem)) {
+      left_vmem.extend(vmem.size());
       merged_left = true;
     }
   }
 
   // Check right node.
-  ZMappedTreeNode* rnode = _tree.closest_leq(zoffset(mapping.end()));
+  ZMappedTreeNode* rnode = _tree.closest_leq(zoffset(vmem.end()));
   if (rnode != lnode) {
     // If there exists a node that is LEQ than mapping.end() which is not the
     // left_node, it is adjacent.
-    ZMappedMemory& right_mapping = rnode->val();
+    ZVirtualMemory& right_vmem = rnode->val();
 
     if (merged_left) {
       // Extend the left mapping, again
-      lnode->val().extend_mapping(right_mapping);
+      lnode->val().extend(right_vmem.size());
       _tree.remove(rnode->key());
     } else {
-      ZMappedMemory extended_mapping = mapping;
-      extended_mapping.extend_mapping(right_mapping);
-      _tree.remove(rnode->key());
-      _tree.upsert(mapping.start(), extended_mapping);
+      rnode->key() = vmem.start();
+      right_vmem = ZVirtualMemory(vmem.start(), vmem.size() + right_vmem.size());
     }
 
     return;
   }
 
   if (!merged_left) {
-    _tree.upsert(mapping.start(), mapping);
+    _tree.upsert(vmem.start(), vmem);
   }
 }
 
-size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t size) {
-  ZArray<ZMappedMemory> to_remove;
+size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size) {
+  ZArray<ZVirtualMemory> to_remove;
   size_t removed = 0;
 
   // Find what mappings to remove
   ZMappedTree::InReverseOrderIterator iterator(&_tree);
   for (ZMappedTreeNode* node; iterator.next(&node);) {
-    ZMappedMemory& mapping = node->val();
-    size_t after_remove = removed + mapping.size();
+    ZVirtualMemory& mapped_vmem = node->val();
+    size_t after_remove = removed + mapped_vmem.size();
 
     if (after_remove <= size) {
-      to_remove.append(mapping);
+      to_remove.append(mapped_vmem);
       removed = after_remove;
 
       if (removed == size) {
         break;
       }
     } else if (after_remove > size) {
-      ZMappedMemory initial_chunk = mapping.split(after_remove - size);
-      to_remove.append(mapping);
-      mapping = initial_chunk;
+      ZVirtualMemory initial_chunk = mapped_vmem.split(after_remove - size);
+      to_remove.append(mapped_vmem);
+      mapped_vmem = initial_chunk;
       removed = size;
       break;
     }
@@ -103,7 +101,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZMappedMemory>* mappings, size_t siz
   return removed;
 }
 
-bool ZMappedCache::remove_mapping_contiguous_granule(ZMappedMemory* mapping, size_t size) {
+bool ZMappedCache::remove_mapping_contiguous_granule(ZVirtualMemory* mapping, size_t size) {
   // Since the smallest possible size of a VMA that can be stored in the tree is
   // granule-sized, we can optimize by always removing a mapping from the left-most
   // node in the tree.
@@ -112,41 +110,39 @@ bool ZMappedCache::remove_mapping_contiguous_granule(ZMappedMemory* mapping, siz
     return false;
   }
 
-  ZMappedMemory& node_mapping = node->val();
+  ZVirtualMemory& node_mapping = node->val();
 
-  // Larger than necessary
   if (node_mapping.size() > size) {
+  // Larger than necessary
     *mapping = node_mapping.split(size);
     node->key() = node_mapping.start();
     return true;
   }
 
-  // Exact size match (i.e node is granule-sized)
+  // Perfect match (i.e node is granule-sized)
   *mapping = node_mapping;
   _tree.remove(node->key());
   return true;
 }
 
-bool ZMappedCache::remove_mapping_contiguous(ZMappedMemory* mapping, size_t size) {
+bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size) {
   if (size == ZPageSizeSmall) {
     return remove_mapping_contiguous_granule(mapping, size);
   }
 
   ZMappedTree::InOrderIterator iterator(&_tree);
   for (ZMappedTreeNode* node; iterator.next(&node);) {
-    ZMappedMemory node_mapping = node->val();
+    ZVirtualMemory& node_mapping = node->val();
 
     if (node_mapping.size() == size) {
       // Perfect match
-      _tree.remove(node->key());
       *mapping = node_mapping;
+      _tree.remove(node->key());
       return true;
     } else if (node_mapping.size() > size) {
       // Larger than necessary
-      ZMappedMemory initial_chunk = node_mapping.split(size);
-      _tree.remove(node->key());
-      _tree.upsert(node_mapping.start(), node_mapping);
-      *mapping = initial_chunk;
+      *mapping = node_mapping.split(size);
+      node->key() = node_mapping.start();
       return true;
     }
   }

@@ -57,6 +57,14 @@ inline ZVirtualMemory ZVirtualMemory::split(size_t size) {
   return ZVirtualMemory(_start - size, size);
 }
 
+inline bool ZVirtualMemory::adjacent_to(const ZVirtualMemory& other) const {
+  return zoffset(end()) == other.start() || zoffset(other.end()) == start();
+}
+
+inline void ZVirtualMemory::extend(size_t size) {
+  _end += size;
+}
+
 inline size_t ZVirtualMemoryManager::reserved() const {
   return _reserved;
 }

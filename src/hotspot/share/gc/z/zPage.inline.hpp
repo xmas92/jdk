@@ -130,15 +130,15 @@ inline bool ZPage::is_old() const {
 }
 
 inline zoffset ZPage::start() const {
-  return _mapping.start();
+  return _virtual.start();
 }
 
 inline zoffset_end ZPage::end() const {
-  return _mapping.end();
+  return _virtual.end();
 }
 
 inline size_t ZPage::size() const {
-  return _mapping.size();
+  return _virtual.size();
 }
 
 inline zoffset_end ZPage::top() const {
@@ -153,8 +153,8 @@ inline size_t ZPage::used() const {
   return top() - start();
 }
 
-inline const ZMappedMemory& ZPage::mapped_memory() const {
-  return _mapping;
+inline const ZVirtualMemory& ZPage::virtual_memory() const {
+  return _virtual;
 }
 
 inline uint8_t ZPage::numa_id() {

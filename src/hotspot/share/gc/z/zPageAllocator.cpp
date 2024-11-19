@@ -67,7 +67,7 @@ private:
   const uint32_t             _old_seqnum;
   size_t                     _harvested;
   size_t                     _committed;
-  ZArray<ZMappedMemory>      _mappings;
+  ZArray<ZVirtualMemory>     _mappings;
   ZListNode<ZPageAllocation> _node;
   ZFuture<bool>              _stall_result;
 
@@ -130,7 +130,7 @@ public:
     return _stall_result.get();
   }
 
-  ZArray<ZMappedMemory>* mappings() {
+  ZArray<ZVirtualMemory>* mappings() {
     return &_mappings;
   }
 
@@ -151,6 +151,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _mapped_cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
+    _segment_table(),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
@@ -244,7 +245,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
     return false;
   }
 
-  ZMappedMemory mapping = map_virtual_to_physical(vmem, pmem);
+  map_virtual_to_physical(vmem, pmem);
 
   if (AlwaysPreTouch) {
     // Pre-touch memory
@@ -254,7 +255,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
 
   // We don't have to take a lock here as no other threads will access the
   // mapped cache until we're finished.
-  _mapped_cache.insert_mapping(mapping);
+  _mapped_cache.insert_mapping(vmem);
 
   return true;
 }
@@ -413,10 +414,11 @@ void ZPageAllocator::uncommit_physical(ZPhysicalMemory& pmem) {
   _physical.uncommit(pmem);
 }
 
-ZMappedMemory ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const {
+void ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) {
   // Map virtual memory to physical memory
   _physical.map(vmem.start(), pmem);
-  return ZMappedMemory(vmem, pmem);
+
+  _segment_table.insert(vmem, pmem);
 }
 
 void ZPageAllocator::unmap_virtual(const ZVirtualMemory& vmem) {
@@ -429,33 +431,35 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
   _virtual.free(vmem);
 }
 
-bool ZPageAllocator::should_defragment(const ZMappedMemory& mapping) const {
-  assert(mapping.size() <= MAX2(ZPageSizeSmall, ZPageSizeMedium), "Should not be called for large pages");
+bool ZPageAllocator::should_defragment(const ZVirtualMemory& vmem) const {
+  assert(vmem.size() <= MAX2(ZPageSizeSmall, ZPageSizeMedium), "Should not be called for large pages");
 
   // Small and medium pages are allocated at a low address. They may end up at a
   // high address (second half of the address space) if we have a constrained
   // address space. To combat address space fragmentation we want to attemp to
   // remap such memory to a lower address.
-  return mapping.start() >= to_zoffset(_virtual.reserved() / 2) &&
-         mapping.start() >= _virtual.lowest_available_address();
+  return vmem.start() >= to_zoffset(_virtual.reserved() / 2) &&
+         vmem.start() >= _virtual.lowest_available_address();
 }
 
-ZMappedMemory ZPageAllocator::remap_mapping(const ZMappedMemory& mapping, bool force_low_address) {
+ZVirtualMemory ZPageAllocator::remap_mapping(const ZVirtualMemory& vmem, bool force_low_address) {
   // Allocate new virtual memory
-  const ZVirtualMemory vmem = _virtual.alloc(mapping.size(), force_low_address);
+  const ZVirtualMemory new_vmem = _virtual.alloc(vmem.size(), force_low_address);
 
-  if (vmem.is_null()) {
+  if (new_vmem.is_null()) {
     // Failed to allocate new virtual address space, do nothing
-    return mapping;
+    return vmem;
   }
 
   // Unmap the previous mapping asynchronously
-  _unmapper->unmap_virtual(mapping.virtual_memory());
+  _unmapper->unmap_virtual(vmem);
 
-  // As a side effect, also sort/merge the physical memory segments
-  ZPhysicalMemory pmem = mapping.sorted_physical_memory();
+  // Remove all the physical segments from the segment table so that we can copy
+  // them to the new virtual address range.
+  ZPhysicalMemory pmem = _segment_table.remove(vmem);
+  map_virtual_to_physical(new_vmem, pmem);
 
-  return map_virtual_to_physical(vmem, pmem);
+  return new_vmem;
 }
 
 bool ZPageAllocator::is_alloc_allowed(size_t size) const {
@@ -463,12 +467,12 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings) {
+void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZVirtualMemory>* mappings) {
   // Try to allocate a contiguous mapping when not allocating a large page.
   if (type != ZPageType::large) {
-    ZMappedMemory mapping;
-    if (_mapped_cache.remove_mapping_contiguous(&mapping, size)) {
-      mappings->append(mapping);
+    ZVirtualMemory mapped_vmem;
+    if (_mapped_cache.remove_mapping_contiguous(&mapped_vmem, size)) {
+      mappings->append(mapped_vmem);
       return;
     }
   }
@@ -491,7 +495,7 @@ void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t si
 bool ZPageAllocator::claim_physical(ZPageAllocation* allocation) {
   const ZPageType type = allocation->type();
   const size_t size = allocation->size();
-  ZArray<ZMappedMemory>* const mappings = allocation->mappings();
+  ZArray<ZVirtualMemory>* const mappings = allocation->mappings();
 
   if (!is_alloc_allowed(size)) {
     // Out of memory
@@ -571,14 +575,14 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
 void ZPageAllocator::harvest_claimed_physical(ZPhysicalMemory& pmem, ZPageAllocation* allocation) {
   size_t harvested = 0;
 
-  ZArrayIterator<ZMappedMemory> iter(allocation->mappings());
-  for (ZMappedMemory mapping; iter.next(&mapping);) {
-    harvested += mapping.size();
+  ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    harvested += vmem.size();
 
-    _unmapper->unmap_virtual(mapping.virtual_memory());
+    _unmapper->unmap_virtual(vmem);
 
     // Combine harvested mappings
-    pmem.combine_and_sort_segments(mapping.unsorted_physical_memory());
+    pmem.combine_and_sort_segments(_segment_table.remove(vmem));
   }
 
   // Clear the array of stored mappings
@@ -598,8 +602,8 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
     return false;
   }
 
-  const ZMappedMemory& mapping = allocation->mappings()->first();
-  if (mapping.size() != allocation->size()) {
+  const ZVirtualMemory& vmem = allocation->mappings()->first();
+  if (vmem.size() != allocation->size()) {
     // Not correct sized mapping
     return false;
   }
@@ -612,8 +616,9 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
   // Try to commit all physical memory
   if (commit_physical(pmem)) {
     // Success
-    ZMappedMemory mapping = map_virtual_to_physical(vmem, pmem);
-    allocation->mappings()->append(mapping);
+    map_virtual_to_physical(vmem, pmem);
+
+    allocation->mappings()->append(vmem);
     return true;
   }
 
@@ -639,8 +644,8 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, ZVirtual
       untype(committed_vmem.end()),
       untype(vmem.end()));
 
-  ZMappedMemory mapping = map_virtual_to_physical(committed_vmem, committed_pmem);
-  allocation->mappings()->append(mapping);
+  map_virtual_to_physical(committed_vmem, committed_pmem);
+  allocation->mappings()->append(vmem);
 
   return false;
 }
@@ -659,15 +664,15 @@ retry:
   // If the claimed physical memory holds a large enough contiguous virtual
   // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
-    ZMappedMemory mapping = allocation->mappings()->pop();
+    ZVirtualMemory mapped_vmem = allocation->mappings()->pop();
 
     if (allocation->type() == ZPageType::large) {
       // Large pages are placed in high address space, the memory returned from
       // the mapped cache is at low address space, need to remap.
-      mapping = remap_mapping(mapping, false /* force_low_address */);
+      mapped_vmem = remap_mapping(mapped_vmem, false /* force_low_address */);
     }
 
-    return new ZPage(allocation->type(), mapping);
+    return new ZPage(allocation->type(), mapped_vmem);
   }
 
   // We need to allocate a new virtual address range and make sure the claimed
@@ -695,7 +700,7 @@ retry:
     goto retry;
   }
 
-  return new ZPage(allocation->type(), allocation->mappings()->pop());
+  return new ZPage(allocation->type(), vmem);
 }
 
 void ZPageAllocator::alloc_page_age_update(ZPage* page, size_t size, ZPageAge age) {
@@ -736,7 +741,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   // Send event
   event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
-               page->mapped_memory().nsegments(), flags.non_blocking());
+               page->virtual_memory().size() / ZGranuleSize, flags.non_blocking());
 
   return page;
 }
@@ -770,33 +775,33 @@ void ZPageAllocator::satisfy_stalled() {
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   const ZGenerationId generation_id = page->generation_id();
 
-  // Extract mapped memory and destroy page
-  ZMappedMemory mapping = page->mapped_memory();
+  // Extract memory and destroy page
+  ZVirtualMemory vmem = page->virtual_memory();
   ZPageType page_type = page->type();
   safe_destroy_page(page);
 
   // Perhaps remap mapping
   if (page_type == ZPageType::large ||
-     (allow_defragment && should_defragment(mapping))) {
+     (allow_defragment && should_defragment(vmem))) {
     ZStatInc(ZCounterDefragment);
-    mapping = remap_mapping(mapping, true /* force_low_address */);
+    vmem = remap_mapping(vmem, true /* force_low_address */);
   }
 
   ZLocker<ZLock> locker(&_lock);
 
   // Update used statistics
-  decrease_used(mapping.size());
-  decrease_used_generation(generation_id, mapping.size());
+  decrease_used(vmem.size());
+  decrease_used_generation(generation_id, vmem.size());
 
   // Cache the memory from the page
-  _mapped_cache.insert_mapping(mapping);
+  _mapped_cache.insert_mapping(vmem);
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZMappedMemory> to_cache;
+  ZArray<ZVirtualMemory> to_cache;
 
   size_t young_size = 0;
   size_t old_size = 0;
@@ -811,17 +816,17 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     }
 
     // Extract mapped memory and destroy page
-    ZMappedMemory mapping = page->mapped_memory();
+    ZVirtualMemory vmem = page->virtual_memory();
     ZPageType page_type = page->type();
     safe_destroy_page(page);
 
     // Perhaps remap mapping
-    if (page_type == ZPageType::large || should_defragment(mapping)) {
+    if (page_type == ZPageType::large || should_defragment(vmem)) {
       ZStatInc(ZCounterDefragment);
-      mapping = remap_mapping(mapping, true /* force_low_address */);
+      vmem = remap_mapping(vmem, true /* force_low_address */);
     }
 
-    to_cache.append(mapping);
+    to_cache.append(vmem);
   }
 
   ZLocker<ZLock> locker(&_lock);
@@ -832,9 +837,9 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   decrease_used_generation(ZGenerationId::old, old_size);
 
   // Insert mappings to the cache
-  ZArrayIterator<ZMappedMemory> iter(&to_cache);
-  for (ZMappedMemory mapping; iter.next(&mapping);) {
-    _mapped_cache.insert_mapping(mapping);
+  ZArrayIterator<ZVirtualMemory> iter(&to_cache);
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    _mapped_cache.insert_mapping(vmem);
   }
 
   // Try satisfy stalled allocations
@@ -851,10 +856,10 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   size_t freed = 0;
 
   // Free mapped memory
-  ZArrayIterator<ZMappedMemory> iter(allocation->mappings());
-  for (ZMappedMemory mapping; iter.next(&mapping);) {
-    freed += mapping.size();
-    _mapped_cache.insert_mapping(mapping);
+  ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    freed += vmem.size();
+    _mapped_cache.insert_mapping(vmem);
   }
 
   // Adjust capacity to reflect the failed capacity increase
@@ -876,7 +881,7 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
 
   // We need to join the suspendible thread set while manipulating capacity and
   // used, to make sure GC safepoints will have a consistent view.
-  ZArray<ZMappedMemory> flushed_mappings;
+  ZArray<ZVirtualMemory> flushed_mappings;
   size_t flushed = 0;
 
   {
@@ -904,11 +909,14 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
   }
 
   // Unmap and uncommit flushed memory
-  ZArrayIterator<ZMappedMemory> it(&flushed_mappings);
-  for (ZMappedMemory mapping; it.next(&mapping);) {
-    unmap_virtual(mapping.virtual_memory());
+  ZArrayIterator<ZVirtualMemory> it(&flushed_mappings);
+  for (ZVirtualMemory vmem; it.next(&vmem);) {
+    // TODO: Need to remove the physicalmemorysegments from the segment table
+    //       and insert them into the physical memory manager.
 
-    ZPhysicalMemory pmem = mapping.unsorted_physical_memory();
+    unmap_virtual(vmem);
+
+    ZPhysicalMemory pmem = _segment_table.remove(vmem);
     uncommit_physical(pmem);
     free_physical(pmem);
   }

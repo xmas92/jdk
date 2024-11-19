@@ -26,10 +26,11 @@
 
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zLiveMap.hpp"
-#include "gc/z/zMappedMemory.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zRememberedSet.hpp"
+#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zPhysicalMemory.hpp"
 #include "memory/allocation.hpp"
 
 class ZGeneration;
@@ -45,7 +46,7 @@ private:
   uint8_t              _numa_id;
   uint32_t             _seqnum;
   uint32_t             _seqnum_other;
-  ZMappedMemory        _mapping;
+  ZVirtualMemory       _virtual;
   volatile zoffset_end _top;
   ZLiveMap             _livemap;
   ZRememberedSet       _remembered_set;
@@ -66,7 +67,7 @@ private:
   void reset_seqnum();
 
 public:
-  ZPage(ZPageType type, const ZMappedMemory& mapping);
+  ZPage(ZPageType type, const ZVirtualMemory& mapping);
 
   ZPage* clone_limited() const;
 
@@ -90,7 +91,7 @@ public:
   size_t remaining() const;
   size_t used() const;
 
-  const ZMappedMemory& mapped_memory() const;
+  const ZVirtualMemory& virtual_memory() const;
 
   uint8_t numa_id();
   ZPageAge age() const;

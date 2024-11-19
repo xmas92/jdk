@@ -21,41 +21,23 @@
  * questions.
  */
 
-#ifndef SHARE_GC_Z_ZMAPPEDCACHE_HPP
-#define SHARE_GC_Z_ZMAPPEDCACHE_HPP
+#ifndef SHARE_GC_Z_ZSEGMENTTABLE_HPP
+#define SHARE_GC_Z_ZSEGMENTTABLE_HPP
 
-#include "gc/z/zArray.hpp"
+#include "gc/z/zGranuleMap.hpp"
+#include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zVirtualMemory.hpp"
-#include "utilities/rbTree.hpp"
+#include "memory/allocation.hpp"
 
-class ZMappedCache {
-  friend class ZMappedCacheTest;
-
+class ZSegmentTable {
 private:
-  class ZOffsetComparator {
-  public:
-    static int cmp(zoffset a, zoffset b) {
-      if (a <  b) return -1;
-      if (a == b) return  0;
-      if (a >  b) return  1;
-      ShouldNotReachHere();
-    }
-  };
-
-  using ZMappedTree = RBTreeCHeap<zoffset, ZVirtualMemory, ZOffsetComparator>;
-  using ZMappedTreeNode = ZMappedTree::RBNode;
-
-  ZMappedTree _tree;
+  ZGranuleMap<zoffset> _map;
 
 public:
-  ZMappedCache();
+  ZSegmentTable();
 
-  void insert_mapping(const ZVirtualMemory& vmem);
-
-  size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);
-
-  bool remove_mapping_contiguous_granule(ZVirtualMemory* mapping, size_t size);
-  bool remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size);
+  void insert(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
+  ZPhysicalMemory remove(const ZVirtualMemory& vmem);
 };
 
-#endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP
+#endif // SHARE_GC_Z_ZSEGMENTTABLE_HPP

@@ -34,6 +34,7 @@
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zSafeDelete.hpp"
+#include "gc/z/zSegmentTable.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 
 class ThreadClosure;
@@ -55,6 +56,7 @@ private:
   ZMappedCache               _mapped_cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
+  ZSegmentTable              _segment_table;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;
@@ -86,17 +88,17 @@ private:
   bool commit_physical(ZPhysicalMemory& pmem);
   void uncommit_physical(ZPhysicalMemory& pmem);
 
-  ZMappedMemory map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) const;
+  void map_virtual_to_physical(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem);
 
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
 
-  bool should_defragment(const ZMappedMemory& mapping) const;
-  ZMappedMemory remap_mapping(const ZMappedMemory& mapping, bool force_low_address);
+  bool should_defragment(const ZVirtualMemory& vmem) const;
+  ZVirtualMemory remap_mapping(const ZVirtualMemory& mapping, bool force_low_address);
 
   bool is_alloc_allowed(size_t size) const;
 
-  void claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZMappedMemory>* mappings);
+  void claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZVirtualMemory>* mappings);
   bool claim_physical(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);

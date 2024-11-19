@@ -30,19 +30,19 @@
 #include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
 
-ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
+ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem)
   : _type(type),
     _generation_id(ZGenerationId::young),
     _age(ZPageAge::eden),
     _numa_id((uint8_t)-1),
     _seqnum(0),
     _seqnum_other(0),
-    _mapping(mapping),
+    _virtual(vmem),
     _top(to_zoffset_end(start())),
     _livemap(object_max_count()),
     _remembered_set(),
     _last_used(0) {
-  assert(!_mapping.is_null(), "Should not be null");
+  assert(!_virtual.is_null(), "Should not be null");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
          (_type == ZPageType::medium && size() == ZPageSizeMedium) ||
          (_type == ZPageType::large && is_aligned(size(), ZGranuleSize)),
@@ -52,7 +52,7 @@ ZPage::ZPage(ZPageType type, const ZMappedMemory& mapping)
 ZPage* ZPage::clone_limited() const {
   // Only copy type and memory layouts, and also update _top. Let the rest be
   // lazily reconstructed when needed.
-  ZPage* const page = new ZPage(_type, _mapping);
+  ZPage* const page = new ZPage(_type, _virtual);
   page->_top = _top;
 
   return page;

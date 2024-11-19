@@ -44,6 +44,9 @@ public:
   size_t size() const;
 
   ZVirtualMemory split(size_t size);
+
+  bool adjacent_to(const ZVirtualMemory& other) const;
+  void extend(size_t size);
 };
 
 class ZVirtualMemoryManager {

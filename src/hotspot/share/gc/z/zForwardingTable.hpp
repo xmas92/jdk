@@ -28,7 +28,6 @@
 #include "gc/z/zIndexDistributor.hpp"
 
 class ZForwarding;
-class ZPageAllocator;
 
 class ZForwardingTable {
   friend class ZRemsetTableIterator;
@@ -40,7 +39,7 @@ private:
   ZForwarding* at(size_t index) const;
 
 public:
-  ZForwardingTable(ZPageAllocator* page_allocator);
+  ZForwardingTable();
 
   ZForwarding* get(zaddress_unsafe addr) const;
 

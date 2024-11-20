@@ -43,7 +43,7 @@ private:
   ZGranuleMap<ZPage*> _map;
 
 public:
-  ZPageTable(ZPageAllocator* page_allocator);
+  ZPageTable();
 
   size_t size() const;
 

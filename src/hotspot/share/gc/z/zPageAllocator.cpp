@@ -187,7 +187,6 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
-    _max_offset(_virtual.highest_available_address_end()),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
@@ -329,13 +328,6 @@ size_t ZPageAllocator::unused() const {
   const ssize_t claimed = (ssize_t)Atomic::load(&_claimed);
   const ssize_t unused = capacity - used - claimed;
   return unused > 0 ? (size_t)unused : 0;
-}
-
-size_t ZPageAllocator::max_offset() const {
-  if (_max_offset == zoffset_end(UINTPTR_MAX)) {
-    return 0;
-  }
-  return untype(_max_offset);
 }
 
 ZPageAllocatorStats ZPageAllocator::stats(ZGeneration* generation) const {

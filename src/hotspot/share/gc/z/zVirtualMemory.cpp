@@ -49,6 +49,8 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
     return;
   }
 
+  ZAddressOffsetMax = untype(_manager.peak_high_address());
+
   // Initialize platform specific parts after reserving address space
   pd_initialize_after_reserve();
 

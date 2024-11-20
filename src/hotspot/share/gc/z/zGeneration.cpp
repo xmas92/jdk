@@ -115,7 +115,7 @@ ZGeneration::ZGeneration(ZGenerationId id, ZPageTable* page_table, ZPageAllocato
   : _id(id),
     _page_allocator(page_allocator),
     _page_table(page_table),
-    _forwarding_table(),
+    _forwarding_table(_page_allocator),
     _workers(id, &_stat_workers),
     _mark(this, page_table),
     _relocate(this),

@@ -68,6 +68,7 @@ private:
   ZPageCache                 _cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
+  const zoffset_end          _max_offset;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;
@@ -143,6 +144,7 @@ public:
   size_t used() const;
   size_t used_generation(ZGenerationId id) const;
   size_t unused() const;
+  size_t max_offset() const;
 
   void promote_used(size_t size);
 

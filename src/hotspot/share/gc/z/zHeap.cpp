@@ -57,7 +57,7 @@ ZHeap* ZHeap::_heap = nullptr;
 
 ZHeap::ZHeap()
   : _page_allocator(MinHeapSize, InitialHeapSize, SoftMaxHeapSize, MaxHeapSize),
-    _page_table(),
+    _page_table(&_page_allocator),
     _allocator_eden(),
     _allocator_relocation(),
     _serviceability(initial_capacity(), min_capacity(), max_capacity()),

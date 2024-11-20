@@ -36,8 +36,8 @@
 
 template <typename T>
 inline ZGranuleMap<T>::ZGranuleMap(size_t max_offset)
-  : _size(max_offset >> ZGranuleSizeShift),
-    _map(MmapArrayAllocator<T>::allocate(_size, mtGC)) {
+  : _size(round_up_power_of_2(align_up(max_offset >> ZGranuleSizeShift, 4096) /* ZIndexDistributor requirement */)),
+    _map(_size != 0 ? MmapArrayAllocator<T>::allocate(_size, mtGC) : nullptr) {
   assert(is_aligned(max_offset, ZGranuleSize), "Misaligned");
 }
 

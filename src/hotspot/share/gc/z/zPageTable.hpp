@@ -43,7 +43,9 @@ private:
   ZGranuleMap<ZPage*> _map;
 
 public:
-  ZPageTable();
+  ZPageTable(ZPageAllocator* page_allocator);
+
+  size_t size() const;
 
   ZPage* get(zaddress addr) const;
   ZPage* get(volatile zpointer* p) const;

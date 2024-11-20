@@ -29,8 +29,8 @@
 #include "runtime/orderAccess.hpp"
 #include "utilities/debug.hpp"
 
-ZPageTable::ZPageTable()
-  : _map(ZAddressOffsetMax) {}
+ZPageTable::ZPageTable(ZPageAllocator* page_allocator)
+  : _map(page_allocator->max_offset()) {}
 
 void ZPageTable::insert(ZPage* page) {
   const zoffset offset = page->start();

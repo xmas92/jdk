@@ -53,7 +53,7 @@ private:
     BitMap* const _bitmaps[2];
     int           _current;
 
-    FoundOld();
+    FoundOld(ZPageAllocator* page_allocator);
 
     void flip();
     void clear_previous();

@@ -31,10 +31,11 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zGranuleMap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
+#include "gc/z/zPageAllocator.inline.hpp"
 #include "utilities/debug.hpp"
 
-inline ZForwardingTable::ZForwardingTable()
-  : _map(ZAddressOffsetMax) {}
+inline ZForwardingTable::ZForwardingTable(ZPageAllocator* page_allocator)
+  : _map(page_allocator->max_offset()) {}
 
 inline ZForwarding* ZForwardingTable::at(size_t index) const {
   return _map.at(index);

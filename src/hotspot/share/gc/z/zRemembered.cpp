@@ -45,7 +45,7 @@ ZRemembered::ZRemembered(ZPageTable* page_table,
   : _page_table(page_table),
     _old_forwarding_table(old_forwarding_table),
     _page_allocator(page_allocator),
-    _found_old() {}
+    _found_old(_page_allocator) {}
 
 template <typename Function>
 void ZRemembered::oops_do_forwarded_via_containing(GrowableArrayView<ZRememberedSetContaining>* array, Function function) const {
@@ -345,12 +345,12 @@ bool ZRemembered::scan_forwarding(ZForwarding* forwarding, void* context_void) c
 // slots that were found to actually contain old pages are registered in the
 // active set.
 
-ZRemembered::FoundOld::FoundOld()
+ZRemembered::FoundOld::FoundOld(ZPageAllocator* page_allocator)
     // Array initialization requires copy constructors, which CHeapBitMap
     // doesn't provide. Instantiate two instances, and populate an array
     // with pointers to the two instances.
-  : _allocated_bitmap_0{ZAddressOffsetMax >> ZGranuleSizeShift, mtGC, true /* clear */},
-    _allocated_bitmap_1{ZAddressOffsetMax >> ZGranuleSizeShift, mtGC, true /* clear */},
+  : _allocated_bitmap_0{page_allocator->max_offset() >> ZGranuleSizeShift, mtGC, true /* clear */},
+    _allocated_bitmap_1{page_allocator->max_offset() >> ZGranuleSizeShift, mtGC, true /* clear */},
     _bitmaps{&_allocated_bitmap_0, &_allocated_bitmap_1},
     _current{0} {}
 

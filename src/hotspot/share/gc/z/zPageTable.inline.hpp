@@ -32,6 +32,10 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
 
+inline size_t ZPageTable::size() const {
+  return _map._size;
+}
+
 inline ZPage* ZPageTable::get(zaddress addr) const {
   assert(!is_null(addr), "Invalid address");
   return _map.get(ZAddress::offset(addr));
@@ -64,7 +68,7 @@ inline bool ZPageTableIterator::next(ZPage** page) {
 
 inline ZPageTableParallelIterator::ZPageTableParallelIterator(const ZPageTable* table)
   : _table(table),
-    _index_distributor(int(ZAddressOffsetMax >> ZGranuleSizeShift)) {}
+    _index_distributor(int(table->size())) {}
 
 template <typename Function>
 inline void ZPageTableParallelIterator::do_pages(Function function) {

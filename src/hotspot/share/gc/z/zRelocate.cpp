@@ -1166,30 +1166,197 @@ static void remap_and_maybe_add_remset(volatile zpointer* p) {
   ZRelocate::add_remset(p);
 }
 
+template<size_t N>
+class ZSPSCQueue : public CHeapObj<mtGC> {
+private:
+  volatile zpointer* _queue[N];
+  size_t _produce_index;
+  DEFINE_PAD_MINUS_SIZE(0, ZCacheLineSize, sizeof(size_t));
+  size_t _consume_index;
+  DEFINE_PAD_MINUS_SIZE(1, ZCacheLineSize, sizeof(size_t));
+  volatile size_t _size;
+  DEFINE_PAD_MINUS_SIZE(2, ZCacheLineSize, sizeof(size_t));
+
+public:
+  ZSPSCQueue() : _produce_index(0), _consume_index(0), _size(0) {};
+  DEBUG_ONLY(~ZSPSCQueue() { postcond(Atomic::load(&_size) == 0); })
+
+  bool push(volatile zpointer* ptr) {
+    const size_t size = Atomic::load(&_size);
+    if (size == N) {
+      return false;
+    }
+    _queue[_produce_index] = ptr;
+    _produce_index = (_produce_index + 1) % N;
+    Atomic::inc(&_size, atomic_memory_order::memory_order_release);
+
+    return true;
+  }
+
+  bool pop(volatile zpointer** ptr) {
+    const size_t size = Atomic::load(&_size);
+    if (size == 0) {
+      return false;
+    }
+    static_cast<void>(Atomic::load_acquire(&_size));
+    *ptr = _queue[_consume_index];
+    _consume_index = (_consume_index + 1) % N;
+    OrderAccess::loadstore();
+    Atomic::dec(&_size, atomic_memory_order::memory_order_relaxed);
+
+    return true;
+  }
+};
+
+using ZSPSCQueue64 = ZSPSCQueue<64>;
+STATIC_ASSERT(sizeof(ZSPSCQueue64));
+
+class ZArrayWorkDistributor {
+private:
+  ZSPSCQueue64* _array;
+  uint _nworkers;
+  volatile uint _awaiting_workers;
+
+public:
+  ZArrayWorkDistributor(ZGeneration* generation) :
+      _array(nullptr),
+      _nworkers(0),
+      _awaiting_workers(0)  {
+    resize_workers(generation->active_workers());
+  }
+
+  ~ZArrayWorkDistributor() {
+    delete[] _array;
+  }
+
+  void resize_workers(uint nworkers) {
+    precond(_awaiting_workers == 0);
+    delete[] _array;
+    _array = new ZSPSCQueue64[nworkers * nworkers];
+    _awaiting_workers = nworkers;
+    _nworkers = nworkers;
+  }
+
+  template <typename Function>
+  void drain(uint worker_id, Function function) {
+    const size_t zpointers_per_granule = ZGranuleSize / sizeof(zpointer);
+    for (uint other_worker_id = 0; other_worker_id < _nworkers; other_worker_id++) {
+      if (other_worker_id == worker_id) {
+        continue;
+      }
+      auto& queue = get_queue(other_worker_id, worker_id);
+      volatile zpointer* addr = nullptr;
+      while (queue.pop(&addr)) {
+        SuspendibleThreadSet::yield();
+        work_partial_array(addr, zpointers_per_granule, function);
+      }
+    }
+  }
+
+  template <typename Function>
+  void final_drain(uint worker_id, Function function) {
+    drain(worker_id, function);
+    uint awaiting_workers = Atomic::sub(&_awaiting_workers, 1u, atomic_memory_order::memory_order_acq_rel);
+    while (awaiting_workers != 0) {
+      drain(worker_id, function);
+      awaiting_workers = Atomic::load_acquire(&_awaiting_workers);
+    }
+    drain(worker_id, function);
+  }
+
+  template <typename Function>
+  void work_partial_array(volatile zpointer* addr, size_t len, Function function) {
+    while (len-- != 0) {
+      function(addr++);
+    }
+  }
+
+  ZSPSCQueue64& get_queue(uint producer_worker_id, uint consumer_worker_id) {
+    precond(producer_worker_id != consumer_worker_id);
+    precond(producer_worker_id < _nworkers && consumer_worker_id < _nworkers);
+    return _array[_nworkers * producer_worker_id + consumer_worker_id];
+  }
+
+  template <typename Function>
+  bool work_array(objArrayOop obj, Klass* klass, uint worker_id, Function function) {
+    const size_t size = ZUtils::words_to_bytes(obj->size_given_klass(klass));
+    if (size < ZGranuleSize) {
+      ZIterator::basic_oop_iterate(obj, function);
+      return false;
+    }
+    const size_t zpointers_per_granule = ZGranuleSize / sizeof(zpointer);
+    const uintptr_t obj_start = untype(to_zaddress(obj));
+    assert(is_aligned(obj_start, ZGranuleSize), "must be for large page objects");
+
+    volatile zpointer* const prologue = reinterpret_cast<zpointer*>(obj->base());
+    const size_t prologue_len = (align_up(prologue, ZGranuleSize) - prologue);
+    work_partial_array(prologue, prologue_len, function);
+    SuspendibleThreadSet::yield();
+
+    size_t processed_len = prologue_len;
+    volatile zpointer* const epilogue = reinterpret_cast<zpointer*>(align_down(obj_start + size, ZGranuleSize));
+    for (volatile zpointer* addr = prologue + prologue_len;
+         addr < epilogue; addr += zpointers_per_granule) {
+      const uint granule_worker_id = (reinterpret_cast<uintptr_t>(addr) >> ZGranuleSizeShift) % _nworkers;
+      if (granule_worker_id == worker_id || !get_queue(worker_id, granule_worker_id).push(addr)) {
+        work_partial_array(addr, zpointers_per_granule, function);
+        SuspendibleThreadSet::yield();
+      }
+      processed_len += zpointers_per_granule;
+    }
+    const size_t epilogue_len = obj->length() - processed_len;
+    work_partial_array(epilogue, epilogue_len, function);
+
+    return true;
+  }
+
+  template <typename Function>
+  bool work(oop obj, uint worker_id, Function function) {
+    Klass* const klass = obj->klass();
+    bool const is_array = klass->is_objArray_klass() && !obj->mark_acquire().is_marked();
+    if (!is_array) {
+      return false;
+    }
+    work_array(cast_from_oop<objArrayOop>(obj), klass, worker_id, function);
+    return true;
+  }
+};
+
 class ZRelocateAddRemsetForFlipPromoted : public ZRestartableTask {
 private:
   ZStatTimerYoung                _timer;
   ZArrayParallelIterator<ZPage*> _iter;
+  ZArrayWorkDistributor          _arrays;
 
 public:
   ZRelocateAddRemsetForFlipPromoted(ZArray<ZPage*>* pages)
     : ZRestartableTask("ZRelocateAddRemsetForFlipPromoted"),
       _timer(ZSubPhaseConcurrentRelocateRememberedSetFlipPromotedYoung),
-      _iter(pages) {}
+      _iter(pages),
+      _arrays(ZGeneration::young()) {}
 
-  virtual void work() {
+  virtual void resize_workers(uint nworkers) final {
+    _arrays.resize_workers(nworkers);
+  }
+
+  virtual void work() final {
     SuspendibleThreadSetJoiner sts_joiner;
-
+    const uint worker_id = WorkerThread::worker_id();
     for (ZPage* page; _iter.next(&page);) {
       page->object_iterate([&](oop obj) {
-        ZIterator::basic_oop_iterate_safe(obj, remap_and_maybe_add_remset);
+        if (!_arrays.work(obj, worker_id, remap_and_maybe_add_remset)) {
+          ZIterator::basic_oop_iterate_safe(obj, remap_and_maybe_add_remset);
+        }
       });
+
+      _arrays.drain(worker_id, remap_and_maybe_add_remset);
 
       SuspendibleThreadSet::yield();
       if (ZGeneration::young()->should_worker_resize()) {
-        return;
+        break;
       }
     }
+    _arrays.final_drain(worker_id, remap_and_maybe_add_remset);
   }
 };
 
@@ -1229,15 +1396,19 @@ ZPageAge ZRelocate::compute_to_age(ZPageAge from_age) {
 class ZFlipAgePagesTask : public ZTask {
 private:
   ZArrayParallelIterator<ZPage*> _iter;
+  ZArrayWorkDistributor          _arrays;
 
 public:
   ZFlipAgePagesTask(const ZArray<ZPage*>* pages)
     : ZTask("ZPromotePagesTask"),
-      _iter(pages) {}
+      _iter(pages),
+      _arrays(ZGeneration::young()) {}
 
   virtual void work() {
     SuspendibleThreadSetJoiner sts_joiner;
-    ZArray<ZPage*> promoted_pages;
+    const uint worker_id = WorkerThread::worker_id();
+    ZArray<ZPage*> promoted_pages_prev;
+    ZArray<ZPage*> promoted_pages_new;
 
     for (ZPage* prev_page; _iter.next(&prev_page);) {
       const ZPageAge from_age = prev_page->age();
@@ -1253,9 +1424,13 @@ public:
         // pointers, but null pointers are ignored. This code ensures that even null pointers
         // are made store good, for the promoted objects.
         prev_page->object_iterate([&](oop obj) {
-          ZIterator::basic_oop_iterate_safe(obj, ZBarrier::promote_barrier_on_young_oop_field);
+          if (!_arrays.work(obj, worker_id, ZBarrier::promote_barrier_on_young_oop_field)) {
+            ZIterator::basic_oop_iterate_safe(obj, ZBarrier::promote_barrier_on_young_oop_field);
+          }
         });
       }
+
+      _arrays.drain(worker_id, ZBarrier::promote_barrier_on_young_oop_field);
 
       // Logging
       prev_page->log_msg(promotion ? " (flip promoted)" : " (flip survived)");
@@ -1271,15 +1446,21 @@ public:
       }
 
       if (promotion) {
-        ZGeneration::young()->flip_promote(prev_page, new_page);
+        // Defer page_table updates until after _arrays.final_drain
         // Defer promoted page registration times the lock is taken
-        promoted_pages.push(prev_page);
+        promoted_pages_prev.push(prev_page);
+        promoted_pages_new.push(new_page);
       }
 
       SuspendibleThreadSet::yield();
     }
+    _arrays.final_drain(worker_id, ZBarrier::promote_barrier_on_young_oop_field);
 
-    ZGeneration::young()->register_flip_promoted(promoted_pages);
+    for (int i = 0; i < promoted_pages_new.length(); i++) {
+        ZGeneration::young()->flip_promote(promoted_pages_prev.at(i), promoted_pages_new.at(i));
+    }
+
+    ZGeneration::young()->register_flip_promoted(promoted_pages_prev);
   }
 };
 

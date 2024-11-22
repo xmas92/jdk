@@ -49,9 +49,6 @@ ZMarkStackSpace::ZMarkStackSpace()
 
   // Successfully initialized
   _start = _top = _end = addr;
-
-  // Prime space
-  _end += expand_space();
 }
 
 bool ZMarkStackSpace::is_initialized() const {
@@ -168,6 +165,14 @@ void ZMarkStackSpace::free() {
   _top = _start;
 }
 
+void ZMarkStackSpace::ensure_mark_start_initial_space() {
+  if (size() < ZMarkStackSpaceExpandSize) {
+    ZLocker<ZLock> locker(&_expand_lock);
+    // Prime space
+    _end += expand_space();
+  }
+}
+
 ZMarkStackAllocator::ZMarkStackAllocator()
   : _space(),
     _freelist(_space.start()),
@@ -234,4 +239,8 @@ void ZMarkStackAllocator::free_magazine(ZMarkStackMagazine* magazine) {
 void ZMarkStackAllocator::free() {
   _freelist.clear();
   _space.free();
+}
+
+void ZMarkStackAllocator::ensure_mark_start_initial_space() {
+  _space.ensure_mark_start_initial_space();
 }

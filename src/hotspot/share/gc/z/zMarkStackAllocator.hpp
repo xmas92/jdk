@@ -55,6 +55,8 @@ public:
 
   uintptr_t alloc(size_t size);
   void free();
+
+  void ensure_mark_start_initial_space();
 };
 
 class ZMarkStackAllocator : public CHeapObj<mtGC> {
@@ -79,6 +81,8 @@ public:
   void free_magazine(ZMarkStackMagazine* magazine);
 
   void free();
+
+  void ensure_mark_start_initial_space();
 };
 
 #endif // SHARE_GC_Z_ZMARKSTACKALLOCATOR_HPP

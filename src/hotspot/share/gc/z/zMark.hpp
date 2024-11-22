@@ -106,6 +106,7 @@ public:
   template <bool resurrect, bool gc_thread, bool follow, bool finalizable>
   void mark_object(zaddress addr);
 
+  void prepare_start();
   void start();
   void mark_young_roots();
   void mark_old_roots();

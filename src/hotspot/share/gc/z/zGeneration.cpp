@@ -595,6 +595,12 @@ public:
 
     return true;
   }
+
+  virtual bool doit_prologue() {
+    ZGeneration::young()->_mark.prepare_start();
+    ZGeneration::old()->_mark.prepare_start();
+    return VM_ZOperation::doit_prologue();
+  }
 };
 
 class VM_ZYoungOperation : public VM_ZOperation {
@@ -630,6 +636,11 @@ public:
     ZGeneration::young()->mark_start();
 
     return true;
+  }
+
+  virtual bool doit_prologue() {
+    ZGeneration::young()->_mark.prepare_start();
+    return VM_ZOperation::doit_prologue();
   }
 };
 

@@ -105,6 +105,10 @@ size_t ZMark::calculate_nstripes(uint nworkers) const {
   return MIN2(nstripes, ZMarkStripesMax);
 }
 
+void ZMark::prepare_start() {
+  _allocator.ensure_mark_start_initial_space();
+}
+
 void ZMark::start() {
   // Verification
   if (ZVerifyMarking) {

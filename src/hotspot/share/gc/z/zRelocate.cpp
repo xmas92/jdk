@@ -1259,6 +1259,7 @@ public:
     uint awaiting_workers = Atomic::sub(&_awaiting_workers, 1u, atomic_memory_order::memory_order_acq_rel);
     while (awaiting_workers != 0) {
       drain(worker_id, function);
+      SuspendibleThreadSet::yield();
       awaiting_workers = Atomic::load_acquire(&_awaiting_workers);
     }
     drain(worker_id, function);

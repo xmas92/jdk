@@ -1216,12 +1216,14 @@ private:
   ZSPSCQueue64* _array;
   uint _nworkers;
   volatile uint _awaiting_workers;
+  ZConditionLock _awaiting_lock;
 
 public:
   ZArrayWorkDistributor(ZGeneration* generation) :
       _array(nullptr),
       _nworkers(0),
-      _awaiting_workers(0)  {
+      _awaiting_workers(0),
+      _awaiting_lock() {
     resize_workers(generation->active_workers());
   }
 
@@ -1257,9 +1259,17 @@ public:
   void final_drain(uint worker_id, Function function) {
     drain(worker_id, function);
     uint awaiting_workers = Atomic::sub(&_awaiting_workers, 1u, atomic_memory_order::memory_order_acq_rel);
+    if (awaiting_workers == 0) {
+        ZLocker<ZConditionLock> locker(&_awaiting_lock);
+        _awaiting_lock.notify_all();
+    }
     while (awaiting_workers != 0) {
       drain(worker_id, function);
-      SuspendibleThreadSet::yield();
+      {
+        SuspendibleThreadSetLeaver sts_leaver;
+        ZLocker<ZConditionLock> locker(&_awaiting_lock);
+        _awaiting_lock.wait();
+      }
       awaiting_workers = Atomic::load_acquire(&_awaiting_workers);
     }
     drain(worker_id, function);

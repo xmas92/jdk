@@ -32,22 +32,19 @@
 
 //#ifndef PRODUCT
 
-class ZTestEntry;
-
 struct ZTestEntryCompare {
-  int operator()(ZTestEntry* a, ZTestEntry* b);
-  int operator()(int key, ZTestEntry* entry);
+  int operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b);
+  int operator()(int key, ZIntrusiveRBTreeNode* entry);
 };
 
 class ZTestEntry : public ArenaObj {
-  friend class ZIntrusiveRBTree<ZTestEntry, int, ZTestEntryCompare>;
+  friend class ZIntrusiveRBTree<int, ZTestEntryCompare>;
 
 public:
-  using ZTree = ZIntrusiveRBTree<ZTestEntry, int, ZTestEntryCompare>;
-
+  using ZTree = ZIntrusiveRBTree<int, ZTestEntryCompare>;
 private:
   const int   _id;
-  ZTree::Node _node;
+  ZIntrusiveRBTreeNode _node;
 
 public:
   ZTestEntry(int id)
@@ -57,13 +54,21 @@ public:
   int id() const {
     return _id;
   }
+
+  static ZIntrusiveRBTreeNode* cast_to_inner(ZTestEntry* element) {
+    return &element->_node;
+  }
+  static  ZTestEntry* cast_to_outer(ZIntrusiveRBTreeNode* node) {
+    return (ZTestEntry*)((uintptr_t)node - offset_of(ZTestEntry, _node));
+  }
+
 };
 
-int ZTestEntryCompare::operator()(ZTestEntry* a, ZTestEntry* b) {
-  return a->id() - b->id();
+int ZTestEntryCompare::operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b) {
+  return ZTestEntry::cast_to_outer(a)->id() - ZTestEntry::cast_to_outer(b)->id();
 }
-int ZTestEntryCompare::operator()(int key, ZTestEntry* entry) {
-  return key - entry->id();
+int ZTestEntryCompare::operator()(int key, ZIntrusiveRBTreeNode* entry) {
+  return key - ZTestEntry::cast_to_outer(entry)->id();
 }
 
 class ZTreeTest : public ::testing::Test {
@@ -104,10 +109,10 @@ TEST_F(ZTreeTest, test_insert) {
           // Replace
           if (i % 4 == 0) {
             // Replace with new
-            tree.replace(new (&arena) ZTestEntry(id), cursor);
+            tree.replace(ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(id)), cursor);
           } else {
             // Replace with same
-            tree.replace(cursor.element(), cursor);
+            tree.replace(cursor.node(), cursor);
           }
         } else {
           // Remove
@@ -115,7 +120,7 @@ TEST_F(ZTreeTest, test_insert) {
         }
       } else {
         // Insert
-        tree.insert(new (&arena) ZTestEntry(id), cursor);
+        tree.insert(ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(id)), cursor);
       }
     }
     arena.reset_arena();

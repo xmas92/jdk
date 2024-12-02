@@ -89,36 +89,41 @@ public:
 
   template<ZIntrusiveRBTreeDirection DIRECTION>
   const ZIntrusiveRBTreeNode* child() const {
-    switch (DIRECTION) {
-      case ZIntrusiveRBTreeDirection::LEFT: return _left;
-      case ZIntrusiveRBTreeDirection::RIGHT: return _right;
+    if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
+      return _left;
     }
+    assert(DIRECTION == ZIntrusiveRBTreeDirection::RIGHT, "must be");
+    return _right;
   }
   template<ZIntrusiveRBTreeDirection DIRECTION>
   ZIntrusiveRBTreeNode* child() { return const_cast<ZIntrusiveRBTreeNode*>(const_cast<const ZIntrusiveRBTreeNode*>(this)->template child<DIRECTION>()); }
 
   template<ZIntrusiveRBTreeDirection DIRECTION>
   ZIntrusiveRBTreeNode* const* child_addr() const {
-    switch (DIRECTION) {
-      case ZIntrusiveRBTreeDirection::LEFT: return &_left;
-      case ZIntrusiveRBTreeDirection::RIGHT: return &_right;
+    if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
+      return &_left;
     }
+    assert(DIRECTION == ZIntrusiveRBTreeDirection::RIGHT, "must be");
+    return &_right;
   }
 
   template<ZIntrusiveRBTreeDirection DIRECTION>
   bool has_child() const {
-    switch (DIRECTION) {
-      case ZIntrusiveRBTreeDirection::LEFT: return _left != nullptr;
-      case ZIntrusiveRBTreeDirection::RIGHT: return _right != nullptr;
+    if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
+      return _left != nullptr;
     }
+    assert(DIRECTION == ZIntrusiveRBTreeDirection::RIGHT, "must be");
+    return _right != nullptr;
   }
 
   template<ZIntrusiveRBTreeDirection DIRECTION>
   void update_child(ZIntrusiveRBTreeNode* new_child) {
-    switch (DIRECTION) {
-      case ZIntrusiveRBTreeDirection::LEFT: _left = new_child; break;
-      case ZIntrusiveRBTreeDirection::RIGHT: _right = new_child; break;
+    if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
+      _left = new_child;
+      return;
     }
+    assert(DIRECTION == ZIntrusiveRBTreeDirection::RIGHT, "must be");
+    _right = new_child;
   }
 
   ZIntrusiveRBTreeNode() {}

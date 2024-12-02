@@ -27,11 +27,13 @@
 #include "gc/z/zArray.hpp"
 #include "gc/z/zIntrusiveRBTree.hpp"
 #include "gc/z/zVirtualMemory.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/rbTree.hpp"
 
 class ZMappedCacheEntry;
 class ZMappedCache {
   friend class ZMappedCacheTest;
+  friend class ZMappedCacheEntry;
 
 private:
   struct EntryCompare {
@@ -42,7 +44,14 @@ private:
   using Tree = ZIntrusiveRBTree<zoffset, EntryCompare>;
   using Node = ZIntrusiveRBTreeNode;
 
+  struct ZSizeClassListNode {
+    ZListNode<ZSizeClassListNode> _node;
+  };
+  static constexpr size_t SizeClasses[] = {32 * M, 512 * M};
+  static constexpr size_t NumSizeClasses = ARRAY_SIZE(SizeClasses);
+
   Tree _tree;
+  ZList<ZSizeClassListNode> _size_class_lists[NumSizeClasses];
 
   void insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
   void remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);

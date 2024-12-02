@@ -88,6 +88,52 @@ int ZMappedCache::EntryCompare::operator()(zoffset key, ZIntrusiveRBTreeNode* no
   return 0; // Containing
 }
 
+void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem) {
+  // Create new entry
+  ZMappedCacheEntry* entry = create_entry(vmem);
+
+  assert(entry->start() == vmem.start(), "must be");
+  assert(entry->end() == vmem.end(), "must be");
+
+  // And insert it
+  _tree.insert(entry->node_addr(), cursor);
+}
+
+void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem) {
+  ZIntrusiveRBTreeNode* const node = cursor.node();
+  ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
+
+  assert(entry->start() == vmem.start(), "must be");
+  assert(entry->end() == vmem.end(), "must be");
+
+  // Remove from tree
+  _tree.remove(cursor);
+  // Destroy entry
+  entry->~ZMappedCacheEntry();
+}
+
+void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem) {
+  // Create new entry
+  ZMappedCacheEntry* entry = create_entry(vmem);
+
+  assert(entry->start() == vmem.start(), "must be");
+  assert(entry->end() == vmem.end(), "must be");
+
+  ZIntrusiveRBTreeNode* const node = cursor.node();
+  ZMappedCacheEntry* old_entry = ZMappedCacheEntry::cast_to_entry(node);
+  assert(old_entry->end() != vmem.end(), "should not replace, use update");
+
+  // Replace in tree
+  _tree.replace(entry->node_addr(), cursor);
+  // Destroy old entry
+  old_entry->~ZMappedCacheEntry();
+}
+
+void ZMappedCache::update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem) {
+  assert(entry->end() == vmem.end(), "must be");
+  entry->update_start(vmem.start());
+}
+
 ZMappedCache::ZMappedCache()
   : _tree() {}
 
@@ -110,9 +156,9 @@ void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
     assert(new_vmem.start() == left_vmem.start(), "must be");
 
     // Remove current (left vmem)
-    _tree.remove(current_cursor);
+    remove(current_cursor, left_vmem);
     // And update next's start
-    ZMappedCacheEntry::cast_to_entry(next_node)->update_start(new_vmem.start());
+    update(ZMappedCacheEntry::cast_to_entry(next_node), new_vmem);
     return;
   }
 
@@ -124,11 +170,7 @@ void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
     assert(new_vmem.end() == vmem.end(), "must be");
     assert(new_vmem.start() == left_vmem.start(), "must be");
 
-    // Create new entry
-    ZMappedCacheEntry* entry = create_entry(new_vmem);
-
-    // Replace current (left vmem)
-    _tree.replace(entry->node_addr(), current_cursor);
+    replace(current_cursor, new_vmem);
     return;
   }
 
@@ -140,16 +182,13 @@ void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
     assert(new_vmem.start() == vmem.start(), "must be");
     assert(new_vmem.end() == right_vmem.end(), "must be");
     // Update next's start
-    ZMappedCacheEntry::cast_to_entry(next_cursor.node())->update_start(new_vmem.start());
+    update(ZMappedCacheEntry::cast_to_entry(next_cursor.node()), new_vmem);
     return;
   }
 
   assert(!extends_left && !extends_right, "must be");
-  // Create new entry
-  ZMappedCacheEntry* entry = create_entry(vmem);
 
-  // And insert it
-  _tree.insert(entry->node_addr(), current_cursor);
+  insert(current_cursor, vmem);
 }
 
 size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size) {
@@ -168,7 +207,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
     if (after_remove <= size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
-      _tree.remove(cursor);
+      remove(cursor, mapped_vmem);
       removed = after_remove;
       mappings->append(mapped_vmem);
 
@@ -179,7 +218,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
       const size_t uneeded = after_remove - size;
       const size_t needed =  mapped_vmem.size() - uneeded;
       const ZVirtualMemory used = mapped_vmem.split(needed);
-      entry->update_start(mapped_vmem.start());
+      update(entry, mapped_vmem);
       mappings->append(used);
       removed = size;
       break;
@@ -199,12 +238,13 @@ bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t siz
     if (mapped_vmem.size() == size) {
       auto cursor = _tree.get_cursor(node);
       assert(cursor.is_valid(), "must be");
-      _tree.remove(cursor);
+      remove(cursor, mapped_vmem);
       *mapping = mapped_vmem;
       return true;
     } else if (mapped_vmem.size() > size) {
-      entry->update_start(mapped_vmem.start() + size);
-      *mapping = mapped_vmem.split(size);
+      const ZVirtualMemory used = mapped_vmem.split(size);
+      update(entry, mapped_vmem);
+      *mapping = used;
       return true;
     }
     node = node->next();

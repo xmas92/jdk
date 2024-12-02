@@ -29,6 +29,7 @@
 #include "gc/z/zVirtualMemory.hpp"
 #include "utilities/rbTree.hpp"
 
+class ZMappedCacheEntry;
 class ZMappedCache {
   friend class ZMappedCacheTest;
 
@@ -42,6 +43,11 @@ private:
   using Node = ZIntrusiveRBTreeNode;
 
   Tree _tree;
+
+  void insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
+  void remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
+  void replace(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
+  void update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem);
 
 public:
   ZMappedCache();

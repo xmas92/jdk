@@ -30,12 +30,15 @@
 #include "utilities/align.hpp"
 #include <cstdint>
 
+constexpr size_t ZMappedCache::SizeClasses[];
+
 class ZMappedCacheEntry {
 private:
   zoffset _start;
   ZIntrusiveRBTreeNode _node;
+  ZMappedCache::ZSizeClassListNode _size_class_list_nodes[ARRAY_SIZE(ZMappedCache::SizeClasses)];
 public:
-  ZMappedCacheEntry(zoffset start) : _start(start), _node() {}
+  ZMappedCacheEntry(zoffset start) : _start(start), _node(), _size_class_list_nodes{} {}
 
   zoffset start() const { return _start; }
   zoffset_end end() const {
@@ -51,10 +54,21 @@ public:
   void update_start(zoffset start) { _start = start; }
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
+  static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
+
+  ZMappedCache::ZSizeClassListNode* size_class_node(size_t index) {
+    return &_size_class_list_nodes[index];
+  }
 };
 
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) {
   return (ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+}
+
+ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
+  const size_t size_class_list_nodes_offset = offset_of(ZMappedCacheEntry, _size_class_list_nodes);
+  const size_t element_offset_in_array = sizeof(ZMappedCache::ZSizeClassListNode) * index;
+  return (ZMappedCacheEntry*)((uintptr_t)node - (size_class_list_nodes_offset + element_offset_in_array));
 }
 
 static void* entry_address_for_zoffset_end(zoffset_end offset) {
@@ -95,8 +109,17 @@ void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZVirtualMemory& 
   assert(entry->start() == vmem.start(), "must be");
   assert(entry->end() == vmem.end(), "must be");
 
-  // And insert it
+  // And insert it in tree
   _tree.insert(entry->node_addr(), cursor);
+
+  // And in size class lists
+  const size_t size = vmem.size();
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t size_class = SizeClasses[i];
+    if (size >= size_class) {
+      _size_class_lists[i].insert_first(entry->size_class_node(i));
+    }
+  }
 }
 
 void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem) {
@@ -108,6 +131,14 @@ void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZVirtualMemory& 
 
   // Remove from tree
   _tree.remove(cursor);
+  // And in size class lists
+  const size_t size = vmem.size();
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t size_class = SizeClasses[i];
+    if (size >= size_class) {
+      _size_class_lists[i].remove(entry->size_class_node(i));
+    }
+  }
   // Destroy entry
   entry->~ZMappedCacheEntry();
 }
@@ -125,17 +156,49 @@ void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZVirtualMemory&
 
   // Replace in tree
   _tree.replace(entry->node_addr(), cursor);
+  // And in size class lists
+  const size_t new_size = vmem.size();
+  const size_t old_size = old_entry->vmem().size();
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t size_class = SizeClasses[i];
+    if (old_size >= size_class) {
+      _size_class_lists[i].remove(old_entry->size_class_node(i));
+    }
+    if (new_size >= size_class) {
+      _size_class_lists[i].insert_first(entry->size_class_node(i));
+    }
+  }
   // Destroy old entry
   old_entry->~ZMappedCacheEntry();
 }
 
 void ZMappedCache::update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem) {
   assert(entry->end() == vmem.end(), "must be");
+  // Remove or add to lists if required
+  const size_t new_size = vmem.size();
+  const size_t old_size = entry->vmem().size();
+  for (size_t i = 0; i < NumSizeClasses; i++) {
+    const size_t size_class = SizeClasses[i];
+    const bool old_size_in_size_class = old_size >= size_class;
+    const bool new_size_in_size_class = new_size >= size_class;
+    if (old_size_in_size_class != new_size_in_size_class) {
+      // Need to update a list
+      if (old_size_in_size_class) {
+        // Removing
+        _size_class_lists[i].remove(entry->size_class_node(i));
+      } else {
+        // Adding
+        assert(new_size_in_size_class, "must be");
+        _size_class_lists[i].insert_first(entry->size_class_node(i));
+      }
+    }
+  }
+  // And update entry
   entry->update_start(vmem.start());
 }
 
 ZMappedCache::ZMappedCache()
-  : _tree() {}
+  : _tree(), _size_class_lists{} {}
 
 void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
   auto current_cursor = _tree.find(vmem.start());
@@ -195,11 +258,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
   precond(size > 0);
   precond(size % ZGranuleSize == 0);
   size_t removed = 0;
-
-  // Find what mappings to remove
-  ZIntrusiveRBTreeNode* node = _tree.first();
-  while (node != nullptr) {
-    ZIntrusiveRBTreeNode* next_node = node->next();
+  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
     ZVirtualMemory mapped_vmem = entry->vmem();
     size_t after_remove = removed + mapped_vmem.size();
@@ -212,7 +271,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
       mappings->append(mapped_vmem);
 
       if (removed == size) {
-        break;
+        return true;
       }
     } else {
       const size_t uneeded = after_remove - size;
@@ -221,7 +280,35 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
       update(entry, mapped_vmem);
       mappings->append(used);
       removed = size;
-      break;
+      return true;
+    }
+    return false;
+  };
+
+  // Scan size classes
+  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
+    const size_t index = index_plus_one - 1;
+    const size_t size_class = SizeClasses[index];
+    if (size >= size_class) {
+      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
+      ZSizeClassListNode* list_node;
+      while (iter.next(&list_node)) {
+        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
+        if (remove_mapping(entry->node_addr())) {
+          assert(removed == size, "must be");
+          return size;
+        }
+      }
+    }
+  }
+
+  // Find what mappings to remove
+  ZIntrusiveRBTreeNode* node = _tree.first();
+  while (node != nullptr) {
+    ZIntrusiveRBTreeNode* next_node = node->next();
+    if (remove_mapping(node)) {
+      assert(removed == size, "must be");
+      return size;
     }
     node = next_node;
   }
@@ -230,8 +317,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
 }
 
 bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size) {
-  ZIntrusiveRBTreeNode* node = _tree.first();
-  while (node != nullptr) {
+  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
     ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
     ZVirtualMemory mapped_vmem = entry->vmem();
 
@@ -245,6 +331,33 @@ bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t siz
       const ZVirtualMemory used = mapped_vmem.split(size);
       update(entry, mapped_vmem);
       *mapping = used;
+      return true;
+    }
+    return false;
+  };
+
+  // Scan size classes
+  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
+    const size_t index = index_plus_one - 1;
+    const size_t size_class = SizeClasses[index];
+    if (size >= size_class) {
+      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
+      ZSizeClassListNode* list_node;
+      while (iter.next(&list_node)) {
+        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
+        if (remove_mapping(entry->node_addr())) {
+          return true;
+        }
+      }
+      // No use walking any more, other lists and the tree will only contain smaller nodes.
+      return false;
+    }
+  }
+
+  // Scan whole tree
+  ZIntrusiveRBTreeNode* node = _tree.first();
+  while (node != nullptr) {
+    if (remove_mapping(node)) {
       return true;
     }
     node = node->next();

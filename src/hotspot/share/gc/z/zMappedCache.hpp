@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZMAPPEDCACHE_HPP
 
 #include "gc/z/zArray.hpp"
+#include "gc/z/zIntrusiveRBTree.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "utilities/rbTree.hpp"
 
@@ -32,20 +33,15 @@ class ZMappedCache {
   friend class ZMappedCacheTest;
 
 private:
-  class ZOffsetComparator {
-  public:
-    static int cmp(zoffset a, zoffset b) {
-      if (a <  b) return -1;
-      if (a == b) return  0;
-      if (a >  b) return  1;
-      ShouldNotReachHere();
-    }
+  struct EntryCompare {
+    int operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b);
+    int operator()(zoffset key, ZIntrusiveRBTreeNode* node);
   };
 
-  using ZMappedTree = RBTreeCHeap<zoffset, ZVirtualMemory, ZOffsetComparator>;
-  using ZMappedTreeNode = ZMappedTree::RBNode;
+  using Tree = ZIntrusiveRBTree<zoffset, EntryCompare>;
+  using Node = ZIntrusiveRBTreeNode;
 
-  ZMappedTree _tree;
+  Tree _tree;
 
 public:
   ZMappedCache();
@@ -54,7 +50,6 @@ public:
 
   size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);
 
-  bool remove_mapping_contiguous_granule(ZVirtualMemory* mapping, size_t size);
   bool remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size);
 };
 

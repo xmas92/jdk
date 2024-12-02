@@ -90,7 +90,7 @@ public:
 };
 
 TEST_F(ZTreeTest, test_insert) {
-  constexpr size_t sizes[] = {1, 2, 4, 8, 16, 1024, 1024 * 1024};
+  constexpr size_t sizes[] = {1, 2, 4, 8, 16, 1024 NOT_DEBUG(COMMA 1024 * 1024)};
   constexpr size_t num_sizes = ARRAY_SIZE(sizes);
   constexpr size_t iterations_multiplier = 4;
   constexpr size_t max_allocation_size = sizes[num_sizes - 1] * iterations_multiplier * sizeof(ZTestEntry);

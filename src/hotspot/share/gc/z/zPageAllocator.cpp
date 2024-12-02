@@ -498,7 +498,8 @@ void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t si
     // Could not increase capacity enough to satisfy the allocation completely.
     // Try removing multiple mappings from the mapped cache.
     const size_t remaining = size - increased;
-    _mapped_cache.remove_mappings(mappings, remaining);
+    const size_t removed = _mapped_cache.remove_mappings(mappings, remaining);
+    assert(removed == remaining, "must be " SIZE_FORMAT " != " SIZE_FORMAT, removed, remaining);
   }
 }
 

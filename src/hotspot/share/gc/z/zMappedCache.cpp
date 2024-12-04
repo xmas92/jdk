@@ -28,6 +28,7 @@
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "utilities/align.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include <cstdint>
 
 constexpr size_t ZMappedCache::SizeClasses[];
@@ -205,9 +206,10 @@ void ZMappedCache::update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem) 
 }
 
 ZMappedCache::ZMappedCache()
-  : _tree(), _size_class_lists{} {}
+  : _tree(), _size_class_lists{}, _size(0), _min(_size) {}
 
 void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
+  _size += vmem.size();
   auto current_cursor = _tree.find(vmem.start());
   auto next_cursor = _tree.next(current_cursor);
   const bool extends_left = current_cursor.found();
@@ -303,6 +305,8 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
         ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
         if (remove_mapping(entry->node_addr())) {
           assert(removed == size, "must be");
+          _size -= size;
+          _min = MIN2(_size, _min);
           return size;
         }
       }
@@ -315,11 +319,15 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
     ZIntrusiveRBTreeNode* next_node = node->next();
     if (remove_mapping(node)) {
       assert(removed == size, "must be");
+      _size -= size;
+      _min = MIN2(_size, _min);
       return size;
     }
     node = next_node;
   }
 
+  _size -= removed;
+  _min = MIN2(_size, _min);
   return removed;
 }
 
@@ -353,6 +361,8 @@ bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t siz
       while (iter.next(&list_node)) {
         ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
         if (remove_mapping(entry->node_addr())) {
+          _size -= size;
+          _min = MIN2(_size, _min);
           return true;
         }
       }
@@ -365,9 +375,29 @@ bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t siz
   ZIntrusiveRBTreeNode* node = _tree.first();
   while (node != nullptr) {
     if (remove_mapping(node)) {
+      _size -= size;
+      _min = MIN2(_size, _min);
       return true;
     }
     node = node->next();
   }
   return false;
+}
+
+size_t ZMappedCache::reset_min() {
+  const size_t old_min = _min;
+  _min = _size;
+  return old_min;
+}
+
+size_t ZMappedCache::min() const {
+  return _min;
+}
+
+size_t ZMappedCache::remove_from_min(ZArray<ZVirtualMemory>* mappings, size_t max_size) {
+  const size_t size = MIN2(_min, max_size);
+  if (size == 0) {
+    return 0;
+  }
+  return remove_mappings(mappings, size);
 }

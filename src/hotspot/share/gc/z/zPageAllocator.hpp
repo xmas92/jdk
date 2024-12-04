@@ -73,6 +73,9 @@ private:
   ZList<ZPageAllocation>     _stalled;
   ZUnmapper*                 _unmapper;
   ZUncommitter*              _uncommitter;
+  double                     _last_commit;
+  double                     _last_uncommit;
+  size_t                     _to_uncommit;
   mutable ZSafeDelete<ZPage> _safe_destroy;
   bool                       _initialized;
 

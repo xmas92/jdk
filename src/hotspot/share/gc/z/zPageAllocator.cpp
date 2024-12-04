@@ -52,6 +52,8 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+#include <cmath>
+
 static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocation Rate", ZStatUnitBytesPerSecond);
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
@@ -164,6 +166,9 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _stalled(),
     _unmapper(new ZUnmapper(this)),
     _uncommitter(new ZUncommitter(this)),
+    _last_commit(0.0),
+    _last_uncommit(0.0),
+    _to_uncommit(0),
     _safe_destroy(),
     _initialized(false) {
 
@@ -326,6 +331,10 @@ size_t ZPageAllocator::increase_capacity(size_t size) {
   if (increased > 0) {
     // Update atomically since we have concurrent readers
     Atomic::add(&_capacity, increased);
+
+    _last_commit = os::elapsedTime();
+    _last_uncommit = 0;
+    _mapped_cache.reset_min();
   }
 
   return increased;
@@ -478,13 +487,11 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
 }
 
 void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZVirtualMemory>* mappings) {
-  // Try to allocate a contiguous mapping when not allocating a large page.
-  if (type != ZPageType::large) {
-    ZVirtualMemory mapped_vmem;
-    if (_mapped_cache.remove_mapping_contiguous(&mapped_vmem, size)) {
-      mappings->append(mapped_vmem);
-      return;
-    }
+  // Try to allocate a contiguous mapping.
+  ZVirtualMemory mapped_vmem;
+  if (_mapped_cache.remove_mapping_contiguous(&mapped_vmem, size)) {
+    mappings->append(mapped_vmem);
+    return;
   }
 
   // If we've failed to allocate a contiguous range from the mapped cache,
@@ -585,6 +592,7 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
 
 void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation) {
   size_t harvested = 0;
+  const int num_mappings_harvested = allocation->mappings()->length();
 
   ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
   for (ZVirtualMemory vmem; iter.next(&vmem);) {
@@ -602,7 +610,7 @@ void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZP
 
   if (harvested > 0) {
     allocation->set_harvested(harvested);
-    log_debug(gc, heap)("Mapped Cache Harvest: " SIZE_FORMAT "M", harvested / M);
+    log_debug(gc, heap)("Mapped Cache Harvest: " SIZE_FORMAT "M from %d mappings", harvested / M, num_mappings_harvested);
   }
 }
 
@@ -876,9 +884,6 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
 }
 
 size_t ZPageAllocator::uncommit(uint64_t* timeout) {
-  // TODO: Do nothing until implemented correctly.
-  return 0;
-
   // We need to join the suspendible thread set while manipulating capacity and
   // used, to make sure GC safepoints will have a consistent view.
   ZArray<ZVirtualMemory> flushed_mappings;
@@ -888,25 +893,62 @@ size_t ZPageAllocator::uncommit(uint64_t* timeout) {
     SuspendibleThreadSetJoiner sts_joiner;
     ZLocker<ZLock> locker(&_lock);
 
+    const double now = os::elapsedTime();
+    const double time_since_last_commit = std::floor(now - _last_commit);
+    const double time_since_last_uncommit = std::floor(now - _last_uncommit);
+
+    if (time_since_last_commit < double(ZUncommitDelay)) {
+      // We have committed within the delay, stop uncommitting.
+      *timeout = uint64_t(double(ZUncommitDelay) - time_since_last_commit);
+      return 0;
+    }
+
+    const size_t limit = MIN2(align_up(_current_max_capacity >> 7, ZGranuleSize), 256 * M);
+
+    if (time_since_last_uncommit < double(ZUncommitDelay)) {
+      // We are in the uncommit phase
+      const size_t num_uncommits_left = _to_uncommit / limit;
+      const double time_left = double(ZUncommitDelay) - time_since_last_uncommit;
+      if (time_left < *timeout * num_uncommits_left) {
+        // Running out of time, speed up.
+        *timeout = uint64_t(std::floor(time_left / double(num_uncommits_left + 1)));
+      }
+    } else {
+      // We are about to start uncommitting
+      _to_uncommit = _mapped_cache.reset_min();
+      _last_uncommit = now;
+      // Set timeout
+      const size_t split = _to_uncommit / limit + 1;
+      *timeout = ZUncommitDelay / split;
+    }
+
     // Never uncommit below min capacity. We flush out and uncommit chunks at
     // a time (~0.8% of the max capacity, but at least one granule and at most
     // 256M), in case demand for memory increases while we are uncommitting.
     const size_t retain = MAX2(_used, _min_capacity);
     const size_t release = _capacity - retain;
-    const size_t limit = MIN2(align_up(_current_max_capacity >> 7, ZGranuleSize), 256 * M);
-    const size_t flush = MIN2(release, limit);
+    const size_t flush = MIN3(release, limit, _to_uncommit);
+
+    if (flush == 0) {
+      // Reset timeout
+      *timeout = ZUncommitDelay;
+      return 0;
+    }
 
     // Flush memory from the mapped cache to uncommit
-    _mapped_cache.remove_mappings(&flushed_mappings, flush);
+    flushed = _mapped_cache.remove_from_min(&flushed_mappings, flush);
 
     if (flushed == 0) {
       // Nothing flushed
+      *timeout = ZUncommitDelay;
       return 0;
     }
 
     // Record flushed memory as claimed
     Atomic::add(&_claimed, flushed);
   }
+
+  _to_uncommit -= flushed;
 
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZVirtualMemory> it(&flushed_mappings);

@@ -52,6 +52,8 @@ private:
 
   Tree _tree;
   ZList<ZSizeClassListNode> _size_class_lists[NumSizeClasses];
+  size_t _size;
+  size_t _min;
 
   static size_t get_size_class(size_t index);
 
@@ -68,6 +70,10 @@ public:
   size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);
 
   bool remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size);
+
+  size_t min() const;
+  size_t reset_min();
+  size_t remove_from_min(ZArray<ZVirtualMemory>* mappings, size_t max_size);
 };
 
 #endif // SHARE_GC_Z_ZMAPPEDCACHE_HPP

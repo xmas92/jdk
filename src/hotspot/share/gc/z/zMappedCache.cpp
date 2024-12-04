@@ -297,7 +297,7 @@ size_t ZMappedCache::remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t si
   // Scan size classes
   for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
     const size_t index = index_plus_one - 1;
-    const size_t size_class = SizeClasses[index];
+    const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
       ZSizeClassListNode* list_node;
@@ -354,7 +354,7 @@ bool ZMappedCache::remove_mapping_contiguous(ZVirtualMemory* mapping, size_t siz
   // Scan size classes
   for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
     const size_t index = index_plus_one - 1;
-    const size_t size_class = SizeClasses[index];
+    const size_t size_class = get_size_class(index);
     if (size >= size_class) {
       ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
       ZSizeClassListNode* list_node;

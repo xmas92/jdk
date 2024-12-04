@@ -102,6 +102,13 @@ int ZMappedCache::EntryCompare::operator()(zoffset key, ZIntrusiveRBTreeNode* no
   return 0; // Containing
 }
 
+size_t ZMappedCache::get_size_class(size_t index) {
+  if (index == 0 && ZPageSizeMedium > ZPageSizeSmall) {
+    return ZPageSizeMedium;
+  }
+  return SizeClasses[index];
+}
+
 void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem) {
   // Create new entry
   ZMappedCacheEntry* entry = create_entry(vmem);
@@ -115,7 +122,7 @@ void ZMappedCache::insert(const Tree::FindCursor& cursor, const ZVirtualMemory& 
   // And in size class lists
   const size_t size = vmem.size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t size_class = SizeClasses[i];
+    const size_t size_class = get_size_class(i);
     if (size >= size_class) {
       _size_class_lists[i].insert_first(entry->size_class_node(i));
     }
@@ -134,7 +141,7 @@ void ZMappedCache::remove(const Tree::FindCursor& cursor, const ZVirtualMemory& 
   // And in size class lists
   const size_t size = vmem.size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t size_class = SizeClasses[i];
+    const size_t size_class = get_size_class(i);
     if (size >= size_class) {
       _size_class_lists[i].remove(entry->size_class_node(i));
     }
@@ -160,7 +167,7 @@ void ZMappedCache::replace(const Tree::FindCursor& cursor, const ZVirtualMemory&
   const size_t new_size = vmem.size();
   const size_t old_size = old_entry->vmem().size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t size_class = SizeClasses[i];
+    const size_t size_class = get_size_class(i);
     if (old_size >= size_class) {
       _size_class_lists[i].remove(old_entry->size_class_node(i));
     }
@@ -178,7 +185,7 @@ void ZMappedCache::update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem) 
   const size_t new_size = vmem.size();
   const size_t old_size = entry->vmem().size();
   for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t size_class = SizeClasses[i];
+    const size_t size_class = get_size_class(i);
     const bool old_size_in_size_class = old_size >= size_class;
     const bool new_size_in_size_class = new_size >= size_class;
     if (old_size_in_size_class != new_size_in_size_class) {

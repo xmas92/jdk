@@ -53,6 +53,8 @@ private:
   Tree _tree;
   ZList<ZSizeClassListNode> _size_class_lists[NumSizeClasses];
 
+  static size_t get_size_class(size_t index);
+
   void insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
   void remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
   void replace(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);

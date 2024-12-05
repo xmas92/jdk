@@ -403,6 +403,11 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
+void ZPageAllocator::copy_physical(const ZVirtualMemory& from, zoffset to) {
+  const size_t num_granules = from.size() >> ZGranuleSizeShift;
+  memcpy(_mappings.get_addr(to), _mappings.get_addr(from.start()), sizeof(zoffset) * num_granules);
+}
+
 void ZPageAllocator::free_physical(const ZVirtualMemory& vmem) {
   // Free physical memory
   _physical.free(_mappings.get_addr(vmem.start()), vmem.size());
@@ -468,15 +473,13 @@ ZVirtualMemory ZPageAllocator::remap_mapping(const ZVirtualMemory& vmem, bool fo
   }
 
   // Copy the physical mappings
-  const size_t num_granules = vmem.size() >> ZGranuleSizeShift;
-  memcpy(_mappings.get_addr(new_vmem.start()), _mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+  copy_physical(vmem, new_vmem.start());
 
   // Unmap the previous mapping asynchronously
   _unmapper->unmap_virtual(vmem);
 
   // Map the copied physical segments.
   map_virtual_to_physical(new_vmem);
-
 
   return new_vmem;
 }
@@ -595,12 +598,8 @@ void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZP
 
   ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
   for (ZVirtualMemory vmem; iter.next(&vmem);) {
-    // Copy the physical mappings
-    const size_t num_granules = vmem.size() >> ZGranuleSizeShift;
-    memcpy(_mappings.get_addr(new_vmem.start() + harvested), _mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
-
+    copy_physical(vmem, new_vmem.start() + harvested);
     harvested += vmem.size();
-
     _unmapper->unmap_virtual(vmem);
   }
 

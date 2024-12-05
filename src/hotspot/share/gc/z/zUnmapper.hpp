@@ -37,12 +37,12 @@ class ZUnmapperEntry : public CHeapObj<mtGC> {
 
 private:
   ZVirtualMemory _vmem;
-
   ZListNode<ZUnmapperEntry> _node;
 
 public:
   ZUnmapperEntry(const ZVirtualMemory& vmem)
-    : _vmem(vmem) {}
+    : _vmem(vmem),
+      _node() {}
 
   const ZVirtualMemory& vmem() {
     return _vmem;

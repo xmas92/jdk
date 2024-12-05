@@ -204,3 +204,13 @@ void ZPhysicalMemoryManager::unmap(zoffset offset, const zoffset* /* ignored unt
 
   _backing.unmap(addr, size);
 }
+
+size_t ZPhysicalMemoryManager::count_segments(const zoffset* pmem, size_t size) {
+  size_t count = 0;
+
+  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset, size_t) {
+    count++;
+  });
+
+  return count;
+}

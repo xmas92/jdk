@@ -88,6 +88,7 @@ private:
   void increase_used_generation(ZGenerationId id, size_t size);
   void decrease_used_generation(ZGenerationId id, size_t size);
 
+  size_t count_segments_physical(const ZVirtualMemory& vmem);
   void copy_physical(const ZVirtualMemory& from, zoffset to);
   void free_physical(const ZVirtualMemory& vmem);
   bool commit_physical(ZVirtualMemory* vmem);

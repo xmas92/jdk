@@ -403,6 +403,10 @@ void ZPageAllocator::promote_used(size_t size) {
   increase_used_generation(ZGenerationId::old, size);
 }
 
+size_t ZPageAllocator::count_segments_physical(const ZVirtualMemory& vmem) {
+  return _physical.count_segments(_mappings.get_addr(vmem.start()), vmem.size());
+}
+
 void ZPageAllocator::copy_physical(const ZVirtualMemory& from, zoffset to) {
   const size_t num_granules = from.size() >> ZGranuleSizeShift;
   memcpy(_mappings.get_addr(to), _mappings.get_addr(from.start()), sizeof(zoffset) * num_granules);
@@ -740,7 +744,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   // Send event
   event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
-               (unsigned int)(page->virtual_memory().size() / ZGranuleSize), flags.non_blocking());
+               (unsigned int)count_segments_physical(page->virtual_memory()), flags.non_blocking());
 
   return page;
 }

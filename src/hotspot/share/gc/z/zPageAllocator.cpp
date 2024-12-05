@@ -748,7 +748,7 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
 
   // Send event
   event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
-               page->virtual_memory().size() / ZGranuleSize, flags.non_blocking());
+               (unsigned int)(page->virtual_memory().size() / ZGranuleSize), flags.non_blocking());
 
   return page;
 }

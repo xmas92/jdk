@@ -69,7 +69,7 @@ private:
   const uint32_t             _old_seqnum;
   size_t                     _harvested;
   size_t                     _committed;
-  ZArray<ZVirtualMemory>     _mappings;
+  ZArray<ZVirtualMemory>     _claimed_mappings;
   ZListNode<ZPageAllocation> _node;
   ZFuture<bool>              _stall_result;
 
@@ -82,14 +82,14 @@ public:
       _old_seqnum(ZGeneration::old()->seqnum()),
       _harvested(0),
       _committed(0),
-      _mappings(1),
+      _claimed_mappings(1),
       _node(),
       _stall_result() {}
 
   void reset_for_retry() {
     _harvested = 0;
     _committed = 0;
-    _mappings.clear();
+    _claimed_mappings.clear();
   }
 
   ZPageType type() const {
@@ -132,8 +132,8 @@ public:
     return _stall_result.get();
   }
 
-  ZArray<ZVirtualMemory>* mappings() {
-    return &_mappings;
+  ZArray<ZVirtualMemory>* claimed_mappings() {
+    return &_claimed_mappings;
   }
 
   void satisfy(bool result) {
@@ -153,7 +153,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _mapped_cache(),
     _virtual(max_capacity),
     _physical(max_capacity),
-    _mappings(ZAddressOffsetMax),
+    _physical_mappings(ZAddressOffsetMax),
     _min_capacity(min_capacity),
     _initial_capacity(initial_capacity),
     _max_capacity(max_capacity),
@@ -243,7 +243,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   ZVirtualMemory vmem = _virtual.alloc(size, true /* force_low_address */);
   // Increase capacity, allocate and commit physical memory
   increase_capacity(size);
-  _physical.alloc(_mappings.get_addr(vmem.start()), size);
+  _physical.alloc(_physical_mappings.get_addr(vmem.start()), size);
   if (!commit_physical(&vmem)) {
     // This is a failure state. We do not cleanup the maybe partially committed memory.
     return false;
@@ -404,22 +404,22 @@ void ZPageAllocator::promote_used(size_t size) {
 }
 
 size_t ZPageAllocator::count_segments_physical(const ZVirtualMemory& vmem) {
-  return _physical.count_segments(_mappings.get_addr(vmem.start()), vmem.size());
+  return _physical.count_segments(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::copy_physical(const ZVirtualMemory& from, zoffset to) {
   const size_t num_granules = from.size() >> ZGranuleSizeShift;
-  memcpy(_mappings.get_addr(to), _mappings.get_addr(from.start()), sizeof(zoffset) * num_granules);
+  memcpy(_physical_mappings.get_addr(to), _physical_mappings.get_addr(from.start()), sizeof(zoffset) * num_granules);
 }
 
 void ZPageAllocator::free_physical(const ZVirtualMemory& vmem) {
   // Free physical memory
-  _physical.free(_mappings.get_addr(vmem.start()), vmem.size());
+  _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
 bool ZPageAllocator::commit_physical(ZVirtualMemory* vmem) {
   // Commit physical memory
-  const size_t committed = _physical.commit(_mappings.get_addr(vmem->start()), vmem->size());
+  const size_t committed = _physical.commit(_physical_mappings.get_addr(vmem->start()), vmem->size());
   const size_t not_commited = vmem->size() - committed;
 
   if (not_commited > 0) {
@@ -438,17 +438,17 @@ void ZPageAllocator::uncommit_physical(const ZVirtualMemory& vmem) {
   precond(ZUncommit);
 
   // Uncommit physical memory
-  _physical.uncommit(_mappings.get_addr(vmem.start()), vmem.size());
+  _physical.uncommit(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::map_virtual_to_physical(const ZVirtualMemory& vmem) {
   // Map virtual memory to physical memory
-  _physical.map(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
+  _physical.map(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::unmap_virtual(const ZVirtualMemory& vmem) {
   // Unmap virtual memory from physical memory
-  _physical.unmap(vmem.start(), _mappings.get_addr(vmem.start()), vmem.size());
+  _physical.unmap(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
 void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
@@ -519,7 +519,7 @@ void ZPageAllocator::claim_mapped_or_increase_capacity(size_t size, ZArray<ZVirt
 
 bool ZPageAllocator::claim_physical(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
-  ZArray<ZVirtualMemory>* const mappings = allocation->mappings();
+  ZArray<ZVirtualMemory>* const mappings = allocation->claimed_mappings();
 
   if (!is_alloc_allowed(size)) {
     // Out of memory
@@ -598,9 +598,9 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
 
 void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation) {
   size_t harvested = 0;
-  const int num_mappings_harvested = allocation->mappings()->length();
+  const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
-  ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
+  ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
   for (ZVirtualMemory vmem; iter.next(&vmem);) {
     copy_physical(vmem, new_vmem.start() + harvested);
     harvested += vmem.size();
@@ -608,7 +608,7 @@ void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZP
   }
 
   // Clear the array of stored mappings
-  allocation->mappings()->clear();
+  allocation->claimed_mappings()->clear();
 
   if (harvested > 0) {
     allocation->set_harvested(harvested);
@@ -619,12 +619,12 @@ void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZP
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
   // exactly one mapping and is of the correct size.
-  if (allocation->mappings()->length() != 1) {
+  if (allocation->claimed_mappings()->length() != 1) {
     // Not a contiguous mapping
     return false;
   }
 
-  const ZVirtualMemory& vmem = allocation->mappings()->first();
+  const ZVirtualMemory& vmem = allocation->claimed_mappings()->first();
   if (vmem.size() != allocation->size()) {
     // Not correct sized mapping
     return false;
@@ -643,12 +643,12 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZV
   committed_vmem.extend(to_be_committed_vmem.size());
 
   // Sort the backing memory before mapping
-  qsort(_mappings.get_addr(committed_vmem.start()), committed_vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
+  qsort(_physical_mappings.get_addr(committed_vmem.start()), committed_vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
         [](const void* a, const void* b) -> int {
           return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
         });
   map_virtual_to_physical(committed_vmem);
-  allocation->mappings()->append(committed_vmem);
+  allocation->claimed_mappings()->append(committed_vmem);
 
   if (committed_vmem.size() != vmem.size()) {
     log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
@@ -675,7 +675,7 @@ retry:
   // If the claimed physical memory holds a large enough contiguous virtual
   // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
-    ZVirtualMemory vmem = allocation->mappings()->pop();
+    ZVirtualMemory vmem = allocation->claimed_mappings()->pop();
     return new ZPage(allocation->type(), vmem);
   }
 
@@ -695,7 +695,7 @@ retry:
   // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
   if (remaining_physical > 0) {
     allocation->set_committed(remaining_physical);
-    _physical.alloc(_mappings.get_addr(vmem.start() + allocation->harvested()), remaining_physical);
+    _physical.alloc(_physical_mappings.get_addr(vmem.start() + allocation->harvested()), remaining_physical);
   }
 
   if (!commit_and_map_memory(allocation, vmem, allocation->harvested())) {
@@ -859,7 +859,7 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   size_t freed = 0;
 
   // Free mapped memory
-  ZArrayIterator<ZVirtualMemory> iter(allocation->mappings());
+  ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
   for (ZVirtualMemory vmem; iter.next(&vmem);) {
     freed += vmem.size();
     _mapped_cache.insert_mapping(vmem);

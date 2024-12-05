@@ -57,7 +57,7 @@ private:
   ZMappedCache               _mapped_cache;
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
-  ZGranuleMap<zoffset>       _mappings;
+  ZGranuleMap<zoffset>       _physical_mappings;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;

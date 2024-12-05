@@ -27,7 +27,7 @@
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zThread.hpp"
-#include "gc/z/zMappedMemory.hpp"
+#include "gc/z/zVirtualMemory.hpp"
 
 class ZPage;
 class ZPageAllocator;

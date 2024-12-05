@@ -28,9 +28,9 @@
 #include "gc/z/zLiveMap.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "gc/z/zPhysicalMemory.hpp"
 #include "gc/z/zRememberedSet.hpp"
 #include "gc/z/zVirtualMemory.hpp"
-#include "gc/z/zPhysicalMemory.hpp"
 #include "memory/allocation.hpp"
 
 class ZGeneration;

@@ -671,15 +671,8 @@ retry:
   // If the claimed physical memory holds a large enough contiguous virtual
   // address range, we're done.
   if (is_alloc_satisfied(allocation)) {
-    ZVirtualMemory mapped_vmem = allocation->mappings()->pop();
-
-    if (allocation->type() == ZPageType::large) {
-      // Large pages are placed in high address space, the memory returned from
-      // the mapped cache is at low address space, need to remap.
-      mapped_vmem = remap_mapping(mapped_vmem, false /* force_low_address */);
-    }
-
-    return new ZPage(allocation->type(), mapped_vmem);
+    ZVirtualMemory vmem = allocation->mappings()->pop();
+    return new ZPage(allocation->type(), vmem);
   }
 
   // We need to allocate a new virtual address range and make sure the claimed

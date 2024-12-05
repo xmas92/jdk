@@ -486,11 +486,11 @@ bool ZPageAllocator::is_alloc_allowed(size_t size) const {
   return available >= size;
 }
 
-void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t size, ZArray<ZVirtualMemory>* mappings) {
+void ZPageAllocator::claim_mapped_or_increase_capacity(size_t size, ZArray<ZVirtualMemory>* mappings) {
   // Try to allocate a contiguous mapping.
-  ZVirtualMemory mapped_vmem;
-  if (_mapped_cache.remove_mapping_contiguous(&mapped_vmem, size)) {
-    mappings->append(mapped_vmem);
+  ZVirtualMemory mapping;
+  if (_mapped_cache.remove_mapping_contiguous(&mapping, size)) {
+    mappings->append(mapping);
     return;
   }
 
@@ -511,7 +511,6 @@ void ZPageAllocator::claim_mapped_or_increase_capacity(ZPageType type, size_t si
 }
 
 bool ZPageAllocator::claim_physical(ZPageAllocation* allocation) {
-  const ZPageType type = allocation->type();
   const size_t size = allocation->size();
   ZArray<ZVirtualMemory>* const mappings = allocation->mappings();
 
@@ -521,7 +520,7 @@ bool ZPageAllocator::claim_physical(ZPageAllocation* allocation) {
   }
 
   // Try to claim physical memory
-  claim_mapped_or_increase_capacity(type, size, mappings);
+  claim_mapped_or_increase_capacity(size, mappings);
 
   // Updated used statistics
   increase_used(size);

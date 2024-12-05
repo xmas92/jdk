@@ -28,7 +28,6 @@
 #include "gc/z/zIntrusiveRBTree.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "utilities/globalDefinitions.hpp"
-#include "utilities/rbTree.hpp"
 
 class ZMappedCacheEntry;
 class ZMappedCache {

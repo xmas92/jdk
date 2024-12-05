@@ -54,8 +54,6 @@ template<typename K, typename V, typename COMPARATOR, typename ALLOCATOR>
 class Treap {
   friend class NMTVMATreeTest;
   friend class NMTTreapTest;
-  friend class ZMappedCacheTest;
-
 public:
   class TreapNode {
     friend Treap;
@@ -81,53 +79,6 @@ public:
     TreapNode* left() const { return _left; }
     TreapNode* right() const { return _right; }
   };
-
-  template<bool Forward>
-  class NodeIteratorImpl : public StackObj {
-  private:
-    GrowableArrayCHeap<TreapNode*, mtNMT> _to_visit;
-    const Treap* const                    _tree;
-    TreapNode*                            _next;
-
-  public:
-    NodeIteratorImpl(Treap* tree) : _tree(tree) {
-      if (_tree->_node_count == 0) {
-        _next = nullptr;
-        return;
-      }
-
-      TreapNode* head = _tree->_root;
-      while (head != nullptr) {
-        _to_visit.push(head);
-        head = Forward ? head->left() : head->right();
-      }
-
-      _next = _to_visit.pop();
-    }
-
-    bool next(TreapNode** elem) {
-      if(_next == nullptr) {
-        return false;
-      }
-
-      *elem = _next;
-
-      _next = Forward ? _next->right() : _next->left();
-      while (_next != nullptr) {
-        _to_visit.push(_next);
-        _next = Forward ? _next->left() : _next->right();
-      }
-
-      if (!_to_visit.is_empty()) {
-        _next = _to_visit.pop();
-      }
-
-      return true;
-    }
-  };
-
-  using InOrderIterator = NodeIteratorImpl<true /* Forward */>;
-  using InReverseOrderIterator = NodeIteratorImpl<false /* Backward */>;
 
 private:
   ALLOCATOR _allocator;
@@ -401,7 +352,6 @@ public:
     }
   }
 };
-
 
 class TreapCHeapAllocator {
 public:

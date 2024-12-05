@@ -24,12 +24,10 @@
 #include "precompiled.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"
-#include "gc/z/zIntrusiveRBTree.hpp"
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
-#include <cstdint>
 
 constexpr size_t ZMappedCache::SizeClasses[];
 

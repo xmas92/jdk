@@ -93,9 +93,11 @@ void ZPhysicalMemoryManager::alloc(zoffset* pmem, size_t size) {
     size_t allocated = 0;
     const zoffset start = _manager.alloc_low_address_at_most(size, &allocated);
     assert(start != zoffset(UINTPTR_MAX), "Allocation should never fail");
+    assert(is_aligned(allocated, ZGranuleSize), "Allocation must multiple of ZGranuleSize");
     size -= allocated;
-    for (zoffset offset = start; allocated != 0; offset += ZGranuleSize, allocated -= ZGranuleSize, pmem++) {
-      *pmem = offset;
+
+    for (zoffset_end offset = to_zoffset_end(start); allocated != 0; offset += ZGranuleSize, allocated -= ZGranuleSize, pmem++) {
+      *pmem = to_zoffset(offset);
     }
   }
 }

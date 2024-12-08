@@ -129,9 +129,10 @@ public:
     ZIntrusiveRBTreeNode** _insert_location;
     ZIntrusiveRBTreeNode* _parent;
     bool _left_most;
+    bool _right_most;
     DEBUG_ONLY(const uintptr_t _sequence_number;)
 
-    FindCursor(ZIntrusiveRBTreeNode** insert_location, ZIntrusiveRBTreeNode* parent, bool left_most DEBUG_ONLY(COMMA uintptr_t sequence_number));
+    FindCursor(ZIntrusiveRBTreeNode** insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most DEBUG_ONLY(COMMA uintptr_t sequence_number));
     FindCursor();
 
 #ifdef ASSERT
@@ -143,6 +144,7 @@ public:
     bool found() const;
     ZIntrusiveRBTreeNode* node() const;
     bool is_left_most() const;
+    bool is_right_most() const;
     ZIntrusiveRBTreeNode* parent() const;
     ZIntrusiveRBTreeNode** insert_location() const;
   };
@@ -150,6 +152,7 @@ public:
 private:
   ZIntrusiveRBTreeNode* _root_node = nullptr;
   ZIntrusiveRBTreeNode* _left_most = nullptr;
+  ZIntrusiveRBTreeNode* _right_most = nullptr;
   DEBUG_ONLY(uintptr_t _sequence_number;)
 
   NONCOPYABLE(ZIntrusiveRBTree);
@@ -182,12 +185,17 @@ private:
   bool rebalance_remove_with_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr);
   void rebalance_remove(ZIntrusiveRBTreeNode* rebalance_from);
 
+  template<ZIntrusiveRBTreeDirection DIRECTION>
+  FindCursor find_next(const FindCursor& cursor) const;
+
 public:
   ZIntrusiveRBTree() = default;
 
   ZIntrusiveRBTreeNode* first() const;
+  ZIntrusiveRBTreeNode* last() const;
 
   FindCursor get_cursor(const ZIntrusiveRBTreeNode* node) const;
+  FindCursor prev(const FindCursor& cursor) const;
   FindCursor next(const FindCursor& cursor) const;
   FindCursor find(const Key& key) const;
 

@@ -150,9 +150,9 @@ public:
   };
 
 private:
-  ZIntrusiveRBTreeNode* _root_node = nullptr;
-  ZIntrusiveRBTreeNode* _left_most = nullptr;
-  ZIntrusiveRBTreeNode* _right_most = nullptr;
+  ZIntrusiveRBTreeNode* _root_node;
+  ZIntrusiveRBTreeNode* _left_most;
+  ZIntrusiveRBTreeNode* _right_most;
   DEBUG_ONLY(uintptr_t _sequence_number;)
 
   NONCOPYABLE(ZIntrusiveRBTree);
@@ -189,7 +189,7 @@ private:
   FindCursor find_next(const FindCursor& cursor) const;
 
 public:
-  ZIntrusiveRBTree() = default;
+  ZIntrusiveRBTree();
 
   ZIntrusiveRBTreeNode* first() const;
   ZIntrusiveRBTreeNode* last() const;

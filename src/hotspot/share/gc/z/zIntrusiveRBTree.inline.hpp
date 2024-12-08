@@ -934,6 +934,12 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
 }
 
 template<typename Key, typename Compare>
+inline ZIntrusiveRBTree<Key, Compare>::ZIntrusiveRBTree()
+  : _root_node(nullptr),
+    _left_most(nullptr),
+    _right_most(nullptr) {}
+
+template<typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::first() const {
   return _left_most;
 }

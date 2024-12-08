@@ -28,12 +28,12 @@
 
 #include "utilities/debug.hpp"
 
-static constexpr ZIntrusiveRBTreeDirection other(const ZIntrusiveRBTreeDirection& dir) {
-  return dir == ZIntrusiveRBTreeDirection::LEFT ? ZIntrusiveRBTreeDirection::RIGHT : ZIntrusiveRBTreeDirection::LEFT;
+static constexpr ZIntrusiveRBTreeDirection other(const ZIntrusiveRBTreeDirection& direction) {
+  return direction == ZIntrusiveRBTreeDirection::LEFT ? ZIntrusiveRBTreeDirection::RIGHT : ZIntrusiveRBTreeDirection::LEFT;
 }
 
 inline ZIntrusiveRBTreeNode::ColoredNodePtr::ColoredNodePtr(ZIntrusiveRBTreeNode* node, Color color)
-    : _value(reinterpret_cast<uintptr_t>(node) | color) {}
+  : _value(reinterpret_cast<uintptr_t>(node) | color) {}
 
 inline constexpr ZIntrusiveRBTreeNode::Color ZIntrusiveRBTreeNode::ColoredNodePtr::color() const {
   return static_cast<Color>(_value & COLOR_MASK);
@@ -64,6 +64,7 @@ template<ZIntrusiveRBTreeDirection DIRECTION>
 inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::find_next_node() const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
   const ZIntrusiveRBTreeNode* node = this;
+
   // Down the tree
   if (node->has_child<DIRECTION>()) {
     node = node->child<DIRECTION>();
@@ -75,8 +76,9 @@ inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::find_next_node() const 
 
   // Up the tree
   const ZIntrusiveRBTreeNode* parent = node->parent();
-  for (;parent != nullptr && node == parent->child<DIRECTION>(); parent = node->parent()) {
+  while (parent != nullptr && node == parent->child<DIRECTION>()) {
     node = parent;
+    parent = node->parent();
   }
   return parent;
 }
@@ -320,7 +322,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::verify_tree() {
     assert(!node->has_right_child() || compare_fn(node->right_child(), node) > 0, "Invariant (5)");
   };
 
-  // Walk every simple path by recursively defending the tree from the root
+  // Walk every simple path by recursively descending the tree from the root
   const auto recursive_walk = [&](auto&& recurse, ZIntrusiveRBTreeNode* node, size_t black_nodes_traversed) {
     if (is_black(node)) { black_nodes_traversed++; }
     verify_2(node);
@@ -558,6 +560,7 @@ inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_insert_with_parent_sibling
     parent->update_parent_and_color(grand_parent, ZIntrusiveRBTreeNode::BLACK);
     ZIntrusiveRBTreeNode* grand_grand_parent = grand_parent->black_parent();
     grand_parent->update_parent_and_color(grand_grand_parent, ZIntrusiveRBTreeNode::RED);
+
     //// POST
     //
     //       g          g
@@ -604,7 +607,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert(ZIntrusiveRBTreeNod
     }
     ZIntrusiveRBTreeNode* grand_parent = parent->red_parent();
     if (parent == grand_parent->left_child() ? rebalance_insert_with_parent_sibling<ZIntrusiveRBTreeDirection::RIGHT>(&node, &parent, grand_parent)
-                                              : rebalance_insert_with_parent_sibling<ZIntrusiveRBTreeDirection::LEFT>(&node, &parent, grand_parent)) {
+                                             : rebalance_insert_with_parent_sibling<ZIntrusiveRBTreeDirection::LEFT>(&node, &parent, grand_parent)) {
       break;
     }
   }
@@ -788,10 +791,10 @@ inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_remove_with_sibling(ZIntru
   //   (soc)(sc)    (sc)(soc)
   //
   ////
-  DEBUG_ONLY(ZIntrusiveRBTreeNode::Color parent_color = parent->color());
+  DEBUG_ONLY(ZIntrusiveRBTreeNode::Color parent_color = parent->color();)
   precond(ZIntrusiveRBTreeNode::is_black(node));
   precond(rotated_parent || sibling->is_black());
-  DEBUG_ONLY(bool sibling_other_child_is_black = ZIntrusiveRBTreeNode::is_black(sibling_other_child));
+  DEBUG_ONLY(bool sibling_other_child_is_black = ZIntrusiveRBTreeNode::is_black(sibling_other_child);)
   precond(rotated_parent || verify_node<swap_left_right>(parent, node, sibling));
   precond(verify_node<swap_left_right>(node));
   precond(rotated_parent || verify_node<swap_left_right>(sibling, sibling_other_child, sibling_child));
@@ -842,7 +845,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_remove(ZIntrusiveRBTreeNod
     precond(ZIntrusiveRBTreeNode::is_black(node));
     precond(parent != nullptr);
     if (node == parent->left_child() ? rebalance_remove_with_sibling<ZIntrusiveRBTreeDirection::RIGHT>(&node, &parent)
-                                      : rebalance_remove_with_sibling<ZIntrusiveRBTreeDirection::LEFT>(&node, &parent)) {
+                                     : rebalance_remove_with_sibling<ZIntrusiveRBTreeDirection::LEFT>(&node, &parent)) {
       break;
     }
   }
@@ -1013,6 +1016,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::insert(ZIntrusiveRBTreeNode* new_nod
   precond(!find_cursor.found());
   DEBUG_ONLY(_sequence_number++;)
 
+  // Link in the new node
   new_node->link_node(find_cursor.parent(), find_cursor.insert_location());
 
   // Keep track of first and last node(s)
@@ -1032,7 +1036,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::replace(ZIntrusiveRBTreeNode* new_no
   precond(find_cursor.found());
   DEBUG_ONLY(_sequence_number++;)
 
-  ZIntrusiveRBTreeNode* node = find_cursor.node();
+   const ZIntrusiveRBTreeNode* const node = find_cursor.node();
 
   if (new_node != node) {
     // Node has changed
@@ -1070,8 +1074,8 @@ inline void ZIntrusiveRBTree<Key, Compare>::remove(const FindCursor& find_cursor
   precond(find_cursor.found());
   DEBUG_ONLY(_sequence_number++;)
 
-  ZIntrusiveRBTreeNode* node = find_cursor.node();
-  ZIntrusiveRBTreeNode* parent = node->parent();
+  ZIntrusiveRBTreeNode* const node = find_cursor.node();
+  ZIntrusiveRBTreeNode* const parent = node->parent();
 
   // Keep track of first and last node(s)
   if (find_cursor.is_left_most()) {
@@ -1108,8 +1112,9 @@ inline void ZIntrusiveRBTree<Key, Compare>::remove(const FindCursor& find_cursor
     assert(node->has_left_child() && node->has_right_child(), "must be");
     // Find next node and let it take the nodes place
     // This asymmetry always swap next instead of prev,
-    // I wonder how this behaves w.r.t. our strategies
-    // for talking from the
+    // I wonder how this behaves w.r.t. our mapped cache
+    // strategy of mostly removing from the left side of
+    // the tree
 
     // This will never walk up the tree, hope the compiler sees this.
     ZIntrusiveRBTreeNode* next_node = node->next();

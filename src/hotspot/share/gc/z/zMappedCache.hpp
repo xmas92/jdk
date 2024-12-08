@@ -36,8 +36,8 @@ class ZMappedCache {
 
 private:
   struct EntryCompare {
-    int operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b);
-    int operator()(zoffset key, ZIntrusiveRBTreeNode* node);
+    int operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b);
+    int operator()(zoffset key, const ZIntrusiveRBTreeNode* node);
   };
 
   using Tree = ZIntrusiveRBTree<zoffset, EntryCompare>;

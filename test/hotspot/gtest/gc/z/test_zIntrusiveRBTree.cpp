@@ -34,8 +34,8 @@
 //#ifndef PRODUCT
 
 struct ZTestEntryCompare {
-  int operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b);
-  int operator()(int key, ZIntrusiveRBTreeNode* entry);
+  int operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b);
+  int operator()(int key, const ZIntrusiveRBTreeNode* entry);
 };
 
 class ZTestEntry : public ArenaObj {
@@ -59,16 +59,16 @@ public:
   static ZIntrusiveRBTreeNode* cast_to_inner(ZTestEntry* element) {
     return &element->_node;
   }
-  static  ZTestEntry* cast_to_outer(ZIntrusiveRBTreeNode* node) {
+  static const ZTestEntry* cast_to_outer(const ZIntrusiveRBTreeNode* node) {
     return (ZTestEntry*)((uintptr_t)node - offset_of(ZTestEntry, _node));
   }
 
 };
 
-int ZTestEntryCompare::operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b) {
+int ZTestEntryCompare::operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b) {
   return ZTestEntry::cast_to_outer(a)->id() - ZTestEntry::cast_to_outer(b)->id();
 }
-int ZTestEntryCompare::operator()(int key, ZIntrusiveRBTreeNode* entry) {
+int ZTestEntryCompare::operator()(int key, const ZIntrusiveRBTreeNode* entry) {
   return key - ZTestEntry::cast_to_outer(entry)->id();
 }
 

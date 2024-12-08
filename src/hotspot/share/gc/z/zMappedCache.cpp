@@ -54,6 +54,7 @@ public:
   void update_start(zoffset start) { _start = start; }
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
+  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);
   static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
 
   ZMappedCache::ZSizeClassListNode* size_class_node(size_t index) {
@@ -61,8 +62,12 @@ public:
   }
 };
 
+const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
+  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+}
+
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) {
-  return (ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+  return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(node)));
 }
 
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
@@ -88,14 +93,14 @@ static ZMappedCacheEntry* create_entry(const ZVirtualMemory& vmem) {
   return new (entry_address_for_zoffset_end(vmem.end())) ZMappedCacheEntry(vmem.start());
 }
 
-int ZMappedCache::EntryCompare::operator()(ZIntrusiveRBTreeNode* a, ZIntrusiveRBTreeNode* b) {
+int ZMappedCache::EntryCompare::operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b) {
   ZVirtualMemory vmem_a = ZMappedCacheEntry::cast_to_entry(a)->vmem();
   ZVirtualMemory vmem_b = ZMappedCacheEntry::cast_to_entry(b)->vmem();
   if (vmem_a.end() < vmem_b.start()) { return -1; }
   if (vmem_b.end() < vmem_a.start()) { return 1; }
   return 0; // Overlapping
 }
-int ZMappedCache::EntryCompare::operator()(zoffset key, ZIntrusiveRBTreeNode* node) {
+int ZMappedCache::EntryCompare::operator()(zoffset key, const ZIntrusiveRBTreeNode* node) {
   ZVirtualMemory vmem = ZMappedCacheEntry::cast_to_entry(node)->vmem();
   if (key < vmem.start()) { return -1; }
   if (key > vmem.end()) { return 1; }

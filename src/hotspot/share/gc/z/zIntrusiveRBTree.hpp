@@ -30,6 +30,9 @@
 enum class ZIntrusiveRBTreeDirection { LEFT, RIGHT };
 
 class ZIntrusiveRBTreeNode {
+  template<typename Key, typename Compare>
+  friend class ZIntrusiveRBTree;
+
 public:
   enum Color { RED = 0b0, BLACK = 0b1 };
 
@@ -54,9 +57,6 @@ private:
   ColoredNodePtr _colored_parent;
   ZIntrusiveRBTreeNode* _left;
   ZIntrusiveRBTreeNode* _right;
-
-public:
-  ZIntrusiveRBTreeNode();
 
   template<ZIntrusiveRBTreeDirection DIRECTION>
   const ZIntrusiveRBTreeNode* find_next_node() const;
@@ -110,6 +110,9 @@ public:
 
   bool has_left_child() const;
   bool has_right_child() const;
+
+public:
+  ZIntrusiveRBTreeNode();
 
   const ZIntrusiveRBTreeNode* prev() const;
   ZIntrusiveRBTreeNode* prev();

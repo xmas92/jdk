@@ -60,8 +60,6 @@ inline ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::ColoredNodePtr::black_node() 
   return reinterpret_cast<ZIntrusiveRBTreeNode*>(_value ^ BLACK);
 }
 
-inline ZIntrusiveRBTreeNode::ZIntrusiveRBTreeNode() {}
-
 template<ZIntrusiveRBTreeDirection DIRECTION>
 inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::find_next_node() const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
@@ -232,6 +230,8 @@ inline bool ZIntrusiveRBTreeNode::has_left_child() const {
 inline bool ZIntrusiveRBTreeNode::has_right_child() const {
   return has_child<ZIntrusiveRBTreeDirection::RIGHT>();
 }
+
+inline ZIntrusiveRBTreeNode::ZIntrusiveRBTreeNode() {}
 
 inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::prev() const {
   return find_next_node<ZIntrusiveRBTreeDirection::LEFT>();

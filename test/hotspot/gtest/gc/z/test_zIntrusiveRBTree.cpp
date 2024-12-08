@@ -21,13 +21,14 @@
  * questions.
  */
 
+#include "precompiled.hpp"
+#include "gc/z/zIntrusiveRBTree.inline.hpp"
 #include "memory/allocation.hpp"
 #include "memory/arena.hpp"
 #include "nmt/memTag.hpp"
-#include "precompiled.hpp"
-#include "gc/z/zIntrusiveRBTree.hpp"
 #include "unittest.hpp"
 #include "utilities/globalDefinitions.hpp"
+
 #include <ostream>
 
 //#ifndef PRODUCT

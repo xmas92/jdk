@@ -122,11 +122,6 @@ public:
 
 template<typename Key, typename Compare>
 class ZIntrusiveRBTree {
-private:
-  struct Root {
-    ZIntrusiveRBTreeNode* _node = nullptr;
-  };
-
 public:
   class FindCursor {
     friend class ZIntrusiveRBTree<Key, Compare>;
@@ -153,7 +148,7 @@ public:
   };
 
 private:
-  Root _root;
+  ZIntrusiveRBTreeNode* _root_node = nullptr;
   ZIntrusiveRBTreeNode* _left_most = nullptr;
   DEBUG_ONLY(uintptr_t _sequence_number;)
 

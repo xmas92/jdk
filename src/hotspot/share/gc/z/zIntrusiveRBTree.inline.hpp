@@ -915,6 +915,11 @@ inline ZIntrusiveRBTreeNode** ZIntrusiveRBTree<Key, Compare>::FindCursor::insert
 }
 
 template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::make_cursor(ZIntrusiveRBTreeNode* const* insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most) const {
+  return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(insert_location), parent, left_most, right_most DEBUG_ONLY(COMMA _sequence_number));
+}
+
+template<typename Key, typename Compare>
 template<ZIntrusiveRBTreeDirection DIRECTION>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::find_next(const FindCursor& cursor) const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
@@ -963,13 +968,13 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
   if (node->has_parent()) {
     const ZIntrusiveRBTreeNode* const parent = node->parent();
     if (parent->left_child() == node) {
-      return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(parent->left_child_addr()), nullptr, is_left_most, is_right_most DEBUG_ONLY(COMMA _sequence_number));
+      return make_cursor(parent->left_child_addr(), nullptr, is_left_most, is_right_most);
     }
     assert(parent->right_child() == node, "must be");
-      return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(parent->right_child_addr()), nullptr, is_left_most, is_right_most DEBUG_ONLY(COMMA _sequence_number));
+      return make_cursor(parent->right_child_addr(), nullptr, is_left_most, is_right_most);
   }
   // No parent, root node
-  return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(&_root_node), nullptr, is_left_most, is_right_most DEBUG_ONLY(COMMA _sequence_number));
+  return make_cursor(&_root_node, nullptr, is_left_most, is_right_most);
 }
 
 template<typename Key, typename Compare>
@@ -994,7 +999,7 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
     if (result == 0) {
       assert(*insert_location != _left_most || left_most, "must be");
       assert(*insert_location != _right_most || right_most, "must be");
-      return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(insert_location), parent, *insert_location == _left_most, *insert_location == _right_most DEBUG_ONLY(COMMA _sequence_number));
+      return make_cursor(insert_location, parent, *insert_location == _left_most, *insert_location == _right_most);
     }
     parent = *insert_location;
     if (result < 0) {
@@ -1007,7 +1012,7 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
       left_most = false;
     }
   }
-  return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(insert_location), parent, left_most, right_most DEBUG_ONLY(COMMA _sequence_number));
+  return make_cursor(insert_location, parent, left_most, right_most);
 }
 
 template<typename Key, typename Compare>

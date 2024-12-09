@@ -185,6 +185,7 @@ private:
   bool rebalance_remove_with_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr);
   void rebalance_remove(ZIntrusiveRBTreeNode* rebalance_from);
 
+  FindCursor make_cursor(ZIntrusiveRBTreeNode* const* insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most) const;
   template<ZIntrusiveRBTreeDirection DIRECTION>
   FindCursor find_next(const FindCursor& cursor) const;
 

@@ -78,7 +78,6 @@ public:
   ZLiveMap(const ZLiveMap& other) = delete;
 
   void reset();
-  void resize(uint32_t size);
 
   bool is_marked(ZGenerationId id) const;
 

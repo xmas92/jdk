@@ -125,11 +125,3 @@ void ZLiveMap::reset_segment(BitMap::idx_t segment) {
   const bool success = set_segment_live(segment);
   assert(success, "Should never fail");
 }
-
-void ZLiveMap::resize(uint32_t size) {
-  const size_t new_bitmap_size = bitmap_size(size, NumSegments);
-  if (_bitmap.size() != new_bitmap_size) {
-    _bitmap.reinitialize(new_bitmap_size, false /* clear */);
-    _segment_shift = log2i_exact(segment_size());
-  }
-}

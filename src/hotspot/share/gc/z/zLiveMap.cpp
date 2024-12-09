@@ -46,7 +46,8 @@ ZLiveMap::ZLiveMap(uint32_t size)
     _live_bytes(0),
     _segment_live_bits(0),
     _segment_claim_bits(0),
-    _bitmap(bitmap_size(size, NumSegments)),
+    _bitmap_size(bitmap_size(size, NumSegments)),
+    _bitmap(0),
     _segment_shift(log2i_exact(segment_size())) {}
 
 void ZLiveMap::reset(ZGenerationId id) {
@@ -68,6 +69,11 @@ void ZLiveMap::reset(ZGenerationId id) {
       // Clear segment claimed/live bits
       segment_live_bits().clear();
       segment_claim_bits().clear();
+
+      // Initialize the live map if necessary
+      if (!bitmap_initialized()) {
+        _bitmap.initialize(_bitmap_size, false);
+      }
 
       assert(_seqnum == seqnum_initializing, "Invalid");
 

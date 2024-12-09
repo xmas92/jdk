@@ -35,6 +35,10 @@
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/debug.hpp"
 
+inline bool ZLiveMap::bitmap_initialized() const {
+  return _bitmap.size() != 0;
+}
+
 inline void ZLiveMap::reset() {
   _seqnum = 0;
 }
@@ -88,7 +92,7 @@ inline BitMap::idx_t ZLiveMap::next_live_segment(BitMap::idx_t segment) const {
 }
 
 inline BitMap::idx_t ZLiveMap::segment_size() const {
-  return _bitmap.size() / NumSegments;
+  return _bitmap_size / NumSegments;
 }
 
 inline BitMap::idx_t ZLiveMap::index_to_segment(BitMap::idx_t index) const {
@@ -98,6 +102,7 @@ inline BitMap::idx_t ZLiveMap::index_to_segment(BitMap::idx_t index) const {
 inline bool ZLiveMap::get(ZGenerationId id, BitMap::idx_t index) const {
   const BitMap::idx_t segment = index_to_segment(index);
   return is_marked(id) &&                             // Page is marked
+         bitmap_initialized() &&                      // Bitmap is initialized
          is_segment_live(segment) &&                  // Segment is marked
          _bitmap.par_at(index, memory_order_relaxed); // Object is marked
 }
@@ -155,7 +160,7 @@ inline void ZLiveMap::iterate_segment(BitMap::idx_t segment, Function function) 
 
 template <typename Function>
 inline void ZLiveMap::iterate(ZGenerationId id, Function function) {
-  if (!is_marked(id)) {
+  if (!is_marked(id) || !bitmap_initialized()) {
     return;
   }
 
@@ -184,6 +189,10 @@ inline void ZLiveMap::iterate(ZGenerationId id, Function function) {
 //
 // returns -1 if no bit was found
 inline BitMap::idx_t ZLiveMap::find_base_bit(BitMap::idx_t index) {
+  if (!bitmap_initialized()) {
+    return BitMap::idx_t(-1);
+  }
+
   // Check first segment
   const BitMap::idx_t start_segment = index_to_segment(index);
   if (is_segment_live(start_segment)) {
@@ -212,6 +221,7 @@ inline BitMap::idx_t ZLiveMap::find_base_bit(BitMap::idx_t index) {
 // start.
 inline BitMap::idx_t ZLiveMap::find_base_bit_in_segment(BitMap::idx_t start, BitMap::idx_t index) {
   assert(index_to_segment(start) == index_to_segment(index), "Only supports searches within segments start: %zu index: %zu", start, index);
+  assert(bitmap_initialized(), "Must be initialized");
   assert(is_segment_live(index_to_segment(start)), "Must be live");
 
   // Search backwards - + 1 to make an exclusive index.

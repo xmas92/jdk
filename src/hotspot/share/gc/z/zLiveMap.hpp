@@ -42,8 +42,11 @@ private:
   volatile size_t   _live_bytes;
   BitMap::bm_word_t _segment_live_bits;
   BitMap::bm_word_t _segment_claim_bits;
+  size_t            _bitmap_size;
   ZBitMap           _bitmap;
   int               _segment_shift;
+
+  bool bitmap_initialized() const;
 
   const BitMapView segment_live_bits() const;
   const BitMapView segment_claim_bits() const;
@@ -73,6 +76,8 @@ private:
   template <typename Function>
   void iterate_segment(BitMap::idx_t segment, Function function);
 
+  BitMap::idx_t find_base_bit_in_segment(BitMap::idx_t start, BitMap::idx_t index);
+
 public:
   ZLiveMap(uint32_t size);
   ZLiveMap(const ZLiveMap& other) = delete;
@@ -93,7 +98,6 @@ public:
   void iterate(ZGenerationId id, Function function);
 
   BitMap::idx_t find_base_bit(BitMap::idx_t index);
-  BitMap::idx_t find_base_bit_in_segment(BitMap::idx_t start, BitMap::idx_t index);
 };
 
 #endif // SHARE_GC_Z_ZLIVEMAP_HPP

@@ -130,7 +130,7 @@ public:
     ZIntrusiveRBTreeNode* _parent;
     bool _left_most;
     bool _right_most;
-    DEBUG_ONLY(const uintptr_t _sequence_number;)
+    DEBUG_ONLY(uintptr_t _sequence_number;)
 
     FindCursor(ZIntrusiveRBTreeNode** insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most DEBUG_ONLY(COMMA uintptr_t sequence_number));
     FindCursor();
@@ -140,6 +140,9 @@ public:
 #endif
 
   public:
+    FindCursor(const FindCursor&) = default;
+    FindCursor& operator=(const FindCursor&) = default;
+
     bool is_valid() const;
     bool found() const;
     ZIntrusiveRBTreeNode* node() const;
@@ -195,7 +198,10 @@ public:
   ZIntrusiveRBTreeNode* first() const;
   ZIntrusiveRBTreeNode* last() const;
 
+  FindCursor root_cursor() const;
   FindCursor get_cursor(const ZIntrusiveRBTreeNode* node) const;
+  FindCursor prev_cursor(const ZIntrusiveRBTreeNode* node) const;
+  FindCursor next_cursor(const ZIntrusiveRBTreeNode* node) const;
   FindCursor prev(const FindCursor& cursor) const;
   FindCursor next(const FindCursor& cursor) const;
   FindCursor find(const Key& key) const;

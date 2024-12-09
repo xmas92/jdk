@@ -217,7 +217,7 @@ void ZMappedCache::insert_mapping(const ZVirtualMemory& vmem) {
   auto current_cursor = _tree.find(vmem.start());
   auto next_cursor = _tree.next(current_cursor);
   const bool extends_left = current_cursor.found();
-  const bool extends_right = next_cursor.is_valid() &&
+  const bool extends_right = next_cursor.is_valid() && next_cursor.found() &&
                              ZMappedCacheEntry::cast_to_entry(next_cursor.node())->start() == vmem.end();
   if (extends_left && extends_right) {
     ZIntrusiveRBTreeNode* const next_node = next_cursor.node();

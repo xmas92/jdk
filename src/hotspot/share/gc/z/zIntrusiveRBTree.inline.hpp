@@ -924,7 +924,14 @@ template<ZIntrusiveRBTreeDirection DIRECTION>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::find_next(const FindCursor& cursor) const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
   if (cursor.found()) {
-    return get_cursor(cursor.node()->template find_next_node<DIRECTION>());
+    ZIntrusiveRBTreeNode* const node = cursor.node();
+    const ZIntrusiveRBTreeNode* const next_node = node->template find_next_node<DIRECTION>();
+    if (next_node != nullptr) {
+      return get_cursor(next_node);
+    }
+    const bool is_right_most = DIRECTION == ZIntrusiveRBTreeDirection::RIGHT && node == _right_most;
+    const bool is_left_most = DIRECTION == ZIntrusiveRBTreeDirection::LEFT && node == _left_most;
+    return make_cursor(node->template child_addr<DIRECTION>(), node, is_left_most, is_right_most);
   }
   ZIntrusiveRBTreeNode* const parent = cursor.parent();
   if (parent == nullptr) {
@@ -945,7 +952,8 @@ template<typename Key, typename Compare>
 inline ZIntrusiveRBTree<Key, Compare>::ZIntrusiveRBTree()
   : _root_node(nullptr),
     _left_most(nullptr),
-    _right_most(nullptr) {}
+    _right_most(nullptr)
+    DEBUG_ONLY(COMMA _sequence_number()) {}
 
 template<typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::first() const {
@@ -955,6 +963,13 @@ inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::first() const {
 template<typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::last() const {
   return _right_most;
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::root_cursor() const {
+  const bool is_left_most = _root_node == _left_most;
+  const bool is_right_most = _root_node == _right_most;
+  return make_cursor(&_root_node, nullptr, is_left_most, is_right_most);
 }
 
 template<typename Key, typename Compare>
@@ -975,6 +990,16 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
   }
   // No parent, root node
   return make_cursor(&_root_node, nullptr, is_left_most, is_right_most);
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::prev_cursor(const ZIntrusiveRBTreeNode* node) const {
+  return prev(get_cursor(node));
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::next_cursor(const ZIntrusiveRBTreeNode* node) const {
+  return next(get_cursor(node));
 }
 
 template<typename Key, typename Compare>

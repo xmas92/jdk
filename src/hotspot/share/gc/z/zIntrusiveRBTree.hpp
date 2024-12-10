@@ -24,8 +24,11 @@
 #ifndef SHARE_GC_Z_ZINTRUSIVERBTREE_HPP
 #define SHARE_GC_Z_ZINTRUSIVERBTREE_HPP
 
+#include "metaprogramming/enableIf.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
+
+#include <iterator>
 
 enum class ZIntrusiveRBTreeDirection { LEFT, RIGHT };
 
@@ -161,7 +164,6 @@ private:
   NONCOPYABLE(ZIntrusiveRBTree);
 
 #ifdef ASSERT
-  void verify_tree();
   template<bool swap_left_right>
   bool verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child, ZIntrusiveRBTreeNode* right_child);
   template<bool swap_left_right>
@@ -209,6 +211,82 @@ public:
   void insert(ZIntrusiveRBTreeNode* new_node, const FindCursor& find_cursor);
   void replace(ZIntrusiveRBTreeNode* new_node, const FindCursor& find_cursor);
   void remove(const FindCursor& find_cursor);
+
+  void verify_tree();
+
+public:
+  template<bool IsConst, bool Reverse>
+  class IteratorImplementation;
+
+  using Iterator = IteratorImplementation<false, false>;
+  using ConstIterator = IteratorImplementation<true, false>;
+  using ReverseIterator = IteratorImplementation<false, true>;
+  using ConstReverseIterator = IteratorImplementation<true, true>;
+
+  // remove and replace invalidate the iterators
+  // however the iterators provide a remove and replace
+  // function which does not invalidate that iterator nor
+  // any end iterator
+  Iterator begin();
+  Iterator end();
+  ConstIterator begin() const;
+  ConstIterator end() const;
+  ConstIterator cbegin() const;
+  ConstIterator cend() const;
+  ReverseIterator rbegin();
+  ReverseIterator rend();
+  ConstReverseIterator rbegin() const;
+  ConstReverseIterator rend() const;
+  ConstReverseIterator crbegin() const;
+  ConstReverseIterator crend() const;
+};
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+class ZIntrusiveRBTree<Key, Compare>::IteratorImplementation {
+  friend IteratorImplementation<true, Reverse>;
+
+public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using difference_type   = std::ptrdiff_t;
+  using value_type        = const ZIntrusiveRBTreeNode;
+  using pointer           = value_type*;
+  using reference         = value_type&;
+
+private:
+  ZIntrusiveRBTree<Key, Compare>* _tree;
+  const ZIntrusiveRBTreeNode* _node;
+  bool _removed;
+
+  bool at_end() const;
+
+public:
+  IteratorImplementation(ZIntrusiveRBTree<Key, Compare>& tree, pointer node);
+  IteratorImplementation(const IteratorImplementation<IsConst, Reverse>&) = default;
+  template<bool Enable = IsConst, ENABLE_IF(Enable)>
+  IteratorImplementation(const IteratorImplementation<false, Reverse>& other);
+
+  reference operator*() const;
+  pointer operator->();
+  IteratorImplementation& operator--();
+  IteratorImplementation operator--(int);
+  IteratorImplementation& operator++();
+  IteratorImplementation operator++(int);
+
+  template<bool Enable = !IsConst, ENABLE_IF(Enable)>
+  void replace(ZIntrusiveRBTreeNode * new_node);
+  template<bool Enable = !IsConst, ENABLE_IF(Enable)>
+  void remove();
+
+  // Note: friend operator overloads defined inside class declaration because of problems with ADL
+  friend bool operator==(const IteratorImplementation& a, const IteratorImplementation& b) {
+    precond(a._tree == b._tree);
+    return a._node == b._node;
+  }
+  friend bool operator!=(const IteratorImplementation& a, const IteratorImplementation& b) {
+    precond(a._tree == b._tree);
+    return a._node != b._node;
+  }
 };
 
 #endif // SHARE_GC_Z_ZINTRUSIVERBTREE_HPP

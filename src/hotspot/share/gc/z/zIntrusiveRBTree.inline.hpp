@@ -26,6 +26,7 @@
 
 #include "gc/z/zIntrusiveRBTree.hpp"
 
+#include "metaprogramming/enableIf.hpp"
 #include "utilities/debug.hpp"
 
 static constexpr ZIntrusiveRBTreeDirection other(const ZIntrusiveRBTreeDirection& direction) {
@@ -252,90 +253,6 @@ inline ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::next() {
 }
 
 #ifdef ASSERT
-template<typename Key, typename Compare>
-inline void ZIntrusiveRBTree<Key, Compare>::verify_tree() {
-  // Properties:
-  //  (a) Node's are either BLACK or RED
-  //  (b) All nullptr children are counted as BLACK
-  //  (c) Compare::operator(Node*, Node*) <=> 0 is transitive
-  // Invariants:
-  //  (1) Root node is BLACK
-  //  (2) All RED nodes only have BLACK children
-  //  (3) Every simple path from the root to a leaf
-  //      contains the same amount of BLACK nodes
-  //  (4) A node's children must have that node as
-  //      its parent
-  //  (5) Each node N in the sub-tree formed from a
-  //      node A's child must:
-  //        if left child:  Compare::operator(A, N) < 0
-  //        if right child: Compare::operator(A, N) > 0
-  //
-  // Note: 1-4 may not hold during a call to insert
-  //       and remove.
-
-  // Helpers
-  const auto is_leaf = [](ZIntrusiveRBTreeNode* node) {
-    return node == nullptr;
-  };
-  const auto is_black = [&](ZIntrusiveRBTreeNode* node) {
-    return is_leaf(node) || node->is_black();
-  };
-  const auto is_red = [&](ZIntrusiveRBTreeNode* node) {
-    return !is_black(node);
-  };
-
-  // Verify (1)
-  ZIntrusiveRBTreeNode* const root_node = _root_node;
-  assert(is_black(root_node), "Invariant (1)");
-
-  // Verify (2)
-  const auto verify_2 = [&](ZIntrusiveRBTreeNode* node) {
-    assert(!is_red(node) || is_black(node->left_child()), "Invariant (2)");
-    assert(!is_red(node) || is_black(node->right_child()), "Invariant (2)");
-  };
-
-  // Verify (3)
-  size_t first_simple_path_black_nodes_traversed = 0;
-  const auto verify_3 = [&](ZIntrusiveRBTreeNode* node, size_t black_nodes_traversed) {
-    if (!is_leaf(node)) { return; }
-    if (first_simple_path_black_nodes_traversed == 0) {
-      first_simple_path_black_nodes_traversed = black_nodes_traversed;
-    }
-    assert(first_simple_path_black_nodes_traversed == black_nodes_traversed, "Invariant (3)");
-  };
-
-  // Verify (4)
-  const auto verify_4 = [&](ZIntrusiveRBTreeNode* node) {
-    if (is_leaf(node)) { return; }
-    assert(!node->has_left_child() || node->left_child()->parent() == node, "Invariant (4)");
-    assert(!node->has_right_child() || node->right_child()->parent() == node, "Invariant (4)");
-  };
-  assert(root_node == nullptr || root_node->parent() == nullptr, "Invariant (4)");
-
-  // Verify (5)
-  const auto verify_5 = [&](ZIntrusiveRBTreeNode* node) {
-    // Because of the transitive property of Compare (c) we simply check
-    // this that (5) hold for each parent child pair.
-    if (is_leaf(node)) { return; }
-    Compare compare_fn;
-    assert(!node->has_left_child() || compare_fn(node->left_child(), node) < 0, "Invariant (5)");
-    assert(!node->has_right_child() || compare_fn(node->right_child(), node) > 0, "Invariant (5)");
-  };
-
-  // Walk every simple path by recursively descending the tree from the root
-  const auto recursive_walk = [&](auto&& recurse, ZIntrusiveRBTreeNode* node, size_t black_nodes_traversed) {
-    if (is_black(node)) { black_nodes_traversed++; }
-    verify_2(node);
-    verify_3(node, black_nodes_traversed);
-    verify_4(node);
-    verify_5(node);
-    if (is_leaf(node)) { return; }
-    recurse(recurse, node->left_child(), black_nodes_traversed);
-    recurse(recurse, node->right_child(), black_nodes_traversed);
-  };
-  recursive_walk(recursive_walk, root_node, 0);
-}
-
 template<typename Key, typename Compare>
 template<bool swap_left_right>
 inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child, ZIntrusiveRBTreeNode* right_child) {
@@ -611,7 +528,6 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert(ZIntrusiveRBTreeNod
       break;
     }
   }
-  verify_tree();
 }
 
 template<typename Key, typename Compare>
@@ -849,7 +765,6 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_remove(ZIntrusiveRBTreeNod
       break;
     }
   }
-  verify_tree();
 }
 
 template<typename Key, typename Compare>
@@ -1095,7 +1010,6 @@ inline void ZIntrusiveRBTree<Key, Compare>::replace(ZIntrusiveRBTreeNode* new_no
       _right_most = new_node;
     }
   }
-  verify_tree();
 }
 
 template<typename Key, typename Compare>
@@ -1180,11 +1094,258 @@ inline void ZIntrusiveRBTree<Key, Compare>::remove(const FindCursor& find_cursor
 
   if (rebalance_from == nullptr) {
     // Removal did not unbalance the tree
-    verify_tree();
     return;
   }
 
   rebalance_remove(rebalance_from);
+}
+
+template<typename Key, typename Compare>
+inline void ZIntrusiveRBTree<Key, Compare>::verify_tree() {
+  // Properties:
+  //  (a) Node's are either BLACK or RED
+  //  (b) All nullptr children are counted as BLACK
+  //  (c) Compare::operator(Node*, Node*) <=> 0 is transitive
+  // Invariants:
+  //  (1) Root node is BLACK
+  //  (2) All RED nodes only have BLACK children
+  //  (3) Every simple path from the root to a leaf
+  //      contains the same amount of BLACK nodes
+  //  (4) A node's children must have that node as
+  //      its parent
+  //  (5) Each node N in the sub-tree formed from a
+  //      node A's child must:
+  //        if left child:  Compare::operator(A, N) < 0
+  //        if right child: Compare::operator(A, N) > 0
+  //
+  // Note: 1-4 may not hold during a call to insert
+  //       and remove.
+
+  // Helpers
+  const auto is_leaf = [](ZIntrusiveRBTreeNode* node) {
+    return node == nullptr;
+  };
+  const auto is_black = [&](ZIntrusiveRBTreeNode* node) {
+    return is_leaf(node) || node->is_black();
+  };
+  const auto is_red = [&](ZIntrusiveRBTreeNode* node) {
+    return !is_black(node);
+  };
+
+  // Verify (1)
+  ZIntrusiveRBTreeNode* const root_node = _root_node;
+  guarantee(is_black(root_node), "Invariant (1)");
+
+  // Verify (2)
+  const auto verify_2 = [&](ZIntrusiveRBTreeNode* node) {
+    guarantee(!is_red(node) || is_black(node->left_child()), "Invariant (2)");
+    guarantee(!is_red(node) || is_black(node->right_child()), "Invariant (2)");
+  };
+
+  // Verify (3)
+  size_t first_simple_path_black_nodes_traversed = 0;
+  const auto verify_3 = [&](ZIntrusiveRBTreeNode* node, size_t black_nodes_traversed) {
+    if (!is_leaf(node)) { return; }
+    if (first_simple_path_black_nodes_traversed == 0) {
+      first_simple_path_black_nodes_traversed = black_nodes_traversed;
+    }
+    guarantee(first_simple_path_black_nodes_traversed == black_nodes_traversed, "Invariant (3)");
+  };
+
+  // Verify (4)
+  const auto verify_4 = [&](ZIntrusiveRBTreeNode* node) {
+    if (is_leaf(node)) { return; }
+    guarantee(!node->has_left_child() || node->left_child()->parent() == node, "Invariant (4)");
+    guarantee(!node->has_right_child() || node->right_child()->parent() == node, "Invariant (4)");
+  };
+  guarantee(root_node == nullptr || root_node->parent() == nullptr, "Invariant (4)");
+
+  // Verify (5)
+  const auto verify_5 = [&](ZIntrusiveRBTreeNode* node) {
+    // Because of the transitive property of Compare (c) we simply check
+    // this that (5) hold for each parent child pair.
+    if (is_leaf(node)) { return; }
+    Compare compare_fn;
+    guarantee(!node->has_left_child() || compare_fn(node->left_child(), node) < 0, "Invariant (5)");
+    guarantee(!node->has_right_child() || compare_fn(node->right_child(), node) > 0, "Invariant (5)");
+  };
+
+  // Walk every simple path by recursively descending the tree from the root
+  const auto recursive_walk = [&](auto&& recurse, ZIntrusiveRBTreeNode* node, size_t black_nodes_traversed) {
+    if (is_black(node)) { black_nodes_traversed++; }
+    verify_2(node);
+    verify_3(node, black_nodes_traversed);
+    verify_4(node);
+    verify_5(node);
+    if (is_leaf(node)) { return; }
+    recurse(recurse, node->left_child(), black_nodes_traversed);
+    recurse(recurse, node->right_child(), black_nodes_traversed);
+  };
+  recursive_walk(recursive_walk, root_node, 0);
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::Iterator ZIntrusiveRBTree<Key, Compare>::begin() {
+  return Iterator(*this, first());
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::Iterator ZIntrusiveRBTree<Key, Compare>::end() {
+  return Iterator(*this, nullptr);
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::begin() const {
+  return cbegin();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::end() const {
+  return cend();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::cbegin() const {
+  return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->begin();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::cend() const {
+  return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->end();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ReverseIterator ZIntrusiveRBTree<Key, Compare>::rbegin() {
+  return ReverseIterator(*this, last());
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ReverseIterator ZIntrusiveRBTree<Key, Compare>::rend() {
+  return ReverseIterator(*this, nullptr);
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::rbegin() const {
+  return crbegin();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::rend() const {
+  return crend();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::crbegin() const {
+  return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->rbegin();
+}
+
+template<typename Key, typename Compare>
+inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::crend() const {
+  return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->rend();
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline bool ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::at_end() const {
+  return _node == nullptr;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::IteratorImplementation(ZIntrusiveRBTree<Key, Compare>& tree, pointer node)
+ : _tree(&tree),
+   _node(node),
+   _removed(false) {}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+inline ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::IteratorImplementation(const IteratorImplementation<false, Reverse>& other)
+ : _tree(other._tree),
+   _node(other._node),
+   _removed(false) {}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>::reference ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator*() const {
+  precond(!_removed);
+  return *_node;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>::pointer ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator->() {
+  precond(!_removed);
+  return _node;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>& ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator--() {
+  if (_removed) {
+    _removed = false;
+  } else if (Reverse) {
+    precond(_node != _tree->last());
+    _node = at_end() ? _tree->first() : _node->next();
+  } else {
+    precond(_node != _tree->first());
+    _node = at_end() ? _tree->last() : _node->prev();
+  }
+  return *this;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse> ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator--(int) {
+  IteratorImplementation tmp = *this;
+  --(*this);
+  return tmp;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>& ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator++() {
+  if (_removed) {
+    _removed = false;
+  } else if (Reverse) {
+    precond(!at_end());
+    _node = _node->prev();
+  } else {
+    precond(!at_end());
+    _node = _node->next();
+  }
+  return *this;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse> ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator++(int) {
+  IteratorImplementation tmp = *this;
+  ++(*this);
+  return tmp;
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+void ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::replace(ZIntrusiveRBTreeNode* new_node) {
+  precond(!_removed);
+  precond(!at_end());
+  FindCursor cursor = _tree->get_cursor(_node);
+  _node = new_node;
+  _tree->replace(new_node, cursor);
+}
+
+template<typename Key, typename Compare>
+template<bool IsConst, bool Reverse>
+template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+void ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::remove() {
+  precond(!_removed);
+  precond(!at_end());
+  FindCursor cursor = _tree->get_cursor(_node);
+  ++(*this);
+  _removed = true;
+  _tree->remove(cursor);
 }
 
 #endif // SHARE_GC_Z_ZINTRUSIVERBTREE_INLINE_HPP

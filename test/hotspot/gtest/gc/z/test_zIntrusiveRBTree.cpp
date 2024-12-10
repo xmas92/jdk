@@ -27,11 +27,12 @@
 #include "memory/arena.hpp"
 #include "nmt/memTag.hpp"
 #include "unittest.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-#include <ostream>
-
-//#ifndef PRODUCT
+#include <iterator>
+#include <limits>
+#include <random>
 
 struct ZTestEntryCompare {
   int operator()(const ZIntrusiveRBTreeNode* a, const ZIntrusiveRBTreeNode* b);
@@ -90,8 +91,8 @@ public:
   }
 };
 
-TEST_F(ZTreeTest, test_insert) {
-  constexpr size_t sizes[] = {1, 2, 4, 8, 16, 1024 NOT_DEBUG(COMMA 1024 * 1024)};
+TEST_F(ZTreeTest, test_random) {
+  constexpr size_t sizes[] = {1, 2, 4, 8, 16, 1024, 1024 * 1024};
   constexpr size_t num_sizes = ARRAY_SIZE(sizes);
   constexpr size_t iterations_multiplier = 4;
   constexpr size_t max_allocation_size = sizes[num_sizes - 1] * iterations_multiplier * sizeof(ZTestEntry);
@@ -99,9 +100,10 @@ TEST_F(ZTreeTest, test_insert) {
   for (size_t s : sizes) {
     ZTestEntry::ZTree tree;
     const size_t num_iterations = s * iterations_multiplier;
-    std::cout << "Runing a total of " << num_iterations <<
-                 " iteration on set [0, " << s << "[" << std::endl;
     for (size_t i = 0; i < num_iterations; i++) {
+      if (i % s == 0) {
+        tree.verify_tree();
+      }
       int id = rand() % s;
       auto cursor = tree.find(id);
       if (cursor.found()) {
@@ -124,11 +126,256 @@ TEST_F(ZTreeTest, test_insert) {
         tree.insert(ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(id)), cursor);
       }
     }
+    tree.verify_tree();
     arena.reset_arena();
   }
 }
 
-TEST_F(ZTreeTest, test_remove) {
+static void reverse_array(ZTestEntry** beg, ZTestEntry** end) {
+  if (beg == end) {
+    return;
+  }
+
+  ZTestEntry** first = beg;
+  ZTestEntry** last = end - 1;
+  while (first < last) {
+    ::swap(*first, *last);
+    first++;
+    last--;
+  }
 }
 
-//#endif // PRODUCT
+static void shuffle_array(ZTestEntry** beg, ZTestEntry** end) {
+  if (beg == end) {
+    return;
+  }
+
+  std::random_device rd;
+  std::mt19937 g(rd());
+  using distribution_t = std::uniform_int_distribution<size_t>;
+  distribution_t d;
+
+  for (ZTestEntry** first = beg + 1; first != end; first++) {
+    distribution_t::param_type span(0, std::distance(beg, first));
+    ::swap(*first, *(beg + d(g, span)));
+  }
+}
+
+TEST_F(ZTreeTest, test_insert) {
+  Arena arena(MemTag::mtTest);
+  constexpr size_t num_entries = 1024;
+  ZTestEntry* forward[num_entries]{};
+  ZTestEntry* reverse[num_entries]{};
+  ZTestEntry* shuffle[num_entries]{};
+  for (size_t i = 0; i < num_entries; i++) {
+    const int id = static_cast<int>(i);
+    forward[i] = new (&arena) ZTestEntry(id);
+    reverse[i] = new (&arena) ZTestEntry(id);
+    shuffle[i] = new (&arena) ZTestEntry(id);
+  }
+  reverse_array(reverse, reverse + num_entries);
+  shuffle_array(shuffle, shuffle + num_entries);
+
+  ZTestEntry::ZTree forward_tree;
+  auto cursor = forward_tree.root_cursor();
+  for (size_t i = 0; i < num_entries; i++) {
+    ASSERT_TRUE(cursor.is_valid());
+    ASSERT_FALSE(cursor.found());
+    ZIntrusiveRBTreeNode* const new_node = ZTestEntry::cast_to_inner(forward[i]);
+    forward_tree.insert(new_node, cursor);
+    cursor = forward_tree.next_cursor(new_node);
+  }
+  forward_tree.verify_tree();
+
+  ZTestEntry::ZTree reverse_tree;
+  cursor = reverse_tree.root_cursor();
+  for (size_t i = 0; i < num_entries; i++) {
+    ASSERT_TRUE(cursor.is_valid());
+    ASSERT_FALSE(cursor.found());
+    ZIntrusiveRBTreeNode* const new_node = ZTestEntry::cast_to_inner(reverse[i]);
+    reverse_tree.insert(new_node, cursor);
+    cursor = reverse_tree.prev_cursor(new_node);
+  }
+  reverse_tree.verify_tree();
+
+  ZTestEntry::ZTree shuffle_tree;
+  for (size_t i = 0; i < num_entries; i++) {
+    cursor = shuffle_tree.find(reverse[i]->id());
+    ASSERT_TRUE(cursor.is_valid());
+    ASSERT_FALSE(cursor.found());
+    ZIntrusiveRBTreeNode* const new_node = ZTestEntry::cast_to_inner(reverse[i]);
+    shuffle_tree.insert(new_node, cursor);
+  }
+  shuffle_tree.verify_tree();
+
+  ZTestEntryCompare compare_fn;
+  const ZIntrusiveRBTreeNode* forward_node = forward_tree.first();
+  const ZIntrusiveRBTreeNode* reverse_node = reverse_tree.first();
+  const ZIntrusiveRBTreeNode* shuffle_node = shuffle_tree.first();
+  size_t count = 0;
+  while (true) {
+    count++;
+    ASSERT_EQ(compare_fn(forward_node, reverse_node), 0);
+    ASSERT_EQ(compare_fn(forward_node, shuffle_node), 0);
+    ASSERT_EQ(compare_fn(reverse_node, shuffle_node), 0);
+    const ZIntrusiveRBTreeNode* forward_next_node = forward_node->next();
+    const ZIntrusiveRBTreeNode* reverse_next_node = reverse_node->next();
+    const ZIntrusiveRBTreeNode* shuffle_next_node = shuffle_node->next();
+    if (forward_next_node == nullptr) {
+      ASSERT_EQ(forward_next_node, reverse_next_node);
+      ASSERT_EQ(forward_next_node, shuffle_next_node);
+      ASSERT_EQ(forward_node, forward_tree.last());
+      ASSERT_EQ(reverse_node, reverse_tree.last());
+      ASSERT_EQ(shuffle_node, shuffle_tree.last());
+      break;
+    }
+    ASSERT_LT(compare_fn(forward_node, forward_next_node), 0);
+    ASSERT_LT(compare_fn(reverse_node, reverse_next_node), 0);
+    ASSERT_LT(compare_fn(shuffle_node, shuffle_next_node), 0);
+    forward_node = forward_next_node;
+    reverse_node = reverse_next_node;
+    shuffle_node = shuffle_next_node;
+  }
+  ASSERT_EQ(count, num_entries);
+}
+
+TEST_F(ZTreeTest, test_replace) {
+  Arena arena(MemTag::mtTest);
+  constexpr size_t num_entries = 1024;
+  ZTestEntry::ZTree tree;
+  auto cursor = tree.root_cursor();
+  for (size_t i = 0; i < num_entries; i++) {
+    ASSERT_TRUE(cursor.is_valid());
+    ASSERT_FALSE(cursor.found());
+    const int id = static_cast<int>(i) * 2 + 1;
+    ZIntrusiveRBTreeNode* const new_node = ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(id));
+    tree.insert(new_node, cursor);
+    cursor = tree.next_cursor(new_node);
+  }
+  tree.verify_tree();
+
+  size_t i = 0;
+  for (auto it = tree.begin(), end = tree.end(); it != end; ++it) {
+    auto& node = *it;
+    if (i % (num_entries / 4)) {
+      tree.verify_tree();
+    }
+    switch (i++ % 4) {
+      case 0: {
+        // Decrement
+        ZTestEntry* new_entry = new (&arena) ZTestEntry(ZTestEntry::cast_to_outer(&node)->id() - 1);
+        it.replace(ZTestEntry::cast_to_inner(new_entry));
+      } break;
+      case 1: break;
+      case 2: {
+        // Increment
+        ZTestEntry* new_entry = new (&arena) ZTestEntry(ZTestEntry::cast_to_outer(&node)->id() + 1);
+        it.replace(ZTestEntry::cast_to_inner(new_entry));
+      } break;
+      case 3: break;
+      default:
+        ShouldNotReachHere();
+    }
+  }
+  tree.verify_tree();
+
+  int last_id = std::numeric_limits<int>::min();
+  for (auto& node : tree) {
+    int id = ZTestEntry::cast_to_outer(&node)->id();
+    ASSERT_LT(last_id, id);
+    last_id = id;
+  }
+  tree.verify_tree();
+
+  last_id = std::numeric_limits<int>::min();
+  for (auto it = tree.begin(), end = tree.end(); it != end; ++it) {
+    int id = ZTestEntry::cast_to_outer(&*it)->id();
+    ASSERT_LT(last_id, id);
+    last_id = id;
+  }
+  tree.verify_tree();
+
+  last_id = std::numeric_limits<int>::min();
+  for (auto it = tree.cbegin(), end = tree.cend(); it != end; ++it) {
+    int id = ZTestEntry::cast_to_outer(&*it)->id();
+    ASSERT_LT(last_id, id);
+    last_id = id;
+  }
+  tree.verify_tree();
+
+  last_id = std::numeric_limits<int>::max();
+  for (auto it = tree.rbegin(), end = tree.rend(); it != end; ++it) {
+    int id = ZTestEntry::cast_to_outer(&*it)->id();
+    ASSERT_GT(last_id, id);
+    last_id = id;
+  }
+  tree.verify_tree();
+
+  last_id = std::numeric_limits<int>::max();
+  for (auto it = tree.crbegin(), end = tree.crend(); it != end; ++it) {
+    int id = ZTestEntry::cast_to_outer(&*it)->id();
+    ASSERT_GT(last_id, id);
+    last_id = id;
+  }
+  tree.verify_tree();
+}
+
+TEST_F(ZTreeTest, test_remove) {
+  Arena arena(MemTag::mtTest);
+  constexpr int num_entries = 1024;
+  ZTestEntry::ZTree tree;
+  int id = 0;
+  tree.insert(ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(++id)), tree.root_cursor());
+  for (auto& node : tree) {
+    if (ZTestEntry::cast_to_outer(&node)->id() == num_entries) {
+      break;
+    }
+    auto cursor = tree.next_cursor(&node);
+    ZIntrusiveRBTreeNode* const new_node = ZTestEntry::cast_to_inner(new (&arena) ZTestEntry(++id));
+    tree.insert(new_node, cursor);
+  }
+  tree.verify_tree();
+  ASSERT_EQ(ZTestEntry::cast_to_outer(tree.last())->id(), num_entries);
+
+  int i = 0;
+  int removed = 0;
+  for (auto it = tree.begin(), end = tree.end(); it != end; ++it) {
+    if (i++ % 2 == 0) {
+      it.remove();
+      ++removed;
+    }
+  }
+  tree.verify_tree();
+
+  int count = 0;
+  for (auto it = tree.cbegin(), end = tree.cend(); it != end; ++it) {
+    ++count;
+  }
+  ASSERT_EQ(count, num_entries - removed);
+  tree.verify_tree();
+
+  for (auto it = tree.rbegin(), end = tree.rend(); it != end; ++it) {
+    if (i++ % 2 == 0) {
+      it.remove();
+      ++removed;
+    }
+  }
+  tree.verify_tree();
+
+  count = 0;
+  for (auto it = tree.cbegin(), end = tree.cend(); it != end; ++it) {
+    ++count;
+  }
+  ASSERT_EQ(count, num_entries - removed);
+  tree.verify_tree();
+
+  for (auto it = tree.begin(), end = tree.end(); it != end; ++it) {
+    it.remove();
+    removed++;
+  }
+  tree.verify_tree();
+
+  ASSERT_EQ(removed, num_entries);
+  ASSERT_EQ(tree.last(), nullptr);
+  ASSERT_EQ(tree.first(), nullptr);
+}

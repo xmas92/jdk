@@ -83,7 +83,7 @@ static void* entry_address_for_zoffset_end(zoffset_end offset) {
                                            static_cast<size_t>(sizeof(ZMappedCacheEntry) % ZCacheLineSize != 0);
   // Do not use the last location
   constexpr size_t number_of_locations = cache_lines_per_z_granule / cache_lines_per_entry - 1;
-  const size_t index = untype(offset) % number_of_locations;
+  const size_t index = (untype(offset) >> ZGranuleSizeShift) % number_of_locations;
   const uintptr_t end_addr = untype(offset) + ZAddressHeapBase;
   return reinterpret_cast<void*>(end_addr - (cache_lines_per_entry * ZCacheLineSize) * (index + 1));
 }

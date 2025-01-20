@@ -34,6 +34,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
 #include "gc/z/zIterator.inline.hpp"
+#include "gc/z/zLock.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocate.hpp"
@@ -1166,30 +1167,351 @@ static void remap_and_maybe_add_remset(volatile zpointer* p) {
   ZRelocate::add_remset(p);
 }
 
+class ZPartialArraySynchronizer : public CHeapObj<mtGC> {
+  friend class ZLocker<ZPartialArraySynchronizer>;
+
+private:
+  DEBUG_ONLY(static THREAD_LOCAL bool _locked;)
+
+  ZConditionLock _lock;
+  volatile uint _waiters;
+  uint _num_workers;
+
+  void lock() {
+    _lock.lock();
+    DEBUG_ONLY(_locked = true;)
+  }
+
+  void unlock() {
+    DEBUG_ONLY(_locked = false;)
+    _lock.unlock();
+  }
+
+public:
+  ZPartialArraySynchronizer(uint num_workers)
+    : _lock(),
+      _waiters(0),
+      _num_workers(num_workers) {}
+
+  void reset(uint num_workers) {
+    assert(Atomic::load(&_waiters) == _num_workers, "all must have synchronized");
+    Atomic::store(&_waiters, 0u);
+    _num_workers = num_workers;
+  }
+
+  uint num_workers() const {
+    return _num_workers;
+  }
+
+  bool has_waiters() const {
+    return Atomic::load(&_waiters) > 0;
+  }
+
+  bool wait() {
+    assert(_locked, "must be locked");
+    if (Atomic::add(&_waiters, 1u) != _num_workers) {
+      SuspendibleThreadSetLeaver sts_leaver;
+      _lock.wait();
+      return Atomic::load(&_waiters) == _num_workers;
+    }
+
+    // All workers are synchronized.
+    _lock.notify_all();
+    return true;
+  }
+
+  void notify_if_waiting() {
+    assert(!_locked, "must be locked");
+    if (Atomic::load(&_waiters) > 0) {
+      ZLocker<ZPartialArraySynchronizer> locker(this);
+      if (Atomic::load(&_waiters) > 0) {
+        Atomic::store(&_waiters, 0u);
+        _lock.notify_all();
+      }
+    }
+  }
+};
+
+DEBUG_ONLY(THREAD_LOCAL bool ZPartialArraySynchronizer::_locked = false;)
+
+class ZPartialArrayEntry : public CHeapObj<mtGC> {
+public:
+  static constexpr size_t DistributeSizeGranularityShift = ZGranuleSizeShift;
+  static constexpr size_t DistributeSizeGranularity = 1 << ZGranuleSizeShift;
+  static constexpr size_t DistributeLengthGranularity = DistributeSizeGranularity / sizeof(zpointer);
+
+private:
+  typedef ZBitField<uint64_t, bool,      0,  2>  unused;
+  typedef ZBitField<uint64_t, size_t,    2,  30> length;
+  // TODO: Replace with MaxZAddressOffsetBits - DistributeSizeGranularityShift
+  typedef ZBitField<uint64_t, zoffset, 32, 32, DistributeSizeGranularityShift> offset;
+
+  static const uint64_t EMPTY = 0b0;
+
+  ZCACHE_ALIGNED volatile uint64_t _entry;
+  ZCACHE_ALIGNED ZPartialArraySynchronizer _sync;
+
+  static uint64_t encode_entry(volatile zpointer* addr, size_t length) {
+    assert(length > 0, "must be");
+    const zoffset offset = ZAddress::offset(to_zaddress((uintptr_t)addr));
+    return offset::encode(offset) | length::encode(length);
+  }
+
+  static void decode_entry(uint64_t entry, volatile zpointer** addr, size_t* length) {
+    const zoffset offset = offset::decode(entry);
+    *addr = (zpointer*)ZOffset::address(offset);
+    *length = length::decode(entry);
+  }
+
+public:
+  ZPartialArrayEntry(uint num_workers) : _entry(EMPTY), _sync(num_workers) {}
+
+  DEBUG_ONLY(~ZPartialArrayEntry() {
+    assert(_entry == EMPTY, "still work left");
+  })
+
+  void reset(uint num_workers) {
+    assert(_entry == EMPTY, "still work left");
+    _sync.reset(num_workers);
+  }
+
+  bool steal(volatile zpointer** addr, size_t* length) {
+    uint64_t entry = Atomic::load(&_entry);
+    while (entry != EMPTY) {
+      decode_entry(entry, addr, length);
+
+      const uint64_t old_entry = entry;
+      const size_t steal_length = align_up(*length / _sync.num_workers(), DistributeLengthGranularity);
+
+      if (steal_length >= *length || steal_length == 0) {
+        // Steal everything
+        entry = Atomic::cmpxchg(&_entry, entry, EMPTY, memory_order_relaxed);
+        if (entry == old_entry) {
+          // Success
+          return true;
+        }
+      } else {
+        // Steal partial
+        uint64_t new_entry = encode_entry(*addr + steal_length, *length - steal_length);
+        entry = Atomic::cmpxchg(&_entry, entry, new_entry, memory_order_relaxed);
+        if (entry == old_entry) {
+          // Success
+          *length = steal_length;
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  bool wait(volatile zpointer** addr, size_t* length) {
+    ZLocker<ZPartialArraySynchronizer> locker(&_sync);
+    uint64_t entry = Atomic::load(&_entry);
+    while (!steal(addr, length)) {
+      if (_sync.wait()) {
+        // All workers synchronized, no more work.
+        return false;
+      }
+    }
+
+    // Stole more work
+    return true;
+  }
+
+  template<bool ONLY_IF_WAITING>
+  bool try_enqueue(volatile zpointer* addr, size_t length) {
+    if (_sync.num_workers() == 1) {
+      // Only one worker.
+      return false;
+    }
+
+    if (ONLY_IF_WAITING && !_sync.has_waiters()) {
+      // No waiters;
+      return false;
+    }
+
+    uint64_t new_entry = encode_entry(addr, length);
+    uint64_t entry = Atomic::load(&_entry);
+    while (entry == EMPTY) {
+      entry = Atomic::cmpxchg(&_entry, EMPTY, new_entry, memory_order_relaxed);
+      if (entry == EMPTY) {
+        // Successfully added more work
+        _sync.notify_if_waiting();
+        return true;
+      }
+    }
+    // Failed
+    return false;
+  }
+};
+
+class ZObjectArrayWorkDistributor {
+private:
+  ZPartialArrayEntry _entry;
+
+  template <typename Function>
+  void work_partial_array(volatile zpointer* addr, size_t length, Function function) const {
+    for (size_t i = 0; i < length; ++i) {
+      function(&addr[i]);
+    }
+  }
+
+  template <bool ONLY_IF_WAITING, typename Function>
+  void distribute_implementation(volatile zpointer* addr, size_t length, Function function) {
+    volatile zpointer* const end = addr + length;
+    volatile zpointer* next_addr = addr;
+    do {
+      const size_t remaining_length = end - next_addr;
+      if (remaining_length > ZPartialArrayEntry::DistributeLengthGranularity) {
+        const size_t push_length = remaining_length - ZPartialArrayEntry::DistributeLengthGranularity;
+        if (_entry.try_enqueue<ONLY_IF_WAITING>(next_addr, push_length)) {
+          log_trace(gc, array)("PU [%02u]: { " PTR_FORMAT "-" PTR_FORMAT ", (%zu) }",
+                              WorkerThread::worker_id(), p2i(next_addr), p2i(next_addr + push_length), push_length);
+          // Distributed some of the work.
+          next_addr += push_length;
+        }
+      }
+      const size_t partial_length = MIN2(ZPartialArrayEntry::DistributeLengthGranularity, remaining_length);
+      work_partial_array(next_addr, partial_length, function);
+      next_addr += partial_length;
+      SuspendibleThreadSet::yield();
+    } while (next_addr < end);
+  }
+
+  template <typename Function>
+  void distribute_aligned(volatile zpointer* addr, size_t length, Function function) {
+    log_trace(gc, array)("DA [%02u]: { " PTR_FORMAT "-" PTR_FORMAT ", (%zu) }",
+                         WorkerThread::worker_id(), p2i(addr), p2i(addr + length), length);
+    distribute_implementation<false /* ONLY_IF_WAITING*/>(addr, length, function);
+  }
+
+  template <typename Function>
+  void distribute_stolen(volatile zpointer* addr, size_t length, Function function) {
+    log_trace(gc, array)("DS [%02u]: { " PTR_FORMAT "-" PTR_FORMAT ", (%zu) }",
+                         WorkerThread::worker_id(), p2i(addr), p2i(addr + length), length);
+    distribute_implementation<true /* ONLY_IF_WAITING*/>(addr, length, function);
+  }
+
+public:
+  ZObjectArrayWorkDistributor(uint num_workers)
+    : _entry(num_workers) {}
+
+  void resize_workers(uint num_workers) {
+    _entry.reset(num_workers);
+  }
+
+  template <typename Function>
+  void distribute(objArrayOop obj, Function function) {
+    volatile zpointer* const base = reinterpret_cast<volatile zpointer*>(obj->base());
+    const size_t length = obj->length();
+    if (length <= 2 * ZPartialArrayEntry::DistributeLengthGranularity) {
+      // Nothing to distribute
+      work_partial_array(base, length, function);
+      return;
+    }
+    log_trace(gc, array)("DD [%02u]: { " PTR_FORMAT "-" PTR_FORMAT ", (%zu) }",
+                         WorkerThread::worker_id(), p2i(base), p2i(base + length), length);
+
+    // Split out prologue
+    volatile zpointer* const prologue_start = base;
+    volatile zpointer* const prologue_end = align_up(prologue_start, ZPartialArrayEntry::DistributeSizeGranularity);
+    const size_t prologue_length = prologue_end - prologue_start;
+
+    // Split out epilogue
+    volatile zpointer* const epilogue_end = base + length;
+    volatile zpointer* const epilogue_start = align_down(epilogue_end, ZPartialArrayEntry::DistributeSizeGranularity);
+    const size_t epilogue_length = epilogue_end - epilogue_start;
+
+    // Distribute middle
+    volatile zpointer* const middle_start = prologue_end;
+    const size_t middle_size = epilogue_start - prologue_end;
+    distribute_aligned(middle_start, middle_size, function);
+
+    // Do prologue and epilogue work
+    work_partial_array(prologue_start, prologue_length, function);
+    SuspendibleThreadSet::yield();
+    work_partial_array(epilogue_start, epilogue_length, function);
+  }
+
+  template <typename Function>
+  void drain(Function function) {
+    volatile zpointer* addr;
+    size_t length;
+    while (_entry.steal(&addr, &length)) {
+      distribute_stolen(addr, length, function);
+      SuspendibleThreadSet::yield();
+    }
+  }
+
+  template <typename Function>
+  void finish(Function function) {
+    volatile zpointer* addr;
+    size_t length;
+    while (_entry.wait(&addr, &length)) {
+      distribute_stolen(addr, length, function);
+      SuspendibleThreadSet::yield();
+    }
+  }
+
+};
+
 class ZRelocateAddRemsetForFlipPromoted : public ZRestartableTask {
 private:
   ZStatTimerYoung                _timer;
   ZArrayParallelIterator<ZPage*> _iter;
+  ZObjectArrayWorkDistributor    _work_distributor;
+
+  void do_objArray_work(objArrayOop obj) {
+    _work_distributor.distribute(obj, remap_and_maybe_add_remset);
+  }
+
+  void do_oop_promotion(oop obj) {
+    Klass* const klass = obj->klass();
+    if (!klass->is_objArray_klass()) {
+      // Iterate over object normally
+      ZIterator::basic_oop_iterate(obj, remap_and_maybe_add_remset);
+      return;
+    }
+
+    if (ZIterator::is_invisible_object(obj)) {
+      // Skip invisible arrays
+      return;
+    }
+
+    do_objArray_work(cast_from_oop<objArrayOop>(obj));
+  }
 
 public:
   ZRelocateAddRemsetForFlipPromoted(ZArray<ZPage*>* pages)
     : ZRestartableTask("ZRelocateAddRemsetForFlipPromoted"),
       _timer(ZSubPhaseConcurrentRelocateRememberedSetFlipPromotedYoung),
-      _iter(pages) {}
+      _iter(pages),
+      _work_distributor(ZGeneration::young()->active_workers()) {}
+
+  virtual void resize_workers(uint nworkers) final {
+    _work_distributor.resize_workers(nworkers);
+  };
 
   virtual void work() {
     SuspendibleThreadSetJoiner sts_joiner;
 
     for (ZPage* page; _iter.next(&page);) {
       page->object_iterate([&](oop obj) {
-        ZIterator::basic_oop_iterate_safe(obj, remap_and_maybe_add_remset);
+        do_oop_promotion(obj);
       });
+
+      // Drain any distributed work
+      _work_distributor.drain(remap_and_maybe_add_remset);
 
       SuspendibleThreadSet::yield();
       if (ZGeneration::young()->should_worker_resize()) {
-        return;
+        break;
       }
     }
+
+    // Synchronize and drain distributed work
+    _work_distributor.finish(remap_and_maybe_add_remset);
   }
 };
 
@@ -1229,11 +1551,33 @@ ZPageAge ZRelocate::compute_to_age(ZPageAge from_age) {
 class ZFlipAgePagesTask : public ZTask {
 private:
   ZArrayParallelIterator<ZPage*> _iter;
+  ZObjectArrayWorkDistributor    _work_distributor;
+
+  void do_objArray_work(objArrayOop obj) {
+    _work_distributor.distribute(obj, ZBarrier::promote_barrier_on_young_oop_field);
+  }
+
+  void do_oop_promotion(oop obj) {
+    Klass* const klass = obj->klass();
+    if (!klass->is_objArray_klass()) {
+      // Iterate over object normally
+      ZIterator::basic_oop_iterate(obj, ZBarrier::promote_barrier_on_young_oop_field);
+      return;
+    }
+
+    if (ZIterator::is_invisible_object(obj)) {
+      // Skip invisible arrays
+      return;
+    }
+
+    do_objArray_work(cast_from_oop<objArrayOop>(obj));
+  }
 
 public:
   ZFlipAgePagesTask(const ZArray<ZPage*>* pages)
     : ZTask("ZPromotePagesTask"),
-      _iter(pages) {}
+      _iter(pages),
+      _work_distributor(ZGeneration::young()->active_workers()) {}
 
   virtual void work() {
     SuspendibleThreadSetJoiner sts_joiner;
@@ -1252,10 +1596,11 @@ public:
         // contained zpointers are store good. The marking code ensures that for non-null
         // pointers, but null pointers are ignored. This code ensures that even null pointers
         // are made store good, for the promoted objects.
-        prev_page->object_iterate([&](oop obj) {
-          ZIterator::basic_oop_iterate_safe(obj, ZBarrier::promote_barrier_on_young_oop_field);
-        });
+        prev_page->object_iterate([&](oop obj) { do_oop_promotion(obj); });
       }
+
+      // Drain any distributed work
+      _work_distributor.drain(ZBarrier::promote_barrier_on_young_oop_field);
 
       // Logging
       prev_page->log_msg(promotion ? " (flip promoted)" : " (flip survived)");
@@ -1280,6 +1625,9 @@ public:
     }
 
     ZGeneration::young()->register_flip_promoted(promoted_pages);
+
+    // Synchronize and drain distributed work
+    _work_distributor.finish(ZBarrier::promote_barrier_on_young_oop_field);
   }
 };
 

@@ -28,11 +28,10 @@
 #include "memory/iterator.hpp"
 
 class ZIterator : AllStatic {
-private:
+public:
   static bool is_invisible_object(oop obj);
   static bool is_invisible_object_array(oop obj);
 
-public:
   // This iterator skips invisible roots
   template <typename OopClosureT>
   static void oop_iterate_safe(oop obj, OopClosureT* cl);

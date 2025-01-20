@@ -32,7 +32,8 @@
 
 ZMarkStripe::ZMarkStripe(uintptr_t base)
   : _published(base),
-    _overflowed(base) {}
+    _overflowed(base),
+    _partial_arrays(base) {}
 
 ZMarkStripeSet::ZMarkStripeSet(uintptr_t base)
   : _nstripes_mask(0),

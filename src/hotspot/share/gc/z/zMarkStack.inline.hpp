@@ -168,6 +168,15 @@ inline bool ZMarkStripe::is_empty() const {
   return _published.is_empty() && _overflowed.is_empty();
 }
 
+inline bool ZMarkStripe::has_partial_arrays() const {
+  return !_partial_arrays.is_empty();
+}
+
+inline void ZMarkStripe::publish_array_stack(ZMarkStack* stack, ZMarkTerminate* terminate) {
+  _partial_arrays.push(stack);
+  terminate->wake_up();
+}
+
 inline void ZMarkStripe::publish_stack(ZMarkStack* stack, ZMarkTerminate* terminate, bool publish) {
   // A stack is published either on the published list or the overflowed
   // list. The published list is used by mutators publishing stacks for GC
@@ -185,6 +194,12 @@ inline void ZMarkStripe::publish_stack(ZMarkStack* stack, ZMarkTerminate* termin
 }
 
 inline ZMarkStack* ZMarkStripe::steal_stack() {
+  // Steal partial array stacks before anything else
+  ZMarkStack* const partial_array_stack = _partial_arrays.pop();
+  if (partial_array_stack != nullptr) {
+    return partial_array_stack;
+  }
+
   // Steal overflowed stacks first, then published stacks
   ZMarkStack* const stack = _overflowed.pop();
   if (stack != nullptr) {

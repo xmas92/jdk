@@ -67,7 +67,6 @@ private:
 
   bool is_old_mark() const;
   bool stored_during_old_mark() const;
-  bool is_empty() const;
   size_t current() const;
 
   void install_base_pointers_inner();

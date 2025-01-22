@@ -132,17 +132,6 @@ inline BitMap::idx_t ZLiveMap::segment_end(BitMap::idx_t segment) const {
   return segment_start(segment) + segment_size();
 }
 
-inline size_t ZLiveMap::do_object(ObjectClosure* cl, zaddress addr) const {
-  // Get the size of the object before calling the closure, which
-  // might overwrite the object in case we are relocating in-place.
-  const size_t size = ZUtils::object_size(addr);
-
-  // Apply closure
-  cl->do_object(to_oop(addr));
-
-  return size;
-}
-
 template <typename Function>
 inline void ZLiveMap::iterate_segment(BitMap::idx_t segment, Function function) {
   assert(is_segment_live(segment), "Must be");

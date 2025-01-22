@@ -119,8 +119,6 @@ public:
   bool at_current(uintptr_t offset) const;
   bool at_previous(uintptr_t offset) const;
   bool set_current(uintptr_t offset);
-  void unset_non_par_current(uintptr_t offset);
-  void unset_range_non_par_current(uintptr_t offset, size_t size);
 
   // Visit all set offsets.
   template <typename Function /* void(uintptr_t offset) */>

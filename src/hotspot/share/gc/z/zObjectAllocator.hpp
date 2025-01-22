@@ -78,8 +78,6 @@ public:
 
   ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
 
-  ZPageAge age() const;
-
   size_t used() const;
   size_t remaining() const;
 

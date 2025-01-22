@@ -107,10 +107,6 @@ inline ZStatRelocation* ZGeneration::stat_relocation() {
   return &_stat_relocation;
 }
 
-inline ZPageTable* ZGeneration::page_table() const {
-  return _page_table;
-}
-
 inline const ZForwardingTable* ZGeneration::forwarding_table() const {
   return &_forwarding_table;
 }

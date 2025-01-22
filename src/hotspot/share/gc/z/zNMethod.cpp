@@ -224,11 +224,6 @@ void ZNMethod::purge_nmethod(nmethod* nm) {
   delete gc_data(nm);
 }
 
-bool ZNMethod::supports_entry_barrier(nmethod* nm) {
-  BarrierSetNMethod* const bs = BarrierSet::barrier_set()->barrier_set_nmethod();
-  return bs->supports_entry_barrier(nm);
-}
-
 bool ZNMethod::is_armed(nmethod* nm) {
   BarrierSetNMethod* const bs = BarrierSet::barrier_set()->barrier_set_nmethod();
   return bs->is_armed(nm);

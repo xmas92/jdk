@@ -73,17 +73,6 @@ inline bool ZRememberedSet::set_current(uintptr_t offset) {
   return current()->par_set_bit(index, memory_order_relaxed);
 }
 
-inline void ZRememberedSet::unset_non_par_current(uintptr_t offset) {
-  const BitMap::idx_t index = to_index(offset);
-  current()->clear_bit(index);
-}
-
-inline void ZRememberedSet::unset_range_non_par_current(uintptr_t offset, size_t size) {
-  const BitMap::idx_t start_index = to_index(offset);
-  const BitMap::idx_t end_index = to_index(offset + size);
-  current()->clear_range(start_index, end_index);
-}
-
 template <typename Function>
 void ZRememberedSet::iterate_bitmap(Function function, CHeapBitMap* bitmap) {
   bitmap->iterate([&](BitMap::idx_t index) {

@@ -290,7 +290,6 @@ public:
   static zpointer mark_old_good(zaddress addr, zpointer prev);
   static zpointer mark_young_good(zaddress addr, zpointer prev);
   static zpointer store_good(zaddress addr);
-  static zpointer store_good_or_null(zaddress addr);
 };
 
 class ZGlobalsPointers : public AllStatic {

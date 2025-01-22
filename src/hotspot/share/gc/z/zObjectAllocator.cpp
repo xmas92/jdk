@@ -225,10 +225,6 @@ void ZObjectAllocator::undo_alloc_object_for_relocation(zaddress addr, size_t si
   }
 }
 
-ZPageAge ZObjectAllocator::age() const {
-  return _age;
-}
-
 size_t ZObjectAllocator::used() const {
   size_t total_used = 0;
   size_t total_undone = 0;

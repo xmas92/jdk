@@ -53,7 +53,7 @@ inline ZStoreBarrierBuffer* ZStoreBarrierBuffer::buffer_for_store(bool heal) {
     return nullptr;
   }
 
-  ZStoreBarrierBuffer* const buffer = ZThreadLocalData::store_barrier_buffer(JavaThread::cast(thread));
+  ZStoreBarrierBuffer* const buffer = ZThreadLocalData::store_barrier_buffer(thread);
   return ZBufferStoreBarriers ? buffer : nullptr;
 }
 

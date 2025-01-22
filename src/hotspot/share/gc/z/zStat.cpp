@@ -486,28 +486,6 @@ void ZStatCounter::sample_and_reset() const {
 }
 
 //
-// Stat unsampled counter
-//
-ZStatUnsampledCounter::ZStatUnsampledCounter(const char* name)
-  : ZStatIterableValue<ZStatUnsampledCounter>("Unsampled", name, sizeof(ZStatCounterData)) {}
-
-ZStatCounterData* ZStatUnsampledCounter::get() const {
-  return get_cpu_local<ZStatCounterData>(ZCPU::id());
-}
-
-ZStatCounterData ZStatUnsampledCounter::collect_and_reset() const {
-  ZStatCounterData all;
-
-  const uint32_t ncpus = ZCPU::count();
-  for (uint32_t i = 0; i < ncpus; i++) {
-    ZStatCounterData* const cpu_data = get_cpu_local<ZStatCounterData>(i);
-    all._counter += Atomic::xchg(&cpu_data->_counter, (uint64_t)0);
-  }
-
-  return all;
-}
-
-//
 // Stat MMU (Minimum Mutator Utilization)
 //
 ZStatMMUPause::ZStatMMUPause()
@@ -924,11 +902,6 @@ void ZStatInc(const ZStatCounter& counter, uint64_t increment) {
   const uint64_t value = Atomic::add(&cpu_data->_counter, increment);
 
   ZTracer::report_stat_counter(counter, increment, value);
-}
-
-void ZStatInc(const ZStatUnsampledCounter& counter, uint64_t increment) {
-  ZStatCounterData* const cpu_data = counter.get();
-  Atomic::add(&cpu_data->_counter, increment);
 }
 
 //
@@ -1374,10 +1347,6 @@ double ZStatWorkers::accumulated_duration() {
     duration += now - start;
   }
   return duration.seconds();
-}
-
-uint ZStatWorkers::active_workers() {
-  return _active_workers;
 }
 
 double ZStatWorkers::get_and_reset_duration() {

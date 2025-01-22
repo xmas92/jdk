@@ -65,10 +65,6 @@ void ZStoreBarrierBuffer::clear() {
   _current = BufferSizeBytes;
 }
 
-bool ZStoreBarrierBuffer::is_empty() const {
-  return _current == BufferSizeBytes;
-}
-
 void ZStoreBarrierBuffer::install_base_pointers_inner() {
   assert(ZPointer::remap_bits(_last_installed_color) ==
          ZPointer::remap_bits(_last_processed_color),

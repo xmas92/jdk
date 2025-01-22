@@ -139,10 +139,6 @@ ZWorkers* ZGeneration::workers() {
   return &_workers;
 }
 
-uint ZGeneration::active_workers() const {
-  return _workers.active_workers();
-}
-
 void ZGeneration::set_active_workers(uint nworkers) {
   _workers.set_active_workers(nworkers);
 }
@@ -261,10 +257,6 @@ void ZGeneration::select_relocation_set(ZGenerationId generation, bool promote_a
   // Update statistics
   stat_relocation()->at_select_relocation_set(selector.stats());
   stat_heap()->at_select_relocation_set(selector.stats());
-}
-
-ZRelocationSetParallelIterator ZGeneration::relocation_set_parallel_iterator() {
-  return ZRelocationSetParallelIterator(&_relocation_set);
 }
 
 void ZGeneration::reset_relocation_set() {

@@ -87,7 +87,6 @@ protected:
 
   void free_empty_pages(ZRelocationSetSelector* selector, int bulk);
   void flip_age_pages(const ZRelocationSetSelector* selector);
-  void flip_age_pages(const ZArray<ZPage*>* pages);
 
   void mark_free();
 
@@ -144,17 +143,13 @@ public:
 
   // Workers
   ZWorkers* workers();
-  uint active_workers() const;
   void set_active_workers(uint nworkers);
 
   // Worker resizing
   bool should_worker_resize();
 
-  ZPageTable* page_table() const;
   const ZForwardingTable* forwarding_table() const;
   ZForwarding* forwarding(zaddress_unsafe addr) const;
-
-  ZRelocationSetParallelIterator relocation_set_parallel_iterator();
 
   // Marking
   template <bool resurrect, bool gc_thread, bool follow, bool finalizable>
@@ -246,7 +241,6 @@ public:
 
   // Add remembered set entries
   void remember(volatile zpointer* p);
-  void remember_fields(zaddress addr);
 
   // Scan a remembered set entry
   void scan_remembered_field(volatile zpointer* p);

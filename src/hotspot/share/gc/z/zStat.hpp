@@ -158,17 +158,6 @@ public:
 };
 
 //
-// Stat unsampled counter
-//
-class ZStatUnsampledCounter : public ZStatIterableValue<ZStatUnsampledCounter> {
-public:
-  ZStatUnsampledCounter(const char* name);
-
-  ZStatCounterData* get() const;
-  ZStatCounterData collect_and_reset() const;
-};
-
-//
 // Stat MMU (Minimum Mutator Utilization)
 //
 class ZStatMMUPause {
@@ -347,7 +336,6 @@ public:
 void ZStatSample(const ZStatSampler& sampler, uint64_t value);
 void ZStatDurationSample(const ZStatSampler& sampler, const Tickspan& duration);
 void ZStatInc(const ZStatCounter& counter, uint64_t increment = 1);
-void ZStatInc(const ZStatUnsampledCounter& counter, uint64_t increment = 1);
 
 struct ZStatMutatorAllocRateStats {
   double _avg;
@@ -371,7 +359,6 @@ private:
   static void update_sampling_granule();
 
 public:
-  static const ZStatUnsampledCounter& counter();
   static void sample_allocation(size_t allocation_bytes);
 
   static void initialize();
@@ -464,7 +451,6 @@ private:
 
   double accumulated_duration();
   double accumulated_time();
-  uint active_workers();
 
 public:
   ZStatWorkers();
@@ -531,10 +517,6 @@ private:
   size_t                      _small_in_place_count;
   size_t                      _medium_selected;
   size_t                      _medium_in_place_count;
-
-  void print(const char* name,
-             ZStatRelocationSummary selector_group,
-             size_t in_place_count);
 
 public:
   ZStatRelocation();

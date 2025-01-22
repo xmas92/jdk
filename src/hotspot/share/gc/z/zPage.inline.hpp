@@ -361,14 +361,6 @@ inline void ZPage::remember(volatile zpointer* p) {
   _remembered_set.set_current(l_offset);
 }
 
-inline void ZPage::clear_remset_bit_non_par_current(uintptr_t l_offset) {
-  _remembered_set.unset_non_par_current(l_offset);
-}
-
-inline void ZPage::clear_remset_range_non_par_current(uintptr_t l_offset, size_t size) {
-  _remembered_set.unset_range_non_par_current(l_offset, size);
-}
-
 inline ZBitMap::ReverseIterator ZPage::remset_reverse_iterator_previous() {
   return _remembered_set.iterator_reverse_previous();
 }

@@ -68,8 +68,6 @@ private:
   void reset(ZGenerationId id);
   void reset_segment(BitMap::idx_t segment);
 
-  size_t do_object(ObjectClosure* cl, zaddress addr) const;
-
   template <typename Function>
   void iterate_segment(BitMap::idx_t segment, Function function);
 

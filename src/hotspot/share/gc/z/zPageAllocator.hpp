@@ -168,7 +168,7 @@ public:
   size_t used_generation(ZGenerationId id) const;
   size_t unused() const;
 
-  void promote_used(ZPage* from_page, ZPage* to_page);
+  void promote_used(const ZVirtualMemory& from, const ZVirtualMemory& to);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
 

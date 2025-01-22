@@ -172,13 +172,7 @@ private:
   int claim_at(int* indices, int level) {
     const int index = claim_index(indices, level);
     const int value = claim(index);
-#if 0
-    if      (level == 0) { tty->print_cr("Claim at: %d index: %d got: %d",             indices[0], index, value); }
-    else if (level == 1) { tty->print_cr("Claim at: %d %d index: %d got: %d",          indices[0], indices[1], index, value); }
-    else if (level == 2) { tty->print_cr("Claim at: %d %d %d index: %d got: %d",       indices[0], indices[1], indices[2], index, value); }
-    else if (level == 3) { tty->print_cr("Claim at: %d %d %d %d index: %d got: %d",    indices[0], indices[1], indices[2], indices[3], index, value); }
-    else if (level == 4) { tty->print_cr("Claim at: %d %d %d %d %d index: %d got: %d", indices[0], indices[1], indices[2], indices[3], indices[4], index, value); }
-#endif
+
     return value;
   }
 
@@ -249,12 +243,6 @@ private:
     //const int index = first_level * second_level_max * _third_level_max + second_level * _third_level_max + third_level;
     const int index = calculate_index(indices);
 
-#if 0
-    tty->print_cr("doit Thread: " PTR_FORMAT ": %d %d %d %d => %d",
-        p2i(Thread::current()),
-        indices[0], indices[1], indices[2], indices[3], index);
-#endif
-
     function(index);
   }
 
@@ -272,10 +260,6 @@ public:
       _claim_array((volatile int*)align_up(_malloced, os::vm_page_size())) {
 
     assert((levels_size(ClaimLevels - 1) << _last_level_segment_size_shift) == count, "Incorrectly setup");
-
-#if 0
-    tty->print_cr("ZIndexDistributorClaimTree count: %d byte size: %zu", count, claim_variables_size() + os::vm_page_size());
-#endif
 
     memset(_malloced, 0, claim_variables_size() + os::vm_page_size());
   }

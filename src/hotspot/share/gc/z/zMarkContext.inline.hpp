@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZMARKCONTEXT_INLINE_HPP
 #define SHARE_GC_Z_ZMARKCONTEXT_INLINE_HPP
 
-#include "gc/z/zMarkContext.hpp"
+#include "gc/z/zMarkContext.hpp" // IWYU pragma: export
 
 inline ZMarkContext::ZMarkContext(size_t nstripes,
                                   ZMarkStripe* stripe,

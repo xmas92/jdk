@@ -25,10 +25,10 @@
 #ifndef SHARE_RUNTIME_OS_INLINE_HPP
 #define SHARE_RUNTIME_OS_INLINE_HPP
 
-#include "runtime/os.hpp"
+#include "runtime/os.hpp" // IWYU pragma: export
 
-#include OS_HEADER_INLINE(os)
-#include OS_CPU_HEADER_INLINE(os)
+#include OS_HEADER_INLINE(os) // IWYU pragma: export
+#include OS_CPU_HEADER_INLINE(os) // IWYU pragma: export
 
 // Below are inline functions that are rarely implemented by the platforms.
 // Provide default empty implementation.

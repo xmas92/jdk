@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZVIRTUALMEMORY_INLINE_HPP
 #define SHARE_GC_Z_ZVIRTUALMEMORY_INLINE_HPP
 
-#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zVirtualMemory.hpp" // IWYU pragma: export
 
 #include "gc/z/zMemory.inline.hpp"
 

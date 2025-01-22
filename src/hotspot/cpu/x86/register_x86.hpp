@@ -25,6 +25,8 @@
 #ifndef CPU_X86_REGISTER_X86_HPP
 #define CPU_X86_REGISTER_X86_HPP
 
+// IWYU pragma: private, include "asm/register.hpp"
+
 #include "asm/register.hpp"
 #include "runtime/globals.hpp"
 #include "utilities/checkedCast.hpp"

@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZITERATOR_INLINE_HPP
 #define SHARE_GC_Z_ZITERATOR_INLINE_HPP
 
-#include "gc/z/zIterator.hpp"
+#include "gc/z/zIterator.hpp" // IWYU pragma: export
 
 #include "gc/z/zVerify.hpp"
 #include "memory/iterator.inline.hpp"

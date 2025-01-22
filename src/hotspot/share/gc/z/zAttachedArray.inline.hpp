@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZATTACHEDARRAY_INLINE_HPP
 #define SHARE_GC_Z_ZATTACHEDARRAY_INLINE_HPP
 
-#include "gc/z/zAttachedArray.hpp"
+#include "gc/z/zAttachedArray.hpp" // IWYU pragma: export
 
 #include "memory/allocation.hpp"
 #include "utilities/align.hpp"

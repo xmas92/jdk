@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZGENERATION_INLINE_HPP
 #define SHARE_GC_Z_ZGENERATION_INLINE_HPP
 
-#include "gc/z/zGeneration.hpp"
+#include "gc/z/zGeneration.hpp" // IWYU pragma: export
 
 #include "gc/z/zAbort.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"

@@ -25,7 +25,7 @@
 #ifndef SHARE_RUNTIME_FRAME_INLINE_HPP
 #define SHARE_RUNTIME_FRAME_INLINE_HPP
 
-#include "runtime/frame.hpp"
+#include "runtime/frame.hpp" // IWYU pragma: export
 
 #include "code/codeBlob.inline.hpp"
 #include "code/nmethod.inline.hpp"

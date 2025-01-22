@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZFORWARDING_INLINE_HPP
 #define SHARE_GC_Z_ZFORWARDING_INLINE_HPP
 
-#include "gc/z/zForwarding.hpp"
+#include "gc/z/zForwarding.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zAttachedArray.inline.hpp"

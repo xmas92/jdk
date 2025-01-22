@@ -30,9 +30,9 @@
 #include "runtime/semaphore.hpp"
 
 #if defined(LINUX) || defined(AIX) || defined(BSD)
-# include "mutex_posix.hpp"
+# include "mutex_posix.hpp" // IWYU pragma: export
 #else
-# include OS_HEADER(mutex)
+# include OS_HEADER(mutex) // IWYU pragma: export
 #endif
 
 

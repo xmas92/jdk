@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZADDRESS_INLINE_HPP
 #define SHARE_GC_Z_ZADDRESS_INLINE_HPP
 
-#include "gc/z/zAddress.hpp"
+#include "gc/z/zAddress.hpp" // IWYU pragma: export
 
 #include "gc/shared/gc_globals.hpp"
 #include "oops/oop.hpp"
@@ -33,7 +33,7 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/powerOfTwo.hpp"
-#include CPU_HEADER_INLINE(gc/z/zAddress)
+#include CPU_HEADER_INLINE(gc/z/zAddress) // IWYU pragma: export
 
 // zoffset functions
 

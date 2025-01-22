@@ -25,7 +25,7 @@
 #ifndef SHARE_RUNTIME_SEMAPHORE_INLINE_HPP
 #define SHARE_RUNTIME_SEMAPHORE_INLINE_HPP
 
-#include "runtime/semaphore.hpp"
+#include "runtime/semaphore.hpp" // IWYU pragma: export
 
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.hpp"

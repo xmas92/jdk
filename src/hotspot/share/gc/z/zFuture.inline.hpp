@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZFUTURE_INLINE_HPP
 #define SHARE_GC_Z_ZFUTURE_INLINE_HPP
 
-#include "gc/z/zFuture.hpp"
+#include "gc/z/zFuture.hpp" // IWYU pragma: export
 
 #include "runtime/javaThread.hpp"
 #include "runtime/semaphore.inline.hpp"

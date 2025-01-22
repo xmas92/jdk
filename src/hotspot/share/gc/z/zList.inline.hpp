@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZLIST_INLINE_HPP
 #define SHARE_GC_Z_ZLIST_INLINE_HPP
 
-#include "gc/z/zList.hpp"
+#include "gc/z/zList.hpp" // IWYU pragma: export
 
 #include "utilities/debug.hpp"
 

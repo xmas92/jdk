@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZLOCK_INLINE_HPP
 #define SHARE_GC_Z_ZLOCK_INLINE_HPP
 
-#include "gc/z/zLock.hpp"
+#include "gc/z/zLock.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 #include "runtime/javaThread.hpp"

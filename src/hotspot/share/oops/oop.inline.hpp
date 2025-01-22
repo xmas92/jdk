@@ -25,7 +25,7 @@
 #ifndef SHARE_OOPS_OOP_INLINE_HPP
 #define SHARE_OOPS_OOP_INLINE_HPP
 
-#include "oops/oop.hpp"
+#include "oops/oop.hpp" // IWYU pragma: export
 
 #include "memory/universe.hpp"
 #include "memory/iterator.inline.hpp"

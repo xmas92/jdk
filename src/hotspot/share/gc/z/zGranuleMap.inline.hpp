@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZGRANULEMAP_INLINE_HPP
 #define SHARE_GC_Z_ZGRANULEMAP_INLINE_HPP
 
-#include "gc/z/zGranuleMap.hpp"
+#include "gc/z/zGranuleMap.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"

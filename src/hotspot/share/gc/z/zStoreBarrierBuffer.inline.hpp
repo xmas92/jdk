@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZSTOREBARRIERBUFFER_INLINE_HPP
 #define SHARE_GC_Z_ZSTOREBARRIERBUFFER_INLINE_HPP
 
-#include "gc/z/zStoreBarrierBuffer.hpp"
+#include "gc/z/zStoreBarrierBuffer.hpp" // IWYU pragma: export
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zThreadLocalData.hpp"

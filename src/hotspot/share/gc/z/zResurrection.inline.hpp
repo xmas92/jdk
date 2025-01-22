@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZRESURRECTION_INLINE_HPP
 #define SHARE_GC_Z_ZRESURRECTION_INLINE_HPP
 
-#include "gc/z/zResurrection.hpp"
+#include "gc/z/zResurrection.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 

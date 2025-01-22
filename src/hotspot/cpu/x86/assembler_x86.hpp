@@ -25,6 +25,8 @@
 #ifndef CPU_X86_ASSEMBLER_X86_HPP
 #define CPU_X86_ASSEMBLER_X86_HPP
 
+// IWYU pragma: private, include "asm/assembler.hpp"
+
 #include "asm/register.hpp"
 #include "utilities/checkedCast.hpp"
 #include "utilities/powerOfTwo.hpp"

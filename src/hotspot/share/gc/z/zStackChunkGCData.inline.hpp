@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZSTACKCHUNKGCDATA_INLINE_HPP
 #define SHARE_GC_Z_ZSTACKCHUNKGCDATA_INLINE_HPP
 
-#include "gc/z/zStackChunkGCData.hpp"
+#include "gc/z/zStackChunkGCData.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"

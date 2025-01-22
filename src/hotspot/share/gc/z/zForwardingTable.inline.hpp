@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZFORWARDINGTABLE_INLINE_HPP
 #define SHARE_GC_Z_ZFORWARDINGTABLE_INLINE_HPP
 
-#include "gc/z/zForwardingTable.hpp"
+#include "gc/z/zForwardingTable.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"

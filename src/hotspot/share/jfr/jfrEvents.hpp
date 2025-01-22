@@ -29,7 +29,7 @@
  *
  * Include this header to access the machine generated event class.
  */
-#include "jfrfiles/jfrEventClasses.hpp"
-#include "jfrfiles/jfrEventIds.hpp"
+#include "jfrfiles/jfrEventClasses.hpp" // IWYU pragma: export
+#include "jfrfiles/jfrEventIds.hpp" // IWYU pragma: export
 
 #endif // SHARE_JFR_JFREVENTS_HPP

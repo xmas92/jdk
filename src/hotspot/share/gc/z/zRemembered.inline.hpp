@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZREMEMBERED_INLINE_HPP
 #define SHARE_GC_Z_ZREMEMBERED_INLINE_HPP
 
-#include "gc/z/zRemembered.hpp"
+#include "gc/z/zRemembered.hpp" // IWYU pragma: export
 
 #include "gc/z/zBarrier.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"

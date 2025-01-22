@@ -29,7 +29,7 @@
 
 #include "utilities/macros.hpp"
 
-#include COMPILER_HEADER(utilities/compilerWarnings)
+#include COMPILER_HEADER(utilities/compilerWarnings) // IWYU pragma: export
 
 // Defaults when not defined for the TARGET_COMPILER_xxx.
 

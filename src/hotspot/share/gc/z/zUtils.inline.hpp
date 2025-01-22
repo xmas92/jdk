@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZUTILS_INLINE_HPP
 #define SHARE_GC_Z_ZUTILS_INLINE_HPP
 
-#include "gc/z/zUtils.hpp"
+#include "gc/z/zUtils.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "oops/oop.inline.hpp"

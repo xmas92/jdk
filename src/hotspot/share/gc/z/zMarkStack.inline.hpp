@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZMARKSTACK_INLINE_HPP
 #define SHARE_GC_Z_ZMARKSTACK_INLINE_HPP
 
-#include "gc/z/zMarkStack.hpp"
+#include "gc/z/zMarkStack.hpp" // IWYU pragma: export
 
 #include "gc/z/zMarkTerminate.inline.hpp"
 #include "runtime/atomic.hpp"

@@ -25,6 +25,8 @@
 #ifndef CPU_X86_MACROASSEMBLER_X86_HPP
 #define CPU_X86_MACROASSEMBLER_X86_HPP
 
+// IWYU pragma: private, include "asm/macroAssembler.hpp"
+
 #include "asm/assembler.hpp"
 #include "asm/register.hpp"
 #include "code/vmreg.inline.hpp"

@@ -24,7 +24,7 @@
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLiveMap.inline.hpp"
-#include "unittest.hpp"
+#include "unittest.hpp" // IWYU pragma: keep_always
 
 class ZLiveMapTest : public ::testing::Test {
 private:

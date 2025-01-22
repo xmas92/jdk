@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZBARRIERSET_INLINE_HPP
 #define SHARE_GC_Z_ZBARRIERSET_INLINE_HPP
 
-#include "gc/z/zBarrierSet.hpp"
+#include "gc/z/zBarrierSet.hpp" // IWYU pragma: export
 
 #include "gc/shared/accessBarrierSupport.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"

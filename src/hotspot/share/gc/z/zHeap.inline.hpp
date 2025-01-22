@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZHEAP_INLINE_HPP
 #define SHARE_GC_Z_ZHEAP_INLINE_HPP
 
-#include "gc/z/zHeap.hpp"
+#include "gc/z/zHeap.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zForwardingTable.inline.hpp"

@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZPHYSICALMEMORY_INLINE_HPP
 #define SHARE_GC_Z_ZPHYSICALMEMORY_INLINE_HPP
 
-#include "gc/z/zPhysicalMemory.hpp"
+#include "gc/z/zPhysicalMemory.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "utilities/debug.hpp"

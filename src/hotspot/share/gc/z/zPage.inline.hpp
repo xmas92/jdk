@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZPAGE_INLINE_HPP
 #define SHARE_GC_Z_ZPAGE_INLINE_HPP
 
-#include "gc/z/zPage.hpp"
+#include "gc/z/zPage.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"

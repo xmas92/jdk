@@ -25,7 +25,7 @@
 #ifndef SHARE_OOPS_KLASS_INLINE_HPP
 #define SHARE_OOPS_KLASS_INLINE_HPP
 
-#include "oops/klass.hpp"
+#include "oops/klass.hpp" // IWYU pragma: export
 
 #include "classfile/classLoaderData.inline.hpp"
 #include "oops/klassVtable.hpp"

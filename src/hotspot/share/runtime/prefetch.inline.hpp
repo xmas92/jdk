@@ -25,7 +25,7 @@
 #ifndef SHARE_RUNTIME_PREFETCH_INLINE_HPP
 #define SHARE_RUNTIME_PREFETCH_INLINE_HPP
 
-#include "runtime/prefetch.hpp"
+#include "runtime/prefetch.hpp" // IWYU pragma: export
 
 #include "utilities/macros.hpp"
 #include OS_CPU_HEADER_INLINE(prefetch)

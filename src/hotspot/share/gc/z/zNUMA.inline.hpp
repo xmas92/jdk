@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZNUMA_INLINE_HPP
 #define SHARE_GC_Z_ZNUMA_INLINE_HPP
 
-#include "gc/z/zNUMA.hpp"
+#include "gc/z/zNUMA.hpp" // IWYU pragma: export
 
 inline bool ZNUMA::is_enabled() {
   return _enabled;

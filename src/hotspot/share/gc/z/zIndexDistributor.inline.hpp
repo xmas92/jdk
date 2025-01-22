@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZINDEXDISTRIBUTOR_INLINE_HPP
 #define SHARE_GC_Z_ZINDEXDISTRIBUTOR_INLINE_HPP
 
-#include "gc/z/zIndexDistributor.hpp"
+#include "gc/z/zIndexDistributor.hpp" // IWYU pragma: export
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGlobals.hpp"

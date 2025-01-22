@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZMARK_INLINE_HPP
 #define SHARE_GC_Z_ZMARK_INLINE_HPP
 
-#include "gc/z/zMark.hpp"
+#include "gc/z/zMark.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"

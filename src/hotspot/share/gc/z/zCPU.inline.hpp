@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZCPU_INLINE_HPP
 #define SHARE_GC_Z_ZCPU_INLINE_HPP
 
-#include "gc/z/zCPU.hpp"
+#include "gc/z/zCPU.hpp" // IWYU pragma: export
 
 #include "runtime/os.hpp"
 #include "utilities/debug.hpp"

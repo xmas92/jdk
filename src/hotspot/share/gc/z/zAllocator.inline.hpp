@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZALLOCATOR_INLINE_HPP
 #define SHARE_GC_Z_ZALLOCATOR_INLINE_HPP
 
-#include "gc/z/zAllocator.hpp"
+#include "gc/z/zAllocator.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zHeap.hpp"

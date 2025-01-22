@@ -25,19 +25,19 @@
 #ifndef SHARE_UTILITIES_GLOBALDEFINITIONS_HPP
 #define SHARE_UTILITIES_GLOBALDEFINITIONS_HPP
 
-#include "utilities/compilerWarnings.hpp"
-#include "utilities/debug.hpp"
-#include "utilities/macros.hpp"
+#include "utilities/compilerWarnings.hpp" // IWYU pragma: export
+#include "utilities/debug.hpp" // IWYU pragma: export
+#include "utilities/macros.hpp" // IWYU pragma: export
 
 // Get constants like JVM_T_CHAR and JVM_SIGNATURE_INT, before pulling in <jvm.h>.
-#include "classfile_constants.h"
+#include "classfile_constants.h" // IWYU pragma: export
 
 #include COMPILER_HEADER(utilities/globalDefinitions)
 
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <type_traits>
+#include <cstddef> // IWYU pragma: export
+#include <cstdint> // IWYU pragma: export
+#include <limits> // IWYU pragma: export
+#include <type_traits> // IWYU pragma: export
 
 class oopDesc;
 

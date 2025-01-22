@@ -25,7 +25,7 @@
 #ifndef SHARE_UTILITIES_BITMAP_INLINE_HPP
 #define SHARE_UTILITIES_BITMAP_INLINE_HPP
 
-#include "utilities/bitMap.hpp"
+#include "utilities/bitMap.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 #include "utilities/align.hpp"

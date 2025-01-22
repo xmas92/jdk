@@ -25,7 +25,7 @@
 #ifndef SHARE_MEMORY_ITERATOR_INLINE_HPP
 #define SHARE_MEMORY_ITERATOR_INLINE_HPP
 
-#include "memory/iterator.hpp"
+#include "memory/iterator.hpp" // IWYU pragma: export
 
 #include "cds/aotLinkedClassBulkLoader.hpp"
 #include "classfile/classLoaderData.hpp"

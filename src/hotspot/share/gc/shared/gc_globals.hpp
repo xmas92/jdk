@@ -25,25 +25,25 @@
 #ifndef SHARE_GC_SHARED_GC_GLOBALS_HPP
 #define SHARE_GC_SHARED_GC_GLOBALS_HPP
 
-#include "runtime/globals_shared.hpp"
+#include "runtime/globals_shared.hpp" // IWYU pragma: export
 #include "utilities/macros.hpp"
 #if INCLUDE_EPSILONGC
-#include "gc/epsilon/epsilon_globals.hpp"
+#include "gc/epsilon/epsilon_globals.hpp" // IWYU pragma: export
 #endif
 #if INCLUDE_G1GC
-#include "gc/g1/g1_globals.hpp"
+#include "gc/g1/g1_globals.hpp" // IWYU pragma: export
 #endif
 #if INCLUDE_PARALLELGC
-#include "gc/parallel/parallel_globals.hpp"
+#include "gc/parallel/parallel_globals.hpp" // IWYU pragma: export
 #endif
 #if INCLUDE_SERIALGC
-#include "gc/serial/serial_globals.hpp"
+#include "gc/serial/serial_globals.hpp" // IWYU pragma: export
 #endif
 #if INCLUDE_SHENANDOAHGC
-#include "gc/shenandoah/shenandoah_globals.hpp"
+#include "gc/shenandoah/shenandoah_globals.hpp" // IWYU pragma: export
 #endif
 #if INCLUDE_ZGC
-#include "gc/z/z_globals.hpp"
+#include "gc/z/z_globals.hpp" // IWYU pragma: export
 #endif
 
 #define GC_FLAGS(develop,                                                   \

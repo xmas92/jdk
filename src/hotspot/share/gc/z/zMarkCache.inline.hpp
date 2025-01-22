@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZMARKCACHE_INLINE_HPP
 #define SHARE_GC_Z_ZMARKCACHE_INLINE_HPP
 
-#include "gc/z/zMarkCache.hpp"
+#include "gc/z/zMarkCache.hpp" // IWYU pragma: export
 
 #include "gc/z/zPage.inline.hpp"
 

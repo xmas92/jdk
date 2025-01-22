@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZABORT_INLINE_HPP
 #define SHARE_GC_Z_ZABORT_INLINE_HPP
 
-#include "gc/z/zAbort.hpp"
+#include "gc/z/zAbort.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 

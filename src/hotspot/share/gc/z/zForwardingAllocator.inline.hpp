@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZFORWARDINGALLOCATOR_INLINE_HPP
 #define SHARE_GC_Z_ZFORWARDINGALLOCATOR_INLINE_HPP
 
-#include "gc/z/zForwardingAllocator.hpp"
+#include "gc/z/zForwardingAllocator.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"

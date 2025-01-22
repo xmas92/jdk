@@ -25,7 +25,7 @@
 #ifndef SHARE_GC_SHARED_TASKQUEUE_INLINE_HPP
 #define SHARE_GC_SHARED_TASKQUEUE_INLINE_HPP
 
-#include "gc/shared/taskqueue.hpp"
+#include "gc/shared/taskqueue.hpp" // IWYU pragma: export
 
 #include "logging/log.hpp"
 #include "logging/logStream.hpp"

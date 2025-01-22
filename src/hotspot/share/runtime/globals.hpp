@@ -30,9 +30,9 @@
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
-#include CPU_HEADER(globals)
-#include OS_HEADER(globals)
-#include OS_CPU_HEADER(globals)
+#include CPU_HEADER(globals) // IWYU pragma: export
+#include OS_HEADER(globals) // IWYU pragma: export
+#include OS_CPU_HEADER(globals)  // IWYU pragma: export
 
 // develop flags are settable / visible only during development and are constant in the PRODUCT version
 // product flags are always settable / visible

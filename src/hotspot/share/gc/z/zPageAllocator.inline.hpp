@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_INLINE_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_INLINE_HPP
 
-#include "gc/z/zPageAllocator.hpp"
+#include "gc/z/zPageAllocator.hpp" // IWYU pragma: export
 
 inline ZPageAllocatorStats::ZPageAllocatorStats(size_t min_capacity,
                                                 size_t max_capacity,

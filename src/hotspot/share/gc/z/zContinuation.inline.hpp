@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZCONTINUATION_INLINE_HPP
 #define SHARE_GC_Z_ZCONTINUATION_INLINE_HPP
 
-#include "gc/z/zContinuation.hpp"
+#include "gc/z/zContinuation.hpp" // IWYU pragma: export
 
 #include "classfile/javaClasses.hpp"
 #include "gc/z/zAddress.inline.hpp"

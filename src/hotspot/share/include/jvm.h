@@ -28,10 +28,10 @@
 
 #include <sys/stat.h>
 
-#include "jni.h"
-#include "jvm_constants.h"
-#include "jvm_io.h"
-#include "jvm_md.h"
+#include "jni.h" // IWYU pragma: export
+#include "jvm_constants.h" // IWYU pragma: export
+#include "jvm_io.h" // IWYU pragma: export
+#include "jvm_md.h" // IWYU pragma: export
 
 #ifdef __cplusplus
 extern "C" {

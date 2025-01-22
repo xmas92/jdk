@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZARRAY_INLINE_HPP
 #define SHARE_GC_Z_ZARRAY_INLINE_HPP
 
-#include "gc/z/zArray.hpp"
+#include "gc/z/zArray.hpp" // IWYU pragma: export
 
 #include "gc/z/zLock.inline.hpp"
 #include "runtime/atomic.hpp"

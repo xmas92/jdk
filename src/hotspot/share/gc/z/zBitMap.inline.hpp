@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZBITMAP_INLINE_HPP
 #define SHARE_GC_Z_ZBITMAP_INLINE_HPP
 
-#include "gc/z/zBitMap.hpp"
+#include "gc/z/zBitMap.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 #include "utilities/bitMap.inline.hpp"

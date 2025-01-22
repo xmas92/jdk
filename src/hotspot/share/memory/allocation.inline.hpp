@@ -25,7 +25,7 @@
 #ifndef SHARE_MEMORY_ALLOCATION_INLINE_HPP
 #define SHARE_MEMORY_ALLOCATION_INLINE_HPP
 
-#include "memory/allocation.hpp"
+#include "memory/allocation.hpp" // IWYU pragma: export
 
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"

@@ -37,6 +37,6 @@ public:
 };
 
 // Needs to be included after definition of ZBarrierSetAssemblerBase
-#include CPU_HEADER(gc/z/zBarrierSetAssembler)
+#include CPU_HEADER(gc/z/zBarrierSetAssembler) // IWYU pragma: export
 
 #endif // SHARE_GC_Z_ZBARRIERSETASSEMBLER_HPP

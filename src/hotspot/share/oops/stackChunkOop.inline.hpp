@@ -25,7 +25,7 @@
 #ifndef SHARE_OOPS_STACKCHUNKOOP_INLINE_HPP
 #define SHARE_OOPS_STACKCHUNKOOP_INLINE_HPP
 
-#include "oops/stackChunkOop.hpp"
+#include "oops/stackChunkOop.hpp" // IWYU pragma: export
 
 #include "gc/shared/collectedHeap.hpp"
 #include "gc/shared/barrierSet.hpp"

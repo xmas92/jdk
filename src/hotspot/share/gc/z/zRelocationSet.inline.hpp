@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZRELOCATIONSET_INLINE_HPP
 #define SHARE_GC_Z_ZRELOCATIONSET_INLINE_HPP
 
-#include "gc/z/zRelocationSet.hpp"
+#include "gc/z/zRelocationSet.hpp" // IWYU pragma: export
 
 #include "gc/z/zArray.inline.hpp"
 

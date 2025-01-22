@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZSAFEDELETE_INLINE_HPP
 #define SHARE_GC_Z_ZSAFEDELETE_INLINE_HPP
 
-#include "gc/z/zSafeDelete.hpp"
+#include "gc/z/zSafeDelete.hpp" // IWYU pragma: export
 
 #include "gc/z/zArray.inline.hpp"
 

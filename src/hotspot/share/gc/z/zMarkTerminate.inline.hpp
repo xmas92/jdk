@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZMARKTERMINATE_INLINE_HPP
 #define SHARE_GC_Z_ZMARKTERMINATE_INLINE_HPP
 
-#include "gc/z/zMarkTerminate.hpp"
+#include "gc/z/zMarkTerminate.hpp" // IWYU pragma: export
 
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zLock.inline.hpp"

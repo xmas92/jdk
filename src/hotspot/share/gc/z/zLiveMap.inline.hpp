@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZLIVEMAP_INLINE_HPP
 #define SHARE_GC_Z_ZLIVEMAP_INLINE_HPP
 
-#include "gc/z/zLiveMap.hpp"
+#include "gc/z/zLiveMap.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBitMap.inline.hpp"

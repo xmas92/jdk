@@ -25,7 +25,7 @@
 #ifndef SHARE_RUNTIME_STACKWATERMARKSET_INLINE_HPP
 #define SHARE_RUNTIME_STACKWATERMARKSET_INLINE_HPP
 
-#include "runtime/stackWatermarkSet.hpp"
+#include "runtime/stackWatermarkSet.hpp" // IWYU pragma: export
 
 #include "runtime/stackWatermark.hpp"
 

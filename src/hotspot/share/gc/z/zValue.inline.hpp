@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZVALUE_INLINE_HPP
 #define SHARE_GC_Z_ZVALUE_INLINE_HPP
 
-#include "gc/z/zValue.hpp"
+#include "gc/z/zValue.hpp" // IWYU pragma: export
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/workerThread.hpp"

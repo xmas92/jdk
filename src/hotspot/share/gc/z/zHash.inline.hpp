@@ -56,9 +56,7 @@
 #ifndef SHARE_GC_Z_ZHASH_INLINE_HPP
 #define SHARE_GC_Z_ZHASH_INLINE_HPP
 
-#include "gc/z/zHash.hpp"
-
-#include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zHash.hpp" // IWYU pragma: export
 
 inline uint32_t ZHash::uint32_to_uint32(uint32_t key) {
   key = ~key + (key << 15);

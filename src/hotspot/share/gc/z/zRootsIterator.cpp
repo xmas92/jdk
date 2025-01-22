@@ -28,11 +28,8 @@
 #include "gc/z/zRootsIterator.hpp"
 #include "gc/z/zStat.hpp"
 #include "memory/resourceArea.hpp"
-#include "prims/jvmtiTagMap.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"
-#include "runtime/safepoint.hpp"
-#include "utilities/debug.hpp"
 
 class ZRootStatSubPhase {
 private:

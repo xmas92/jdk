@@ -25,7 +25,6 @@
 #include "runtime/os.hpp"
 
 #include <errno.h>
-#include <string.h>
 
 ZErrno::ZErrno()
   : _error(errno) {}

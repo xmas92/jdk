@@ -26,10 +26,8 @@
 
 #include "gc/z/zGeneration.hpp" // IWYU pragma: export
 
-#include "gc/z/zAbort.inline.hpp"
-#include "gc/z/zHeap.inline.hpp"
+#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zWorkers.inline.hpp"
-#include "utilities/debug.hpp"
 
 inline bool ZGeneration::is_phase_relocate() const {
   return _phase == Phase::Relocate;

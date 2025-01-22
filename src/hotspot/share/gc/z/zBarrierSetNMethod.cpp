@@ -22,14 +22,10 @@
  */
 
 #include "code/nmethod.hpp"
-#include "gc/shared/barrierSet.hpp"
 #include "gc/z/zAddress.hpp"
-#include "gc/z/zBarrier.inline.hpp"
-#include "gc/z/zBarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetNMethod.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zNMethod.hpp"
-#include "gc/z/zResurrection.inline.hpp"
 #include "gc/z/zThreadLocalData.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
 #include "logging/log.hpp"

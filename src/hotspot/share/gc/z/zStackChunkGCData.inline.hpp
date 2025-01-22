@@ -27,7 +27,6 @@
 #include "gc/z/zStackChunkGCData.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zGlobals.hpp"
 #include "oops/stackChunkOop.inline.hpp"
 
 inline ZStackChunkGCData* ZStackChunkGCData::data(stackChunkOop chunk) {

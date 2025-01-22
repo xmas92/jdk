@@ -26,8 +26,6 @@
 
 #include "gc/z/zRemembered.hpp" // IWYU pragma: export
 
-#include "gc/z/zBarrier.inline.hpp"
-#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
 

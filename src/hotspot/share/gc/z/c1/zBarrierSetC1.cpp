@@ -30,8 +30,7 @@
 #include "gc/z/c1/zBarrierSetC1.hpp"
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
-#include "gc/z/zThreadLocalData.hpp"
-#include "utilities/macros.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 ZLoadBarrierStubC1::ZLoadBarrierStubC1(LIRAccess& access, LIR_Opr ref, address runtime_stub)
   : _decorators(access.decorators()),

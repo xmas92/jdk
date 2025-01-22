@@ -25,7 +25,6 @@
 #define SHARE_GC_Z_ZRELOCATIONSETSELECTOR_HPP
 
 #include "gc/z/zArray.hpp"
-#include "gc/z/zGenerationId.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
 #include "memory/allocation.hpp"
@@ -105,7 +104,6 @@ public:
   void register_empty_page(ZPage* page);
   void select();
 
-  const ZArray<ZPage*>* live_pages() const;
   const ZArray<ZPage*>* selected_pages() const;
   const ZArray<ZPage*>* not_selected_pages() const;
   size_t forwarding_entries() const;

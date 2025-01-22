@@ -23,7 +23,6 @@
 
 #include "gc/shared/gcId.hpp"
 #include "gc/z/zGeneration.inline.hpp"
-#include "gc/z/zGlobals.hpp"
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTracer.hpp"

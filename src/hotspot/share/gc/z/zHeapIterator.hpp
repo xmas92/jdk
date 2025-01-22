@@ -30,7 +30,6 @@
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zRootsIterator.hpp"
-#include "gc/z/zStat.hpp"
 
 class ZHeapIteratorBitMap;
 class ZHeapIteratorContext;

@@ -26,7 +26,6 @@
 
 #include "gc/shared/oopStorageSetParState.hpp"
 #include "gc/z/zGenerationId.hpp"
-#include "logging/log.hpp"
 #include "memory/iterator.hpp"
 #include "runtime/threadSMR.hpp"
 

@@ -25,7 +25,6 @@
 #define SHARE_GC_Z_ZTRACER_HPP
 
 #include "gc/shared/gcTrace.hpp"
-#include "gc/z/zGenerationId.hpp"
 
 class ZStatCounter;
 class ZStatPhase;

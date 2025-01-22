@@ -26,7 +26,6 @@
 #include "gc/z/zBarrierSetNMethod.hpp"
 #include "gc/z/zBarrierSetStackChunk.hpp"
 #include "gc/z/zGeneration.inline.hpp"
-#include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zStackWatermark.hpp"
 #include "gc/z/zThreadLocalData.hpp"

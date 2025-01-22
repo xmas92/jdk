@@ -28,10 +28,9 @@
 
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zMarkStack.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/osThread.hpp"
-#include "runtime/thread.inline.hpp"
 
 inline ZMarkTerminate::ZMarkTerminate()
   : _nworkers(0),

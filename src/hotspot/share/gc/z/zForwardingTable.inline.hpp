@@ -28,9 +28,7 @@
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"
-#include "gc/z/zGlobals.hpp"
 #include "gc/z/zGranuleMap.inline.hpp"
-#include "gc/z/zIndexDistributor.inline.hpp"
 #include "utilities/debug.hpp"
 
 inline ZForwardingTable::ZForwardingTable()

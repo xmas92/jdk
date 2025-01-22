@@ -24,13 +24,11 @@
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBarrier.inline.hpp"
-#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zRootsIterator.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zWeakRootsProcessor.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "memory/iterator.hpp"
-#include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
 
 class ZPhantomCleanOopClosure : public OopClosure {

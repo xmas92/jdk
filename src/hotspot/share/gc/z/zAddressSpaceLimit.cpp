@@ -24,7 +24,6 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zGlobals.hpp"
-#include "runtime/globals.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
 

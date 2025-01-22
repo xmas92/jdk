@@ -31,7 +31,6 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zResurrection.inline.hpp"
 #include "gc/z/zVerify.hpp"
-#include "oops/oop.hpp"
 #include "runtime/atomic.hpp"
 
 // A self heal must always "upgrade" the address metadata bits in

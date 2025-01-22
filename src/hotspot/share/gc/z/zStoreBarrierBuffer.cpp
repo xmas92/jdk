@@ -27,7 +27,7 @@
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zStoreBarrierBuffer.inline.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
-#include "memory/resourceArea.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "runtime/threadSMR.hpp"
 #include "utilities/ostream.hpp"
 #include "utilities/vmError.hpp"

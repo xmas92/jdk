@@ -22,7 +22,6 @@
  */
 
 #include "gc/z/zArray.inline.hpp"
-#include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zForwardingAllocator.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
@@ -33,7 +32,6 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zWorkers.hpp"
-#include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
 
 class ZRelocationSetInstallTask : public ZTask {

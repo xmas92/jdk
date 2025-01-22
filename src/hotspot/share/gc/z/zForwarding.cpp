@@ -21,9 +21,7 @@
  * questions.
  */
 
-#include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zStat.hpp"

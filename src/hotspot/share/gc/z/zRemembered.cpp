@@ -21,20 +21,20 @@
  * questions.
  */
 
+#include "gc/z/zAbort.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"
-#include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zMark.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.hpp"
 #include "gc/z/zRemembered.inline.hpp"
 #include "gc/z/zRememberedSet.hpp"
 #include "gc/z/zTask.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "gc/z/zVerify.hpp"
 #include "memory/iterator.hpp"
-#include "oops/oop.inline.hpp"
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/debug.hpp"
 

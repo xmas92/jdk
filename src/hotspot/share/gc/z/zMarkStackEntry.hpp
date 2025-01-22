@@ -25,7 +25,6 @@
 #define SHARE_GC_Z_ZMARKSTACKENTRY_HPP
 
 #include "gc/z/zBitField.hpp"
-#include "memory/allocation.hpp"
 
 //
 // Mark stack entry layout

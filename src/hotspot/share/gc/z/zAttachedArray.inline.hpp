@@ -65,11 +65,6 @@ inline void* ZAttachedArray<ObjectT, ArrayT>::alloc(size_t length) {
 }
 
 template <typename ObjectT, typename ArrayT>
-inline void ZAttachedArray<ObjectT, ArrayT>::free(ObjectT* obj) {
-  FreeHeap(obj);
-}
-
-template <typename ObjectT, typename ArrayT>
 inline ZAttachedArray<ObjectT, ArrayT>::ZAttachedArray(size_t length)
   : _length(length) {}
 

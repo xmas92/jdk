@@ -24,7 +24,6 @@
 #ifndef SHARE_GC_Z_ZSTAT_HPP
 #define SHARE_GC_Z_ZSTAT_HPP
 
-#include "gc/shared/gcCause.hpp"
 #include "gc/shared/gcTimer.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zLock.hpp"

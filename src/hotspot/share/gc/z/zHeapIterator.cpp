@@ -31,7 +31,6 @@
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zGlobals.hpp"
-#include "gc/z/zGranuleMap.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeapIterator.hpp"
 #include "gc/z/zLock.inline.hpp"

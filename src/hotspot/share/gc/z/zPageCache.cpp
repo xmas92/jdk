@@ -29,7 +29,6 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "memory/allocation.hpp"
-#include "runtime/globals.hpp"
 #include "runtime/os.hpp"
 
 static const ZStatCounter ZCounterPageCacheHitL1("Memory", "Page Cache Hit L1", ZStatUnitOpsPerSecond);

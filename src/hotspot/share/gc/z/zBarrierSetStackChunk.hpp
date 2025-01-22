@@ -28,7 +28,6 @@
 #include "gc/shared/barrierSetStackChunk.hpp"
 #include "memory/iterator.hpp"
 #include "oops/oopsHierarchy.hpp"
-#include "utilities/globalDefinitions.hpp"
 
 class OopClosure;
 

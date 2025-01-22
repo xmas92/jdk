@@ -24,10 +24,9 @@
 #ifndef SHARE_GC_Z_ZLIVEMAP_HPP
 #define SHARE_GC_Z_ZLIVEMAP_HPP
 
-#include "gc/z/zAddress.hpp"
 #include "gc/z/zBitMap.hpp"
 #include "gc/z/zGenerationId.hpp"
-#include "memory/allocation.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 class ObjectClosure;
 

@@ -27,11 +27,8 @@
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/barrierSetNMethod.hpp"
 #include "gc/shared/threadLocalAllocBuffer.hpp"
-#include "gc/z/zBarrier.hpp"
-#include "gc/z/zUncoloredRoot.hpp"
 #include "memory/allocation.hpp"
 #include "memory/iterator.hpp"
-#include "oops/oopsHierarchy.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "utilities/globalDefinitions.hpp"
 

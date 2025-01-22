@@ -26,8 +26,7 @@
 
 #include "memory/allStatic.hpp"
 #include "utilities/compilerWarnings.hpp"
-
-#include <cstddef>
+#include "utilities/globalDefinitions.hpp"
 
 class ZBarrierSet;
 

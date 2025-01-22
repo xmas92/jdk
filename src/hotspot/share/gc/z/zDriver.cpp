@@ -21,7 +21,6 @@
  * questions.
  */
 
-#include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcCause.hpp"
 #include "gc/shared/gcId.hpp"
 #include "gc/z/zAbort.inline.hpp"

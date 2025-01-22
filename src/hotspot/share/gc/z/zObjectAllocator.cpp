@@ -30,7 +30,6 @@
 #include "gc/z/zPageTable.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zValue.inline.hpp"
-#include "logging/log.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/safepoint.hpp"
 #include "runtime/thread.hpp"

@@ -26,11 +26,9 @@
 
 #include "gc/z/zContinuation.hpp" // IWYU pragma: export
 
-#include "classfile/javaClasses.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zStackChunkGCData.inline.hpp"
-#include "oops/oop.inline.hpp"
 
 inline bool ZContinuation::requires_barriers(const ZHeap* heap, stackChunkOop chunk) {
   if (!heap->is_allocating(to_zaddress(chunk))) {

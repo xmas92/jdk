@@ -27,6 +27,7 @@
 #include "gc/z/zPhysicalMemory.hpp" // IWYU pragma: export
 
 #include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zMemory.inline.hpp"
 #include "utilities/debug.hpp"
 
 inline ZPhysicalMemorySegment::ZPhysicalMemorySegment()

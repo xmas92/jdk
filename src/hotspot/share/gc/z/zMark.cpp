@@ -22,10 +22,8 @@
  */
 
 #include "classfile/classLoaderData.hpp"
-#include "classfile/classLoaderDataGraph.hpp"
 #include "classfile/javaClasses.inline.hpp"
 #include "code/nmethod.hpp"
-#include "gc/shared/continuationGCSupport.inline.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/stringdedup/stringDedup.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
@@ -62,7 +60,6 @@
 #include "runtime/continuation.hpp"
 #include "runtime/handshake.hpp"
 #include "runtime/javaThread.hpp"
-#include "runtime/prefetch.inline.hpp"
 #include "runtime/safepointMechanism.hpp"
 #include "runtime/stackWatermark.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
@@ -71,7 +68,6 @@
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
-#include "utilities/ticks.hpp"
 
 static const ZStatSubPhase ZSubPhaseConcurrentMarkRootUncoloredYoung("Concurrent Mark Root Uncolored", ZGenerationId::young);
 static const ZStatSubPhase ZSubPhaseConcurrentMarkRootColoredYoung("Concurrent Mark Root Colored", ZGenerationId::young);

@@ -43,7 +43,6 @@
 #include "gc/z/zWorkers.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
-#include "runtime/globals.hpp"
 #include "runtime/init.hpp"
 #include "runtime/java.hpp"
 #include "runtime/os.hpp"

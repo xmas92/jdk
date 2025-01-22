@@ -82,7 +82,6 @@ private:
   ZRelocateQueue     _queue;
 
   ZWorkers* workers() const;
-  void work(ZRelocationSetParallelIterator* iter);
 
 public:
   ZRelocate(ZGeneration* generation);

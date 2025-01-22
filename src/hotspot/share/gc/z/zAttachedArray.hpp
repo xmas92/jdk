@@ -41,7 +41,6 @@ public:
   static void* alloc(Allocator* allocator, size_t length);
 
   static void* alloc(size_t length);
-  static void free(ObjectT* obj);
 
   ZAttachedArray(size_t length);
 

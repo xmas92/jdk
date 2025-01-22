@@ -661,8 +661,4 @@ inline zpointer ZAddress::store_good(zaddress addr) {
   return color(addr, ZPointerStoreGoodMask);
 }
 
-inline zpointer ZAddress::store_good_or_null(zaddress addr) {
-  return is_null(addr) ? zpointer::null : store_good(addr);
-}
-
 #endif // SHARE_GC_Z_ZADDRESS_INLINE_HPP

@@ -28,7 +28,6 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zServiceability.hpp"
 #include "memory/metaspaceCounters.hpp"
-#include "runtime/perfData.hpp"
 
 struct ZMemoryUsageInfo {
   size_t _young_used;

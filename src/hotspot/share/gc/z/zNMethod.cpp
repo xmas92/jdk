@@ -27,7 +27,6 @@
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/barrierSetNMethod.hpp"
 #include "gc/shared/classUnloadingContext.hpp"
-#include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zBarrier.inline.hpp"
@@ -42,14 +41,12 @@
 #include "gc/z/zUncoloredRoot.inline.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "logging/log.hpp"
-#include "memory/allocation.inline.hpp"
 #include "memory/iterator.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
 #include "oops/klass.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/atomic.hpp"
-#include "runtime/continuation.hpp"
 #include "utilities/debug.hpp"
 
 static ZNMethodData* gc_data(const nmethod* nm) {

@@ -21,7 +21,6 @@
  * questions.
  */
 
-#include "classfile/classLoaderDataGraph.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/locationPrinter.hpp"
@@ -32,13 +31,10 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeapIterator.hpp"
-#include "gc/z/zHeuristics.hpp"
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
-#include "gc/z/zResurrection.hpp"
 #include "gc/z/zStat.hpp"
-#include "gc/z/zUncoloredRoot.inline.hpp"
 #include "gc/z/zUtils.hpp"
 #include "gc/z/zVerify.hpp"
 #include "gc/z/zWorkers.hpp"
@@ -46,7 +42,6 @@
 #include "memory/iterator.hpp"
 #include "memory/metaspaceUtils.hpp"
 #include "memory/resourceArea.hpp"
-#include "runtime/javaThread.hpp"
 #include "utilities/debug.hpp"
 
 static const ZStatCounter ZCounterUndoPageAllocation("Memory", "Undo Page Allocation", ZStatUnitOpsPerSecond);

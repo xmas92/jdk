@@ -24,7 +24,7 @@
 #ifndef SHARE_GC_Z_ZNMETHOD_HPP
 #define SHARE_GC_Z_ZNMETHOD_HPP
 
-#include "memory/allocation.hpp"
+#include "memory/allStatic.hpp"
 #include "memory/iterator.hpp"
 #include "oops/accessDecorators.hpp"
 #include "oops/oopsHierarchy.hpp"

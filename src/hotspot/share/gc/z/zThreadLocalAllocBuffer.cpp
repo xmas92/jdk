@@ -22,11 +22,9 @@
  */
 
 #include "gc/shared/tlab_globals.hpp"
-#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zStackWatermark.hpp"
 #include "gc/z/zThreadLocalAllocBuffer.hpp"
 #include "gc/z/zValue.inline.hpp"
-#include "runtime/globals.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/stackWatermarkSet.inline.hpp"
 

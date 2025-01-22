@@ -22,7 +22,7 @@
  */
 
 #include "gc/z/zGenerationId.hpp"
-#include "gc/z/zGlobals.hpp"
+#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLiveMap.inline.hpp"
 #include "unittest.hpp" // IWYU pragma: keep_always
 

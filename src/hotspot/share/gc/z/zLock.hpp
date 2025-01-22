@@ -26,6 +26,7 @@
 
 #include "memory/allocation.hpp"
 #include "runtime/mutex.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 class ZLock : public CHeapObj<mtGC> {
 private:

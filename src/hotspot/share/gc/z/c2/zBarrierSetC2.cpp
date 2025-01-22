@@ -21,8 +21,6 @@
  * questions.
  */
 
-#include "asm/macroAssembler.hpp"
-#include "classfile/javaClasses.hpp"
 #include "gc/z/c2/zBarrierSetC2.hpp"
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
@@ -38,7 +36,6 @@
 #include "opto/node.hpp"
 #include "opto/output.hpp"
 #include "opto/regalloc.hpp"
-#include "opto/rootnode.hpp"
 #include "opto/runtime.hpp"
 #include "opto/type.hpp"
 #include "utilities/debug.hpp"

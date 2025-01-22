@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZVERIFY_HPP
 
 #include "memory/allStatic.hpp"
+#include "utilities/macros.hpp"
 
 class frame;
 class ZForwarding;

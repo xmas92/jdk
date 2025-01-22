@@ -23,12 +23,10 @@
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBitMap.inline.hpp"
-#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zRememberedSet.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "logging/log.hpp"
-#include "memory/allocation.hpp"
-#include "memory/iterator.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 int ZRememberedSet::_current = 0;

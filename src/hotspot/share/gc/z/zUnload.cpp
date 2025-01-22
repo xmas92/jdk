@@ -37,7 +37,6 @@
 #include "gc/z/zUncoloredRoot.inline.hpp"
 #include "gc/z/zUnload.hpp"
 #include "memory/metaspaceUtils.hpp"
-#include "oops/access.inline.hpp"
 
 static const ZStatSubPhase ZSubPhaseConcurrentClassesUnlink("Concurrent Classes Unlink", ZGenerationId::old);
 static const ZStatSubPhase ZSubPhaseConcurrentClassesPurge("Concurrent Classes Purge", ZGenerationId::old);

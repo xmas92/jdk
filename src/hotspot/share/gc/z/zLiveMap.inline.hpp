@@ -26,11 +26,9 @@
 
 #include "gc/z/zLiveMap.hpp" // IWYU pragma: export
 
-#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBitMap.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zMark.hpp"
-#include "gc/z/zUtils.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/debug.hpp"

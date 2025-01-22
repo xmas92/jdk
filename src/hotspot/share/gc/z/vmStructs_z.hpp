@@ -27,11 +27,14 @@
 #include "gc/z/zAttachedArray.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zForwarding.hpp"
+#include "gc/z/zForwardingEntry.hpp"
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zHeap.hpp"
+#include "gc/z/zPage.hpp"
 #include "gc/z/zPageAllocator.hpp"
+#include "gc/z/zPageTable.hpp"
 #include "gc/z/zPageType.hpp"
-#include "utilities/macros.hpp"
+#include "gc/z/zVirtualMemory.hpp"
 
 // Expose some ZGC globals to the SA agent.
 class ZGlobalsForVMStructs {

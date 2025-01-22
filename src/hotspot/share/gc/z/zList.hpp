@@ -45,8 +45,8 @@ private:
   void verify_links_unlinked() const;
 
 public:
-  ZListNode();
-  ~ZListNode();
+  inline ZListNode();
+  inline ~ZListNode();
 };
 
 // Doubly linked list

@@ -926,7 +926,7 @@ void ZGenerationYoung::flip_promote(ZPage* from_page, ZPage* to_page) {
   _page_table->replace(from_page, to_page);
 
   // Update statistics
-  _page_allocator->promote_used(from_page, to_page);
+  _page_allocator->promote_used(from_page->virtual_memory(), to_page->virtual_memory());
   increase_freed(from_page->size());
   increase_promoted(from_page->live_bytes());
 }
@@ -935,7 +935,7 @@ void ZGenerationYoung::in_place_relocate_promote(ZPage* from_page, ZPage* to_pag
   _page_table->replace(from_page, to_page);
 
   // Update statistics
-  _page_allocator->promote_used(from_page, to_page);
+  _page_allocator->promote_used(from_page->virtual_memory(), to_page->virtual_memory());
 }
 
 void ZGenerationYoung::register_flip_promoted(const ZArray<ZPage*>& pages) {

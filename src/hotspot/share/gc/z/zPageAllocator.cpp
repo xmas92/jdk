@@ -490,10 +490,10 @@ ZNUMALocal& ZPageAllocator::state_from_vmem(const ZVirtualMemory& vmem) {
   return _states.get(_virtual.get_numa_id(vmem));
 }
 
-void ZPageAllocator::promote_used(ZPage* from_page, ZPage* to_page) {
-  const size_t size = from_page->size();
-  state_from_vmem(from_page->virtual_memory()).decrease_used_generation(ZGenerationId::young, size);
-  state_from_vmem(to_page->virtual_memory()).increase_used_generation(ZGenerationId::old, size);
+void ZPageAllocator::promote_used(const ZVirtualMemory& from, const ZVirtualMemory& to) {
+  const size_t size = from.size();
+  state_from_vmem(from).decrease_used_generation(ZGenerationId::young, size);
+  state_from_vmem(to).increase_used_generation(ZGenerationId::old, size);
 }
 
 size_t ZPageAllocator::count_segments_physical(const ZVirtualMemory& vmem) {

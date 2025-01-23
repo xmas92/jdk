@@ -41,19 +41,14 @@
 #include "utilities/powerOfTwo.hpp"
 
 ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
-  : _backing(max_capacity) {
-  // Make the whole range free
-  const size_t numa_nodes = ZNUMA::count();
-  const size_t capacity_per_manager = max_capacity / numa_nodes;
-
-  for (int numa_id = 0; numa_id < (int)numa_nodes; numa_id++) {
-    ZMemoryManager& manager = _managers.get(numa_id);
-    manager.free(zoffset(capacity_per_manager * numa_id), capacity_per_manager);
-  }
-}
+  : _backing(max_capacity) {}
 
 bool ZPhysicalMemoryManager::is_initialized() const {
   return _backing.is_initialized();
+}
+
+void ZPhysicalMemoryManager::install_capacity(int numa_id, zoffset start, size_t max_capacity) {
+  _managers.get(numa_id).free(start, max_capacity);
 }
 
 void ZPhysicalMemoryManager::warn_commit_limits(size_t max_capacity) const {

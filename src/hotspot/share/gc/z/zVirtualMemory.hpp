@@ -58,7 +58,6 @@ private:
 
   ZPerNUMA<ZMemoryManager> _managers;
   ZPerNUMA<ZVirtualMemory> _vmem_ranges;
-  size_t                   _reserved;
   bool                     _initialized;
 
   // Platform specific implementation

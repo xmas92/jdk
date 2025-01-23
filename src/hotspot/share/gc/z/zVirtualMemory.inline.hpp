@@ -65,13 +65,7 @@ inline void ZVirtualMemory::extend(size_t size) {
   _end += size;
 }
 
-inline size_t ZVirtualMemoryManager::reserved() const {
-  return _reserved;
-}
-
 inline zoffset ZVirtualMemoryManager::half_available_space(int numa_id) const {
-  // TODO: This isn't really half the available space if we have a discontiguous
-  // reservation. Should be weighted toward where the actual half-way point is.
   const ZVirtualMemory& range = _vmem_ranges.get(numa_id);
   return range.start() + range.size() / 2;
 }

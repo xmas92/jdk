@@ -281,9 +281,17 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     return;
   }
 
-  ZPerNUMAIterator<ZNUMALocal> iter(&_states);
-  for (ZNUMALocal* state; iter.next(&state);) {
-    state->initialize(_max_capacity / ZNUMA::count());
+  const int numa_nodes = ZNUMA::count();
+  const size_t capacity_per_state = align_up(max_capacity / numa_nodes, ZGranuleSize);
+  size_t capacity_left = max_capacity;
+
+  for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
+    const size_t capacity = MIN2(capacity_per_state, capacity_left);
+    capacity_left -= capacity;
+
+    ZNUMALocal& state = _states.get(numa_id);
+    state.initialize(capacity);
+    _physical.install_capacity(numa_id, zoffset(capacity_per_state * numa_id), capacity);
   }
 
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
@@ -351,27 +359,24 @@ public:
 
 bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   const int numa_nodes = ZNUMA::count();
-  const size_t per_node_size = size / numa_nodes;
-  const size_t aligned_per_node_size = align_down(per_node_size, ZGranuleSize);
-  const size_t remainder = (per_node_size - aligned_per_node_size) * numa_nodes;
+  const size_t size_per_state = align_up(size / numa_nodes, ZGranuleSize);
+  size_t size_left = size;
 
-  // If the remainder is larger than 0 we should allocate it on the first node
   for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-    size_t to_allocate = aligned_per_node_size;
-    if (numa_id == 0 && remainder > 0) {
-      to_allocate += remainder;
-    }
+    const size_t to_prime = MIN2(size_left, size_per_state);
+    size_left -= to_prime;
 
-    if (to_allocate == 0) {
-      continue;
+    if (to_prime == 0) {
+      // Nothing more to prime, exit
+      return true;
     }
 
     ZNUMALocal& state = _states.get(numa_id);
-    ZVirtualMemory vmem = _virtual.alloc(to_allocate, numa_id, true /* force_low_address */);
+    ZVirtualMemory vmem = _virtual.alloc(to_prime, numa_id, true /* force_low_address */);
 
     // Increase capacity, allocate and commit physical memory
-    state.increase_capacity(to_allocate);
-    _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_allocate, numa_id);
+    state.increase_capacity(to_prime);
+    _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_prime, numa_id);
     if (!commit_physical(&vmem, numa_id)) {
       // This is a failure state. We do not cleanup the maybe partially committed memory.
       return false;
@@ -550,8 +555,6 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
 }
 
 bool ZPageAllocator::should_defragment(const ZVirtualMemory& vmem) const {
-  assert(vmem.size() <= MAX2(ZPageSizeSmall, ZPageSizeMedium), "Should not be called for large pages");
-
   // Get NUMA id associated with the vmem
   const int numa_id = _virtual.get_numa_id(vmem);
 
@@ -795,6 +798,11 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZV
         untype(vmem.end()));
     return false;
   }
+
+  log_trace(gc, heap)("Committed memory at 0x%lx (NUMA preferred=%d actual=%d)",
+      untype(vmem.start()),
+      _virtual.get_numa_id(vmem),
+      ZNUMA::memory_id(untype(ZOffset::address(vmem.start()))));
 
   return true;
 }

@@ -41,6 +41,8 @@ public:
 
   bool is_initialized() const;
 
+  void install_capacity(int numa_id, zoffset start, size_t max_capacity);
+
   void warn_commit_limits(size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 

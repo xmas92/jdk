@@ -37,7 +37,6 @@
 
 ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   : _managers(),
-    _reserved(0),
     _initialized(false) {
 
   assert(max_capacity <= ZAddressOffsetMax, "Too large max_capacity");
@@ -207,24 +206,24 @@ bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
                        (reserved == size ? "Complete" : "Degraded"));
   log_info_p(gc, init)("Address Space Size: %zuM", reserved / M);
 
-  // Record reserved
-  _reserved = reserved / ZNUMA::count();
-
   return reserved >= max_capacity;
 }
 
 void ZVirtualMemoryManager::initialize_managers(size_t size) {
   // All reserved memory is initially stored in the manager with id 0. We need
   // to divide it equally among all the managers.
-  const size_t nodes = ZNUMA::count();
-  const size_t numa_local_reservation = size / nodes;
   ZMemoryManager& initial_manager = _managers.get(0);
+  const int numa_nodes = ZNUMA::count();
+  const size_t local_reservation = align_up(size / numa_nodes, ZGranuleSize);
+  size_t reservation_left = size;
 
-  for (int numa_id = (int)nodes - 1; numa_id >= 0; numa_id--) {
+  for (int numa_id = numa_nodes - 1; numa_id >= 0; numa_id--) {
+    const size_t reservation = MIN2(local_reservation, reservation_left);
+    reservation_left -= reservation;
+
     ZMemoryManager& manager = _managers.get(numa_id);
-
     if (numa_id != 0) {
-      initial_manager.transfer_high_address(manager, numa_local_reservation);
+      initial_manager.transfer_high_address(manager, reservation_left);
     }
 
     // Update the range

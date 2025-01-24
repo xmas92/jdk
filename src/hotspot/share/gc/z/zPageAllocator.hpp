@@ -41,8 +41,7 @@
 
 class ThreadClosure;
 class ZGeneration;
-class ZNUMALocal;
-class ZNUMALocalStats;
+class ZCacheState;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
@@ -50,7 +49,7 @@ class ZUncommitter;
 class ZUnmapper;
 class ZWorkers;
 
-class ZNUMALocal {
+class ZCacheState {
   friend class ZPageAllocator;
 
 private:
@@ -70,8 +69,6 @@ private:
 
 public:
   void initialize(size_t max_capacity);
-
-  ZNUMALocalStats stats(ZGenerationId id) const;
 
   size_t available_memory() const;
   size_t soft_max_capacity() const;
@@ -102,14 +99,14 @@ private:
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _max_capacity;
-  ZPerNUMA<ZNUMALocal>       _states;
+  ZPerNUMA<ZCacheState>      _states;
   ZList<ZPageAllocation>     _stalled;
   ZUnmapper*                 _unmapper;
   ZUncommitter*              _uncommitter;
   mutable ZSafeDelete<ZPage> _safe_destroy;
   bool                       _initialized;
 
-  ZNUMALocal& state_from_vmem(const ZVirtualMemory& vmem);
+  ZCacheState& state_from_vmem(const ZVirtualMemory& vmem);
 
   size_t count_segments_physical(const ZVirtualMemory& vmem);
   void copy_physical(const ZVirtualMemory& from, zoffset to);
@@ -125,8 +122,8 @@ private:
   bool should_defragment(const ZVirtualMemory& vmem) const;
   ZVirtualMemory remap_mapping(const ZVirtualMemory& mapping, bool force_low_address);
 
-  bool claim_mapped_or_increase_capacity(ZNUMALocal& state, size_t size, ZArray<ZVirtualMemory>* mappings);
-  bool claim_physical(ZPageAllocation* allocation, ZNUMALocal& state);
+  bool claim_mapped_or_increase_capacity(ZCacheState& state, size_t size, ZArray<ZVirtualMemory>* mappings);
+  bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);
   bool claim_physical_round_robin(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);
@@ -134,7 +131,6 @@ private:
 
   ZPage* alloc_page_inner(ZPageAllocation* allocation);
   void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id);
-
 
   void harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation);
 
@@ -147,7 +143,6 @@ private:
 
   void notify_out_of_memory();
   void restart_gc() const;
-  size_t calculate_soft_max_capacity(size_t current_max_capacity) const;
 
 public:
   ZPageAllocator(size_t min_capacity,
@@ -190,46 +185,21 @@ public:
   void threads_do(ThreadClosure* tc) const;
 };
 
-class ZNUMALocalStats {
-  friend class ZPageAllocatorStats;
-
-private:
-  size_t _current_max_capacity;
-  size_t _capacity;
-  size_t _used;
-  size_t _used_high;
-  size_t _used_low;
-  size_t _used_generation;
-
-public:
-  ZNUMALocalStats();
-
-  ZNUMALocalStats(size_t current_max_capacity,
-                  size_t capacity,
-                  size_t used,
-                  size_t used_high,
-                  size_t used_low,
-                  size_t used_generation);
-
-  size_t current_max_capacity() const;
-
-  void aggregate(const ZNUMALocalStats& stats);
-};
-
 class ZPageAllocatorStats {
 private:
   size_t _min_capacity;
   size_t _max_capacity;
   size_t _soft_max_capacity;
+  size_t _freed;
+  size_t _promoted;
+  size_t _compacted;
+  size_t _allocation_stalls;
+
   size_t _capacity;
   size_t _used;
   size_t _used_high;
   size_t _used_low;
   size_t _used_generation;
-  size_t _freed;
-  size_t _promoted;
-  size_t _compacted;
-  size_t _allocation_stalls;
 
 public:
   ZPageAllocatorStats(size_t min_capacity,
@@ -238,21 +208,29 @@ public:
                       size_t freed,
                       size_t promoted,
                       size_t compacted,
-                      size_t allocation_stalls,
-                      const ZNUMALocalStats& local_stats);
+                      size_t allocation_stalls);
+
+  void increment_stats(size_t capacity,
+                       size_t used,
+                       size_t used_high,
+                       size_t used_low,
+                       size_t used_generation);
 
   size_t min_capacity() const;
   size_t max_capacity() const;
   size_t soft_max_capacity() const;
+  size_t freed() const;
+  size_t promoted() const;
+  size_t compacted() const;
+  size_t allocation_stalls() const;
+
   size_t capacity() const;
   size_t used() const;
   size_t used_high() const;
   size_t used_low() const;
   size_t used_generation() const;
-  size_t freed() const;
-  size_t promoted() const;
-  size_t compacted() const;
-  size_t allocation_stalls() const;
+
+  void set_soft_max_capacity(size_t new_capacity);
 };
 
 #endif // SHARE_GC_Z_ZPAGEALLOCATOR_HPP

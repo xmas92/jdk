@@ -65,13 +65,4 @@ inline void ZVirtualMemory::extend(size_t size) {
   _end += size;
 }
 
-inline zoffset ZVirtualMemoryManager::half_available_space(int numa_id) const {
-  const ZVirtualMemory& range = _vmem_ranges.get(numa_id);
-  return range.start() + range.size() / 2;
-}
-
-inline zoffset ZVirtualMemoryManager::lowest_available_address(int numa_id) const {
-  return _managers.get(numa_id).peek_low_address();
-}
-
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_INLINE_HPP

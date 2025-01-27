@@ -48,6 +48,7 @@ class ZPageAllocatorStats;
 class ZUncommitter;
 class ZUnmapper;
 class ZWorkers;
+struct ZCacheEntry;
 
 class ZPageAllocator {
   friend class VMStructs;
@@ -83,8 +84,8 @@ private:
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
 
-  bool should_defragment(const ZVirtualMemory& vmem) const;
-  ZVirtualMemory remap_mapping(const ZVirtualMemory& mapping, bool force_low_address);
+  void remap_and_defragment_mapping(const ZVirtualMemory& mapping, ZGenerationId id, ZArray<ZCacheEntry>* entries);
+  void prepare_memory_for_free(ZPage* page, ZArray<ZCacheEntry>* entries, bool allow_defragment);
 
   bool claim_mapped_or_increase_capacity(ZCacheState& state, size_t size, ZArray<ZVirtualMemory>* mappings);
   bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);

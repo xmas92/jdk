@@ -158,6 +158,43 @@ public:
   }
 };
 
+class ZCacheState {
+  friend class ZPageAllocator;
+
+private:
+  ZMappedCache               _cache;
+  volatile size_t            _current_max_capacity;
+  volatile size_t            _capacity;
+  volatile size_t            _claimed;
+  volatile size_t            _used;
+  size_t                     _used_generations[2];
+  struct {
+    size_t                   _used_high;
+    size_t                   _used_low;
+  } _collection_stats[2];
+  double                     _last_commit;
+  double                     _last_uncommit;
+  size_t                     _to_uncommit;
+
+public:
+  void initialize(size_t max_capacity);
+
+  size_t available_capacity() const;
+  size_t soft_max_capacity() const;
+
+  size_t increase_capacity(size_t size);
+  void decrease_capacity(size_t size, bool set_max_capacity);
+
+  void increase_used(size_t size);
+  void decrease_used(size_t size);
+
+  void increase_used_generation(ZGenerationId id, size_t size);
+  void decrease_used_generation(ZGenerationId id, size_t size);
+
+  void reset_statistics(ZGenerationId id);
+};
+
+
 void ZCacheState::initialize(size_t max_capacity) {
   _current_max_capacity = max_capacity;
   _capacity = 0;
@@ -174,7 +211,7 @@ void ZCacheState::initialize(size_t max_capacity) {
   _to_uncommit = 0;
 }
 
-size_t ZCacheState::available_memory() const {
+size_t ZCacheState::available_capacity() const {
   return _current_max_capacity - _used - _claimed;
 }
 
@@ -635,7 +672,7 @@ bool ZPageAllocator::claim_physical(ZPageAllocation* allocation, ZCacheState& st
   const size_t size = allocation->size();
   ZArray<ZVirtualMemory>* const mappings = allocation->claimed_mappings();
 
-  if (state.available_memory() < size) {
+  if (state.available_capacity() < size) {
     // Out of memory
     return false;
   }

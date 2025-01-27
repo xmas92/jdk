@@ -255,6 +255,17 @@ ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force
   return ZVirtualMemory(start, size);
 }
 
+ZVirtualMemory ZVirtualMemoryManager::alloc_low_address_at_most(size_t size, int numa_id) {
+  size_t allocated = 0;
+  const zoffset start = _managers.get(numa_id).alloc_low_address_at_most(size, &allocated);
+
+  if (start == zoffset(UINTPTR_MAX)) {
+    return ZVirtualMemory();
+  }
+
+  return ZVirtualMemory(start, allocated);
+}
+
 void ZVirtualMemoryManager::free(const ZVirtualMemory& vmem) {
   const int numa_id = get_numa_id(vmem);
   _managers.get(numa_id).free(vmem.start(), vmem.size());

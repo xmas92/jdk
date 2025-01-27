@@ -82,10 +82,8 @@ public:
 
   bool is_initialized() const;
 
-  zoffset half_available_space(int numa_id) const;
-  zoffset lowest_available_address(int numa_id) const;
-
   ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);
+  ZVirtualMemory alloc_low_address_at_most(size_t size, int numa_id);
   void free(const ZVirtualMemory& vmem);
 
   int get_numa_id(const ZVirtualMemory& vmem) const;

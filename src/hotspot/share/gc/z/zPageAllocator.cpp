@@ -61,6 +61,17 @@ static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocat
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
+struct ZCacheEntry {
+  ZVirtualMemory _vmem;
+  ZGenerationId  _id;
+
+  ZCacheEntry() {}
+
+  ZCacheEntry(const ZVirtualMemory& vmem, ZGenerationId id)
+    : _vmem(vmem),
+      _id(id) {}
+};
+
 class ZPageAllocation : public StackObj {
   friend class ZList<ZPageAllocation>;
 
@@ -597,38 +608,46 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
   _virtual.free(vmem);
 }
 
-bool ZPageAllocator::should_defragment(const ZVirtualMemory& vmem) const {
-  // Get NUMA id associated with the vmem
+void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZGenerationId id, ZArray<ZCacheEntry>* entries) {
   const int numa_id = _virtual.get_numa_id(vmem);
+  ZVirtualMemory from_vmem = vmem;
 
-  // Small and medium pages are allocated at a low address. They may end up at a
-  // high address (second half of the address space) if we have a constrained
-  // address space. To combat address space fragmentation we want to attemp to
-  // remap such memory to a lower address.
-  return vmem.start() >= _virtual.half_available_space(numa_id) &&
-         vmem.start() >= _virtual.lowest_available_address(numa_id);
-}
+  while(from_vmem.size() != 0) {
+    const ZVirtualMemory new_vmem = _virtual.alloc_low_address_at_most(from_vmem.size(), numa_id);
 
-ZVirtualMemory ZPageAllocator::remap_mapping(const ZVirtualMemory& vmem, bool force_low_address) {
-  // Allocate new virtual memory
-  const int numa_id = _virtual.get_numa_id(vmem);
-  const ZVirtualMemory new_vmem = _virtual.alloc(vmem.size(), numa_id, force_low_address);
+    // Out of address space
+    if (new_vmem.is_null()) {
+      break;
+    }
 
-  if (new_vmem.is_null()) {
-    // Failed to allocate new virtual address space, do nothing
-    return vmem;
+    // Could not find a lower address range, bail out
+    if (new_vmem.start() > from_vmem.start()) {
+      _virtual.free(new_vmem);
+      break;
+    }
+
+    const ZVirtualMemory old_vmem = from_vmem.split(new_vmem.size());
+
+    // Copy the physical segments and map the new virtual address range
+    copy_physical(old_vmem, new_vmem.start());
+    map_virtual_to_physical(new_vmem);
+
+    // Pre-touch memory
+    ZPreTouchTask task(new_vmem.start(), new_vmem.end());
+    task.work();
+
+    entries->append(ZCacheEntry(new_vmem, id));
   }
 
-  // Copy the physical mappings
-  copy_physical(vmem, new_vmem.start());
+  // Unmap the (until now) multi-mapped memory
+  if (from_vmem.size() != vmem.size()) {
+    _unmapper->unmap_virtual(ZVirtualMemory(vmem.start(), vmem.size() - from_vmem.size()));
+  }
 
-  // Unmap the previous mapping asynchronously
-  _unmapper->unmap_virtual(vmem);
-
-  // Map the copied physical segments.
-  map_virtual_to_physical(new_vmem);
-
-  return new_vmem;
+  // Potentially add remainder to the list
+  if (from_vmem.size() != 0) {
+    entries->append(ZCacheEntry(from_vmem, id));
+  }
 }
 
 bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, size_t size, ZArray<ZVirtualMemory>* mappings) {
@@ -966,70 +985,63 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
+void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZCacheEntry>* entries, bool allow_defragment) {
   // Extract memory and destroy page
   ZVirtualMemory vmem = page->virtual_memory();
-  const ZGenerationId generation_id = page->generation_id();
+  const ZGenerationId id = page->generation_id();
   const ZPageType page_type = page->type();
   safe_destroy_page(page);
 
   // Perhaps remap mapping
-  if (page_type == ZPageType::large ||
-     (allow_defragment && should_defragment(vmem))) {
+  if (page_type == ZPageType::large && allow_defragment) {
     ZStatInc(ZCounterDefragment);
-    vmem = remap_mapping(vmem, true /* force_low_address */);
+    remap_and_defragment_mapping(vmem, id, entries);
+  } else {
+    entries->append(ZCacheEntry(vmem, id));
   }
+}
 
+void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
+  ZArray<ZCacheEntry> to_cache;
+
+  ZCacheState& state = state_from_vmem(page->virtual_memory());
+  prepare_memory_for_free(page, &to_cache, allow_defragment);
+
+  // Insert mappings to the cache in the same state
   ZLocker<ZLock> locker(&_lock);
-  ZCacheState& state = state_from_vmem(vmem);
 
-  // Update used statistics and cache memory
-  state.decrease_used(vmem.size());
-  state.decrease_used_generation(generation_id, vmem.size());
-  state._cache.insert_mapping(vmem);
+  ZArrayIterator<ZCacheEntry> iter(&to_cache);
+  for (ZCacheEntry entry; iter.next(&entry);) {
+    // Update used statistics and cache memory
+    state.decrease_used(entry._vmem.size());
+    state.decrease_used_generation(entry._id, entry._vmem.size());
+    state._cache.insert_mapping(entry._vmem);
+  }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
-struct ZToFreeEntry {
-  ZVirtualMemory vmem;
-  ZGenerationId generation_id;
-};
-
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZToFreeEntry> to_cache;
+  ZArray<ZCacheEntry> to_cache;
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
-    // Extract mapped memory, store generation id and destroy page
-    ZVirtualMemory vmem = page->virtual_memory();
-    const ZGenerationId generation_id = page->generation_id();
-    const ZPageType page_type = page->type();
-
-    safe_destroy_page(page);
-
-    // Perhaps remap mapping
-    if (page_type == ZPageType::large || should_defragment(vmem)) {
-      ZStatInc(ZCounterDefragment);
-      vmem = remap_mapping(vmem, true /* force_low_address */);
-    }
-
-    to_cache.append({ vmem, generation_id });
+    prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
   ZLocker<ZLock> locker(&_lock);
 
   // Insert mappings to the cache
-  ZArrayIterator<ZToFreeEntry> iter(&to_cache);
-  for (ZToFreeEntry entry; iter.next(&entry);) {
-    ZCacheState& state = state_from_vmem(entry.vmem);
+  ZArrayIterator<ZCacheEntry> iter(&to_cache);
+  for (ZCacheEntry entry; iter.next(&entry);) {
+    ZCacheState& state = state_from_vmem(entry._vmem);
 
     // Update used statistics and cache memory
-    state.decrease_used(entry.vmem.size());
-    state.decrease_used_generation(entry.generation_id, entry.vmem.size());
-    state._cache.insert_mapping(entry.vmem);
+    state.decrease_used(entry._vmem.size());
+    state.decrease_used_generation(entry._id, entry._vmem.size());
+    state._cache.insert_mapping(entry._vmem);
   }
 
   // Try satisfy stalled allocations

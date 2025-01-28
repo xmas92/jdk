@@ -26,6 +26,7 @@
 #include "oops/oopsHierarchy.hpp"
 #include "runtime/java.hpp"
 #include "utilities/formatBuffer.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 size_t     ZAddressHeapBaseShift;
 size_t     ZAddressHeapBase;

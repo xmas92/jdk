@@ -21,12 +21,23 @@
  * questions.
  */
 
+#include "asm/assembler.hpp"
+#include "asm/codeBuffer.hpp"
+#include "asm/macroAssembler.hpp"
+#include "asm/register.hpp"
+#include "code/codeBlob.hpp"
+#include "gc/shared/c2/barrierSetC2.hpp"
 #include "gc/z/c2/zBarrierSetC2.hpp"
 #include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetRuntime.hpp"
-#include "opto/arraycopynode.hpp"
+#include "libadt/vectset.hpp"
+#include "memory/allocation.hpp"
+#include "memory/resourceArea.hpp"
+#include "oops/accessDecorators.hpp"
+#include "oops/arrayOop.hpp"
 #include "opto/addnode.hpp"
+#include "opto/arraycopynode.hpp"
 #include "opto/block.hpp"
 #include "opto/compile.hpp"
 #include "opto/graphKit.hpp"
@@ -37,10 +48,12 @@
 #include "opto/output.hpp"
 #include "opto/regalloc.hpp"
 #include "opto/runtime.hpp"
+#include "opto/subnode.hpp"
 #include "opto/type.hpp"
-#include "utilities/debug.hpp"
+#include "utilities/copy.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/growableArray.hpp"
-#include "utilities/macros.hpp"
+#include "utilities/ostream.hpp"
 
 template<typename K, typename V, size_t TableSize>
 class ZArenaHashtable : public ResourceObj {

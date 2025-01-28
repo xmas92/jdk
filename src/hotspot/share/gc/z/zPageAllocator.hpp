@@ -84,10 +84,10 @@ private:
   void unmap_virtual(const ZVirtualMemory& vmem);
   void free_virtual(const ZVirtualMemory& vmem);
 
-  void remap_and_defragment_mapping(const ZVirtualMemory& mapping, ZGenerationId id, ZArray<ZCacheEntry>* entries);
-  void prepare_memory_for_free(ZPage* page, ZArray<ZCacheEntry>* entries, bool allow_defragment);
+  void remap_and_defragment_mapping(const ZVirtualMemory& mapping, ZArray<ZVirtualMemory>* entries);
+  void prepare_memory_for_free(ZPage* page, ZArray<ZVirtualMemory>* entries, bool allow_defragment);
 
-  bool claim_mapped_or_increase_capacity(ZCacheState& state, size_t size, ZArray<ZVirtualMemory>* mappings);
+  bool claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation);
   bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);
   bool claim_physical_round_robin(ZPageAllocation* allocation);
   bool alloc_page_stall(ZPageAllocation* allocation);
@@ -97,7 +97,7 @@ private:
   ZPage* alloc_page_inner(ZPageAllocation* allocation);
   void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id);
 
-  void harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation);
+  void harvest_claimed_physical(ZPageAllocation* allocation);
 
   bool commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem, size_t committed_size);
   void free_memory_alloc_failed(ZPageAllocation* allocation);

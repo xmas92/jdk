@@ -27,6 +27,7 @@
 #include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zInitialize.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.hpp"
 #include "gc/z/zNUMA.inline.hpp"
@@ -237,6 +238,16 @@ bool ZVirtualMemoryManager::is_initialized() const {
   return _initialized;
 }
 
+size_t ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out) {
+  const int numa_id = get_numa_id(vmem);
+  return _managers.get(numa_id).shuffle_memory_low_addresses(vmem.start(), vmem.size(), (ZArray<ZNonDescriptMemory>*)out);
+}
+
+void ZVirtualMemoryManager::shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZVirtualMemory>* mappings) {
+  const int numa_id = get_numa_id(mappings->first());
+  _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, (ZArray<ZNonDescriptMemory>*)mappings);
+}
+
 ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_low_address) {
   zoffset start;
 
@@ -253,17 +264,6 @@ ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force
   }
 
   return ZVirtualMemory(start, size);
-}
-
-ZVirtualMemory ZVirtualMemoryManager::alloc_low_address_at_most(size_t size, int numa_id) {
-  size_t allocated = 0;
-  const zoffset start = _managers.get(numa_id).alloc_low_address_at_most(size, &allocated);
-
-  if (start == zoffset(UINTPTR_MAX)) {
-    return ZVirtualMemory();
-  }
-
-  return ZVirtualMemory(start, allocated);
 }
 
 void ZVirtualMemoryManager::free(const ZVirtualMemory& vmem) {

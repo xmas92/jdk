@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZVIRTUALMEMORY_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zArray.hpp"
 #include "gc/z/zMemory.hpp"
 #include "gc/z/zValue.hpp"
 
@@ -82,9 +83,12 @@ public:
 
   bool is_initialized() const;
 
+  size_t shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out);
+  void shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZVirtualMemory>* mappings);
+
   ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);
-  ZVirtualMemory alloc_low_address_at_most(size_t size, int numa_id);
   void free(const ZVirtualMemory& vmem);
+
 
   int get_numa_id(const ZVirtualMemory& vmem) const;
 };

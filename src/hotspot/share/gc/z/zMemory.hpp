@@ -25,9 +25,21 @@
 #define SHARE_GC_Z_ZMEMORY_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zArray.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "memory/allocation.hpp"
+
+struct ZNonDescriptMemory : CHeapObj<mtGC> {
+public:
+  zoffset     _start;
+  zoffset_end _end;
+
+  ZNonDescriptMemory() {}
+  ZNonDescriptMemory(zoffset start, zoffset_end end) 
+    : _start(start),
+      _end(end) {}
+};
 
 class ZMemory : public CHeapObj<mtGC> {
   friend class ZList<ZMemory>;
@@ -78,6 +90,10 @@ private:
   void grow_from_front(ZMemory* area, size_t size);
   void grow_from_back(ZMemory* area, size_t size);
 
+  zoffset alloc_low_address_no_lock(size_t size);
+  zoffset alloc_low_address_at_most_no_lock(size_t size, size_t* allocated);
+  void free_no_lock(zoffset start, size_t size);
+
 public:
   ZMemoryManager();
 
@@ -85,13 +101,16 @@ public:
 
   void register_callbacks(const Callbacks& callbacks);
 
-  void transfer_high_address(ZMemoryManager& other, size_t size);
   size_t range_size() const;
 
   zoffset peek_low_address() const;
   zoffset alloc_low_address(size_t size);
   zoffset alloc_low_address_at_most(size_t size, size_t* allocated);
   zoffset alloc_high_address(size_t size);
+
+  void transfer_high_address(ZMemoryManager& other, size_t size);
+  size_t shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out);
+  void shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZNonDescriptMemory>* out);
 
   void free(zoffset start, size_t size);
 };

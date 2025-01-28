@@ -358,16 +358,18 @@ bool ZPageAllocator::is_initialized() const {
   return _initialized;
 }
 
+static void pretouch_memory(zoffset start, size_t size) {
+  // At this point we know that we have a valid zoffset / zaddress.
+  const zaddress zaddr = ZOffset::address(start);
+  const uintptr_t addr = untype(zaddr);
+  const size_t page_size = ZLargePages::is_explicit() ? ZGranuleSize : os::vm_page_size();
+  os::pretouch_memory((void*)addr, (void*)(addr + size), page_size);
+}
+
 class ZPreTouchTask : public ZTask {
 private:
   volatile uintptr_t _current;
   const uintptr_t    _end;
-
-  static void pretouch(zaddress zaddr, size_t size) {
-    const uintptr_t addr = untype(zaddr);
-    const size_t page_size = ZLargePages::is_explicit() ? ZGranuleSize : os::vm_page_size();
-    os::pretouch_memory((void*)addr, (void*)(addr + size), page_size);
-  }
 
 public:
   ZPreTouchTask(zoffset start, zoffset_end end)
@@ -388,10 +390,9 @@ public:
 
       // At this point we know that we have a valid zoffset / zaddress.
       const zoffset offset = to_zoffset(claimed);
-      const zaddress addr = ZOffset::address(offset);
 
       // Pre-touch the granule
-      pretouch(addr, size);
+      pretouch_memory(offset, size);
     }
   }
 };
@@ -608,50 +609,36 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
   _virtual.free(vmem);
 }
 
-void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZGenerationId id, ZArray<ZCacheEntry>* entries) {
-  const int numa_id = _virtual.get_numa_id(vmem);
-  ZVirtualMemory from_vmem = vmem;
+void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* entries) {
+  // Synchronously unmap the virtual memory
+  unmap_virtual(vmem);
 
-  while(from_vmem.size() != 0) {
-    const ZVirtualMemory new_vmem = _virtual.alloc_low_address_at_most(from_vmem.size(), numa_id);
+  // Stash away physical segments to some heap-allocated array
+  const int num_granules = vmem.size() >> ZGranuleSizeShift;
+  ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
+  memcpy(stashed_segments.adr_at(0), _physical_mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
 
-    // Out of address space
-    if (new_vmem.is_null()) {
-      break;
-    }
+  // Shuffle-virtual memory
+  const int num_ranges = (int)_virtual.shuffle_vmem_to_low_addresses(vmem, entries);
 
-    // Could not find a lower address range, bail out
-    if (new_vmem.start() > from_vmem.start()) {
-      _virtual.free(new_vmem);
-      break;
-    }
+  int stash_index = 0;
+  for (int i = 0; i < num_ranges; i++) {
+    ZVirtualMemory v = entries->at(entries->length() - 1 - i);
 
-    const ZVirtualMemory old_vmem = from_vmem.split(new_vmem.size());
+    // Copy physical segments from stash
+    const size_t num_granules = v.size() >> ZGranuleSizeShift;
+    memcpy(_physical_mappings.get_addr(v.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
+    stash_index += num_granules;
 
-    // Copy the physical segments and map the new virtual address range
-    copy_physical(old_vmem, new_vmem.start());
-    map_virtual_to_physical(new_vmem);
-
-    // Pre-touch memory
-    ZPreTouchTask task(new_vmem.start(), new_vmem.end());
-    task.work();
-
-    entries->append(ZCacheEntry(new_vmem, id));
-  }
-
-  // Unmap the (until now) multi-mapped memory
-  if (from_vmem.size() != vmem.size()) {
-    _unmapper->unmap_virtual(ZVirtualMemory(vmem.start(), vmem.size() - from_vmem.size()));
-  }
-
-  // Potentially add remainder to the list
-  if (from_vmem.size() != 0) {
-    entries->append(ZCacheEntry(from_vmem, id));
+    map_virtual_to_physical(v);
+    pretouch_memory(v.start(), v.size());
   }
 }
 
-bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, size_t size, ZArray<ZVirtualMemory>* mappings) {
+bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation) {
   ZMappedCache& cache = state._cache;
+  const size_t size = allocation->size();
+  ZArray<ZVirtualMemory>* mappings = allocation->claimed_mappings();
 
   // Try to allocate a contiguous mapping.
   ZVirtualMemory mapping;
@@ -678,6 +665,8 @@ bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, size_
   const size_t remaining = size - increased;
   if (cache.size() >= remaining) {
     const size_t removed = cache.remove_mappings(mappings, remaining);
+    allocation->set_harvested(removed);
+
     assert(removed == remaining, "must be %zu != %zu", removed, remaining);
     return true;
   }
@@ -689,15 +678,13 @@ bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, size_
 
 bool ZPageAllocator::claim_physical(ZPageAllocation* allocation, ZCacheState& state) {
   const size_t size = allocation->size();
-  ZArray<ZVirtualMemory>* const mappings = allocation->claimed_mappings();
 
   if (state.available_capacity() < size) {
     // Out of memory
     return false;
   }
 
-  // Try to claim physical memory
-  if (!claim_mapped_or_increase_capacity(state, size, mappings)) {
+  if (!claim_mapped_or_increase_capacity(state, allocation)) {
     // Failed to claim enough memory or increase capacity
     return false;
   }
@@ -792,22 +779,44 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-void ZPageAllocator::harvest_claimed_physical(const ZVirtualMemory& new_vmem, ZPageAllocation* allocation) {
-  size_t harvested = 0;
+void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
   const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
-  ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
-  for (ZVirtualMemory vmem; iter.next(&vmem);) {
-    copy_physical(vmem, new_vmem.start() + harvested);
-    harvested += vmem.size();
-    _unmapper->unmap_virtual(vmem);
+  const int num_granules = allocation->harvested() >> ZGranuleSizeShift;
+  ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
+
+  // Stash physical segments and unmap memory
+  {
+    int stash_index = 0;
+    ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
+    for (ZVirtualMemory vmem; iter.next(&vmem);) {
+      const int num_granules = vmem.size() >> ZGranuleSizeShift;
+      memcpy(stashed_segments.adr_at(stash_index), _physical_mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+      stash_index += num_granules;
+
+      // Unmap virtual memory
+      unmap_virtual(vmem);
+    }
   }
 
-  // Clear the array of stored mappings
-  allocation->claimed_mappings()->clear();
+  const size_t harvested = allocation->harvested();
+
+  // Shuffle vmem. We allocate enough memory to cover the entire allocation
+  // size, not just the harvested memory.
+  _virtual.shuffle_vmem_to_low_addresses_contiguous(allocation->size(), allocation->claimed_mappings());
+
+  // Restore stashed segments
+  {
+    int stash_index = 0;
+    ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
+    for (ZVirtualMemory vmem; iter.next(&vmem);) {
+      const int num_granules = vmem.size() >> ZGranuleSizeShift;
+      memcpy(_physical_mappings.get_addr(vmem.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
+      stash_index += num_granules;
+    }
+  }
 
   if (harvested > 0) {
-    allocation->set_harvested(harvested);
     log_debug(gc, heap)("Mapped Cache Harvest: %zuM from %d mappings", harvested / M, num_mappings_harvested);
   }
 }
@@ -887,16 +896,23 @@ retry:
     return new ZPage(allocation->type(), vmem);
   }
 
-  // We need to allocate a new virtual address range and make sure the claimed
-  // physical memory is committed and mapped to the same virtual address range.
-  ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), false /* force_low_address */);
-  if (vmem.is_null()) {
+  if (allocation->harvested() > 0) {
+    harvest_claimed_physical(allocation);
+  } else {
+    ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
+    allocation->claimed_mappings()->append(vmem);
+  }
+
+  // Check if we've successfully harvested and gotten a large enough virtual
+  // address range.
+  if (!is_alloc_satisfied(allocation)) {
+    assert(false, "asdf");
     log_error(gc)("Out of address space");
     free_memory_alloc_failed(allocation);
     return nullptr;
   }
 
-  harvest_claimed_physical(vmem, allocation);
+  ZVirtualMemory vmem = allocation->claimed_mappings()->pop();
   const size_t remaining_physical = allocation->size() - allocation->harvested();
 
   // Allocate any remaining physical memory. Capacity and used has already been
@@ -985,63 +1001,81 @@ void ZPageAllocator::satisfy_stalled() {
   }
 }
 
-void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZCacheEntry>* entries, bool allow_defragment) {
+void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZVirtualMemory>* entries, bool allow_defragment) {
   // Extract memory and destroy page
   ZVirtualMemory vmem = page->virtual_memory();
-  const ZGenerationId id = page->generation_id();
   const ZPageType page_type = page->type();
   safe_destroy_page(page);
 
   // Perhaps remap mapping
   if (page_type == ZPageType::large && allow_defragment) {
     ZStatInc(ZCounterDefragment);
-    remap_and_defragment_mapping(vmem, id, entries);
+    remap_and_defragment_mapping(vmem, entries);
   } else {
-    entries->append(ZCacheEntry(vmem, id));
+    entries->append(vmem);
   }
 }
 
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
-  ZArray<ZCacheEntry> to_cache;
+  ZArray<ZVirtualMemory> to_cache;
 
+  ZGenerationId id = page->generation_id();
   ZCacheState& state = state_from_vmem(page->virtual_memory());
   prepare_memory_for_free(page, &to_cache, allow_defragment);
 
-  // Insert mappings to the cache in the same state
   ZLocker<ZLock> locker(&_lock);
 
-  ZArrayIterator<ZCacheEntry> iter(&to_cache);
-  for (ZCacheEntry entry; iter.next(&entry);) {
+  ZArrayIterator<ZVirtualMemory> iter(&to_cache);
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
     // Update used statistics and cache memory
-    state.decrease_used(entry._vmem.size());
-    state.decrease_used_generation(entry._id, entry._vmem.size());
-    state._cache.insert_mapping(entry._vmem);
+    state.decrease_used(vmem.size());
+    state.decrease_used_generation(id, vmem.size());
+    state._cache.insert_mapping(vmem);
   }
 
   // Try satisfy stalled allocations
   satisfy_stalled();
 }
 
+struct ZGenStats {
+  size_t young_size;
+  size_t old_size;
+};
+
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
-  ZArray<ZCacheEntry> to_cache;
+  ZArray<ZVirtualMemory> to_cache;
+  ZPerNUMA<ZGenStats> gen_stats;
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
+    const int numa_id = _virtual.get_numa_id(page->virtual_memory());
+    if (page->is_young()) {
+      gen_stats.get(numa_id).young_size += page->size();
+    } else {
+      gen_stats.get(numa_id).old_size += page->size();
+    }
+
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
   ZLocker<ZLock> locker(&_lock);
 
   // Insert mappings to the cache
-  ZArrayIterator<ZCacheEntry> iter(&to_cache);
-  for (ZCacheEntry entry; iter.next(&entry);) {
-    ZCacheState& state = state_from_vmem(entry._vmem);
+  ZArrayIterator<ZVirtualMemory> iter(&to_cache);
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    ZCacheState& state = state_from_vmem(vmem);
 
-    // Update used statistics and cache memory
-    state.decrease_used(entry._vmem.size());
-    state.decrease_used_generation(entry._id, entry._vmem.size());
-    state._cache.insert_mapping(entry._vmem);
+    state.decrease_used(vmem.size());
+    state._cache.insert_mapping(vmem);
+  }
+
+  for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
+    ZCacheState& state = _states.get(numa_id);
+    ZGenStats& stats = gen_stats.get(numa_id);
+
+    state.decrease_used_generation(ZGenerationId::young, stats.young_size);
+    state.decrease_used_generation(ZGenerationId::old, stats.old_size);
   }
 
   // Try satisfy stalled allocations

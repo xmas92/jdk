@@ -44,6 +44,7 @@ public:
   zoffset start() const;
   zoffset_end end() const;
   size_t size() const;
+  size_t size_in_granules() const;
 
   ZVirtualMemory split(size_t size);
 

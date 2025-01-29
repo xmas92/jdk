@@ -29,7 +29,6 @@
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zMemory.hpp"
 #include "gc/z/zNMT.hpp"
-#include "gc/z/zNUMA.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"

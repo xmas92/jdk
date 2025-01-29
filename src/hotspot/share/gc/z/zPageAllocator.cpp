@@ -33,10 +33,8 @@
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zNUMA.hpp"
-#include "gc/z/zPage.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
-#include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
 #include "gc/z/zStat.hpp"
@@ -614,9 +612,9 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZA
   unmap_virtual(vmem);
 
   // Stash away physical segments to some heap-allocated array
-  const int num_granules = vmem.size() >> ZGranuleSizeShift;
+  const int num_granules = (int)vmem.size_in_granules();
   ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
-  memcpy(stashed_segments.adr_at(0), _physical_mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+  memcpy(stashed_segments.adr_at(0), _physical_mappings.get_addr(vmem.start()), (int)(sizeof(zoffset) * num_granules));
 
   // Shuffle-virtual memory
   const int num_ranges = (int)_virtual.shuffle_vmem_to_low_addresses(vmem, entries);
@@ -626,9 +624,9 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZA
     ZVirtualMemory v = entries->at(entries->length() - 1 - i);
 
     // Copy physical segments from stash
-    const size_t num_granules = v.size() >> ZGranuleSizeShift;
+    const size_t num_granules = v.size_in_granules();
     memcpy(_physical_mappings.get_addr(v.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
-    stash_index += num_granules;
+    stash_index += (int)num_granules;
 
     map_virtual_to_physical(v);
     pretouch_memory(v.start(), v.size());
@@ -782,7 +780,7 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
 void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
   const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
-  const int num_granules = allocation->harvested() >> ZGranuleSizeShift;
+  const int num_granules = (int)(allocation->harvested() >> ZGranuleSizeShift);
   ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
 
   // Stash physical segments and unmap memory
@@ -790,9 +788,9 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
     int stash_index = 0;
     ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
     for (ZVirtualMemory vmem; iter.next(&vmem);) {
-      const int num_granules = vmem.size() >> ZGranuleSizeShift;
+      const size_t num_granules = vmem.size_in_granules();
       memcpy(stashed_segments.adr_at(stash_index), _physical_mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
-      stash_index += num_granules;
+      stash_index += (int)num_granules;
 
       // Unmap virtual memory
       unmap_virtual(vmem);
@@ -810,9 +808,9 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
     int stash_index = 0;
     ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
     for (ZVirtualMemory vmem; iter.next(&vmem);) {
-      const int num_granules = vmem.size() >> ZGranuleSizeShift;
+      const size_t num_granules = vmem.size_in_granules();
       memcpy(_physical_mappings.get_addr(vmem.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
-      stash_index += num_granules;
+      stash_index += (int)num_granules;
     }
   }
 
@@ -897,16 +895,17 @@ retry:
   }
 
   if (allocation->harvested() > 0) {
+    // We allocate virtual memory while harvesting into a contiguous mapping since
+    // we potentially re-use the virtual address of the harvested memory.
     harvest_claimed_physical(allocation);
   } else {
+    // Only increased capacity, nothing harvested.
     ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
     allocation->claimed_mappings()->append(vmem);
   }
 
-  // Check if we've successfully harvested and gotten a large enough virtual
-  // address range.
+  // Check if we've successfully gotten a large enough virtual address range
   if (!is_alloc_satisfied(allocation)) {
-    assert(false, "asdf");
     log_error(gc)("Out of address space");
     free_memory_alloc_failed(allocation);
     return nullptr;

@@ -52,6 +52,10 @@ inline size_t ZVirtualMemory::size() const {
   return _end - _start;
 }
 
+inline size_t ZVirtualMemory::size_in_granules() const {
+  return size() >> ZGranuleSizeShift;
+}
+
 inline ZVirtualMemory ZVirtualMemory::split(size_t size) {
   _start += size;
   return ZVirtualMemory(_start - size, size);

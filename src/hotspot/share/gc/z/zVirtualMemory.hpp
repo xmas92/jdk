@@ -90,7 +90,7 @@ public:
   ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);
   void free(const ZVirtualMemory& vmem);
 
-
+  zoffset lowest_available_address(int numa_id) const;
   int get_numa_id(const ZVirtualMemory& vmem) const;
 };
 

@@ -64,7 +64,6 @@ private:
 public:
   ZMappedCache();
 
-
   void insert_mapping(const ZVirtualMemory& vmem);
 
   size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);

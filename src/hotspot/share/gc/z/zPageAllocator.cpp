@@ -606,6 +606,12 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
 }
 
 void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* entries) {
+  // If no lower address can be found, don't remap/defrag.
+  if (_virtual.lowest_available_address(_virtual.get_numa_id(vmem)) > vmem.start()) {
+    entries->append(vmem);
+    return;
+  }
+
   // Synchronously unmap the virtual memory
   unmap_virtual(vmem);
 

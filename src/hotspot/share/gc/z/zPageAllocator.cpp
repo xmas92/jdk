@@ -612,6 +612,8 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZA
     return;
   }
 
+  ZStatInc(ZCounterDefragment);
+
   // Synchronously unmap the virtual memory
   unmap_virtual(vmem);
 
@@ -1012,7 +1014,6 @@ void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZVirtualMemory>
 
   // Perhaps remap mapping
   if (page_type == ZPageType::large && allow_defragment) {
-    ZStatInc(ZCounterDefragment);
     remap_and_defragment_mapping(vmem, entries);
   } else {
     entries->append(vmem);

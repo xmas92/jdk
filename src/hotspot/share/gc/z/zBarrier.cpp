@@ -33,6 +33,8 @@
 #include "utilities/debug.hpp"
 
 #ifdef ASSERT
+THREAD_LOCAL bool ZBarrierScope::_thread_in_scope = false;
+
 static bool during_young_mark() {
   return ZGeneration::young()->is_phase_mark();
 }

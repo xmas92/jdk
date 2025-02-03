@@ -23,6 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAbort.inline.hpp"
+#include "gc/z/zBarrier.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zDirector.hpp"
 #include "gc/z/zDriver.hpp"
@@ -866,6 +867,12 @@ void ZStatCriticalPhase::register_end(ConcurrentGCTimer* timer, const Ticks& sta
   ZStatDurationSample(_sampler, duration);
   ZStatInc(_counter);
 
+  // We allow a reentrant barrier here because we want to include the thread
+  // name in our logging. This is sound because all CriticalPhases end at the
+  // back edge of a barrier. So all locks will have been released, and if it
+  // was the thread oop that triggered this CriticalPhase, all of the barrier
+  // work will have been completed.
+  DEBUG_ONLY(ZBarrierScope::AllowReentrant allow_reentrant;)
   if (_verbose) {
     LogTarget(Info, gc) log;
     log_end(log, duration, true /* thread */);

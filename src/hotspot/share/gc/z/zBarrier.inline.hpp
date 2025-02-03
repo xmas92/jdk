@@ -31,8 +31,38 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zResurrection.inline.hpp"
 #include "gc/z/zVerify.hpp"
+#include "memory/allocation.hpp"
 #include "oops/oop.hpp"
 #include "runtime/atomic.hpp"
+#include "utilities/globalDefinitions.hpp"
+
+
+#ifdef ASSERT
+class ZBarrierScope : StackObj {
+  static THREAD_LOCAL bool _thread_in_scope;
+
+public:
+  ZBarrierScope() {
+    z_verify_safepoints_are_blocked();
+    assert(!_thread_in_scope, "reentrant barrier");
+    _thread_in_scope = true;
+  }
+  ~ZBarrierScope() {
+    _thread_in_scope = false;
+  }
+
+  class AllowReentrant : StackObj {
+    const bool _previous_thread_in_scope;
+public:
+    AllowReentrant() : _previous_thread_in_scope(_thread_in_scope) {
+      _thread_in_scope = false;
+    }
+    ~AllowReentrant() {
+      _thread_in_scope = _previous_thread_in_scope;
+    }
+  };
+};
+#endif
 
 // A self heal must always "upgrade" the address metadata bits in
 // accordance with the metadata bits state machine. The following
@@ -321,7 +351,7 @@ inline zaddress ZBarrier::make_load_good_no_relocate(zpointer o) {
 
 template <typename ZBarrierSlowPath>
 inline zaddress ZBarrier::barrier(ZBarrierFastPath fast_path, ZBarrierSlowPath slow_path, ZBarrierColor color, volatile zpointer* p, zpointer o, bool allow_null) {
-  z_verify_safepoints_are_blocked();
+  DEBUG_ONLY(ZBarrierScope scope;)
 
   // Fast path
   if (fast_path(o)) {

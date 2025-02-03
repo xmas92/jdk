@@ -556,11 +556,6 @@ size_t ZPageAllocator::count_segments_physical(const ZVirtualMemory& vmem) {
   return _physical.count_segments(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
-void ZPageAllocator::copy_physical(const ZVirtualMemory& from, zoffset to) {
-  const size_t num_granules = from.size() >> ZGranuleSizeShift;
-  memcpy(_physical_mappings.get_addr(to), _physical_mappings.get_addr(from.start()), sizeof(zoffset) * num_granules);
-}
-
 void ZPageAllocator::free_physical(const ZVirtualMemory& vmem, int numa_id) {
   // Free physical memory
   _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
@@ -901,11 +896,11 @@ retry:
   }
 
   if (allocation->harvested() > 0) {
-    // We allocate virtual memory while harvesting into a contiguous mapping since
-    // we potentially re-use the virtual address of the harvested memory.
+    // We allocate virtual memory while harvesting into a contiguous mapping
+    // since we potentially re-use the virtual address of the harvested memory.
     harvest_claimed_physical(allocation);
   } else {
-    // Only increased capacity, nothing harvested.
+    // Only increased capacity, nothing harvested. Allocate new virtual memory.
     ZVirtualMemory vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
     allocation->claimed_mappings()->append(vmem);
   }

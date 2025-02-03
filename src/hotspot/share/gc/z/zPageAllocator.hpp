@@ -71,7 +71,6 @@ private:
   ZCacheState& state_from_vmem(const ZVirtualMemory& vmem);
 
   size_t count_segments_physical(const ZVirtualMemory& vmem);
-  void copy_physical(const ZVirtualMemory& from, zoffset to);
   void free_physical(const ZVirtualMemory& vmem, int numa_id);
   bool commit_physical(ZVirtualMemory* vmem, int numa_id);
   void uncommit_physical(const ZVirtualMemory& vmem);

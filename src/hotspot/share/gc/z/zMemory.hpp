@@ -97,8 +97,6 @@ private:
 public:
   ZMemoryManager();
 
-  bool free_is_contiguous() const;
-
   void register_callbacks(const Callbacks& callbacks);
 
   size_t range_size() const;

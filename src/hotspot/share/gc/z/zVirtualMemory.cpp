@@ -31,7 +31,7 @@
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
-#include "gc/z/zVirtualMemory.inline.hpp"
+#include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
@@ -229,7 +229,7 @@ void ZVirtualMemoryManager::initialize_managers(size_t size) {
     // Update the range
     const zoffset range_start = manager.peek_low_address();
     const size_t range_size = manager.range_size();
-    _vmem_ranges.set(ZVirtualMemory(range_start, range_size), numa_id);
+    _vmem_ranges.set(ZMemoryRange(range_start, range_size), numa_id);
   }
 }
 
@@ -237,42 +237,38 @@ bool ZVirtualMemoryManager::is_initialized() const {
   return _initialized;
 }
 
-int ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out) {
+int ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZMemoryRange& vmem, ZArray<ZMemoryRange>* out) {
   const int numa_id = get_numa_id(vmem);
-  return _managers.get(numa_id).shuffle_memory_low_addresses(vmem.start(), vmem.size(), (ZArray<ZNonDescriptMemory>*)out);
+  return _managers.get(numa_id).shuffle_memory_low_addresses(vmem.start(), vmem.size(), out);
 }
 
-void ZVirtualMemoryManager::shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZVirtualMemory>* mappings) {
+void ZVirtualMemoryManager::shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* mappings) {
   const int numa_id = get_numa_id(mappings->first());
-  _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, (ZArray<ZNonDescriptMemory>*)mappings);
+  _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, (ZArray<ZMemoryRange>*)mappings);
 }
 
-ZVirtualMemory ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_low_address) {
-  zoffset start;
+ZMemoryRange ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_low_address) {
+  ZMemoryRange range;
 
   // Small/medium pages are allocated at low addresses, while large pages are
   // allocated at high addresses (unless forced to be at a low address).
   if (force_low_address || size <= ZPageSizeSmall || size <= ZPageSizeMedium) {
-    start = _managers.get(numa_id).alloc_low_address(size);
+    range = _managers.get(numa_id).alloc_low_address(size);
   } else {
-    start = _managers.get(numa_id).alloc_high_address(size);
+    range = _managers.get(numa_id).alloc_high_address(size);
   }
 
-  if (start == zoffset(UINTPTR_MAX)) {
-    return ZVirtualMemory();
-  }
-
-  return ZVirtualMemory(start, size);
+  return range;
 }
 
-void ZVirtualMemoryManager::free(const ZVirtualMemory& vmem) {
+void ZVirtualMemoryManager::free(const ZMemoryRange& vmem) {
   const int numa_id = get_numa_id(vmem);
   _managers.get(numa_id).free(vmem.start(), vmem.size());
 }
 
-int ZVirtualMemoryManager::get_numa_id(const ZVirtualMemory& vmem) const {
+int ZVirtualMemoryManager::get_numa_id(const ZMemoryRange& vmem) const {
   for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
-    const ZVirtualMemory& range = _vmem_ranges.get(numa_id);
+    const ZMemoryRange& range = _vmem_ranges.get(numa_id);
     if (vmem.start() >= range.start() && vmem.end() <= range.end()) {
       return numa_id;
     }

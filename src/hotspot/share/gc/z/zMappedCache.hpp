@@ -56,23 +56,23 @@ private:
 
   static size_t get_size_class(size_t index);
 
-  void insert(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
-  void remove(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
-  void replace(const Tree::FindCursor& cursor, const ZVirtualMemory& vmem);
-  void update(ZMappedCacheEntry* entry, const ZVirtualMemory& vmem);
+  void insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
 
 public:
   ZMappedCache();
 
-  void insert_mapping(const ZVirtualMemory& vmem);
+  void insert_mapping(const ZMemoryRange& vmem);
 
-  size_t remove_mappings(ZArray<ZVirtualMemory>* mappings, size_t size);
+  size_t remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size);
 
-  bool remove_mapping_contiguous(ZVirtualMemory* mapping, size_t size);
+  bool remove_mapping_contiguous(ZMemoryRange* mapping, size_t size);
 
   size_t min() const;
   size_t reset_min();
-  size_t remove_from_min(ZArray<ZVirtualMemory>* mappings, size_t max_size);
+  size_t remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size);
 
   size_t size() const;
 };

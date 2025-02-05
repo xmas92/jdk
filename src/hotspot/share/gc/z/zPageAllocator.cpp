@@ -58,15 +58,60 @@ static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocat
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
-struct ZCacheEntry {
-  ZVirtualMemory _vmem;
-  ZGenerationId  _id;
+static void sort_zoffset_ptrs(void* at, size_t size) {
+  qsort(at, size, sizeof(zoffset),
+    [](const void* a, const void* b) -> int {
+      return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
+    });
+}
 
-  ZCacheEntry() {}
+struct ZSegmentStash {
+private:
+  ZGranuleMap<zoffset>* _physical_mappings;
+  ZArray<zoffset> _stash;
 
-  ZCacheEntry(const ZVirtualMemory& vmem, ZGenerationId id)
-    : _vmem(vmem),
-      _id(id) {}
+  void sort_stashed_segments() {
+    sort_zoffset_ptrs(_stash.adr_at(0), (size_t)_stash.length());
+  }
+
+public:
+  ZSegmentStash(ZGranuleMap<zoffset>* physical_mappings, int num_granules)
+    : _physical_mappings(physical_mappings),
+      _stash(num_granules, num_granules, zoffset(0)) {}
+
+  void stash(const ZVirtualMemory& vmem) {
+    memcpy(_stash.adr_at(0), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * (int)vmem.size_in_granules());
+    sort_stashed_segments();
+  }
+
+  void stash(ZArray<ZVirtualMemory>* mappings) {
+    int stash_index = 0;
+    ZArrayIterator<ZVirtualMemory> iter(mappings);
+    for (ZVirtualMemory vmem; iter.next(&vmem);) {
+      const size_t num_granules = vmem.size_in_granules();
+      memcpy(_stash.adr_at(stash_index), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+      stash_index += (int)num_granules;
+    }
+    sort_stashed_segments();
+  }
+
+  void pop(ZArray<ZVirtualMemory>* mappings, size_t num_mappings) {
+    int stash_index = 0;
+    for (int idx = mappings->length() - num_mappings; idx < mappings->length(); idx++) {
+      const ZVirtualMemory& vmem = mappings->at(idx);
+      const size_t num_granules = vmem.size_in_granules();
+      const size_t granules_left = _stash.length() - stash_index;
+
+      // If we run out of segments in the stash, we finish early
+      if (num_granules >= granules_left) {
+        memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * granules_left);
+        return;
+      }
+
+      memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * num_granules);
+      stash_index += (int)num_granules;
+    }
+  };
 };
 
 class ZPageAllocation : public StackObj {
@@ -556,6 +601,10 @@ size_t ZPageAllocator::count_segments_physical(const ZVirtualMemory& vmem) {
   return _physical.count_segments(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
+void ZPageAllocator::sort_segments_physical(const ZVirtualMemory& vmem) {
+  sort_zoffset_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
+}
+
 void ZPageAllocator::free_physical(const ZVirtualMemory& vmem, int numa_id) {
   // Free physical memory
   _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
@@ -601,7 +650,7 @@ void ZPageAllocator::free_virtual(const ZVirtualMemory& vmem) {
 }
 
 void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* entries) {
-  // If no lower address can be found, don't remap/defrag.
+  // If no lower address can be found, don't remap/defrag
   if (_virtual.lowest_available_address(_virtual.get_numa_id(vmem)) > vmem.start()) {
     entries->append(vmem);
     return;
@@ -612,23 +661,20 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZVirtualMemory& vmem, ZA
   // Synchronously unmap the virtual memory
   unmap_virtual(vmem);
 
-  // Stash away physical segments to some heap-allocated array
-  const int num_granules = (int)vmem.size_in_granules();
-  ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
-  memcpy(stashed_segments.adr_at(0), _physical_mappings.get_addr(vmem.start()), (int)(sizeof(zoffset) * num_granules));
+  // Stash segments
+  ZSegmentStash segments(&_physical_mappings, (int)vmem.size_in_granules());
+  segments.stash(vmem);
 
-  // Shuffle-virtual memory
-  const int num_ranges = (int)_virtual.shuffle_vmem_to_low_addresses(vmem, entries);
+  // Shuffle vmem
+  const int num_ranges = _virtual.shuffle_vmem_to_low_addresses(vmem, entries);
 
-  int stash_index = 0;
-  for (int i = 0; i < num_ranges; i++) {
-    ZVirtualMemory v = entries->at(entries->length() - 1 - i);
+  // Restore segments
+  segments.pop(entries, num_ranges);
 
-    // Copy physical segments from stash
-    const size_t num_granules = v.size_in_granules();
-    memcpy(_physical_mappings.get_addr(v.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
-    stash_index += (int)num_granules;
-
+  // The entries array may contain entires from other defragmentations as well,
+  // so we only operate on the last ranges that we have just inserted
+  for (int idx = entries->length() - num_ranges; idx < entries->length(); idx++) {
+    ZVirtualMemory v = entries->at(idx);
     map_virtual_to_physical(v);
     pretouch_memory(v.start(), v.size());
   }
@@ -782,39 +828,24 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
   const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
   const int num_granules = (int)(allocation->harvested() >> ZGranuleSizeShift);
-  ZArray<zoffset> stashed_segments(num_granules, num_granules, zoffset(0));
+  ZSegmentStash segments(&_physical_mappings, num_granules);
 
-  // Stash physical segments and unmap memory
-  {
-    int stash_index = 0;
-    ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
-    for (ZVirtualMemory vmem; iter.next(&vmem);) {
-      const size_t num_granules = vmem.size_in_granules();
-      memcpy(stashed_segments.adr_at(stash_index), _physical_mappings.get_addr(vmem.start()), sizeof(zoffset) * num_granules);
-      stash_index += (int)num_granules;
-
-      // Unmap virtual memory
-      unmap_virtual(vmem);
-    }
+  // Unmap virtual memory
+  ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
+  for (ZVirtualMemory vmem; iter.next(&vmem);) {
+    unmap_virtual(vmem);
   }
 
-  const size_t harvested = allocation->harvested();
+  // Stash segments
+  segments.stash(allocation->claimed_mappings());
 
-  // Shuffle vmem. We allocate enough memory to cover the entire allocation
-  // size, not just the harvested memory.
+  // Shuffle vmem. We allocate enough memory to cover the entire allocation size, not just the harvested memory.
   _virtual.shuffle_vmem_to_low_addresses_contiguous(allocation->size(), allocation->claimed_mappings());
 
-  // Restore stashed segments
-  {
-    int stash_index = 0;
-    ZArrayIterator<ZVirtualMemory> iter(allocation->claimed_mappings());
-    for (ZVirtualMemory vmem; iter.next(&vmem);) {
-      const size_t num_granules = vmem.size_in_granules();
-      memcpy(_physical_mappings.get_addr(vmem.start()), stashed_segments.adr_at(stash_index), sizeof(zoffset) * num_granules);
-      stash_index += (int)num_granules;
-    }
-  }
+  // Restore segments
+  segments.pop(allocation->claimed_mappings(), allocation->claimed_mappings()->length());
 
+  const size_t harvested = allocation->harvested();
   if (harvested > 0) {
     log_debug(gc, heap)("Mapped Cache Harvest: %zuM from %d mappings", harvested / M, num_mappings_harvested);
   }
@@ -853,11 +884,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZV
     return false;
   }
 
-  // Sort the backing memory before mapping
-  qsort(_physical_mappings.get_addr(committed_vmem.start()), committed_vmem.size() >> ZGranuleSizeShift, sizeof(zoffset),
-        [](const void* a, const void* b) -> int {
-          return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
-        });
+  sort_segments_physical(committed_vmem);
   map_virtual_to_physical(committed_vmem);
   allocation->claimed_mappings()->append(committed_vmem);
 

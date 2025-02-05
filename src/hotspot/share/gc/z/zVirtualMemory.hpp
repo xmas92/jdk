@@ -84,7 +84,7 @@ public:
 
   bool is_initialized() const;
 
-  size_t shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out);
+  int shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out);
   void shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZVirtualMemory>* mappings);
 
   ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);

@@ -88,16 +88,21 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
 void ZPhysicalMemoryManager::alloc(zoffset* pmem, size_t size, int numa_id) {
   assert(is_aligned(size, ZGranuleSize), "Invalid size");
 
-  // Allocate segments
+  size_t current_granule = 0;
+
   while (size > 0) {
-    size_t allocated = 0;
-    const zoffset start = _managers.get(numa_id).alloc_low_address_at_most(size, &allocated);
-    assert(start != zoffset(UINTPTR_MAX), "Allocation should never fail");
-    size -= allocated;
-    for (zoffset offset = start; allocated != 0; offset += ZGranuleSize, allocated -= ZGranuleSize, pmem++) {
-      *pmem = offset;
+    const ZMemoryRange range = _managers.get(numa_id).alloc_low_address_at_most(size);
+    assert(!range.is_null(), "Allocation should never fail");
+    size -= range.size();
+
+    size_t num_granules = range.size_in_granules();
+    for (size_t i = 0; i < num_granules; i++) {
+      pmem[current_granule + i] = range.start() + (ZGranuleSize * i);
     }
+
+    current_granule += num_granules;
   }
+
 }
 
 template<typename ReturnType>

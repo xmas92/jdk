@@ -30,42 +30,42 @@
 #include "gc/z/zLock.hpp"
 #include "memory/allocation.hpp"
 
-struct ZNonDescriptMemory : CHeapObj<mtGC> {
-public:
-  zoffset     _start;
-  zoffset_end _end;
+class ZMemory;
 
-  ZNonDescriptMemory() {}
-  ZNonDescriptMemory(zoffset start, zoffset_end end) 
-    : _start(start),
-      _end(end) {}
-};
-
-class ZMemory : public CHeapObj<mtGC> {
-  friend class ZList<ZMemory>;
+class ZMemoryRange {
+  friend class VMStructs;
 
 private:
   zoffset            _start;
   zoffset_end        _end;
-  ZListNode<ZMemory> _node;
 
 public:
-  ZMemory(zoffset start, size_t size);
+  ZMemoryRange();
+  ZMemoryRange(zoffset start, size_t size);
+
+  bool is_null() const;
 
   zoffset start() const;
   zoffset_end end() const;
+
   size_t size() const;
+  size_t size_in_granules() const;
 
   void shrink_from_front(size_t size);
   void shrink_from_back(size_t size);
   void grow_from_front(size_t size);
   void grow_from_back(size_t size);
+
+  ZMemoryRange split_from_front(size_t size);
+  ZMemoryRange split_from_back(size_t size);
+
+  bool adjacent_to(const ZMemoryRange& other) const;
 };
 
 class ZMemoryManager {
 public:
-  typedef void (*CreateDestroyCallback)(const ZMemory* area);
-  typedef void (*ResizeCallback)(const ZMemory* area, size_t size);
+  typedef void (*CreateDestroyCallback)(const ZMemoryRange& range);
+  typedef void (*ResizeCallback)(const ZMemoryRange& range, size_t size);
 
   struct Callbacks {
     CreateDestroyCallback _create;
@@ -89,12 +89,14 @@ private:
   void shrink_from_back(ZMemory* area, size_t size);
   void grow_from_front(ZMemory* area, size_t size);
   void grow_from_back(ZMemory* area, size_t size);
+  ZMemoryRange split_from_front(ZMemory* area, size_t size);
+  ZMemoryRange split_from_back(ZMemory* area, size_t size);
 
-  zoffset alloc_low_address_inner(size_t size);
-  zoffset alloc_low_address_at_most_inner(size_t size, size_t* allocated);
+  ZMemoryRange alloc_low_address_inner(size_t size);
+  ZMemoryRange alloc_low_address_at_most_inner(size_t size);
   void free_inner(zoffset start, size_t size);
 
-  int alloc_low_address_many_at_most_inner(size_t size, ZArray<ZNonDescriptMemory>* out);
+  int alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out);
 
 public:
   ZMemoryManager();
@@ -104,15 +106,16 @@ public:
   size_t range_size() const;
 
   zoffset peek_low_address() const;
-  zoffset alloc_low_address(size_t size);
-  zoffset alloc_low_address_at_most(size_t size, size_t* allocated);
-  zoffset alloc_high_address(size_t size);
+  ZMemoryRange alloc_low_address(size_t size);
+  ZMemoryRange alloc_low_address_at_most(size_t size);
+  ZMemoryRange alloc_high_address(size_t size);
 
   void transfer_high_address(ZMemoryManager& other, size_t size);
-  int shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out);
-  void shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZNonDescriptMemory>* out);
+  int shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZMemoryRange>* out);
+  void shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* out);
 
   void free(zoffset start, size_t size);
+  void free(const ZMemoryRange& range);
 };
 
 #endif // SHARE_GC_Z_ZMEMORY_HPP

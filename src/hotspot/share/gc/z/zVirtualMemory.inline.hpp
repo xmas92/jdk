@@ -26,49 +26,6 @@
 
 #include "gc/z/zVirtualMemory.hpp"
 
-#include "gc/z/zMemory.inline.hpp"
-
-inline ZVirtualMemory::ZVirtualMemory()
-  : _start(zoffset(UINTPTR_MAX)),
-    _end(zoffset_end(UINTPTR_MAX)) {}
-
-inline ZVirtualMemory::ZVirtualMemory(zoffset start, size_t size)
-  : _start(start),
-    _end(to_zoffset_end(start, size)) {}
-
-inline bool ZVirtualMemory::is_null() const {
-  return _start == zoffset(UINTPTR_MAX);
-}
-
-inline zoffset ZVirtualMemory::start() const {
-  return _start;
-}
-
-inline zoffset_end ZVirtualMemory::end() const {
-  return _end;
-}
-
-inline size_t ZVirtualMemory::size() const {
-  return _end - _start;
-}
-
-inline size_t ZVirtualMemory::size_in_granules() const {
-  return size() >> ZGranuleSizeShift;
-}
-
-inline ZVirtualMemory ZVirtualMemory::split(size_t size) {
-  _start += size;
-  return ZVirtualMemory(_start - size, size);
-}
-
-inline bool ZVirtualMemory::adjacent_to(const ZVirtualMemory& other) const {
-  return zoffset(end()) == other.start() || zoffset(other.end()) == start();
-}
-
-inline void ZVirtualMemory::extend(size_t size) {
-  _end += size;
-}
-
 inline zoffset ZVirtualMemoryManager::lowest_available_address(int numa_id) const {
   return _managers.get(numa_id).peek_low_address();
 }

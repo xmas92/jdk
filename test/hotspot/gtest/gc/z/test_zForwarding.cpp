@@ -220,7 +220,7 @@ public:
 
   static void test(void (*function)(ZForwarding*), uint32_t size) {
     // Create page
-    const ZVirtualMemory vmem(zoffset(_page_offset), ZPageSizeSmall);
+    const ZMemoryRange vmem(zoffset(_page_offset), ZPageSizeSmall);
     ZPage page(ZPageType::small, vmem);
 
     page.reset(ZPageAge::eden);

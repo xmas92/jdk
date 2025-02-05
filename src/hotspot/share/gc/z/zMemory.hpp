@@ -90,9 +90,11 @@ private:
   void grow_from_front(ZMemory* area, size_t size);
   void grow_from_back(ZMemory* area, size_t size);
 
-  zoffset alloc_low_address_no_lock(size_t size);
-  zoffset alloc_low_address_at_most_no_lock(size_t size, size_t* allocated);
-  void free_no_lock(zoffset start, size_t size);
+  zoffset alloc_low_address_inner(size_t size);
+  zoffset alloc_low_address_at_most_inner(size_t size, size_t* allocated);
+  void free_inner(zoffset start, size_t size);
+
+  int alloc_low_address_many_at_most_inner(size_t size, ZArray<ZNonDescriptMemory>* out);
 
 public:
   ZMemoryManager();
@@ -107,7 +109,7 @@ public:
   zoffset alloc_high_address(size_t size);
 
   void transfer_high_address(ZMemoryManager& other, size_t size);
-  size_t shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out);
+  int shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out);
   void shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZNonDescriptMemory>* out);
 
   void free(zoffset start, size_t size);

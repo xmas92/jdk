@@ -70,7 +70,7 @@ void ZMemoryManager::grow_from_back(ZMemory* area, size_t size) {
   area->grow_from_back(size);
 }
 
-zoffset ZMemoryManager::alloc_low_address_no_lock(size_t size) {
+zoffset ZMemoryManager::alloc_low_address_inner(size_t size) {
   ZListIterator<ZMemory> iter(&_freelist);
   for (ZMemory* area; iter.next(&area);) {
     if (area->size() >= size) {
@@ -93,7 +93,7 @@ zoffset ZMemoryManager::alloc_low_address_no_lock(size_t size) {
   return zoffset(UINTPTR_MAX);
 }
 
-zoffset ZMemoryManager::alloc_low_address_at_most_no_lock(size_t size, size_t* allocated) {
+zoffset ZMemoryManager::alloc_low_address_at_most_inner(size_t size, size_t* allocated) {
   ZMemory* const area = _freelist.first();
   if (area != nullptr) {
     if (area->size() <= size) {
@@ -118,7 +118,7 @@ zoffset ZMemoryManager::alloc_low_address_at_most_no_lock(size_t size, size_t* a
 }
 
 
-void ZMemoryManager::free_no_lock(zoffset start, size_t size) {
+void ZMemoryManager::free_inner(zoffset start, size_t size) {
   assert(start != zoffset(UINTPTR_MAX), "Invalid address");
   const zoffset_end end = to_zoffset_end(start, size);
 
@@ -163,6 +163,20 @@ void ZMemoryManager::free_no_lock(zoffset start, size_t size) {
   }
 }
 
+int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZNonDescriptMemory>* out) {
+  int num_ranges = 0;
+  size_t to_allocate = size;
+  while (to_allocate > 0) {
+    size_t allocated = 0;
+    zoffset start = alloc_low_address_at_most_inner(to_allocate, &allocated);
+    to_allocate -= allocated;
+    num_ranges++;
+    out->append(ZNonDescriptMemory(start, to_zoffset_end(start, allocated)));
+  }
+
+  return num_ranges;
+}
+
 ZMemoryManager::Callbacks::Callbacks()
   : _create(nullptr),
     _destroy(nullptr),
@@ -203,12 +217,12 @@ zoffset ZMemoryManager::peek_low_address() const {
 
 zoffset ZMemoryManager::alloc_low_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
-  return alloc_low_address_no_lock(size);
+  return alloc_low_address_inner(size);
 }
 
 zoffset ZMemoryManager::alloc_low_address_at_most(size_t size, size_t* allocated) {
   ZLocker<ZLock> lock(&_lock);
-  return alloc_low_address_at_most_no_lock(size, allocated);
+  return alloc_low_address_at_most_inner(size, allocated);
 }
 
 zoffset ZMemoryManager::alloc_high_address(size_t size) {
@@ -263,56 +277,41 @@ void ZMemoryManager::transfer_high_address(ZMemoryManager& other, size_t size) {
   }
 }
 
-size_t ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out) {
+int ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out) {
   ZLocker<ZLock> locker(&_lock);
-  free_no_lock(start, size);
-
-  size_t num_ranges = 0;
-
-  size_t to_allocate = size;
-  while (to_allocate > 0) {
-    size_t allocated = 0;
-    zoffset start = alloc_low_address_at_most_no_lock(to_allocate, &allocated);
-    to_allocate -= allocated;
-
-    out->append(ZNonDescriptMemory(start, to_zoffset_end(start, allocated)));
-    num_ranges++;
-  }
-
-  return num_ranges;
+  free_inner(start, size);
+  return alloc_low_address_many_at_most_inner(size, out);
 }
 
 void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZNonDescriptMemory>* out) {
   ZLocker<ZLock> locker(&_lock);
 
+  size_t freed = 0;
+
   // Free everything
   ZArrayIterator<ZNonDescriptMemory> iter(out);
   for (ZNonDescriptMemory mem; iter.next(&mem);) {
-    free_no_lock(mem._start, mem._end - mem._start);
+    const size_t mem_size = mem._end - mem._start;
+    free_inner(mem._start, mem_size);
+    freed += mem_size;
   }
 
   // Clear stored memory so that we can populate it below
   out->clear();
 
   // Try to allocate a contiguous chunk
-  zoffset start = alloc_low_address_no_lock(size);
+  zoffset start = alloc_low_address_inner(size);
   if (start != zoffset(UINTPTR_MAX)) {
     out->append(ZNonDescriptMemory(start, to_zoffset_end(start, size)));
     return;
   }
 
-  // Failed to allocate a contiguous chunk, split it up into smaller chunks
-  size_t to_allocate = size;
-  while (to_allocate > 0) {
-    size_t allocated = 0;
-    zoffset start = alloc_low_address_at_most_no_lock(to_allocate, &allocated);
-    to_allocate -= allocated;
-
-    out->append(ZNonDescriptMemory(start, to_zoffset_end(start, allocated)));
-  }
+  // Failed to allocate a contiguous chunk, split it up into smaller chunks and
+  // only allocate up to as much that has been freed
+  alloc_low_address_many_at_most_inner(freed, out);
 }
 
 void ZMemoryManager::free(zoffset start, size_t size) {
   ZLocker<ZLock> locker(&_lock);
-  free_no_lock(start, size);
+  free_inner(start, size);
 }

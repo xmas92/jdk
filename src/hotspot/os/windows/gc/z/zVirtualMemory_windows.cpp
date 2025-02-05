@@ -27,7 +27,7 @@
 #include "gc/z/zMapper_windows.hpp"
 #include "gc/z/zSyscall_windows.hpp"
 #include "gc/z/zValue.inline.hpp"
-#include "gc/z/zVirtualMemory.inline.hpp"
+#include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
@@ -83,41 +83,41 @@ private:
     // Called when a memory area is returned to the memory manager but can't
     // be merged with an already existing area. Make sure this area is covered
     // by a single placeholder.
-    static void create_callback(const ZMemory* area) {
-      assert(is_aligned(area->size(), ZGranuleSize), "Must be granule aligned");
+    static void create_callback(const ZMemoryRange& range) {
+      assert(is_aligned(range.size(), ZGranuleSize), "Must be granule aligned");
 
-      coalesce_into_one_placeholder(area->start(), area->size());
+      coalesce_into_one_placeholder(range.start(), range.size());
     }
 
     // Called when a complete memory area in the memory manager is allocated.
     // Create granule sized placeholders for the entire area.
-    static void destroy_callback(const ZMemory* area) {
-      assert(is_aligned(area->size(), ZGranuleSize), "Must be granule aligned");
+    static void destroy_callback(const ZMemoryRange& range) {
+      assert(is_aligned(range.size(), ZGranuleSize), "Must be granule aligned");
 
-      split_into_granule_sized_placeholders(area->start(), area->size());
+      split_into_granule_sized_placeholders(range.start(), range.size());
     }
 
     // Called when a memory area is allocated at the front of an exising memory area.
     // Turn the first part of the memory area into granule sized placeholders.
-    static void shrink_from_front_callback(const ZMemory* area, size_t size) {
-      assert(area->size() > size, "Must be larger than what we try to split out");
+    static void shrink_from_front_callback(const ZMemoryRange& range, size_t size) {
+      assert(range.size() > size, "Must be larger than what we try to split out");
       assert(is_aligned(size, ZGranuleSize), "Must be granule aligned");
 
       // Split the area into two placeholders
-      split_placeholder(area->start(), size);
+      split_placeholder(range.start(), size);
 
       // Split the first part into granule sized placeholders
-      split_into_granule_sized_placeholders(area->start(), size);
+      split_into_granule_sized_placeholders(range.start(), size);
     }
 
     // Called when a memory area is allocated at the end of an existing memory area.
     // Turn the second part of the memory area into granule sized placeholders.
-    static void shrink_from_back_callback(const ZMemory* area, size_t size) {
-      assert(area->size() > size, "Must be larger than what we try to split out");
+    static void shrink_from_back_callback(const ZMemoryRange& range, size_t size) {
+      assert(range.size() > size, "Must be larger than what we try to split out");
       assert(is_aligned(size, ZGranuleSize), "Must be granule aligned");
 
       // Split the area into two placeholders
-      const zoffset start = to_zoffset(area->end() - size);
+      const zoffset start = to_zoffset(range.end() - size);
       split_placeholder(start, size);
 
       // Split the second part into granule sized placeholders
@@ -126,19 +126,19 @@ private:
 
     // Called when freeing a memory area and it can be merged at the start of an
     // existing area. Coalesce the underlying placeholders into one.
-    static void grow_from_front_callback(const ZMemory* area, size_t size) {
-      assert(is_aligned(area->size(), ZGranuleSize), "Must be granule aligned");
+    static void grow_from_front_callback(const ZMemoryRange& range, size_t size) {
+      assert(is_aligned(range.size(), ZGranuleSize), "Must be granule aligned");
 
-      const zoffset start = area->start() - size;
-      coalesce_into_one_placeholder(start, area->size() + size);
+      const zoffset start = range.start() - size;
+      coalesce_into_one_placeholder(start, range.size() + size);
     }
 
     // Called when freeing a memory area and it can be merged at the end of an
     // existing area. Coalesce the underlying placeholders into one.
-    static void grow_from_back_callback(const ZMemory* area, size_t size) {
-      assert(is_aligned(area->size(), ZGranuleSize), "Must be granule aligned");
+    static void grow_from_back_callback(const ZMemoryRange& range, size_t size) {
+      assert(is_aligned(range.size(), ZGranuleSize), "Must be granule aligned");
 
-      coalesce_into_one_placeholder(area->start(), area->size() + size);
+      coalesce_into_one_placeholder(range.start(), range.size() + size);
     }
 
     static void register_with(ZMemoryManager* manager) {

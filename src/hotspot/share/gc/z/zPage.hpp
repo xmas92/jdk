@@ -45,7 +45,7 @@ private:
   ZPageAge             _age;
   uint32_t             _seqnum;
   uint32_t             _seqnum_other;
-  ZVirtualMemory       _virtual;
+  ZMemoryRange         _virtual;
   volatile zoffset_end _top;
   ZLiveMap             _livemap;
   ZRememberedSet       _remembered_set;
@@ -65,7 +65,7 @@ private:
   void reset_seqnum();
 
 public:
-  ZPage(ZPageType type, const ZVirtualMemory& mapping);
+  ZPage(ZPageType type, const ZMemoryRange& mapping);
 
   ZPage* clone_limited() const;
 
@@ -89,7 +89,7 @@ public:
   size_t remaining() const;
   size_t used() const;
 
-  const ZVirtualMemory& virtual_memory() const;
+  const ZMemoryRange& virtual_memory() const;
 
   ZPageAge age() const;
 

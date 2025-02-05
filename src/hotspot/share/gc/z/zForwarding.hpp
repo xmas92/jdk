@@ -55,7 +55,7 @@ private:
   typedef ZAttachedArray<ZForwarding, ZForwardingEntry> AttachedArray;
   typedef ZArray<volatile zpointer*> PointerArray;
 
-  const ZVirtualMemory   _virtual;
+  const ZMemoryRange     _virtual;
   const size_t           _object_alignment_shift;
   const AttachedArray    _entries;
   ZPage* const           _page;

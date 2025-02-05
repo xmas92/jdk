@@ -28,7 +28,7 @@
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
-ZPage::ZPage(ZPageType type, const ZVirtualMemory& vmem)
+ZPage::ZPage(ZPageType type, const ZMemoryRange& vmem)
   : _type(type),
     _generation_id(ZGenerationId::young),
     _age(ZPageAge::eden),

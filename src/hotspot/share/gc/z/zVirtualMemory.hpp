@@ -29,29 +29,6 @@
 #include "gc/z/zMemory.hpp"
 #include "gc/z/zValue.hpp"
 
-class ZVirtualMemory {
-  friend class VMStructs;
-
-private:
-  zoffset     _start;
-  zoffset_end _end;
-
-public:
-  ZVirtualMemory();
-  ZVirtualMemory(zoffset start, size_t size);
-
-  bool is_null() const;
-  zoffset start() const;
-  zoffset_end end() const;
-  size_t size() const;
-  size_t size_in_granules() const;
-
-  ZVirtualMemory split(size_t size);
-
-  bool adjacent_to(const ZVirtualMemory& other) const;
-  void extend(size_t size);
-};
-
 class ZVirtualMemoryManager {
   friend class ZMapperTest;
 
@@ -59,7 +36,7 @@ private:
   static size_t calculate_min_range(size_t size);
 
   ZPerNUMA<ZMemoryManager> _managers;
-  ZPerNUMA<ZVirtualMemory> _vmem_ranges;
+  ZPerNUMA<ZMemoryRange> _vmem_ranges;
   bool                     _initialized;
 
   // Platform specific implementation
@@ -84,14 +61,14 @@ public:
 
   bool is_initialized() const;
 
-  int shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out);
-  void shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZVirtualMemory>* mappings);
+  int shuffle_vmem_to_low_addresses(const ZMemoryRange& vmem, ZArray<ZMemoryRange>* out);
+  void shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* mappings);
 
-  ZVirtualMemory alloc(size_t size, int numa_id, bool force_low_address);
-  void free(const ZVirtualMemory& vmem);
+  ZMemoryRange alloc(size_t size, int numa_id, bool force_low_address);
+  void free(const ZMemoryRange& vmem);
 
   zoffset lowest_available_address(int numa_id) const;
-  int get_numa_id(const ZVirtualMemory& vmem) const;
+  int get_numa_id(const ZMemoryRange& vmem) const;
 };
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_HPP

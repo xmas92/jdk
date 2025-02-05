@@ -68,22 +68,22 @@ private:
   mutable ZSafeDelete<ZPage> _safe_destroy;
   bool                       _initialized;
 
-  ZCacheState& state_from_vmem(const ZVirtualMemory& vmem);
+  ZCacheState& state_from_vmem(const ZMemoryRange& vmem);
 
-  size_t count_segments_physical(const ZVirtualMemory& vmem);
-  void sort_segments_physical(const ZVirtualMemory& vmem);
+  size_t count_segments_physical(const ZMemoryRange& vmem);
+  void sort_segments_physical(const ZMemoryRange& vmem);
 
-  void free_physical(const ZVirtualMemory& vmem, int numa_id);
-  bool commit_physical(ZVirtualMemory* vmem, int numa_id);
-  void uncommit_physical(const ZVirtualMemory& vmem);
+  void free_physical(const ZMemoryRange& vmem, int numa_id);
+  bool commit_physical(ZMemoryRange* vmem, int numa_id);
+  void uncommit_physical(const ZMemoryRange& vmem);
 
-  void map_virtual_to_physical(const ZVirtualMemory& vmem);
+  void map_virtual_to_physical(const ZMemoryRange& vmem);
 
-  void unmap_virtual(const ZVirtualMemory& vmem);
-  void free_virtual(const ZVirtualMemory& vmem);
+  void unmap_virtual(const ZMemoryRange& vmem);
+  void free_virtual(const ZMemoryRange& vmem);
 
-  void remap_and_defragment_mapping(const ZVirtualMemory& mapping, ZArray<ZVirtualMemory>* entries);
-  void prepare_memory_for_free(ZPage* page, ZArray<ZVirtualMemory>* entries, bool allow_defragment);
+  void remap_and_defragment_mapping(const ZMemoryRange& mapping, ZArray<ZMemoryRange>* entries);
+  void prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment);
 
   bool claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation);
   bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);
@@ -97,7 +97,7 @@ private:
 
   void harvest_claimed_physical(ZPageAllocation* allocation);
 
-  bool commit_and_map_memory(ZPageAllocation* allocation, const ZVirtualMemory& vmem, size_t committed_size);
+  bool commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size);
   void free_memory_alloc_failed(ZPageAllocation* allocation);
 
   void satisfy_stalled();
@@ -126,7 +126,7 @@ public:
   size_t used_generation(ZGenerationId id) const;
   size_t unused() const;
 
-  void promote_used(const ZVirtualMemory& from, const ZVirtualMemory& to);
+  void promote_used(const ZMemoryRange& from, const ZMemoryRange& to);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
 

@@ -27,96 +27,130 @@
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
 
+class ZMemory : public CHeapObj<mtGC> {
+  friend class ZList<ZMemory>;
+
+private:
+  ZMemoryRange       _range;
+  ZListNode<ZMemory> _node;
+
+public:
+  ZMemory(zoffset start, size_t size)
+    : _range(start, size),
+      _node() {}
+
+  ZMemoryRange* range() {
+    return &_range;
+  }
+
+  zoffset start() const {
+    return _range.start();
+  }
+
+  zoffset_end end() const {
+    return _range.end();
+  }
+
+  size_t size() const {
+    return _range.size();
+  }
+};
+
 ZMemory* ZMemoryManager::create(zoffset start, size_t size) {
   ZMemory* const area = new ZMemory(start, size);
   if (_callbacks._create != nullptr) {
-    _callbacks._create(area);
+    _callbacks._create(*area->range());
   }
   return area;
 }
 
 void ZMemoryManager::destroy(ZMemory* area) {
   if (_callbacks._destroy != nullptr) {
-    _callbacks._destroy(area);
+    _callbacks._destroy(*area->range());
   }
   delete area;
 }
 
 void ZMemoryManager::shrink_from_front(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_front != nullptr) {
-    _callbacks._shrink_from_front(area, size);
+    _callbacks._shrink_from_front(*area->range(), size);
   }
-  area->shrink_from_front(size);
+  area->range()->shrink_from_front(size);
 }
 
 void ZMemoryManager::shrink_from_back(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_back != nullptr) {
-    _callbacks._shrink_from_back(area, size);
+    _callbacks._shrink_from_back(*area->range(), size);
   }
-  area->shrink_from_back(size);
+  area->range()->shrink_from_back(size);
 }
 
 void ZMemoryManager::grow_from_front(ZMemory* area, size_t size) {
   if (_callbacks._grow_from_front != nullptr) {
-    _callbacks._grow_from_front(area, size);
+    _callbacks._grow_from_front(*area->range(), size);
   }
-  area->grow_from_front(size);
+  area->range()->grow_from_front(size);
 }
 
 void ZMemoryManager::grow_from_back(ZMemory* area, size_t size) {
   if (_callbacks._grow_from_back != nullptr) {
-    _callbacks._grow_from_back(area, size);
+    _callbacks._grow_from_back(*area->range(), size);
   }
-  area->grow_from_back(size);
+  area->range()->grow_from_back(size);
 }
 
-zoffset ZMemoryManager::alloc_low_address_inner(size_t size) {
+ZMemoryRange ZMemoryManager::split_from_front(ZMemory* area, size_t size) {
+  if (_callbacks._shrink_from_front != nullptr) {
+    _callbacks._shrink_from_front(*area->range(), size);
+  }
+  return area->range()->split_from_front(size);
+}
+
+ZMemoryRange ZMemoryManager::split_from_back(ZMemory* area, size_t size) {
+  if (_callbacks._shrink_from_back != nullptr) {
+    _callbacks._shrink_from_back(*area->range(), size);
+  }
+  return area->range()->split_from_back(size);
+}
+
+ZMemoryRange ZMemoryManager::alloc_low_address_inner(size_t size) {
   ZListIterator<ZMemory> iter(&_freelist);
   for (ZMemory* area; iter.next(&area);) {
     if (area->size() >= size) {
       if (area->size() == size) {
         // Exact match, remove area
-        const zoffset start = area->start();
+        const ZMemoryRange range = *area->range();
         _freelist.remove(area);
         destroy(area);
-        return start;
+        return range;
       } else {
         // Larger than requested, shrink area
-        const zoffset start = area->start();
-        shrink_from_front(area, size);
-        return start;
+        return split_from_front(area, size);
       }
     }
   }
 
   // Out of memory
-  return zoffset(UINTPTR_MAX);
+  return ZMemoryRange();
 }
 
-zoffset ZMemoryManager::alloc_low_address_at_most_inner(size_t size, size_t* allocated) {
+ZMemoryRange ZMemoryManager::alloc_low_address_at_most_inner(size_t size) {
   ZMemory* const area = _freelist.first();
   if (area != nullptr) {
     if (area->size() <= size) {
       // Smaller than or equal to requested, remove area
-      const zoffset start = area->start();
-      *allocated = area->size();
+      const ZMemoryRange range = *area->range();
       _freelist.remove(area);
       destroy(area);
-      return start;
+      return range;
     } else {
       // Larger than requested, shrink area
-      const zoffset start = area->start();
-      shrink_from_front(area, size);
-      *allocated = size;
-      return start;
+      return split_from_front(area, size);
     }
   }
 
-  // Out of memory
-  *allocated = 0;
-  return zoffset(UINTPTR_MAX);
+  return ZMemoryRange();
 }
-
 
 void ZMemoryManager::free_inner(zoffset start, size_t size) {
   assert(start != zoffset(UINTPTR_MAX), "Invalid address");
@@ -163,15 +197,15 @@ void ZMemoryManager::free_inner(zoffset start, size_t size) {
   }
 }
 
-int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZNonDescriptMemory>* out) {
+int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out) {
   int num_ranges = 0;
   size_t to_allocate = size;
+
   while (to_allocate > 0) {
-    size_t allocated = 0;
-    zoffset start = alloc_low_address_at_most_inner(to_allocate, &allocated);
-    to_allocate -= allocated;
+    const ZMemoryRange range = alloc_low_address_at_most_inner(to_allocate);
+    to_allocate -= range.size();
     num_ranges++;
-    out->append(ZNonDescriptMemory(start, to_zoffset_end(start, allocated)));
+    out->append(range);
   }
 
   return num_ranges;
@@ -215,17 +249,17 @@ zoffset ZMemoryManager::peek_low_address() const {
   return zoffset(UINTPTR_MAX);
 }
 
-zoffset ZMemoryManager::alloc_low_address(size_t size) {
+ZMemoryRange ZMemoryManager::alloc_low_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
   return alloc_low_address_inner(size);
 }
 
-zoffset ZMemoryManager::alloc_low_address_at_most(size_t size, size_t* allocated) {
+ZMemoryRange ZMemoryManager::alloc_low_address_at_most(size_t size) {
   ZLocker<ZLock> lock(&_lock);
-  return alloc_low_address_at_most_inner(size, allocated);
+  return alloc_low_address_at_most_inner(size);
 }
 
-zoffset ZMemoryManager::alloc_high_address(size_t size) {
+ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
 
   ZListReverseIterator<ZMemory> iter(&_freelist);
@@ -233,20 +267,19 @@ zoffset ZMemoryManager::alloc_high_address(size_t size) {
     if (area->size() >= size) {
       if (area->size() == size) {
         // Exact match, remove area
-        const zoffset start = area->start();
+        const ZMemoryRange range = *area->range();
         _freelist.remove(area);
         destroy(area);
-        return start;
+        return range;
       } else {
         // Larger than requested, shrink area
-        shrink_from_back(area, size);
-        return to_zoffset(area->end());
+        return split_from_back(area, size);
       }
     }
   }
 
   // Out of memory
-  return zoffset(UINTPTR_MAX);
+  return ZMemoryRange();
 }
 
 void ZMemoryManager::transfer_high_address(ZMemoryManager& other, size_t size) {
@@ -277,32 +310,31 @@ void ZMemoryManager::transfer_high_address(ZMemoryManager& other, size_t size) {
   }
 }
 
-int ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZNonDescriptMemory>* out) {
+int ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZMemoryRange>* out) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
   return alloc_low_address_many_at_most_inner(size, out);
 }
 
-void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZNonDescriptMemory>* out) {
+void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* out) {
   ZLocker<ZLock> locker(&_lock);
 
   size_t freed = 0;
 
   // Free everything
-  ZArrayIterator<ZNonDescriptMemory> iter(out);
-  for (ZNonDescriptMemory mem; iter.next(&mem);) {
-    const size_t mem_size = mem._end - mem._start;
-    free_inner(mem._start, mem_size);
-    freed += mem_size;
+  ZArrayIterator<ZMemoryRange> iter(out);
+  for (ZMemoryRange mem; iter.next(&mem);) {
+    free_inner(mem.start(), mem.size());
+    freed += mem.size();
   }
 
   // Clear stored memory so that we can populate it below
   out->clear();
 
   // Try to allocate a contiguous chunk
-  zoffset start = alloc_low_address_inner(size);
-  if (start != zoffset(UINTPTR_MAX)) {
-    out->append(ZNonDescriptMemory(start, to_zoffset_end(start, size)));
+  ZMemoryRange range = alloc_low_address_inner(size);
+  if (!range.is_null()) {
+    out->append(range);
     return;
   }
 
@@ -314,4 +346,8 @@ void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray
 void ZMemoryManager::free(zoffset start, size_t size) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
+}
+
+void ZMemoryManager::free(const ZMemoryRange& range) {
+  free(range.start(), range.size());
 }

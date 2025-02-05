@@ -237,7 +237,7 @@ bool ZVirtualMemoryManager::is_initialized() const {
   return _initialized;
 }
 
-size_t ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out) {
+int ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* out) {
   const int numa_id = get_numa_id(vmem);
   return _managers.get(numa_id).shuffle_memory_low_addresses(vmem.start(), vmem.size(), (ZArray<ZNonDescriptMemory>*)out);
 }

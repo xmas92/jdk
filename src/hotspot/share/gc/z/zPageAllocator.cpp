@@ -606,6 +606,10 @@ void ZPageAllocator::sort_segments_physical(const ZMemoryRange& vmem) {
   sort_zoffset_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
 }
 
+void ZPageAllocator::alloc_physical(const ZMemoryRange& vmem, int numa_id) {
+  _physical.alloc(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
+}
+
 void ZPageAllocator::free_physical(const ZMemoryRange& vmem, int numa_id) {
   // Free physical memory
   _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
@@ -679,6 +683,43 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArr
     map_virtual_to_physical(v);
     pretouch_memory(v.start(), v.size());
   }
+}
+
+static void check_out_of_memory_during_initialization() {
+  if (!is_init_completed()) {
+    vm_exit_during_initialization("java.lang.OutOfMemoryError", "Java heap too small");
+  }
+}
+
+bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
+  ZStatTimer timer(ZCriticalPhaseAllocationStall);
+  EventZAllocationStall event;
+
+  // We can only block if the VM is fully initialized
+  check_out_of_memory_during_initialization();
+
+  // Start asynchronous minor GC
+  const ZDriverRequest request(GCCause::_z_allocation_stall, ZYoungGCThreads, 0);
+  ZDriver::minor()->collect(request);
+
+  // Wait for allocation to complete or fail
+  const bool result = allocation->wait();
+
+  {
+    // Guard deletion of underlying semaphore. This is a workaround for
+    // a bug in sem_post() in glibc < 2.21, where it's not safe to destroy
+    // the semaphore immediately after returning from sem_wait(). The
+    // reason is that sem_post() can touch the semaphore after a waiting
+    // thread have returned from sem_wait(). To avoid this race we are
+    // forcing the waiting thread to acquire/release the lock held by the
+    // posting thread. https://sourceware.org/bugzilla/show_bug.cgi?id=12674
+    ZLocker<ZLock> locker(&_lock);
+  }
+
+  // Send event
+  event.commit((u8)allocation->type(), allocation->size());
+
+  return result;
 }
 
 bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation) {
@@ -764,43 +805,6 @@ bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
   return false;
 }
 
-static void check_out_of_memory_during_initialization() {
-  if (!is_init_completed()) {
-    vm_exit_during_initialization("java.lang.OutOfMemoryError", "Java heap too small");
-  }
-}
-
-bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
-  ZStatTimer timer(ZCriticalPhaseAllocationStall);
-  EventZAllocationStall event;
-
-  // We can only block if the VM is fully initialized
-  check_out_of_memory_during_initialization();
-
-  // Start asynchronous minor GC
-  const ZDriverRequest request(GCCause::_z_allocation_stall, ZYoungGCThreads, 0);
-  ZDriver::minor()->collect(request);
-
-  // Wait for allocation to complete or fail
-  const bool result = allocation->wait();
-
-  {
-    // Guard deletion of underlying semaphore. This is a workaround for
-    // a bug in sem_post() in glibc < 2.21, where it's not safe to destroy
-    // the semaphore immediately after returning from sem_wait(). The
-    // reason is that sem_post() can touch the semaphore after a waiting
-    // thread have returned from sem_wait(). To avoid this race we are
-    // forcing the waiting thread to acquire/release the lock held by the
-    // posting thread. https://sourceware.org/bugzilla/show_bug.cgi?id=12674
-    ZLocker<ZLock> locker(&_lock);
-  }
-
-  // Send event
-  event.commit((u8)allocation->type(), allocation->size());
-
-  return result;
-}
-
 bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   {
     ZLocker<ZLock> locker(&_lock);
@@ -872,6 +876,36 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   return true;
 }
 
+bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
+  if (allocation->harvested() > 0) {
+    // If we have harvested anything, we claim virtual memory from the harvested
+    // mappings, and perhaps also allocate more to match the allocation request.
+    harvest_claimed_physical(allocation);
+  } else {
+    // If we have not harvested anything, we have only increased capacity.
+    // Allocate new virtual memory from the manager.
+    ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
+    allocation->claimed_mappings()->append(vmem);
+  }
+
+  // If we have enough virtual memory to cover the allocation request,
+  // we're done.
+  if (is_alloc_satisfied(allocation)) {
+    return true;
+  }
+
+  // Before returning the harvested memory to the cache it must be mapped.
+  if (allocation->harvested() > 0) {
+    ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
+    for (ZMemoryRange vmem; iter.next(&vmem);) {
+      map_virtual_to_physical(vmem);
+    }
+  }
+
+  // Failed to allocate enough to virtual memory from the manager.
+  return false;
+}
+
 bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size) {
   ZMemoryRange to_be_committed_vmem = vmem;
   ZMemoryRange committed_vmem = to_be_committed_vmem.split_from_front(committed_size);
@@ -907,6 +941,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
   return true;
 }
 
+
 ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation) {
 retry:
   // Claim physical memory by taking it from the mapped cache or by increasing
@@ -918,48 +953,30 @@ retry:
     return nullptr;
   }
 
-  // If the claimed physical memory holds a large enough contiguous virtual
-  // address range, we're done.
+  // If we have claimed a large enough contiguous mapping from the cache,
+  // we're done.
   if (is_alloc_satisfied(allocation)) {
     ZMemoryRange vmem = allocation->claimed_mappings()->pop();
     return new ZPage(allocation->type(), vmem);
   }
 
-  if (allocation->harvested() > 0) {
-    // We allocate virtual memory while harvesting into a contiguous mapping
-    // since we potentially re-use the virtual address of the harvested memory.
-    harvest_claimed_physical(allocation);
-  } else {
-    // Only increased capacity, nothing harvested. Allocate new virtual memory.
-    ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
-    allocation->claimed_mappings()->append(vmem);
-  }
-
-  // Check if we've successfully gotten a large enough virtual address range.
-  if (!is_alloc_satisfied(allocation)) {
+  // Claim virtual memory, either by harvesting or by allocating new from the
+  // virtual manager.
+  if (!claim_virtual_memory(allocation)) {
     log_error(gc)("Out of address space");
-
-    // The harvested memory has not been mapped yet. Map it before we put it back into the cache.
-    if (allocation->harvested() > 0) {
-      ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
-      for (ZMemoryRange vmem; iter.next(&vmem);) {
-        map_virtual_to_physical(vmem);
-      }
-    }
-
     free_memory_alloc_failed(allocation);
     return nullptr;
   }
 
   ZMemoryRange vmem = allocation->claimed_mappings()->pop();
-  const size_t remaining_physical = allocation->size() - allocation->harvested();
 
   // Allocate any remaining physical memory. Capacity and used has already been
   // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
+  const size_t remaining_physical = allocation->size() - allocation->harvested();
   if (remaining_physical > 0) {
     allocation->set_committed(remaining_physical);
-    zoffset* mapping_addr = _physical_mappings.get_addr(vmem.start() + allocation->harvested());
-    _physical.alloc(mapping_addr, remaining_physical, allocation->numa_id());
+    ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
+    alloc_physical(uncommitted_range, allocation->numa_id());
   }
 
   if (!commit_and_map_memory(allocation, vmem, allocation->harvested())) {
@@ -975,8 +992,7 @@ void ZPageAllocator::alloc_page_age_update(ZPage* page, size_t size, ZPageAge ag
   // to the allocating thread. The overall heap "used" is tracked in
   // the lower-level allocation code.
   const ZGenerationId id = age == ZPageAge::old ? ZGenerationId::old : ZGenerationId::young;
-  ZCacheState& state = _states.get(numa_id);
-  state.increase_used_generation(id, size);
+  _states.get(numa_id).increase_used_generation(id, size);
 
   // Reset page. This updates the page's sequence number and must
   // be done after we potentially blocked in a safepoint (stalled)

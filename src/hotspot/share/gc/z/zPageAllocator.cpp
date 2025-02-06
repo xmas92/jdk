@@ -841,6 +841,8 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
   segments.stash(allocation->claimed_mappings());
 
   // Shuffle vmem. We allocate enough memory to cover the entire allocation size, not just the harvested memory.
+  // If we fail to allocate additional virtual memory, the allocated virtual memory will match the harvested amount
+  // instead of the allocation request.
   _virtual.shuffle_vmem_to_low_addresses_contiguous(allocation->size(), allocation->claimed_mappings());
 
   // Restore segments
@@ -933,9 +935,18 @@ retry:
     allocation->claimed_mappings()->append(vmem);
   }
 
-  // Check if we've successfully gotten a large enough virtual address range
+  // Check if we've successfully gotten a large enough virtual address range.
   if (!is_alloc_satisfied(allocation)) {
     log_error(gc)("Out of address space");
+
+    // The harvested memory has not been mapped yet. Map it before we put it back into the cache.
+    if (allocation->harvested() > 0) {
+      ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
+      for (ZMemoryRange vmem; iter.next(&vmem);) {
+        map_virtual_to_physical(vmem);
+      }
+    }
+
     free_memory_alloc_failed(allocation);
     return nullptr;
   }

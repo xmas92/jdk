@@ -32,10 +32,10 @@
 #include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
-#include "gc/z/zPhysicalMemory.hpp"
+#include "gc/z/zPhysicalMemoryManager.hpp"
 #include "gc/z/zSafeDelete.hpp"
 #include "gc/z/zValue.hpp"
-#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zVirtualMemoryManager.hpp"
 
 class ThreadClosure;
 class ZCacheState;

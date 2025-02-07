@@ -26,7 +26,7 @@
 
 #include "gc/z/zArray.hpp"
 #include "gc/z/zIntrusiveRBTree.hpp"
-#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zMemory.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 class ZMappedCacheEntry;

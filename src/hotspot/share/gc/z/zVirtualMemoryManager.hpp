@@ -67,8 +67,8 @@ public:
   ZMemoryRange alloc(size_t size, int numa_id, bool force_low_address);
   void free(const ZMemoryRange& vmem);
 
-  zoffset lowest_available_address(int numa_id) const;
   int get_numa_id(const ZMemoryRange& vmem) const;
+  zoffset lowest_available_address(int numa_id) const;
 };
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORY_HPP

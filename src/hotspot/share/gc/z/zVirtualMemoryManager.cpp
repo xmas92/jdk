@@ -276,3 +276,7 @@ int ZVirtualMemoryManager::get_numa_id(const ZMemoryRange& vmem) const {
   assert(false, "Should never reach here");
   return -1;
 }
+
+zoffset ZVirtualMemoryManager::lowest_available_address(int numa_id) const {
+  return _managers.get(numa_id).peek_low_address();
+}

@@ -25,10 +25,10 @@
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zGlobals.hpp"
-#include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zPhysicalMemoryManager.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"
@@ -164,6 +164,7 @@ size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int numa
 
     return segment_size == committed;
   });
+
   // Success
   return total_committed;
 }
@@ -192,35 +193,23 @@ void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t siz
   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
 
   size_t mapped = 0;
-
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
     _backing.map(addr + mapped, segment_size, segment_start);
     mapped += segment_size;
   });
   postcond(mapped == size);
-
-  // Setup NUMA interleaving for large pages
-  if (ZNUMA::is_enabled() && ZLargePages::is_explicit()) {
-    // To get granule-level NUMA interleaving when using large pages,
-    // we simply let the kernel interleave the memory for us at page
-    // fault time.
-    os::numa_make_global((char*)addr, size);
-  }
 }
 
 // Unmap virtual memory from physical memory
 void ZPhysicalMemoryManager::unmap(zoffset offset, const zoffset* /* ignored until anon memory support */, size_t size) const {
   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
-
   _backing.unmap(addr, size);
 }
 
 size_t ZPhysicalMemoryManager::count_segments(const zoffset* pmem, size_t size) {
   size_t count = 0;
-
   for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset, size_t) {
     count++;
   });
-
   return count;
 }

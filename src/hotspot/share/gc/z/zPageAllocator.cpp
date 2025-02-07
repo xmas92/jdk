@@ -40,7 +40,6 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncommitter.hpp"
-#include "gc/z/zUnmapper.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "gc/z/zWorkers.hpp"
@@ -309,7 +308,6 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _max_capacity(max_capacity),
     _states(),
     _stalled(),
-    _unmapper(new ZUnmapper(this)),
     _uncommitter(new ZUncommitter(this)),
     _safe_destroy(),
     _initialized(false) {
@@ -1302,6 +1300,5 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 }
 
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
-  tc->do_thread(_unmapper);
   tc->do_thread(_uncommitter);
 }

@@ -46,13 +46,11 @@ class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
 class ZUncommitter;
-class ZUnmapper;
 class ZWorkers;
 struct ZCacheEntry;
 
 class ZPageAllocator {
   friend class VMStructs;
-  friend class ZUnmapper;
   friend class ZUncommitter;
 
 private:
@@ -66,7 +64,6 @@ private:
   const size_t               _max_capacity;
   ZPerNUMA<ZCacheState>      _states;
   ZList<ZPageAllocation>     _stalled;
-  ZUnmapper*                 _unmapper;
   ZUncommitter*              _uncommitter;
   mutable ZSafeDelete<ZPage> _safe_destroy;
   bool                       _initialized;

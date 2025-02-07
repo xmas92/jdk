@@ -22,7 +22,7 @@
  */
 
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zVirtualMemory.hpp"
+#include "gc/z/zVirtualMemoryManager.hpp"
 #include "logging/log.hpp"
 
 #include <sys/mman.h>

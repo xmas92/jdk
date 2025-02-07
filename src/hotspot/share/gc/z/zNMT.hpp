@@ -27,7 +27,6 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zMemory.hpp"
-#include "gc/z/zVirtualMemory.hpp"
 #include "memory/allStatic.hpp"
 #include "nmt/memTracker.hpp"
 #include "nmt/memoryFileTracker.hpp"

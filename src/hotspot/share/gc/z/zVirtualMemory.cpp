@@ -27,11 +27,10 @@
 #include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zInitialize.hpp"
-#include "gc/z/zMemory.hpp"
+#include "gc/z/zMemory.inline.hpp"
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
-#include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 

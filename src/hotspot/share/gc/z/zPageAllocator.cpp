@@ -21,7 +21,6 @@
  * questions.
  */
 
-#include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zArray.inline.hpp"
@@ -32,6 +31,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zMappedCache.hpp"
 #include "gc/z/zMemory.inline.hpp"
 #include "gc/z/zNUMA.hpp"
 #include "gc/z/zPage.inline.hpp"
@@ -66,7 +66,7 @@ static void sort_zoffset_ptrs(void* at, size_t size) {
     });
 }
 
-struct ZSegmentStash {
+class ZSegmentStash {
 private:
   ZGranuleMap<zoffset>* _physical_mappings;
   ZArray<zoffset> _stash;

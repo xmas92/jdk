@@ -24,13 +24,11 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 
-#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
-#include "gc/z/zMappedCache.hpp"
 #include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
@@ -45,9 +43,9 @@ class ZGeneration;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
+class ZSegmentStash;
 class ZUncommitter;
 class ZWorkers;
-struct ZSegmentStash;
 
 class ZPageAllocator {
   friend class VMStructs;
@@ -55,7 +53,6 @@ class ZPageAllocator {
 
 private:
   mutable ZLock              _lock;
-
   ZVirtualMemoryManager      _virtual;
   ZPhysicalMemoryManager     _physical;
   ZGranuleMap<zoffset>       _physical_mappings;

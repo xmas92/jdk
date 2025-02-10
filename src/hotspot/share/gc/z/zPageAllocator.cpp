@@ -1097,18 +1097,15 @@ struct ZGenStats {
 
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArray<ZMemoryRange> to_cache;
-  ZPerNUMA<ZGenStats> gen_stats;
+
+  // All pages belong to the same generation, so either only young or old.
+  const ZGenerationId gen_id = pages->first()->generation_id();
+  size_t gen_size = 0;
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
-    const int numa_id = _virtual.get_numa_id(page->virtual_memory());
-    if (page->is_young()) {
-      gen_stats.get(numa_id).young_size += page->size();
-    } else {
-      gen_stats.get(numa_id).old_size += page->size();
-    }
-
+    gen_size += page->size();
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
@@ -1118,17 +1115,13 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArrayIterator<ZMemoryRange> iter(&to_cache);
   for (ZMemoryRange vmem; iter.next(&vmem);) {
     ZCacheState& state = state_from_vmem(vmem);
-
     state.decrease_used(vmem.size());
     state._cache.insert_mapping(vmem);
   }
 
   for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
     ZCacheState& state = _states.get(numa_id);
-    ZGenStats& stats = gen_stats.get(numa_id);
-
-    state.decrease_used_generation(ZGenerationId::young, stats.young_size);
-    state.decrease_used_generation(ZGenerationId::old, stats.old_size);
+    state.decrease_used_generation(gen_id, gen_size);
   }
 
   // Try satisfy stalled allocations

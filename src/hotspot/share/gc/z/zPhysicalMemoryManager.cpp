@@ -201,9 +201,17 @@ void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t siz
 }
 
 // Unmap virtual memory from physical memory
-void ZPhysicalMemoryManager::unmap(zoffset offset, const zoffset* /* ignored until anon memory support */, size_t size) const {
+void ZPhysicalMemoryManager::unmap(zoffset offset, const zoffset* pmem, size_t size) const {
   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
   _backing.unmap(addr, size);
+
+  size_t unmapped = 0;
+
+  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
+    _backing.unmap_segment(addr + unmapped, segment_size, segment_start);
+    unmapped += segment_size;
+  });
+  postcond(unmapped == size);
 }
 
 size_t ZPhysicalMemoryManager::count_segments(const zoffset* pmem, size_t size) {

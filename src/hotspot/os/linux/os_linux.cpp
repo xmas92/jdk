@@ -2065,6 +2065,12 @@ void os::print_dll_info(outputStream *st) {
   } else {
     st->print_cr("Total number of mappings: %u", num);
   }
+
+  jio_snprintf(fname, sizeof(fname), "/proc/%d/smaps", pid);
+  num = 0;
+  if (!_print_ascii_file(fname, st, &num)) {
+    st->print_cr("Can not get library information for pid = %d", pid);
+  }
 }
 
 struct loaded_modules_info_param {
@@ -3876,6 +3882,7 @@ static bool validate_thps_configured() {
 
   if (UseZGC) {
     if (!HugePages::supports_shmem_thp()) {
+      // TODO: Cleanup?
       log_warning(pagesize)("Shared memory transparent huge pages are not enabled in the OS. "
           "Set /sys/kernel/mm/transparent_hugepage/shmem_enabled to 'advise' to enable them.");
       // UseTransparentHugePages has historically been tightly coupled with

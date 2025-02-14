@@ -35,7 +35,10 @@ private:
   uint64_t _filesystem;
   size_t   _block_size;
   size_t   _available;
+  char*    _physical_mapping;
   bool     _initialized;
+
+  static char* _reserved_anon_memory_mapping;
 
   void warn_available_space(size_t max_capacity) const;
   void warn_max_map_count(size_t max_capacity) const;
@@ -44,6 +47,7 @@ private:
   int create_file_fd(const char* name) const;
   int create_fd(const char* name) const;
 
+  bool is_anonymous() const;
   bool is_tmpfs() const;
   bool is_hugetlbfs() const;
   bool tmpfs_supports_transparent_huge_pages() const;
@@ -74,6 +78,9 @@ public:
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;
   void unmap(zaddress_unsafe addr, size_t size) const;
+  void unmap_segment(zaddress_unsafe addr, size_t size, zoffset offset) const;
+
+  static bool reserve_anon_memory_mapping(size_t max_capacity);
 };
 
 #endif // OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP

@@ -244,4 +244,18 @@ public:
   ~VMErrorCallbackMark();
 };
 
+template<typename F>
+class VMOnError :  public VMErrorCallback, public VMErrorCallbackMark {
+  F _f;
+
+public:
+  VMOnError(F f) : VMErrorCallbackMark(this), _f(f) {}
+  void call(outputStream* st) override { _f(st); }
+};
+
+template<typename F>
+auto make_vm_on_error(F f) {
+  return VMOnError<F>(f);
+}
+
 #endif // SHARE_UTILITIES_VMERROR_HPP

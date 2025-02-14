@@ -932,11 +932,6 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
     return false;
   }
 
-  log_trace(gc, heap)("Committed memory at 0x%lx (NUMA preferred=%d actual=%d)",
-      untype(vmem.start()),
-      _virtual.get_numa_id(vmem),
-      ZNUMA::memory_id(untype(ZOffset::address(vmem.start()))));
-
   return true;
 }
 

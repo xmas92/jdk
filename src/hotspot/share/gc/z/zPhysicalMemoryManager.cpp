@@ -25,6 +25,7 @@
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zLargePages.inline.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
@@ -75,7 +76,7 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   // Test if uncommit is supported by the operating system by committing
   // and then uncommitting a granule.
   const zoffset offset{};
-  if (!commit(&offset, ZGranuleSize) || !uncommit(&offset, ZGranuleSize)) {
+  if (!commit(&offset, ZGranuleSize, -1) || !uncommit(&offset, ZGranuleSize)) {
     log_info_p(gc, init)("Uncommit: Implicitly Disabled (Not supported by operating system)");
     FLAG_SET_ERGO(ZUncommit, false);
     return;
@@ -189,7 +190,7 @@ size_t ZPhysicalMemoryManager::uncommit(const zoffset* pmem, size_t size) {
 }
 
 // Map virtual memory to physical memory
-void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t size) const {
+void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t size, int numa_id) const {
   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
 
   size_t mapped = 0;
@@ -198,6 +199,11 @@ void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t siz
     mapped += segment_size;
   });
   postcond(mapped == size);
+
+  // Setup NUMA preferred for large pages
+  if (ZNUMA::is_enabled() && ZLargePages::is_explicit()) {
+    os::numa_make_local((char*)addr, size, numa_id);
+  }
 }
 
 // Unmap virtual memory from physical memory

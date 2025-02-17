@@ -463,7 +463,13 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
       return false;
     }
 
-    map_virtual_to_physical(vmem);
+    map_virtual_to_physical(vmem, numa_id);
+
+    // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
+    int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+    if (actual != numa_id) {
+      log_debug(gc, heap)("NUMA Mismatch (priming): desired %d, actual %d", numa_id, actual);
+    }
 
     if (AlwaysPreTouch) {
       // Pre-touch memory
@@ -638,9 +644,9 @@ void ZPageAllocator::uncommit_physical(const ZMemoryRange& vmem) {
   _physical.uncommit(_physical_mappings.get_addr(vmem.start()), vmem.size());
 }
 
-void ZPageAllocator::map_virtual_to_physical(const ZMemoryRange& vmem) {
+void ZPageAllocator::map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id) {
   // Map virtual memory to physical memory
-  _physical.map(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
+  _physical.map(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
 }
 
 void ZPageAllocator::unmap_virtual(const ZMemoryRange& vmem) {
@@ -677,9 +683,10 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArr
 
   // The entries array may contain entires from other defragmentations as well,
   // so we only operate on the last ranges that we have just inserted
+  int numa_id = _virtual.get_numa_id(vmem);
   for (int idx = entries->length() - num_ranges; idx < entries->length(); idx++) {
     ZMemoryRange v = entries->at(idx);
-    map_virtual_to_physical(v);
+    map_virtual_to_physical(v, numa_id);
     pretouch_memory(v.start(), v.size());
   }
 }
@@ -897,7 +904,7 @@ bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
   if (allocation->harvested() > 0) {
     ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
     for (ZMemoryRange vmem; iter.next(&vmem);) {
-      map_virtual_to_physical(vmem);
+      map_virtual_to_physical(vmem, allocation->numa_id());
     }
   }
 
@@ -921,8 +928,14 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
   }
 
   sort_segments_physical(committed_vmem);
-  map_virtual_to_physical(committed_vmem);
+  map_virtual_to_physical(committed_vmem, allocation->numa_id());
   allocation->claimed_mappings()->append(committed_vmem);
+
+  // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
+  int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+  if (actual != allocation->numa_id()) {
+    log_debug(gc, heap)("NUMA Mismatch (allocation): desired %d, actual %d", allocation->numa_id(), actual);
+  }
 
   if (committed_vmem.size() != vmem.size()) {
     log_trace(gc, page)("Split memory [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT "]",
@@ -934,7 +947,6 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
 
   return true;
 }
-
 
 ZPage* ZPageAllocator::alloc_page_inner(ZPageAllocation* allocation) {
 retry:

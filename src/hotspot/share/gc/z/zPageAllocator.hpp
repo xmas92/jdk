@@ -75,7 +75,7 @@ private:
   bool commit_physical(ZMemoryRange* vmem, int numa_id);
   void uncommit_physical(const ZMemoryRange& vmem);
 
-  void map_virtual_to_physical(const ZMemoryRange& vmem);
+  void map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id);
 
   void unmap_virtual(const ZMemoryRange& vmem);
   void free_virtual(const ZMemoryRange& vmem);

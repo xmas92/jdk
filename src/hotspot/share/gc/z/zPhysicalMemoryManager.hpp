@@ -46,13 +46,13 @@ public:
   void warn_commit_limits(size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 
-  void alloc(zoffset* pmem, size_t size, int numa_id = -1);
+  void alloc(zoffset* pmem, size_t size, int numa_id);
   void free(const zoffset* pmem, size_t size, int numa_id);
 
-  size_t commit(const zoffset* pmem, size_t size, int numa_id = -1);
+  size_t commit(const zoffset* pmem, size_t size, int numa_id);
   size_t uncommit(const zoffset* pmem, size_t size);
 
-  void map(zoffset offset, const zoffset* pmem, size_t size) const;
+  void map(zoffset offset, const zoffset* pmem, size_t size, int numa_id) const;
   void unmap(zoffset offset, const zoffset* pmem, size_t size) const;
 
   size_t count_segments(const zoffset* pmem, size_t size);

@@ -222,7 +222,7 @@ void ZVirtualMemoryManager::initialize_managers(size_t size) {
 
     ZMemoryManager& manager = _managers.get(numa_id);
     if (numa_id != 0) {
-      initial_manager.transfer_high_address(manager, reservation_left);
+      initial_manager.transfer_high_address(manager, reservation);
     }
 
     // Update the range

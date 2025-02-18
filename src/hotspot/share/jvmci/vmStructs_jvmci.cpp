@@ -328,9 +328,12 @@
                                                                                                                                      \
   volatile_nonstatic_field(ObjectMonitor,      _owner,                                        int64_t)                               \
   volatile_nonstatic_field(ObjectMonitor,      _recursions,                                   intptr_t)                              \
-  volatile_nonstatic_field(ObjectMonitor,      _entry_list,                                    ObjectWaiter*)                        \
+  volatile_nonstatic_field(ObjectMonitor,      _entry_list,                                   ObjectMonitor::EntryList)              \
   volatile_nonstatic_field(ObjectMonitor,      _succ,                                         int64_t)                               \
   volatile_nonstatic_field(ObjectMonitor,      _stack_locker,                                 BasicLock*)                            \
+                                                                                                                                     \
+  volatile_nonstatic_field(ObjectMonitor::EntryList, _head,                                   ObjectWaiter* volatile)                \
+  volatile_nonstatic_field(ObjectMonitor::EntryList, _tail,                                   ObjectWaiter*)                         \
                                                                                                                                      \
   volatile_nonstatic_field(oopDesc,            _mark,                                         markWord)                              \
   volatile_nonstatic_field(oopDesc,            _metadata._klass,                              Klass*)                                \
@@ -460,6 +463,7 @@
   declare_toplevel_type(LocalVariableTableElement)                        \
   declare_toplevel_type(narrowKlass)                                      \
   declare_toplevel_type(ObjectWaiter)                                     \
+  declare_toplevel_type(ObjectMonitor::EntryList)                         \
   declare_toplevel_type(Symbol*)                                          \
   declare_toplevel_type(vtableEntry)                                      \
                                                                           \

@@ -39,6 +39,7 @@ class ObjectMonitorContentionMark;
 class ParkEvent;
 class BasicLock;
 class ContinuationWrapper;
+class outputStream;
 
 
 class ObjectWaiter : public CHeapObj<mtThread> {
@@ -173,10 +174,32 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
                         sizeof(volatile uint64_t));
   ObjectMonitor* _next_om;          // Next ObjectMonitor* linkage
   volatile intx _recursions;        // recursion count, 0 for first entry
-  ObjectWaiter* volatile _entry_list;  // Threads blocked on entry or reentry.
-                                       // The list is actually composed of WaitNodes,
-                                       // acting as proxies for Threads.
-  ObjectWaiter* volatile _entry_list_tail; // _entry_list is the head, this is the tail.
+  class EntryList {
+    friend class VMStructs;
+    friend class JVMCIVMStructs;
+
+    ObjectWaiter* volatile _head; // Threads blocked on entry or reentry.
+                                  // The list is actually composed of WaitNodes,
+                                  // acting as proxies for Threads.
+    ObjectWaiter* _tail;          // _entry_list is the head, this is the tail.
+
+    void link_prev();
+    void assert_is_linked(const ObjectWaiter* from) const;
+
+  public:
+
+    void print(outputStream* st) const;
+    EntryList() : _head(nullptr), _tail(nullptr) {}
+    bool try_add(ObjectWaiter* node);
+    void add(ObjectWaiter* node);
+    void remove(ObjectWaiter* node);
+    ObjectWaiter* last();
+    bool is_empty() const;
+
+    const ObjectWaiter* head() const;
+    const ObjectWaiter* tail() const;
+  };
+  EntryList _entry_list;
   int64_t volatile _succ;           // Heir presumptive thread - used for futile wakeup throttling
 
   volatile int _SpinDuration;
@@ -273,7 +296,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
 
   bool is_busy() const {
     // TODO-FIXME: assert _owner == NO_OWNER implies _recursions = 0
-    intptr_t ret_code = intptr_t(_waiters) | intptr_t(_entry_list);
+    intptr_t ret_code = intptr_t(_waiters) | intptr_t(_entry_list.head());
     int cnts = contentions(); // read once
     if (cnts > 0) {
       ret_code |= intptr_t(cnts);
@@ -425,7 +448,6 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
   void      EnterI(JavaThread* current);
   void      ReenterI(JavaThread* current, ObjectWaiter* current_node);
   void      UnlinkAfterAcquire(JavaThread* current, ObjectWaiter* current_node);
-  ObjectWaiter* entry_list_tail(JavaThread* current);
 
   bool      VThreadMonitorEnter(JavaThread* current, ObjectWaiter* node = nullptr);
   void      VThreadWait(JavaThread* current, jlong millis);

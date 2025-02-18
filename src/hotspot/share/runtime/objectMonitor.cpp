@@ -60,6 +60,7 @@
 #include "utilities/globalCounter.inline.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
+#include "utilities/ostream.hpp"
 #include "utilities/preserveException.hpp"
 #if INCLUDE_JFR
 #include "jfr/support/jfrFlush.hpp"
@@ -168,7 +169,7 @@ ParkEvent* ObjectMonitor::_vthread_unparker_ParkEvent = nullptr;
 //   Since the successor is chosen in FIFO order, the exiting thread
 //   needs to find the tail of the entry_list. This is done by walking
 //   from the entry_list head. While walking the list we also assign
-//   the prev pointers of each thread, essentially forming a doubly 
+//   the prev pointers of each thread, essentially forming a doubly
 //   linked list, see 2) below.
 //
 //   Once we have formed a doubly linked list it's easy to find the
@@ -292,8 +293,7 @@ ObjectMonitor::ObjectMonitor(oop object) :
   _previous_owner_tid(0),
   _next_om(nullptr),
   _recursions(0),
-  _entry_list(nullptr),
-  _entry_list_tail(nullptr),
+  _entry_list(),
   _succ(NO_OWNER),
   _SpinDuration(ObjectMonitor::Knob_SpinLimit),
   _contentions(0),
@@ -694,20 +694,34 @@ ObjectMonitor::TryLockResult ObjectMonitor::TryLock(JavaThread* current) {
   return first_own == own ? TryLockResult::HasOwner : TryLockResult::Interference;
 }
 
-// Push "current" onto the front of the _entry_list. Once on _entry_list,
-// current stays on-queue until it acquires the lock.
-void ObjectMonitor::add_to_entry_list(JavaThread* current, ObjectWaiter* node) {
-  node->_prev   = nullptr;
-  node->TState  = ObjectWaiter::TS_ENTER;
+bool ObjectMonitor::EntryList::try_add(ObjectWaiter* node) {
+  precond(node->_prev == nullptr);
+  precond(node->TState == ObjectWaiter::TS_ENTER);
 
+  ObjectWaiter* const head = Atomic::load(&_head);
+  node->_next = head;
+  return Atomic::cmpxchg(&_head, head, node) == head;
+}
+
+void ObjectMonitor::EntryList::add(ObjectWaiter* node) {
+  node->_prev = nullptr;
+  node->TState = ObjectWaiter::TS_ENTER;
+
+  ObjectWaiter* head = Atomic::load(&_head);
   for (;;) {
-    ObjectWaiter* front = Atomic::load_acquire(&_entry_list);
-
-    node->_next = front;
-    if (Atomic::cmpxchg(&_entry_list, front, node) == front) {
+    ObjectWaiter* const old_head = head;
+    node->_next = old_head;
+    head = Atomic::cmpxchg(&_head, old_head, node);
+    if (old_head == head) {
       return;
     }
   }
+}
+
+// Push "current" onto the front of the _entry_list. Once on _entry_list,
+// current stays on-queue until it acquires the lock.
+void ObjectMonitor::add_to_entry_list(JavaThread* current, ObjectWaiter* node) {
+  _entry_list.add(node);
 }
 
 // Push "current" onto the front of the entry_list.
@@ -720,10 +734,7 @@ bool ObjectMonitor::try_lock_or_add_to_entry_list(JavaThread* current, ObjectWai
   node->TState  = ObjectWaiter::TS_ENTER;
 
   for (;;) {
-    ObjectWaiter* front = Atomic::load_acquire(&_entry_list);
-
-    node->_next = front;
-    if (Atomic::cmpxchg(&_entry_list, front, node) == front) {
+    if (_entry_list.try_add(node)) {
       return false;
     }
 
@@ -735,6 +746,20 @@ bool ObjectMonitor::try_lock_or_add_to_entry_list(JavaThread* current, ObjectWai
       return true;
     }
   }
+}
+
+bool ObjectMonitor::EntryList::is_empty() const {
+  ObjectWaiter* const head = Atomic::load(&_head);
+  assert(head != nullptr || _tail == nullptr, "no head implies no tail");
+  return Atomic::load(&_head) == nullptr;
+}
+
+const ObjectWaiter* ObjectMonitor::EntryList::head() const {
+  return Atomic::load(&_head);
+}
+
+const ObjectWaiter* ObjectMonitor::EntryList::tail() const {
+  return _tail;
 }
 
 // Deflate the specified ObjectMonitor if not in-use. Returns true if it
@@ -807,9 +832,9 @@ bool ObjectMonitor::deflate_monitor(Thread* current) {
   guarantee(contentions() < 0, "must be negative: contentions=%d",
             contentions());
   guarantee(_waiters == 0, "must be 0: waiters=%d", _waiters);
-  guarantee(_entry_list == nullptr,
+  guarantee(_entry_list.is_empty(),
             "must be no entering threads: entry_list=" INTPTR_FORMAT,
-            p2i(_entry_list));
+            p2i(_entry_list.head()));
 
   if (obj != nullptr) {
     if (log_is_enabled(Trace, monitorinflation)) {
@@ -894,7 +919,8 @@ const char* ObjectMonitor::is_busy_to_string(stringStream* ss) {
   ss->print("is_busy: waiters=%d"
             ", contentions=%d"
             ", owner=" INT64_FORMAT
-            ", entry_list=" PTR_FORMAT,
+            ", entry_list.head=" PTR_FORMAT
+            ", entry_list.tail=" PTR_FORMAT,
             _waiters,
             (contentions() > 0 ? contentions() : 0),
             owner_is_DEFLATER_MARKER()
@@ -902,7 +928,8 @@ const char* ObjectMonitor::is_busy_to_string(stringStream* ss) {
                 // ignores DEFLATER_MARKER values.
                 ? NO_OWNER
                 : owner_raw(),
-            p2i(_entry_list));
+            p2i(_entry_list.head()),
+            p2i(_entry_list.tail()));
   return ss->base();
 }
 
@@ -1252,30 +1279,59 @@ void ObjectMonitor::VThreadEpilog(JavaThread* current, ObjectWaiter* node) {
   }
 }
 
-// Return the tail of the _entry_list. If the tail is currently not
-// known, find it by walking from the head of _entry_list, and while
-// doing so assign the _prev pointers to create a doubly linked list.
-ObjectWaiter* ObjectMonitor::entry_list_tail(JavaThread* current) {
-  assert(has_owner(current), "invariant");
-  ObjectWaiter* w = _entry_list_tail;
-  if (w != nullptr) {
-    return w;
+void ObjectMonitor::EntryList::assert_is_linked(const ObjectWaiter* from) const {
+  const ObjectWaiter* node = from;
+  const ObjectWaiter* next_node = node->_next;
+  while (next_node != nullptr) {
+    ObjectWaiter* const next_node_prev = next_node->_prev;
+    assert(next_node_prev == node, "inconsistent link " INTPTR_FORMAT " " INTPTR_FORMAT, p2i(next_node_prev), p2i(node));
+    node = next_node;
+    next_node = node->_next;
   }
-  w = _entry_list;
-  assert(w != nullptr, "invariant");
-  if (w->_next == nullptr) {
-    _entry_list_tail = w;
-    return w;
+  ObjectWaiter* const tail = _tail;
+  assert(node == tail, "inconsistent tail " INTPTR_FORMAT " " INTPTR_FORMAT,p2i(tail), p2i(node));;
+}
+
+void ObjectMonitor::EntryList::print(outputStream* st) const {
+  ObjectWaiter* node = Atomic::load_acquire(&_head);
+  st->print(node != nullptr ? "H" : "H: ");
+  while (node != nullptr) {
+    ObjectWaiter* next_node = node->_next;
+    ObjectWaiter* prev_node = node->_prev;
+    st->print(prev_node != nullptr ? " <=> " : " -> ");
+    st->print(INTPTR_FORMAT, p2i(node));
+    node = next_node;
   }
-  ObjectWaiter* prev = nullptr;
-  while (w != nullptr) {
-    assert(w->TState == ObjectWaiter::TS_ENTER, "invariant");
-    w->_prev = prev;
-    prev = w;
-    w = w->_next;
+  st->print_cr(_tail != nullptr ? " <-T" : " :T");
+  st->flush();
+}
+
+void ObjectMonitor::EntryList::link_prev() {
+  precond(!is_empty());
+  ObjectWaiter* node = Atomic::load_acquire(&_head);
+  ObjectWaiter* next_node = node->_next;
+  while (next_node != nullptr) {
+    ObjectWaiter* const next_node_prev = next_node->_prev;
+    if (next_node_prev != nullptr) {
+      assert_is_linked(node);
+      // Rest of list already linked
+      return;
+    }
+
+    next_node->_prev = node;
+    node = next_node;
+    next_node = node->_next;
   }
-  _entry_list_tail = prev;
-  return prev;
+  // Linked to tail, update tail
+  _tail = node;
+}
+
+ObjectWaiter* ObjectMonitor::EntryList::last() {
+  precond(!is_empty());
+  link_prev();
+  ObjectWaiter* const tail = _tail;
+  postcond(tail != nullptr);
+  return tail;
 }
 
 static void set_bad_pointers(ObjectWaiter* currentNode) {
@@ -1287,92 +1343,52 @@ static void set_bad_pointers(ObjectWaiter* currentNode) {
 #endif
 }
 
+void ObjectMonitor::EntryList::remove(ObjectWaiter* node) {
+  const ObjectWaiter* head = Atomic::load_acquire(&_head);
+  ObjectWaiter* const next_node = node->_next;
+  if (head == node) {
+    if (Atomic::cmpxchg(&_head, node, next_node) == node) {
+      // Head unlinked
+      if (next_node == nullptr) {
+        // last node, clear tail
+        _tail = nullptr;
+      } else {
+        // not last, clear prev
+        next_node->_prev = nullptr;
+      }
+      return;
+    }
+  }
+
+  // Link nodes
+  link_prev();
+
+  ObjectWaiter* const prev_node = node->_prev;
+  if (prev_node != nullptr) {
+    // Unlink from prev_node
+    prev_node->_next = next_node;
+  }
+
+  if (next_node != nullptr) {
+    // Unlink from next_node
+    next_node->_prev = prev_node;
+  } else {
+    // last node, fix tail
+    _tail = prev_node;
+  }
+}
+
 // By convention we unlink a contending thread from _entry_list immediately
 // after the thread acquires the lock in ::enter().  Equally, we could defer
 // unlinking the thread until ::exit()-time.
 // The head of _entry_list is volatile but the interior is stable.
 // In addition, current.TState is stable.
-
 void ObjectMonitor::UnlinkAfterAcquire(JavaThread* current, ObjectWaiter* currentNode) {
   assert(has_owner(current), "invariant");
   assert((!currentNode->is_vthread() && currentNode->thread() == current) ||
          (currentNode->is_vthread() && currentNode->vthread() == current->vthread()), "invariant");
 
-  // Check if we are unlinking the last element in the _entry_list.
-  // This is by far the most common case.
-  if (currentNode->_next == nullptr) {
-    assert(_entry_list_tail == nullptr || _entry_list_tail == currentNode, "invariant");
-
-    ObjectWaiter* v = Atomic::load_acquire(&_entry_list);
-    if (v == currentNode) {
-      // The currentNode is the only element in _entry_list.
-      if (Atomic::cmpxchg(&_entry_list, v, (ObjectWaiter*)nullptr) == v) {
-        _entry_list_tail = nullptr;
-        set_bad_pointers(currentNode);
-        return;
-      }
-      // The CAS above can fail from interference IFF a contending
-      // thread "pushed" itself onto entry_list.
-    }
-    if (currentNode->_prev == nullptr) {
-      // Build the doubly linked list to get hold of
-      // currentNode->_prev.
-      _entry_list_tail = nullptr;
-      entry_list_tail(current);
-      assert(currentNode->_prev != nullptr, "must be");
-
-    }
-    // The currentNode is the last element in _entry_list and we know
-    // which element is the previous one.
-    assert(_entry_list != currentNode, "invariant");
-    _entry_list_tail = currentNode->_prev;
-    _entry_list_tail->_next = nullptr;
-    set_bad_pointers(currentNode);
-    return;
-  }
-
-  assert(currentNode->_next != nullptr, "invariant");
-  assert(currentNode != _entry_list_tail, "invariant");
-
-  if (currentNode->_prev == nullptr) {
-    ObjectWaiter* v = Atomic::load_acquire(&_entry_list);
-
-    assert(v != nullptr, "invariant");
-    if (v == currentNode) {
-      // currentNode is at the head of _entry_list.
-      if (Atomic::cmpxchg(&_entry_list, v, currentNode->_next) == v) {
-        // The CAS above sucsessfully unlinked currentNode from the head of the _entry_list.
-        assert(_entry_list != v, "invariant");
-        _entry_list->_prev = nullptr;
-        set_bad_pointers(currentNode);
-        return;
-      } else {
-        // The CAS above can fail from interference IFF a contending
-        // thread "pushed" itself onto entry_list, in which case
-        // currentNode must now be in the interior of the list.
-        assert(_entry_list != currentNode, "invariant");
-      }
-    }
-    // Build the doubly linked list to get hold of currentNode->_prev.
-    _entry_list_tail = nullptr;
-    entry_list_tail(current);
-    assert(currentNode->_prev != nullptr, "must be");
-  }
-
-  // We now assume we are unlinking currentNode from the interior of a
-  // doubly linked list.
-  assert(currentNode->_next != nullptr, "");
-  assert(currentNode->_prev != nullptr, "");
-  assert(currentNode != _entry_list, "");
-  assert(currentNode != _entry_list_tail, "");
-
-  ObjectWaiter* nxt = currentNode->_next;
-  ObjectWaiter* prv = currentNode->_prev;
-  assert(nxt->TState == ObjectWaiter::TS_ENTER, "invariant");
-  assert(prv->TState == ObjectWaiter::TS_ENTER, "invariant");
-
-  nxt->_prev = prv;
-  prv->_next = nxt;
+  _entry_list.remove(currentNode);
   set_bad_pointers(currentNode);
 }
 
@@ -1498,7 +1514,7 @@ void ObjectMonitor::exit(JavaThread* current, bool not_suspended) {
     // the lock.  Note that the dropped lock needs to become visible to the
     // spinner.
 
-    if (_entry_list == nullptr || has_successor()) {
+    if (_entry_list.head() == nullptr || has_successor()) {
       return;
     }
 
@@ -1516,12 +1532,8 @@ void ObjectMonitor::exit(JavaThread* current, bool not_suspended) {
     }
 
     guarantee(has_owner(current), "invariant");
-
-    ObjectWaiter* w = nullptr;
-
-    w = _entry_list;
-    if (w != nullptr) {
-      w = entry_list_tail(current);
+    if (!_entry_list.is_empty()) {
+      ObjectWaiter* const w = _entry_list.last();
       // I'd like to write: guarantee (w->_thread != current).
       // But in practice an exiting thread may find itself on the entry_list.
       // Let's say thread T1 calls O.wait().  Wait() enqueues T1 on O's waitset and
@@ -2371,6 +2383,8 @@ bool ObjectMonitor::TrySpin(JavaThread* current) {
 ObjectWaiter::ObjectWaiter(JavaThread* current) {
   _next     = nullptr;
   _prev     = nullptr;
+  _next = nullptr;
+  _prev = nullptr;
   _thread   = current;
   _monitor  = nullptr;
   _notifier_tid = 0;
@@ -2578,8 +2592,8 @@ void ObjectMonitor::print_debug_style_on(outputStream* st) const {
   st->print_cr("  }");
   st->print_cr("  _next_om = " INTPTR_FORMAT, p2i(next_om()));
   st->print_cr("  _recursions = %zd", _recursions);
-  st->print_cr("  _entry_list = " INTPTR_FORMAT, p2i(_entry_list));
-  st->print_cr("  _entry_list_tail = " INTPTR_FORMAT, p2i(_entry_list_tail));
+  st->print_cr("  _entry_list._head = " INTPTR_FORMAT, p2i(_entry_list.head()));
+  st->print_cr("  _entry_list._tail = " INTPTR_FORMAT, p2i(_entry_list.tail()));
   st->print_cr("  _succ = " INT64_FORMAT, successor());
   st->print_cr("  _SpinDuration = %d", _SpinDuration);
   st->print_cr("  _contentions = %d", contentions());

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,6 +23,7 @@
 
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zIntrusiveRBTree.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
@@ -52,6 +53,7 @@ public:
   void update_start(zoffset start) { _start = start; }
 
   static ZMappedCacheEntry* cast_to_entry(ZIntrusiveRBTreeNode* node);
+  static const ZMappedCacheEntry* cast_to_entry(const ZIntrusiveRBTreeNode* node);
   static ZMappedCacheEntry* cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index);
 
   ZMappedCache::ZSizeClassListNode* size_class_node(size_t index) {
@@ -59,8 +61,12 @@ public:
   }
 };
 
+const ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(const ZIntrusiveRBTreeNode* node) {
+  return (const ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+}
+
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZIntrusiveRBTreeNode* node) {
-  return (ZMappedCacheEntry*)((uintptr_t)node - offset_of(ZMappedCacheEntry, _node));
+  return const_cast<ZMappedCacheEntry*>(ZMappedCacheEntry::cast_to_entry(const_cast<const ZIntrusiveRBTreeNode*>(node)));
 }
 
 ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::ZSizeClassListNode* node, size_t index) {
@@ -76,7 +82,7 @@ static void* entry_address_for_zoffset_end(zoffset_end offset) {
                                            static_cast<size_t>(sizeof(ZMappedCacheEntry) % ZCacheLineSize != 0);
   // Do not use the last location
   constexpr size_t number_of_locations = cache_lines_per_z_granule / cache_lines_per_entry - 1;
-  const size_t index = untype(offset) % number_of_locations;
+  const size_t index = (untype(offset) >> ZGranuleSizeShift) % number_of_locations;
   const uintptr_t end_addr = untype(offset) + ZAddressHeapBase;
   return reinterpret_cast<void*>(end_addr - (cache_lines_per_entry * ZCacheLineSize) * (index + 1));
 }
@@ -210,7 +216,7 @@ void ZMappedCache::insert_mapping(const ZMemoryRange& vmem) {
   auto current_cursor = _tree.find(vmem.start());
   auto next_cursor = _tree.next(current_cursor);
   const bool extends_left = current_cursor.found();
-  const bool extends_right = next_cursor.is_valid() &&
+  const bool extends_right = next_cursor.is_valid() && next_cursor.found() &&
                              ZMappedCacheEntry::cast_to_entry(next_cursor.node())->start() == vmem.end();
   if (extends_left && extends_right) {
     ZIntrusiveRBTreeNode* const next_node = next_cursor.node();

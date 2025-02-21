@@ -103,14 +103,14 @@ public:
 
   void register_callbacks(const Callbacks& callbacks);
 
-  size_t range_size() const;
+  ZMemoryRange total_range() const;
 
   zoffset peek_low_address() const;
   ZMemoryRange alloc_low_address(size_t size);
   ZMemoryRange alloc_low_address_at_most(size_t size);
   ZMemoryRange alloc_high_address(size_t size);
 
-  void transfer_high_address(ZMemoryManager& other, size_t size);
+  void transfer_low_address(ZMemoryManager& other, size_t size);
   int shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZMemoryRange>* out);
   void shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* out);
 

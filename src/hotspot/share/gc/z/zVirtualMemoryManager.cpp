@@ -35,7 +35,9 @@
 #include "utilities/debug.hpp"
 
 ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
-  : _managers(),
+  : _reserved_memory(),
+    _managers(),
+    _vmem_ranges(),
     _initialized(false) {
 
   assert(max_capacity <= ZAddressOffsetMax, "Too large max_capacity");
@@ -44,13 +46,25 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   pd_initialize_before_reserve();
 
   // Reserve address space
-  if (!reserve(max_capacity)) {
+  const size_t reserved_total = reserve(max_capacity);
+  if (reserved_total < max_capacity) {
     ZInitialize::error_d("Failed to reserve enough address space for Java heap");
     return;
   }
 
   // Initialize platform specific parts after reserving address space
   pd_initialize_after_reserve();
+
+  // Install reserved memory into manager(s)
+  ZNUMA::divide_resource(reserved_total, [&](int numa_id, size_t reserved) {
+    ZMemoryManager& manager = _managers.get(numa_id);
+
+    // Transfer reserved memory
+    _reserved_memory.transfer_low_address(manager, reserved);
+
+    // Store the range for the manager
+    _vmem_ranges.set(manager.total_range(), numa_id);
+  });
 
   // Successfully initialized
   _initialized = true;
@@ -151,9 +165,7 @@ bool ZVirtualMemoryManager::reserve_contiguous(zoffset start, size_t size) {
   // Register address views with native memory tracker
   ZNMT::reserve(addr, size);
 
-  // We put all the reserved memory inside the first manager and potentially
-  // divide it when we've reserved all of the memory the user has requested.
-  _managers.get(0).free(start, size);
+  _reserved_memory.free(start, size);
 
   return true;
 }
@@ -174,7 +186,7 @@ bool ZVirtualMemoryManager::reserve_contiguous(size_t size) {
   return false;
 }
 
-bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
+size_t ZVirtualMemoryManager::reserve(size_t max_capacity) {
   const size_t limit = MIN2(ZAddressOffsetMax, ZAddressSpaceLimit::heap());
   const size_t size = MIN2(max_capacity * ZVirtualToPhysicalRatio, limit);
   bool contiguous_reservation = false;
@@ -197,7 +209,6 @@ bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
   };
 
   const size_t reserved = do_reserve();
-  initialize_managers(reserved);
 
   log_info_p(gc, init)("Address Space Type: %s/%s/%s",
                        (contiguous_reservation ? "Contiguous" : "Discontiguous"),
@@ -205,31 +216,7 @@ bool ZVirtualMemoryManager::reserve(size_t max_capacity) {
                        (reserved == size ? "Complete" : "Degraded"));
   log_info_p(gc, init)("Address Space Size: %zuM", reserved / M);
 
-  return reserved >= max_capacity;
-}
-
-void ZVirtualMemoryManager::initialize_managers(size_t size) {
-  // All reserved memory is initially stored in the manager with id 0. We need
-  // to divide it equally among all the managers.
-  ZMemoryManager& initial_manager = _managers.get(0);
-  const int numa_nodes = ZNUMA::count();
-  const size_t local_reservation = align_up(size / numa_nodes, ZGranuleSize);
-  size_t reservation_left = size;
-
-  for (int numa_id = numa_nodes - 1; numa_id >= 0; numa_id--) {
-    const size_t reservation = MIN2(local_reservation, reservation_left);
-    reservation_left -= reservation;
-
-    ZMemoryManager& manager = _managers.get(numa_id);
-    if (numa_id != 0) {
-      initial_manager.transfer_high_address(manager, reservation);
-    }
-
-    // Update the range
-    const zoffset range_start = manager.peek_low_address();
-    const size_t range_size = manager.range_size();
-    _vmem_ranges.set(ZMemoryRange(range_start, range_size), numa_id);
-  }
+  return reserved;
 }
 
 bool ZVirtualMemoryManager::is_initialized() const {

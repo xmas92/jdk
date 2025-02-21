@@ -42,7 +42,15 @@
 #include "utilities/powerOfTwo.hpp"
 
 ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
-  : _backing(max_capacity) {}
+  : _backing(max_capacity) {
+
+  // Install capacity into manager(s)
+  size_t installed_capacity = 0;
+  ZNUMA::divide_resource(max_capacity, [&](uint32_t numa_id, size_t capacity) {
+    _managers.get(numa_id).free(zoffset(installed_capacity), capacity);
+    installed_capacity += capacity;
+  });
+}
 
 bool ZPhysicalMemoryManager::is_initialized() const {
   return _backing.is_initialized();

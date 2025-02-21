@@ -108,6 +108,8 @@ private:
   void notify_out_of_memory();
   void restart_gc() const;
 
+  bool prime_state_cache(ZWorkers* workers, int numa_id, size_t size);
+
 public:
   ZPageAllocator(size_t min_capacity,
                  size_t initial_capacity,

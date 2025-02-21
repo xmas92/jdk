@@ -227,14 +227,17 @@ void ZMemoryManager::register_callbacks(const Callbacks& callbacks) {
   _callbacks = callbacks;
 }
 
-size_t ZMemoryManager::range_size() const {
+ZMemoryRange ZMemoryManager::total_range() const {
   ZLocker<ZLock> locker(&_lock);
 
   if (_freelist.is_empty()) {
-    return 0;
+    return ZMemoryRange();
   }
 
-  return _freelist.last()->end() - _freelist.first()->start();
+  const zoffset start = _freelist.first()->start();
+  const size_t size = _freelist.last()->end() - start;
+
+  return ZMemoryRange(start, size);
 }
 
 zoffset ZMemoryManager::peek_low_address() const {
@@ -282,25 +285,25 @@ ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
   return ZMemoryRange();
 }
 
-void ZMemoryManager::transfer_high_address(ZMemoryManager& other, size_t size) {
+void ZMemoryManager::transfer_low_address(ZMemoryManager& other, size_t size) {
   assert(other._freelist.is_empty(), "Should only be used for initializatiion");
 
   ZLocker<ZLock> locker(&_lock);
   size_t to_move = size;
 
-  ZListReverseIterator<ZMemory> iter(&_freelist);
+  ZListIterator<ZMemory> iter(&_freelist);
   for (ZMemory* area; iter.next(&area);) {
     if (area->size() <= to_move) {
       // Smaller than or equal to requested, remove from this freelist and
       // insert in other's freelist
       to_move -= area->size();
       _freelist.remove(area);
-      other._freelist.insert_first(area);
+      other._freelist.insert_last(area);
     } else {
       // Larger than requested, shrink area
-      const zoffset_end end = area->end();
-      shrink_from_back(area, to_move);
-      other.free(zoffset(end - to_move), to_move);
+      const zoffset start = area->start();
+      shrink_from_front(area, to_move);
+      other.free(start, to_move);
       to_move = 0;
     }
 

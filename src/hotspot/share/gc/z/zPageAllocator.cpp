@@ -33,7 +33,7 @@
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zMemory.inline.hpp"
-#include "gc/z/zNUMA.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
@@ -361,18 +361,9 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     return;
   }
 
-  const int numa_nodes = ZNUMA::count();
-  const size_t capacity_per_state = align_up(max_capacity / numa_nodes, ZGranuleSize);
-  size_t capacity_left = max_capacity;
-
-  for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-    const size_t capacity = MIN2(capacity_per_state, capacity_left);
-    capacity_left -= capacity;
-
-    ZCacheState& state = _states.get(numa_id);
-    state.initialize(capacity);
-    _physical.install_capacity(numa_id, zoffset(capacity_per_state * numa_id), capacity);
-  }
+  ZNUMA::divide_resource(max_capacity, [&](uint32_t numa_id, size_t capacity) {
+    _states.get(numa_id).initialize(capacity);
+  });
 
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
   log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M);
@@ -438,48 +429,51 @@ public:
   }
 };
 
-bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
-  const int numa_nodes = ZNUMA::count();
-  const size_t size_per_state = align_up(size / numa_nodes, ZGranuleSize);
-  size_t size_left = size;
+bool ZPageAllocator::prime_state_cache(ZWorkers* workers, int numa_id, size_t to_prime) {
+  if (to_prime == 0) {
+    return true;
+  }
 
-  for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-    const size_t to_prime = MIN2(size_left, size_per_state);
-    size_left -= to_prime;
+  ZMemoryRange vmem = _virtual.alloc(to_prime, numa_id, true /* force_low_address */);
+  ZCacheState& state = _states.get(numa_id);
 
-    if (to_prime == 0) {
-      // Nothing more to prime, exit
-      return true;
-    }
+  // Increase capacity, allocate and commit physical memory
+  state.increase_capacity(to_prime);
+  _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_prime, numa_id);
+  if (!commit_physical(&vmem, numa_id)) {
+    // This is a failure state. We do not cleanup the maybe partially committed memory.
+    return false;
+  }
 
-    ZCacheState& state = _states.get(numa_id);
-    ZMemoryRange vmem = _virtual.alloc(to_prime, numa_id, true /* force_low_address */);
+  map_virtual_to_physical(vmem, numa_id);
 
-    // Increase capacity, allocate and commit physical memory
-    state.increase_capacity(to_prime);
-    _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_prime, numa_id);
-    if (!commit_physical(&vmem, numa_id)) {
-      // This is a failure state. We do not cleanup the maybe partially committed memory.
-      return false;
-    }
-
-    map_virtual_to_physical(vmem, numa_id);
-
+  if (ZNUMA::is_enabled()) {
     // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
     int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
     if (actual != numa_id) {
       log_debug(gc, heap)("NUMA Mismatch (priming): desired %d, actual %d", numa_id, actual);
     }
+  }
 
-    if (AlwaysPreTouch) {
-      // Pre-touch memory
-      ZPreTouchTask task(vmem.start(), vmem.end());
-      workers->run_all(&task);
+  if (AlwaysPreTouch) {
+    // Pre-touch memory
+    ZPreTouchTask task(vmem.start(), vmem.end());
+    workers->run_all(&task);
+  }
+
+  // We don't have to take a lock here as no other threads will access the
+  // mapped cache until we're finished.
+  state._cache.insert_mapping(vmem);
+
+  return true;
+}
+
+bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
+  for (uint32_t numa_id = 0; numa_id < ZNUMA::count(); numa_id++) {
+    const size_t to_prime = ZNUMA::calculate_share(numa_id, size);
+    if (!prime_state_cache(workers, numa_id, to_prime)) {
+      return false;
     }
-
-    // We don't have to take a lock here as no other threads will access the
-    // mapped cache until we're finished.
-    state._cache.insert_mapping(vmem);
   }
 
   return true;

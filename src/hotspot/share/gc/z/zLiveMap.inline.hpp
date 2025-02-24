@@ -88,7 +88,7 @@ inline BitMap::idx_t ZLiveMap::next_live_segment(BitMap::idx_t segment) const {
 }
 
 inline BitMap::idx_t ZLiveMap::segment_size() const {
-  return _bitmap.size() / NumSegments;
+  return _bitmap_size / NumSegments;
 }
 
 inline BitMap::idx_t ZLiveMap::index_to_segment(BitMap::idx_t index) const {
@@ -96,12 +96,9 @@ inline BitMap::idx_t ZLiveMap::index_to_segment(BitMap::idx_t index) const {
 }
 
 inline bool ZLiveMap::get(ZGenerationId id, BitMap::idx_t index) const {
-  if (!is_marked(id)) {
-    return false;
-  }
-
   const BitMap::idx_t segment = index_to_segment(index);
-  return is_segment_live(segment) &&                  // Segment is marked
+  return is_marked(id) &&                             // Page is marked
+         is_segment_live(segment) &&                  // Segment is marked
          _bitmap.par_at(index, memory_order_relaxed); // Object is marked
 }
 

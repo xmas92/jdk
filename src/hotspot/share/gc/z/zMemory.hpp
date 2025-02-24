@@ -96,7 +96,7 @@ private:
   ZMemoryRange alloc_low_address_at_most_inner(size_t size);
   void free_inner(zoffset start, size_t size);
 
-  int alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out);
+  size_t alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out);
 
 public:
   ZMemoryManager();
@@ -108,6 +108,7 @@ public:
   zoffset peek_low_address() const;
   ZMemoryRange alloc_low_address(size_t size);
   ZMemoryRange alloc_low_address_at_most(size_t size);
+  size_t alloc_low_address_many_at_most(size_t size, ZArray<ZMemoryRange>* out);
   ZMemoryRange alloc_high_address(size_t size);
 
   void transfer_high_address(ZMemoryManager& other, size_t size);

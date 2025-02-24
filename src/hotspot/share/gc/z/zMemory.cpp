@@ -197,18 +197,22 @@ void ZMemoryManager::free_inner(zoffset start, size_t size) {
   }
 }
 
-int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out) {
-  int num_ranges = 0;
+size_t ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out) {
   size_t to_allocate = size;
 
   while (to_allocate > 0) {
     const ZMemoryRange range = alloc_low_address_at_most_inner(to_allocate);
+
+    if (range.is_null()) {
+      // Out of memory
+      return size - to_allocate;
+    }
+
     to_allocate -= range.size();
-    num_ranges++;
     out->append(range);
   }
 
-  return num_ranges;
+  return size;
 }
 
 ZMemoryManager::Callbacks::Callbacks()
@@ -257,6 +261,11 @@ ZMemoryRange ZMemoryManager::alloc_low_address(size_t size) {
 ZMemoryRange ZMemoryManager::alloc_low_address_at_most(size_t size) {
   ZLocker<ZLock> lock(&_lock);
   return alloc_low_address_at_most_inner(size);
+}
+
+size_t ZMemoryManager::alloc_low_address_many_at_most(size_t size, ZArray<ZMemoryRange>* out) {
+  ZLocker<ZLock> lock(&_lock);
+  return alloc_low_address_many_at_most_inner(size, out);
 }
 
 ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
@@ -313,7 +322,10 @@ void ZMemoryManager::transfer_high_address(ZMemoryManager& other, size_t size) {
 int ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZMemoryRange>* out) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
-  return alloc_low_address_many_at_most_inner(size, out);
+  const int length_before = out->length();
+  const size_t shuffled = alloc_low_address_many_at_most_inner(size, out);
+  assert(shuffled == size, "must succeed");
+  return out->length() - length_before;
 }
 
 void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* out) {

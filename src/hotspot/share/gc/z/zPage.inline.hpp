@@ -156,6 +156,19 @@ inline const ZMemoryRange& ZPage::virtual_memory() const {
   return _virtual;
 }
 
+inline bool ZPage::is_multi_numa() const {
+  return _multi_numa_tracker != nullptr;
+}
+
+inline MultiNUMATracker* ZPage::multi_numa_tracker() const {
+  return _multi_numa_tracker;
+}
+
+inline void ZPage::set_multi_numa_tracker(MultiNUMATracker* tracker) {
+  assert(_multi_numa_tracker == nullptr, "only set once");
+  _multi_numa_tracker = tracker;
+}
+
 inline ZPageAge ZPage::age() const {
   return _age;
 }

@@ -448,10 +448,10 @@ bool ZPageAllocator::prime_state_cache(ZWorkers* workers, int numa_id, size_t to
   map_virtual_to_physical(vmem, numa_id);
 
   if (ZNUMA::is_enabled()) {
-    // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
-    int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
-    if (actual != numa_id) {
-      log_debug(gc, heap)("NUMA Mismatch (priming): desired %d, actual %d", numa_id, actual);
+    // Check if memory ended up on desired NUMA node or not
+    const int actual_id = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+    if (actual_id != numa_id) {
+      log_debug(gc, heap)("NUMA Mismatch: desired %d, actual %d", numa_id, actual_id);
     }
   }
 
@@ -925,10 +925,12 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
   map_virtual_to_physical(committed_vmem, allocation->numa_id());
   allocation->claimed_mappings()->append(committed_vmem);
 
-  // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
-  int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
-  if (actual != allocation->numa_id()) {
-    log_debug(gc, heap)("NUMA Mismatch (allocation): desired %d, actual %d", allocation->numa_id(), actual);
+  if (ZNUMA::is_enabled()) {
+    // Check if memory ended up on desired NUMA node or not
+    const int actual_id = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
+    if (actual_id != allocation->numa_id()) {
+      log_debug(gc, heap)("NUMA Mismatch: desired %d, actual %d", allocation->numa_id(), actual_id);
+    }
   }
 
   if (committed_vmem.size() != vmem.size()) {

@@ -30,6 +30,6 @@
 
 template <bool Parallel>
 inline ZRelocationSetIteratorImpl<Parallel>::ZRelocationSetIteratorImpl(ZRelocationSet* relocation_set)
-  : ZArrayIteratorImpl<ZForwarding*, Parallel>(relocation_set->_forwardings, relocation_set->_nforwardings) {}
+  : ZArrayIteratorImpl<ZForwarding*, Parallel, true /* IsConst */>(relocation_set->_forwardings, relocation_set->_nforwardings) {}
 
 #endif // SHARE_GC_Z_ZRELOCATIONSET_INLINE_HPP

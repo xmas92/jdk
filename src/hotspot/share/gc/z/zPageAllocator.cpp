@@ -857,8 +857,9 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
   // exactly one mapping and is of the correct size.
+
   if (allocation->claimed_mappings()->length() != 1) {
-    // Not a contiguous mapping
+    // No mapping(s) or not a contiguous mapping
     return false;
   }
 
@@ -880,8 +881,10 @@ bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
   } else {
     // If we have not harvested anything, we only increased capacity. Allocate
     // new virtual memory from the manager.
-    ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
-    allocation->claimed_mappings()->append(vmem);
+    const ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
+    if (!vmem.is_null()) {
+      allocation->claimed_mappings()->append(vmem);
+    }
   }
 
   // If the virtual memory covers the allocation request, we're done.

@@ -84,9 +84,6 @@ private:
   void prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment);
 
   bool alloc_page_stall(ZPageAllocation* allocation);
-
-  bool claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation);
-  bool claim_physical(ZPageAllocation* allocation, ZCacheState& state);
   bool claim_physical_round_robin(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);
 

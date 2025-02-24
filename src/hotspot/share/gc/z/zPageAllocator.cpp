@@ -245,8 +245,10 @@ public:
   void decrease_used_generation(ZGenerationId id, size_t size);
 
   void reset_statistics(ZGenerationId id);
-};
 
+  bool claim_mapped_or_increase_capacity(ZPageAllocation* allocation);
+  bool claim_physical(ZPageAllocation* allocation);
+};
 
 void ZCacheState::initialize(size_t max_capacity) {
   _current_max_capacity = max_capacity;
@@ -338,6 +340,65 @@ void ZCacheState::decrease_used_generation(ZGenerationId id, size_t size) {
 void ZCacheState::reset_statistics(ZGenerationId id) {
   _collection_stats[(int)id]._used_high = _used;
   _collection_stats[(int)id]._used_low = _used;
+}
+
+bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation) {
+  const size_t size = allocation->size();
+  ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
+
+  // Try to allocate a contiguous mapping.
+  ZMemoryRange mapping;
+  if (_cache.remove_mapping_contiguous(&mapping, size)) {
+    mappings->append(mapping);
+    return true;
+  }
+
+  // If we've failed to allocate a contiguous range from the mapped cache,
+  // there is still a possibility that the cache holds enough memory for the
+  // allocation dispersed over more than one mapping if the capacity cannot be
+  // increased to satisfy the allocation.
+
+  // Try increase capacity
+  const size_t increased = increase_capacity(size);
+  if (increased == size) {
+    // Capacity increase covered the entire request, done.
+    return true;
+  }
+
+  // Could not increase capacity enough to satisfy the allocation completely.
+  // Try removing multiple mappings from the mapped cache. We only remove if
+  // cache has enough remaining to cover the request.
+  const size_t remaining = size - increased;
+  if (_cache.size() >= remaining) {
+    const size_t removed = _cache.remove_mappings(mappings, remaining);
+    allocation->set_harvested(removed);
+    assert(removed == remaining, "must be %zu != %zu", removed, remaining);
+    return true;
+  }
+
+  // Could not claim enough memory from the cache or increase capacity to
+  // fulfill the request.
+  return false;
+}
+
+bool ZCacheState::claim_physical(ZPageAllocation* allocation) {
+  const size_t size = allocation->size();
+
+  if (available_capacity() < size) {
+    // Out of memory
+    return false;
+  }
+
+  if (!claim_mapped_or_increase_capacity(allocation)) {
+    // Failed to claim enough memory or increase capacity
+    return false;
+  }
+
+  // Updated used statistics
+  increase_used(size);
+
+  // Success
+  return true;
 }
 
 ZPageAllocator::ZPageAllocator(size_t min_capacity,
@@ -722,84 +783,20 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   return result;
 }
 
-bool ZPageAllocator::claim_mapped_or_increase_capacity(ZCacheState& state, ZPageAllocation* allocation) {
-  ZMappedCache& cache = state._cache;
-  const size_t size = allocation->size();
-  ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
-
-  // Try to allocate a contiguous mapping.
-  ZMemoryRange mapping;
-  if (cache.remove_mapping_contiguous(&mapping, size)) {
-    mappings->append(mapping);
-    return true;
-  }
-
-  // If we've failed to allocate a contiguous range from the mapped cache,
-  // there is still a possibility that the cache holds enough memory for the
-  // allocation dispersed over more than one mapping if the capacity cannot be
-  // increased to satisfy the allocation.
-
-  // Try increase capacity
-  const size_t increased = state.increase_capacity(size);
-  if (increased == size) {
-    // Capacity increase covered the entire request, done.
-    return true;
-  }
-
-  // Could not increase capacity enough to satisfy the allocation completely.
-  // Try removing multiple mappings from the mapped cache. We only remove if
-  // cache has enough remaining to cover the request.
-  const size_t remaining = size - increased;
-  if (cache.size() >= remaining) {
-    const size_t removed = cache.remove_mappings(mappings, remaining);
-    allocation->set_harvested(removed);
-
-    assert(removed == remaining, "must be %zu != %zu", removed, remaining);
-    return true;
-  }
-
-  // Could not claim enough memory from the cache or increase capacity to
-  // fulfill the request.
-  return false;
-}
-
-bool ZPageAllocator::claim_physical(ZPageAllocation* allocation, ZCacheState& state) {
-  const size_t size = allocation->size();
-
-  if (state.available_capacity() < size) {
-    // Out of memory
-    return false;
-  }
-
-  if (!claim_mapped_or_increase_capacity(state, allocation)) {
-    // Failed to claim enough memory or increase capacity
-    return false;
-  }
-
-  // Updated used statistics
-  state.increase_used(size);
-
-  // Success
-  return true;
-}
-
 bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
-  const size_t numa_nodes = ZNUMA::count();
   const int start_node = allocation->numa_id();
   int current_node = start_node;
 
   do {
     ZCacheState& state = _states.get(current_node);
-
-    if (claim_physical(allocation, state)) {
-      // Success
+    if (state.claim_physical(allocation)) {
+      // Record which state the allocation was made on
       allocation->set_numa_id(current_node);
       return true;
     }
 
-    // Could not claim physical memory on current node, potentially move on to
-    // the next node
-    current_node = (current_node + 1) % numa_nodes;
+    // Could not claim physical memory on current node, move on to next node
+    current_node = (current_node + 1) % ZNUMA::count();
   } while(current_node != start_node);
 
   return false;
@@ -844,9 +841,8 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
   // Stash segments
   segments.stash(allocation->claimed_mappings());
 
-  // Shuffle vmem. We allocate enough memory to cover the entire allocation size, not just the harvested memory.
-  // If we fail to allocate additional virtual memory, the allocated virtual memory will match the harvested amount
-  // instead of the allocation request.
+  // Shuffle vmem. We attempt to allocate enough memory to cover the entire allocation
+  // size, not just the harvested memory.
   _virtual.shuffle_vmem_to_low_addresses_contiguous(allocation->size(), allocation->claimed_mappings());
 
   // Restore segments
@@ -882,19 +878,18 @@ bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
     // mappings, and perhaps also allocate more to match the allocation request.
     harvest_claimed_physical(allocation);
   } else {
-    // If we have not harvested anything, we have only increased capacity.
-    // Allocate new virtual memory from the manager.
+    // If we have not harvested anything, we only increased capacity. Allocate
+    // new virtual memory from the manager.
     ZMemoryRange vmem = _virtual.alloc(allocation->size(), allocation->numa_id(), true /* force_low_address */);
     allocation->claimed_mappings()->append(vmem);
   }
 
-  // If we have enough virtual memory to cover the allocation request,
-  // we're done.
+  // If the virtual memory covers the allocation request, we're done.
   if (is_alloc_satisfied(allocation)) {
     return true;
   }
 
-  // Before returning the harvested memory to the cache it must be mapped.
+  // Before returning harvested memory to the cache it must be mapped.
   if (allocation->harvested() > 0) {
     ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
     for (ZMemoryRange vmem; iter.next(&vmem);) {
@@ -958,11 +953,11 @@ retry:
   // If we have claimed a large enough contiguous mapping from the cache,
   // we're done.
   if (is_alloc_satisfied(allocation)) {
-    ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+    const ZMemoryRange vmem = allocation->claimed_mappings()->pop();
     return new ZPage(allocation->type(), vmem);
   }
 
-  // Claim virtual memory, either by harvesting or by allocating new from the
+  // Claim virtual memory, either by harvesting or by allocating from the
   // virtual manager.
   if (!claim_virtual_memory(allocation)) {
     log_error(gc)("Out of address space");
@@ -970,14 +965,14 @@ retry:
     return nullptr;
   }
 
-  ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+  const ZMemoryRange vmem = allocation->claimed_mappings()->pop();
 
   // Allocate any remaining physical memory. Capacity and used has already been
   // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
   const size_t remaining_physical = allocation->size() - allocation->harvested();
   if (remaining_physical > 0) {
     allocation->set_committed(remaining_physical);
-    ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
+    const ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
     alloc_physical(uncommitted_range, allocation->numa_id());
   }
 

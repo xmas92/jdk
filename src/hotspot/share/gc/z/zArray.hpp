@@ -36,28 +36,35 @@ class ZLock;
 
 template <typename T> using ZArray = GrowableArrayCHeap<T, mtGC>;
 
-template <typename T, bool Parallel>
+template <typename T, bool Parallel, bool IsConst>
 class ZArrayIteratorImpl : public StackObj {
 private:
-  size_t         _next;
-  const size_t   _end;
-  const T* const _array;
+  using ZArrayType = std::conditional_t<IsConst, const ZArray<T>, ZArray<T>>;
+  using RefType = std::conditional_t<IsConst, const T&, T&>;
+  using PtrType = std::conditional_t<IsConst, const T*, T*>;
+
+  size_t        _next;
+  const size_t  _end;
+  PtrType const _array;
 
   bool next_serial(size_t* index);
   bool next_parallel(size_t* index);
 
 public:
-  ZArrayIteratorImpl(const T* array, size_t length);
-  ZArrayIteratorImpl(const ZArray<T>* array);
+  ZArrayIteratorImpl(PtrType array, size_t length);
+  ZArrayIteratorImpl(ZArrayType* array);
 
+  template <bool Enable = IsConst, ENABLE_IF(Enable)>
   bool next(T* elem);
+  bool next_addr(PtrType* elem);
   bool next_index(size_t* index);
 
-  T index_to_elem(size_t index);
+  RefType index_to_elem(size_t index);
 };
 
-template <typename T> using ZArrayIterator = ZArrayIteratorImpl<T, false /* Parallel */>;
-template <typename T> using ZArrayParallelIterator = ZArrayIteratorImpl<T, true /* Parallel */>;
+template <typename T> using ZArrayMutableIterator = ZArrayIteratorImpl<T, false /* Parallel */, false /* IsConst */>;
+template <typename T> using ZArrayIterator = ZArrayIteratorImpl<T, false /* Parallel */, true /* IsConst */>;
+template <typename T> using ZArrayParallelIterator = ZArrayIteratorImpl<T, true /* Parallel */, true /* IsConst */>;
 
 template <typename T>
 class ZActivatedArray {

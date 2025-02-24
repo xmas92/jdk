@@ -29,8 +29,8 @@
 #include "gc/z/zLock.inline.hpp"
 #include "runtime/atomic.hpp"
 
-template <typename T, bool Parallel>
-inline bool ZArrayIteratorImpl<T, Parallel>::next_serial(size_t* index) {
+template <typename T, bool Parallel, bool IsConst>
+inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next_serial(size_t* index) {
   if (_next == _end) {
     return false;
   }
@@ -41,8 +41,8 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next_serial(size_t* index) {
   return true;
 }
 
-template <typename T, bool Parallel>
-inline bool ZArrayIteratorImpl<T, Parallel>::next_parallel(size_t* index) {
+template <typename T, bool Parallel, bool IsConst>
+inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next_parallel(size_t* index) {
   const size_t claimed_index = Atomic::fetch_then_add(&_next, 1u, memory_order_relaxed);
 
   if (claimed_index < _end) {
@@ -53,18 +53,19 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next_parallel(size_t* index) {
   return false;
 }
 
-template <typename T, bool Parallel>
-inline ZArrayIteratorImpl<T, Parallel>::ZArrayIteratorImpl(const T* array, size_t length)
+template <typename T, bool Parallel, bool IsConst>
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(PtrType array, size_t length)
   : _next(0),
     _end(length),
     _array(array) {}
 
-template <typename T, bool Parallel>
-inline ZArrayIteratorImpl<T, Parallel>::ZArrayIteratorImpl(const ZArray<T>* array)
-  : ZArrayIteratorImpl<T, Parallel>(array->is_empty() ? nullptr : array->adr_at(0), (size_t)array->length()) {}
+template <typename T, bool Parallel, bool IsConst>
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(ZArrayType* array)
+  : ZArrayIteratorImpl<T, Parallel, IsConst>(array->is_empty() ? nullptr : array->adr_at(0), (size_t)array->length()) {}
 
-template <typename T, bool Parallel>
-inline bool ZArrayIteratorImpl<T, Parallel>::next(T* elem) {
+template <typename T, bool Parallel, bool IsConst>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
+inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next(T* elem) {
   size_t index;
   if (next_index(&index)) {
     *elem = index_to_elem(index);
@@ -73,9 +74,19 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next(T* elem) {
 
   return false;
 }
+template <typename T, bool Parallel, bool IsConst>
+inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next_addr(PtrType* elem) {
+  size_t index;
+  if (next_index(&index)) {
+    *elem = &index_to_elem(index);
+    return true;
+  }
 
-template <typename T, bool Parallel>
-inline bool ZArrayIteratorImpl<T, Parallel>::next_index(size_t* index) {
+  return false;
+}
+
+template <typename T, bool Parallel, bool IsConst>
+inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next_index(size_t* index) {
   if (Parallel) {
     return next_parallel(index);
   } else {
@@ -83,8 +94,9 @@ inline bool ZArrayIteratorImpl<T, Parallel>::next_index(size_t* index) {
   }
 }
 
-template <typename T, bool Parallel>
-inline T ZArrayIteratorImpl<T, Parallel>::index_to_elem(size_t index) {
+template <typename T, bool Parallel, bool IsConst>
+inline typename ZArrayIteratorImpl<T, Parallel, IsConst>::RefType
+ZArrayIteratorImpl<T, Parallel, IsConst>::index_to_elem(size_t index) {
   assert(index < _end, "Out of bounds");
   return _array[index];
 }

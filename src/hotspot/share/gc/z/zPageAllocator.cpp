@@ -68,7 +68,7 @@ static void sort_zoffset_ptrs(void* at, size_t size) {
 class ZSegmentStash {
 private:
   ZGranuleMap<zoffset>* _physical_mappings;
-  ZArray<zoffset> _stash;
+  ZArray<zoffset>       _stash;
 
   void sort_stashed_segments() {
     sort_zoffset_ptrs(_stash.adr_at(0), (size_t)_stash.length());
@@ -675,11 +675,11 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArr
   // Restore segments
   segments.pop(entries, num_ranges);
 
-  // The entries array may contain entires from other defragmentations as well,
+  // The entries array may contain entries from other defragmentations as well,
   // so we only operate on the last ranges that we have just inserted
-  int numa_id = _virtual.get_numa_id(vmem);
+  const int numa_id = _virtual.get_numa_id(vmem);
   for (int idx = entries->length() - num_ranges; idx < entries->length(); idx++) {
-    ZMemoryRange v = entries->at(idx);
+    const ZMemoryRange v = entries->at(idx);
     map_virtual_to_physical(v, numa_id);
     pretouch_memory(v.start(), v.size());
   }
@@ -1060,7 +1060,7 @@ void ZPageAllocator::satisfy_stalled() {
 
 void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment) {
   // Extract memory and destroy page
-  ZMemoryRange vmem = page->virtual_memory();
+  const ZMemoryRange vmem = page->virtual_memory();
   const ZPageType page_type = page->type();
   safe_destroy_page(page);
 

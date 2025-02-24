@@ -21,8 +21,8 @@
  * questions.
  */
 
-#ifndef SHARE_GC_Z_ZPHYSICALMEMORY_HPP
-#define SHARE_GC_Z_ZPHYSICALMEMORY_HPP
+#ifndef SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP
+#define SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
@@ -58,4 +58,4 @@ public:
   size_t count_segments(const zoffset* pmem, size_t size);
 };
 
-#endif // SHARE_GC_Z_ZPHYSICALMEMORY_HPP
+#endif // SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP

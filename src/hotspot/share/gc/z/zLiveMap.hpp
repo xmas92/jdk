@@ -42,7 +42,7 @@ private:
   volatile size_t   _live_bytes;
   BitMap::bm_word_t _segment_live_bits;
   BitMap::bm_word_t _segment_claim_bits;
-  size_t            _num_bits;
+  size_t            _bitmap_size;
   ZBitMap           _bitmap;
   int               _segment_shift;
 

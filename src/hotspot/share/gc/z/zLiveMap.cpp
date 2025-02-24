@@ -45,15 +45,13 @@ ZLiveMap::ZLiveMap(size_t size)
     _live_bytes(0),
     _segment_live_bits(0),
     _segment_claim_bits(0),
-    _num_bits(size),
+    _bitmap_size(bitmap_size(size, NumSegments)),
     _bitmap(0),
-    _segment_shift(0) {}
+    _segment_shift(log2i_exact(segment_size())) {}
 
 void ZLiveMap::initialize_bitmap() {
-  const size_t new_bitmap_size = bitmap_size(_num_bits, NumSegments);
-  if (_bitmap.size() != new_bitmap_size) {
-    _segment_shift = log2i_exact(new_bitmap_size / NumSegments);
-    _bitmap.reinitialize(new_bitmap_size, false /* clear */);
+  if (_bitmap.size() != _bitmap_size) {
+    _bitmap.initialize(_bitmap_size, false /* clear */);
   }
 }
 
@@ -77,7 +75,7 @@ void ZLiveMap::reset(ZGenerationId id) {
       segment_live_bits().clear();
       segment_claim_bits().clear();
 
-      // We lazily initialize the bitmap the first time the page is marked, i.e
+      // We lazily initialize the bitmap the first time the page is marked, i.e.
       // a bit is about to be set for the first time.
       initialize_bitmap();
 

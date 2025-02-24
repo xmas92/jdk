@@ -21,8 +21,8 @@
  * questions.
  */
 
-#ifndef SHARE_GC_Z_ZVIRTUALMEMORY_HPP
-#define SHARE_GC_Z_ZVIRTUALMEMORY_HPP
+#ifndef SHARE_GC_Z_ZVIRTUALMEMORYMANAGER_HPP
+#define SHARE_GC_Z_ZVIRTUALMEMORYMANAGER_HPP
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
@@ -71,4 +71,4 @@ public:
   zoffset lowest_available_address(int numa_id) const;
 };
 
-#endif // SHARE_GC_Z_ZVIRTUALMEMORY_HPP
+#endif // SHARE_GC_Z_ZVIRTUALMEMORYMANAGER_HPP

@@ -21,8 +21,8 @@
  * questions.
  */
 
-#ifndef SHARE_GC_Z_ZPHYSICALMEMORY_HPP
-#define SHARE_GC_Z_ZPHYSICALMEMORY_HPP
+#ifndef SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP
+#define SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
@@ -60,4 +60,4 @@ public:
   void collapse(zoffset offset, size_t size) const;
 };
 
-#endif // SHARE_GC_Z_ZPHYSICALMEMORY_HPP
+#endif // SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP

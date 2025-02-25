@@ -701,6 +701,7 @@ public:
   size_t used_at_collection_start() const;
   size_t used_at_mark_start() const;
   size_t used_generation_at_mark_start() const;
+  size_t used_generation_at_relocate_end() const;
   size_t live_at_mark_end() const;
   size_t allocated_at_mark_end() const;
   size_t garbage_at_mark_end() const;

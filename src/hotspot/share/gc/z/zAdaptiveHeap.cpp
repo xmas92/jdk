@@ -374,6 +374,82 @@ uint64_t ZAdaptiveHeap::uncommit_delay(size_t used_memory, size_t total_memory) 
   return 60 * 60 * 24 * 365;
 }
 
+uint64_t ZAdaptiveHeap::soft_ref_delay() {
+  ZStatHeap* const stats = ZGeneration::old()->stat_heap();
+  // Young generation should have mostly transient state;
+  // consider it as basically free.
+  const size_t old_used_reloc_end = stats->used_generation_at_relocate_end();
+  const size_t target_capacity = MAX2(ZHeap::heap()->heuristic_max_capacity(), old_used_reloc_end);
+  const size_t free_heap = target_capacity - old_used_reloc_end;
+
+  const uint64_t explicit_delay = free_heap / M * SoftRefLRUPolicyMSPerMB;
+
+  if (explicit_max_capacity()) {
+    // Use the good old policy we all know and love so much when automatic heap
+    // sizing is not in use.
+    return explicit_delay;
+  }
+
+  // With automatic heap sizing, there is a risk for a feedback loop when the amount
+  // free memory decides how long soft references survive. More soft references will
+  // lead to the heap growing, hence creating more free memory and suddenly letting
+  // soft references live for longer. In order to cut this feedback loop, a more
+  // involved policy is used.
+  //
+  // The more involved strategy scales the delay with the time it would take for the
+  // heap to get filled up by old generation allocations multiplied by a scaled
+  // variation of SoftRefLRUPolicyMSPerMB. The scaling is more aggressive than linear
+  // by computing the nth root of SoftRefLRUPolicyMSPerMB, where n is some memory
+  // pressure.
+
+  // Scale the delay by the old generation allocation rate; the faster it fills up,
+  // the more rapidly we need to prune soft references
+  const double avg_time_since_last = _old_data._gc_times_since_last.avg();
+  const size_t old_live = stats->live_at_mark_end();
+  const size_t old_used = ZHeap::heap()->used_old();
+  const size_t old_allocated = old_used - old_live;
+  const double old_alloc_rate = MAX2(old_allocated / M / avg_time_since_last, 1.0);
+
+  const double time_to_old_oom = free_heap / M / old_alloc_rate;
+
+  const double free_ratio = double(target_capacity) / double(free_heap);
+
+  const double mem_pressure = free_ratio;
+
+  // No point to clear more soft references due to external memory pressure if the
+  // Scale the SoftRefLRUPolicyMSPerMB as an nth rooot where n is the memory pressure.
+  // The reason for using the nth root is that it might not necessarily be that
+  // linearly decreasing the interval with memory pressure yields linearly more
+  // soft references being cleared. It rather depends on the access frequency.
+  // If they get accessed very frequently, then it's likely that no soft reference
+  // get cleared at all, until the interval is made *very* small. Therefore, the
+  // more aggressive nth root is used.
+  const uint64_t scaled_interval = pow(SoftRefLRUPolicyMSPerMB, 1.0 / mem_pressure);
+
+  // Compute the potentially more aggressive delay that cuts the feedback loop.
+  const uint64_t implicit_delay = time_to_old_oom * scaled_interval;
+
+  // If the new policy yields earlier cut off points, then use that. Otherwise,
+  // we still use the more relaxed policy to cut off soft references when they
+  // have not been used for unreasonably long. While we could keep them around
+  // forever, it might also be a bit pointless.
+  const uint64_t delay = MIN2(implicit_delay, explicit_delay);
+
+  log_info(gc, ref)("Soft ref timeout: %zums", delay);
+
+  LogTarget(Debug, gc, ref) lt;
+  if (lt.is_enabled()) {
+    LogStream ls(lt);
+
+    ls.print_cr("Soft ref time to old generation OOM: %.3fs", time_to_old_oom);
+    ls.print_cr("Soft ref explicit timeout: %zums", explicit_delay);
+    ls.print_cr("Soft ref implicit timeout: %zums", implicit_delay);
+    ls.print_cr("Soft ref memory pressure: %.3fs", mem_pressure);
+  }
+
+  return delay;
+}
+
 size_t ZAdaptiveHeap::current_max_capacity(size_t capacity, size_t dynamic_max_capacity) {
   const size_t used_memory = os::used_memory();
   const ssize_t available_memory = ssize_t(dynamic_max_capacity) - ssize_t(used_memory);

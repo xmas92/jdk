@@ -42,6 +42,7 @@
 class ThreadClosure;
 class ZGeneration;
 class ZCommitter;
+class ZMemoryAllocation;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
@@ -85,14 +86,17 @@ public:
 
   void reset_statistics(ZGenerationId id);
 
-  bool claim_mapped_or_increase_capacity(ZPageAllocation* allocation);
-  bool claim_physical(ZPageAllocation* allocation);
+  bool claim_mapped_or_increase_capacity(ZMemoryAllocation* allocation);
+  bool claim_physical(ZMemoryAllocation* allocation);
+
+  ZMappedCache* cache();
 };
 
 class ZPageAllocator {
   friend class VMStructs;
   friend class ZCommitter;
   friend class ZUncommitter;
+  friend class MultiNUMATracker;
 
 private:
   mutable ZLock               _lock;
@@ -110,6 +114,7 @@ private:
   mutable ZSafeDelete<ZPage>  _safe_destroy;
   bool                        _initialized;
 
+  ZCacheState& state_from_numa_id(int numa_id);
   ZCacheState& state_from_vmem(const ZMemoryRange& vmem);
 
   size_t count_segments_physical(const ZMemoryRange& vmem);
@@ -117,31 +122,52 @@ private:
 
   void alloc_physical(const ZMemoryRange& vmem, int numa_id);
   void free_physical(const ZMemoryRange& vmem, int numa_id);
-  bool commit_physical(ZMemoryRange* vmem, int numa_id);
+  size_t commit_physical(const ZMemoryRange& vmem, int numa_id);
   void uncommit_physical(const ZMemoryRange& vmem);
 
   void map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id);
 
   void unmap_virtual(const ZMemoryRange& vmem);
   void free_virtual(const ZMemoryRange& vmem);
+  void free_virtual(const ZMemoryRange& vmem, int numa_id);
 
   void remap_and_defragment_mapping(const ZMemoryRange& mapping, ZArray<ZMemoryRange>* entries);
   void prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* entries, bool allow_defragment);
 
   bool alloc_page_stall(ZPageAllocation* allocation);
+
+  bool claim_physical_multi_numa(ZPageAllocation* allocation);
   bool claim_physical_round_robin(ZPageAllocation* allocation);
   bool claim_physical_or_stall(ZPageAllocation* allocation);
 
-  void harvest_claimed_physical(ZPageAllocation* allocation);
-  bool is_alloc_satisfied(ZPageAllocation* allocation) const;
-  bool claim_virtual_memory(ZPageAllocation* allocation);
+  void harvest_claimed_physical(ZMemoryAllocation* allocation);
 
-  bool commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size);
+  bool is_alloc_satisfied(ZPageAllocation* allocation) const;
+  bool is_alloc_satisfied(ZMemoryAllocation* allocation) const;
+
+  void copy_physical_segments(zoffset to, const ZMemoryRange& from);
+  void copy_claimed_physical_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem);
+
+  bool claim_virtual_memory_multi_numa(ZPageAllocation* allocation);
+  bool claim_virtual_memory(ZPageAllocation* allocation);
+  bool claim_virtual_memory(ZMemoryAllocation* allocation);
+
+  void allocate_remaining_physical_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem);
+  void allocate_remaining_physical(ZPageAllocation* allocation, const ZMemoryRange& vmem);
+  void allocate_remaining_physical(ZMemoryAllocation* allocation, const ZMemoryRange& vmem);
+
+  bool commit_and_map_memory_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem);
+  bool commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem);
+  bool commit_and_map_memory(ZMemoryAllocation* allocation, const ZMemoryRange& vmem);
 
   ZPage* alloc_page_inner(ZPageAllocation* allocation);
-  void alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id);
 
+  void increase_used_generation(const ZMemoryAllocation* allocation, ZGenerationId id);
+  void alloc_page_age_update(ZPageAllocation* allocation, ZPage* page, ZPageAge age);
+
+  void free_memory_alloc_failed_multi_numa(ZPageAllocation* allocation);
   void free_memory_alloc_failed(ZPageAllocation* allocation);
+  void free_memory_alloc_failed(ZMemoryAllocation* allocation);
 
   void satisfy_stalled();
 
@@ -187,6 +213,7 @@ public:
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
   void safe_destroy_page(ZPage* page);
+  void free_page_multi_numa(ZPage* page);
   void free_page(ZPage* page, bool allow_defragment);
   void free_pages(const ZArray<ZPage*>* pages);
 

@@ -213,18 +213,22 @@ void ZMemoryManagerImpl<Range>::free_inner(offset start, size_t size) {
 }
 
 template <typename Range>
-int ZMemoryManagerImpl<Range>::alloc_low_address_many_at_most_inner(size_t size, ZArray<Range>* out) {
-  int num_ranges = 0;
+size_t ZMemoryManagerImpl<Range>::alloc_low_address_many_at_most_inner(size_t size, ZArray<Range>* out) {
   size_t to_allocate = size;
 
   while (to_allocate > 0) {
     const Range range = alloc_low_address_at_most_inner(to_allocate);
+
+    if (range.is_null()) {
+      // Out of memory
+      return size - to_allocate;
+    }
+
     to_allocate -= range.size();
-    num_ranges++;
     out->append(range);
   }
 
-  return num_ranges;
+  return size;
 }
 
 template <typename Range>
@@ -293,6 +297,12 @@ Range ZMemoryManagerImpl<Range>::alloc_low_address_at_most(size_t size) {
 }
 
 template <typename Range>
+size_t ZMemoryManagerImpl<Range>::alloc_low_address_many_at_most(size_t size, ZArray<Range>* out) {
+  ZLocker<ZLock> lock(&_lock);
+  return alloc_low_address_many_at_most_inner(size, out);
+}
+
+template <typename Range>
 Range ZMemoryManagerImpl<Range>::alloc_high_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
 
@@ -349,7 +359,10 @@ template <typename Range>
 int ZMemoryManagerImpl<Range>::shuffle_memory_low_addresses(offset start, size_t size, ZArray<Range>* out) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
-  return alloc_low_address_many_at_most_inner(size, out);
+  const int length_before = out->length();
+  const size_t shuffled = alloc_low_address_many_at_most_inner(size, out);
+  assert(shuffled == size, "must succeed");
+  return out->length() - length_before;
 }
 
 template <typename Range>

@@ -25,6 +25,7 @@
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zCommitter.hpp"
 #include "gc/z/zDriver.hpp"
@@ -40,6 +41,7 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
+#include "gc/z/zPageType.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
@@ -48,6 +50,8 @@
 #include "gc/z/zWorkers.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
+#include "memory/allocation.hpp"
+#include "nmt/memTag.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/init.hpp"
 #include "runtime/java.hpp"
@@ -71,8 +75,8 @@ static void sort_zbacking_index_ptrs(void* at, size_t size) {
 
 class ZSegmentStash {
 private:
-  ZGranuleMap<zbacking_index>* _physical_mappings;
-  ZArray<zbacking_index>       _stash;
+  ZGranuleMap<zbacking_index>* const _physical_mappings;
+  ZArray<zbacking_index>             _stash;
 
   void sort_stashed_segments() {
     sort_zbacking_index_ptrs(_stash.adr_at(0), (size_t)_stash.length());
@@ -139,62 +143,81 @@ public:
   };
 };
 
-class ZPageAllocation : public StackObj {
-  friend class ZList<ZPageAllocation>;
+class ZMemoryAllocation;
 
+class ZMemoryAllocationData : public StackObj {
 private:
-  const ZPageType            _type;
-  const size_t               _size;
-  const ZAllocationFlags     _flags;
-  const uint32_t             _young_seqnum;
-  const uint32_t             _old_seqnum;
-  const size_t               _current_max_capacity;
-  size_t                     _harvested;
-  size_t                     _committed;
-  int                        _numa_id;
-  ZArray<ZMemoryRange>       _claimed_mappings;
-  ZListNode<ZPageAllocation> _node;
-  ZFuture<bool>              _stall_result;
+  ZArray<ZMemoryRange>      _claimed_mappings;
+  ZArray<ZMemoryRange>*     _multi_numa_claimed_mappings;
+  ZArray<ZMemoryAllocation> _multi_numa_allocations;
+  bool                      _is_multi_numa_allocation;
+
+  static int get_multi_numa_count() {
+    // We may have two allocations per NUMA node
+    return ZNUMA::count() * 2;
+  }
 
 public:
-  ZPageAllocation(ZPageType type, size_t size, ZAllocationFlags flags, size_t current_max_capacity)
-    : _type(type),
-      _size(size),
-      _flags(flags),
-      _young_seqnum(ZGeneration::young()->seqnum()),
-      _old_seqnum(ZGeneration::old()->seqnum()),
-      _current_max_capacity(current_max_capacity),
+  ZMemoryAllocationData()
+    : _claimed_mappings(1),
+      _multi_numa_claimed_mappings(nullptr),
+      _multi_numa_allocations(0),
+      _is_multi_numa_allocation(false) {}
+
+  ZArray<ZMemoryRange>* claimed_mappings() {
+    return &_claimed_mappings;
+  }
+
+  bool is_multi_numa_allocation() const {
+    return _is_multi_numa_allocation;
+  }
+
+  ZArray<ZMemoryAllocation>* multi_numa_allocations() {
+    return &_multi_numa_allocations;
+  }
+
+  const ZArray<ZMemoryAllocation>* multi_numa_allocations() const {
+    return &_multi_numa_allocations;
+  }
+
+  ~ZMemoryAllocationData();
+
+  void reset_for_retry();
+
+  void set_multi_numa_allocation();
+
+  ZMemoryAllocation* get_next_multi_numa_allocation(size_t size);
+  void remove_last_multi_numa_allocation();
+};
+
+class ZMemoryAllocation {
+private:
+  size_t                _size;
+  ZArray<ZMemoryRange>* _claimed_mappings;
+  size_t                _harvested;
+  size_t                _committed;
+  int                   _numa_id;
+  bool                  _commit_failed;
+
+public:
+  // All fields are mutable and we have a default empty constructor to enable
+  // the usage of this class in a ZArray
+  ZMemoryAllocation() = default;
+  ZMemoryAllocation(ZArray<ZMemoryRange>* claimed_mappings, size_t size)
+    : _size(size),
+      _claimed_mappings(claimed_mappings),
       _harvested(0),
       _committed(0),
       _numa_id(-1),
-      _claimed_mappings(1),
-      _node(),
-      _stall_result() {}
+      _commit_failed(false) {}
 
   void reset_for_retry() {
     _harvested = 0;
     _committed = 0;
-    _claimed_mappings.clear();
-  }
-
-  ZPageType type() const {
-    return _type;
   }
 
   size_t size() const {
     return _size;
-  }
-
-  ZAllocationFlags flags() const {
-    return _flags;
-  }
-
-  uint32_t young_seqnum() const {
-    return _young_seqnum;
-  }
-
-  uint32_t old_seqnum() const {
-    return _old_seqnum;
   }
 
   size_t harvested() const {
@@ -221,16 +244,122 @@ public:
     _numa_id = id;
   }
 
+  bool commit_failed() const {
+    return _commit_failed;
+  }
+
+  void set_commit_failed() {
+    _commit_failed = true;
+  }
+
+  ZArray<ZMemoryRange>* claimed_mappings() {
+    return _claimed_mappings;
+  }
+};
+
+class ZPageAllocation : public StackObj {
+  friend class ZList<ZPageAllocation>;
+
+private:
+  const ZPageType            _type;
+  const size_t               _size;
+  const ZAllocationFlags     _flags;
+  const uint32_t             _young_seqnum;
+  const uint32_t             _old_seqnum;
+  const size_t               _current_max_capacity;
+  int const                  _initiating_numa_id;
+  ZMemoryAllocationData      _allocation_data;
+  ZMemoryAllocation          _allocation;
+  ZListNode<ZPageAllocation> _node;
+  ZFuture<bool>              _stall_result;
+
+public:
+  ZPageAllocation(ZPageType type, size_t size, ZAllocationFlags flags, size_t current_max_capacity)
+    : _type(type),
+      _size(size),
+      _flags(flags),
+      _young_seqnum(ZGeneration::young()->seqnum()),
+      _old_seqnum(ZGeneration::old()->seqnum()),
+      _current_max_capacity(current_max_capacity),
+      _initiating_numa_id(ZNUMA::id()),
+      _allocation_data(),
+      _allocation(_allocation_data.claimed_mappings(), size),
+      _node(),
+      _stall_result() {}
+
+  void reset_for_retry() {
+    _allocation.reset_for_retry();
+    _allocation_data.reset_for_retry();
+  }
+
+  ZPageType type() const {
+    return _type;
+  }
+
+  size_t size() const {
+    return _size;
+  }
+
+  ZAllocationFlags flags() const {
+    return _flags;
+  }
+
+  uint32_t young_seqnum() const {
+    return _young_seqnum;
+  }
+
+  uint32_t old_seqnum() const {
+    return _old_seqnum;
+  }
+
+  int initiating_numa_id() const {
+    return _initiating_numa_id;
+  }
+
+  ZMemoryAllocation* memory_allocation() {
+    return &_allocation;
+  }
+
+  bool is_multi_numa_allocation() const {
+    return _allocation_data.is_multi_numa_allocation();
+  }
+
+  void set_multi_numa_allocation() {
+    _allocation_data.set_multi_numa_allocation();
+  }
+
+  ZMemoryAllocation* get_next_multi_numa_allocation(size_t size) {
+    return _allocation_data.get_next_multi_numa_allocation(size);
+  }
+
+  void remove_last_multi_numa_allocation() {
+    return _allocation_data.remove_last_multi_numa_allocation();
+  }
+
+  ZArray<ZMemoryAllocation>* multi_numa_allocations() {
+    return _allocation_data.multi_numa_allocations();
+  }
+
+  const ZArray<ZMemoryAllocation>* multi_numa_allocations() const {
+    return _allocation_data.multi_numa_allocations();
+  }
+
   size_t current_max_capacity() const {
     return _current_max_capacity;
   }
 
-  bool wait() {
-    return _stall_result.get();
+  ZMemoryRange pop_final_mapping() {
+    ZMemoryAllocation* const allocation = memory_allocation();
+    ZArray<ZMemoryRange>* const mappings = allocation->claimed_mappings();
+
+    assert(mappings->length() == 1, "must contain one mapping");
+    assert(mappings->first().size() == _size, "must be complete");
+
+    return mappings->pop();
   }
 
-  ZArray<ZMemoryRange>* claimed_mappings() {
-    return &_claimed_mappings;
+  bool wait() {
+    return _stall_result.get();
   }
 
   void satisfy(bool result) {
@@ -241,6 +370,61 @@ public:
     return _flags.gc_relocation();
   }
 };
+
+ZMemoryAllocationData::~ZMemoryAllocationData() {
+  if (_multi_numa_claimed_mappings != nullptr) {
+    const int length = get_multi_numa_count();
+    for (int i = 0; i < length; ++i) {
+      _multi_numa_claimed_mappings[i].~ZArray<ZMemoryRange>();
+    }
+    FREE_C_HEAP_ARRAY(ZArray<ZMemoryRange>, _multi_numa_claimed_mappings);
+  }
+}
+
+void ZMemoryAllocationData::reset_for_retry() {
+  // Clear mappings
+  _claimed_mappings.clear();
+
+  // Clear multi numa allocations and mappings, but do not deallocate, it will
+  // more than likely be a multi numa allocation the next time around
+  _multi_numa_allocations.clear();
+  if (_multi_numa_claimed_mappings != nullptr) {
+    const int length = get_multi_numa_count();
+    for (int i = 0; i < length; ++i) {
+      _multi_numa_claimed_mappings[i].clear();
+    }
+  }
+  _is_multi_numa_allocation = false;
+}
+
+void ZMemoryAllocationData::set_multi_numa_allocation() {
+  _is_multi_numa_allocation = true;
+
+  // Allocate storage for multi numa allocations and mappings
+  const int length = get_multi_numa_count();
+  _multi_numa_allocations.reserve(length);
+
+  if (_multi_numa_claimed_mappings == nullptr) {
+    // ZArray<ZMemoryRange> _multi_numa_claimed_mappings[length];
+    void* const multi_numa_claimed_mappings_memory = NEW_C_HEAP_ARRAY(ZArray<ZMemoryRange>, length, mtGC);
+    _multi_numa_claimed_mappings = ::new (multi_numa_claimed_mappings_memory) ZArray<ZMemoryRange>[length];
+  }
+}
+
+ZMemoryAllocation* ZMemoryAllocationData::get_next_multi_numa_allocation(size_t size) {
+  assert(_is_multi_numa_allocation, "not flipped to multi numa allocation");
+  const int next_index = _multi_numa_allocations.length();
+
+  assert(next_index < get_multi_numa_count(), "to many partial allocations");
+
+  ZArray<ZMemoryRange>* const claimed_mappings = &_multi_numa_claimed_mappings[next_index];
+  _multi_numa_allocations.push(ZMemoryAllocation(claimed_mappings, size));
+  return &_multi_numa_allocations.last();
+}
+
+void ZMemoryAllocationData::remove_last_multi_numa_allocation() {
+  _multi_numa_allocations.pop();
+}
 
 
 void ZCacheState::initialize(size_t max_capacity) {
@@ -335,7 +519,7 @@ void ZCacheState::reset_statistics(ZGenerationId id) {
   _collection_stats[(int)id]._used_low = _used;
 }
 
-bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation) {
+bool ZCacheState::claim_mapped_or_increase_capacity(ZMemoryAllocation* allocation) {
   const size_t size = allocation->size();
   ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
 
@@ -369,12 +553,17 @@ bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation)
     return true;
   }
 
+  // TODO: We do not recover capicity if we fail here, this should be guaranteed
+  //       by available_capacity() and our locking. But I'd would like to go check
+  //       this. And maybe this can be reorganized so that this is more obvious.
+  assert(increased == 0, "should not have failed");
+
   // Could not claim enough memory from the cache or increase capacity to
   // fulfill the request.
   return false;
 }
 
-bool ZCacheState::claim_physical(ZPageAllocation* allocation) {
+bool ZCacheState::claim_physical(ZMemoryAllocation* allocation) {
   const size_t size = allocation->size();
 
   if (available_capacity() < size) {
@@ -393,6 +582,158 @@ bool ZCacheState::claim_physical(ZPageAllocation* allocation) {
   // Success
   return true;
 }
+
+ZMappedCache* ZCacheState::cache() {
+  return &_cache;
+}
+
+class MultiNUMATracker : CHeapObj<mtGC> {
+private:
+  struct Element {
+    ZMemoryRange _range;
+    int _numa_id;
+  };
+
+  ZArray<Element> _map;
+
+  MultiNUMATracker(int capacity)
+    : _map(capacity) {}
+
+  const ZArray<Element>* map() const {
+    return &_map;
+  }
+public:
+  static void install_tracker(const ZPageAllocation* allocation, ZPage* page) {
+    if (!allocation->is_multi_numa_allocation()) {
+      return;
+    }
+
+    const ZArray<ZMemoryAllocation>* const partial_allocations = allocation->multi_numa_allocations();
+    MultiNUMATracker* const tracker = new MultiNUMATracker(partial_allocations->length());
+
+    // Each partial allocation is mapped to the virtual memory in order
+    ZMemoryRange vmem = page->virtual_memory();
+    ZArrayIterator<ZMemoryAllocation> iter(partial_allocations);
+    for (const ZMemoryAllocation* partial_allocation; iter.next_addr(&partial_allocation);) {
+      // Track each separate mapping's numa node
+      const ZMemoryRange partial_vmem = vmem.split_from_front(partial_allocation->size());
+      const int numa_id = partial_allocation->numa_id();
+      tracker->_map.push({partial_vmem, numa_id});
+    }
+
+    // Install the tracker
+    page->set_multi_numa_tracker(tracker);
+  }
+
+  static void free_and_destroy(ZPageAllocator* allocator, ZPage* page) {
+    const int numa_nodes = ZNUMA::count();
+
+    // Extract data and destroy page
+    const ZMemoryRange vmem = page->virtual_memory();
+    const ZGenerationId id = page->generation_id();
+    MultiNUMATracker* const tracker = page->multi_numa_tracker();
+    allocator->safe_destroy_page(page);
+
+    // Keep track of to be inserted mappings
+    struct PerNUMAData : public CHeapObj<mtGC> {
+      ZArray<ZMemoryRange> _mappings{};
+      size_t _mapped = 0;
+      size_t _uncommitted = 0;
+    };
+    PerNUMAData* const per_numa_mappings = new PerNUMAData[numa_nodes];
+
+    // Remap memory back to original numa node
+    ZArrayIterator<Element> iter(tracker->map());
+    for (Element partial_allocation{}; iter.next(&partial_allocation);) {
+      ZMemoryRange remaining_vmem = partial_allocation._range;
+      const int numa_id = partial_allocation._numa_id;
+      PerNUMAData& numa_data = per_numa_mappings[numa_id];
+      ZArray<ZMemoryRange>* const numa_memory_mappings = &numa_data._mappings;
+      const size_t size = remaining_vmem.size();
+
+      // Allocate new virtual address ranges
+      const int start_index = numa_memory_mappings->length();
+      const size_t allocated = allocator->_virtual.alloc_low_address_many_at_most(remaining_vmem.size(), numa_id, numa_memory_mappings);
+
+      // Remap to the newly allocated virtual address ranges
+      size_t mapped = 0;
+      for (int i = start_index; i < numa_memory_mappings->length(); ++i) {
+        ZMemoryRange to_vmem = numa_memory_mappings->at(i);
+        ZMemoryRange from_vmem = remaining_vmem.split_from_front(to_vmem.size());
+
+        // Copy physical segments
+        allocator->copy_physical_segments(to_vmem.start(), from_vmem);
+
+        // Unmap from_vmem
+        allocator->unmap_virtual(from_vmem);
+
+        // Map to_vmem
+        allocator->map_virtual_to_physical(to_vmem, numa_id);
+
+        mapped += to_vmem.size();
+      }
+
+      assert(allocated == mapped, "must have mapped all allocated");
+      assert(size == mapped + remaining_vmem.size(), "must cover whole range");
+
+      if (remaining_vmem.size() != 0) {
+        // Failed to get vmem for all memory, unmap, uncommit and free the remaining
+        allocator->unmap_virtual(remaining_vmem);
+        allocator->uncommit_physical(remaining_vmem);
+        allocator->free_physical(remaining_vmem, numa_id);
+      }
+
+      // Keep track of the per numa data
+      numa_data._mapped += mapped;
+      numa_data._uncommitted += remaining_vmem.size();
+    }
+
+    // Free the virtual memory
+    allocator->free_virtual(vmem);
+
+    {
+      ZLocker<ZLock> locker(&allocator->_lock);
+
+      for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
+        PerNUMAData& numa_data = per_numa_mappings[numa_id];
+        ZCacheState& state = allocator->state_from_numa_id(numa_id);
+
+        // Update accounting
+        state.decrease_used(numa_data._mapped);
+        state.decrease_used_generation(id, numa_data._mapped);
+        state.decrease_capacity(numa_data._uncommitted, false /* set_max_capacity */);
+
+        // Reinsert mappings
+        ZArrayIterator<ZMemoryRange> iter(&numa_data._mappings);
+        for (ZMemoryRange mapping; iter.next(&mapping);) {
+          state.cache()->insert(mapping);
+        }
+      }
+
+      // Try satisfy stalled allocations
+      allocator->satisfy_stalled();
+    }
+
+    // Free up the allocated memory
+    delete[] per_numa_mappings;
+    delete tracker;
+  }
+
+  static void promote(ZPageAllocator* allocator, const ZPage* from, const ZPage* to) {
+    MultiNUMATracker* const tracker = from->multi_numa_tracker();
+    assert(tracker == to->multi_numa_tracker(), "should have the same tracker");
+
+    ZArrayIterator<Element> iter(tracker->map());
+    for (Element partial_allocation{}; iter.next(&partial_allocation);) {
+      const size_t size = partial_allocation._range.size();
+      const int numa_id = partial_allocation._numa_id;
+      ZCacheState& state = allocator->state_from_numa_id(numa_id);
+
+      state.decrease_used_generation(ZGenerationId::young, size);
+      state.increase_used_generation(ZGenerationId::old, size);
+    }
+  }
+};
 
 ZPageAllocator::ZPageAllocator(size_t min_capacity,
                                size_t initial_capacity,
@@ -505,7 +846,7 @@ bool ZPageAllocator::prime_state_cache(ZWorkers* workers, int numa_id, size_t to
   // Increase capacity, allocate and commit physical memory
   state.increase_capacity(to_prime);
   _physical.alloc(_physical_mappings.get_addr(vmem.start()), to_prime, numa_id);
-  if (!commit_physical(&vmem, numa_id)) {
+  if (commit_physical(vmem, numa_id) != vmem.size()) {
     // This is a failure state. We do not cleanup the maybe partially committed memory.
     return false;
   }
@@ -697,14 +1038,25 @@ void ZPageAllocator::reset_statistics(ZGenerationId id) {
   }
 }
 
-ZCacheState& ZPageAllocator::state_from_vmem(const ZMemoryRange& vmem) {
-  return _states.get(_virtual.get_numa_id(vmem));
+ZCacheState& ZPageAllocator::state_from_numa_id(int numa_id) {
+  return _states.get(numa_id);
 }
 
-void ZPageAllocator::promote_used(const ZMemoryRange& from, const ZMemoryRange& to) {
-  const size_t size = from.size();
-  state_from_vmem(from).decrease_used_generation(ZGenerationId::young, size);
-  state_from_vmem(to).increase_used_generation(ZGenerationId::old, size);
+ZCacheState& ZPageAllocator::state_from_vmem(const ZMemoryRange& vmem) {
+  return state_from_numa_id(_virtual.get_numa_id(vmem));
+}
+
+void ZPageAllocator::promote_used(const ZPage* from, const ZPage* to) {
+  assert(from->size() == to->size(), "pages are the same size");
+  const size_t size = from->size();
+  if (from->is_multi_numa()) {
+    MultiNUMATracker::promote(this, from, to);
+  } else {
+    // TODO: virtual_memory are the same, this is only used for inplace and flip promotion
+    //       for relocation promotions these counters are accounted for in alloc and free
+    state_from_vmem(from->virtual_memory()).decrease_used_generation(ZGenerationId::young, size);
+    state_from_vmem(to->virtual_memory()).increase_used_generation(ZGenerationId::old, size);
+  }
 }
 
 size_t ZPageAllocator::count_segments_physical(const ZMemoryRange& vmem) {
@@ -724,21 +1076,9 @@ void ZPageAllocator::free_physical(const ZMemoryRange& vmem, int numa_id) {
   _physical.free(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
 }
 
-bool ZPageAllocator::commit_physical(ZMemoryRange* vmem, int numa_id) {
+size_t ZPageAllocator::commit_physical(const ZMemoryRange& vmem, int numa_id) {
   // Commit physical memory
-  const size_t committed = _physical.commit(_physical_mappings.get_addr(vmem->start()), vmem->size(), numa_id);
-  const size_t not_commited = vmem->size() - committed;
-
-  if (not_commited > 0) {
-    // Free the uncommitted memory and update vmem with the committed memory
-    ZMemoryRange not_commited_vmem = *vmem;
-    *vmem = not_commited_vmem.split_from_front(committed);
-    free_physical(not_commited_vmem, numa_id);
-    free_virtual(not_commited_vmem);
-    return false;
-  }
-
-  return true;
+  return _physical.commit(_physical_mappings.get_addr(vmem.start()), vmem.size(), numa_id);
 }
 
 void ZPageAllocator::uncommit_physical(const ZMemoryRange& vmem) {
@@ -772,6 +1112,11 @@ void ZPageAllocator::unmap_virtual(const ZMemoryRange& vmem) {
 void ZPageAllocator::free_virtual(const ZMemoryRange& vmem) {
   // Free virtual memory
   _virtual.free(vmem);
+}
+
+void ZPageAllocator::free_virtual(const ZMemoryRange& vmem, int numa_id) {
+  // Free virtual memory
+  _virtual.free(vmem, numa_id);
 }
 
 void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArray<ZMemoryRange>* entries) {
@@ -843,21 +1188,114 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   return result;
 }
 
+
+bool ZPageAllocator::claim_physical_multi_numa(ZPageAllocation* allocation) {
+  // Start at the allocating thread's affinity
+  const int start_node = allocation->initiating_numa_id();
+  const size_t numa_nodes = ZNUMA::count();
+
+  const size_t size = allocation->size();
+  size_t remaining = size;
+  const size_t split_size = align_up(size / numa_nodes, ZGranuleSize);
+
+  // Flip allocation to multi numa allocation
+  allocation->set_multi_numa_allocation();
+
+  // Loops over every node and allocates get_alloc_size per node
+  const auto do_claim_each_node = [&](auto get_alloc_size) {
+    int current_node = start_node;
+    do {
+      ZCacheState& state = _states.get(current_node);
+      size_t alloc_size = get_alloc_size(state);
+
+      // Skip over empty allocations
+      if (alloc_size != 0) {
+        ZMemoryAllocation* partial_allocation = allocation->get_next_multi_numa_allocation(alloc_size);
+
+        if (!state.claim_physical(partial_allocation)) {
+          // Claiming failed
+          allocation->remove_last_multi_numa_allocation();
+          return false;
+        }
+
+        // Record which state the allocation was made on
+        partial_allocation->set_numa_id(current_node);
+
+        // Update remaining
+        remaining -= alloc_size;
+
+        if (remaining == 0) {
+          // All memory claimed
+          return true;
+        }
+      }
+
+      current_node = (current_node + 1) % numa_nodes;
+    } while(current_node != start_node);
+    return true;
+  };
+
+  // Try to claim upto split_size on each node
+  const auto get_even_alloc_size = [&](ZCacheState& state) {
+    return MIN3(split_size, state.available_capacity(), remaining);
+  };
+  if (!do_claim_each_node(get_even_alloc_size)) {
+    // Claiming failed
+    return false;
+  }
+
+  if (remaining == 0) {
+    // All memory claimed
+    return true;
+  }
+
+  // Else try claim the remaining
+  const auto get_rest_alloc_size = [&](ZCacheState& state) {
+    return MIN2(state.available_capacity(), remaining);
+  };
+  if (!do_claim_each_node(get_rest_alloc_size)) {
+    // Claiming failed
+    return false;
+  }
+
+  return remaining == 0;
+}
+
 bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
-  const int start_node = allocation->numa_id();
+  // Start at the allocating thread's affinity
+  const int start_node = allocation->initiating_numa_id();
+  const size_t numa_nodes = ZNUMA::count();
+  size_t total_available = 0;
   int current_node = start_node;
 
   do {
     ZCacheState& state = _states.get(current_node);
-    if (state.claim_physical(allocation)) {
-      // Record which state the allocation was made on
-      allocation->set_numa_id(current_node);
+    ZMemoryAllocation* memory_allocation = allocation->memory_allocation();
+
+    if (state.claim_physical(memory_allocation)) {
+      // Success, record which state the allocation was made on
+      memory_allocation->set_numa_id(current_node);
+
       return true;
     }
 
-    // Could not claim physical memory on current node, move on to next node
-    current_node = (current_node + 1) % ZNUMA::count();
+    total_available += state.available_capacity();
+
+    // Could not claim physical memory on current node, potentially move on to
+    // the next node
+    current_node = (current_node + 1) % numa_nodes;
   } while(current_node != start_node);
+
+  if (numa_nodes > 1 && total_available >= allocation->size()) {
+    if (!claim_physical_multi_numa(allocation)) {
+      // May have partially succeeded, undo any partial allocations
+      free_memory_alloc_failed_multi_numa(allocation);
+
+      return false;
+    }
+
+    return true;
+  }
 
   return false;
 }
@@ -866,8 +1304,7 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   {
     ZLocker<ZLock> locker(&_lock);
 
-    // Always start at the current thread's affinity for local allocation
-    allocation->set_numa_id(ZNUMA::id());
+    // Try to claim memory
     if (claim_physical_round_robin(allocation)) {
       return true;
     }
@@ -886,7 +1323,7 @@ bool ZPageAllocator::claim_physical_or_stall(ZPageAllocation* allocation) {
   return alloc_page_stall(allocation);
 }
 
-void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
+void ZPageAllocator::harvest_claimed_physical(ZMemoryAllocation* allocation) {
   const int num_mappings_harvested = allocation->claimed_mappings()->length();
 
   const int num_granules = (int)(allocation->harvested() >> ZGranuleSizeShift);
@@ -915,6 +1352,10 @@ void ZPageAllocator::harvest_claimed_physical(ZPageAllocation* allocation) {
 }
 
 bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
+  return is_alloc_satisfied(allocation->memory_allocation());
+}
+
+bool ZPageAllocator::is_alloc_satisfied(ZMemoryAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
   // exactly one mapping and is of the correct size.
 
@@ -936,7 +1377,75 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
 void ZPageAllocator::request_alloc_heating(ZPage* page, ZPageAllocation* allocation) {
 }
 
+void ZPageAllocator::copy_physical_segments(zoffset to, const ZMemoryRange& from) {
+  const size_t copy_size = sizeof(zoffset) * from.size_in_granules();
+  const void* const src = _physical_mappings.get_addr(from.start());
+  void* const dest = _physical_mappings.get_addr(to);
+  memcpy(dest, src, copy_size);
+}
+
+void ZPageAllocator::copy_claimed_physical_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem) {
+  // Start at the new dest offset
+  zoffset allocation_destination_offset = vmem.start();
+  size_t total_harvested = 0;
+
+  ZArrayMutableIterator<ZMemoryAllocation> allocation_iter(allocation->multi_numa_allocations());
+  for (ZMemoryAllocation* partial_allocation; allocation_iter.next_addr(&partial_allocation);) {
+    zoffset partial_vmem_destination_offset = allocation_destination_offset;
+    size_t harvested = 0;
+
+    // Iterate over all claimed mappings and copy physical segments into the partial_allocations
+    // destination offset
+    ZArrayIterator<ZMemoryRange> iter(partial_allocation->claimed_mappings());
+    for (ZMemoryRange partial_vmem; iter.next(&partial_vmem);) {
+      // Copy physical segments
+      copy_physical_segments(partial_vmem_destination_offset, partial_vmem);
+
+      // Keep track of amount harvested and advance to next partial_vmem's offset
+      harvested += partial_vmem.size();
+      partial_vmem_destination_offset += partial_vmem.size();
+    }
+
+    // Register amount harvested and advance to next allocation's offset
+    total_harvested += harvested;
+    partial_allocation->set_harvested(harvested);
+    allocation_destination_offset += partial_allocation->size();
+  }
+
+  allocation->memory_allocation()->set_harvested(total_harvested);
+}
+
+bool ZPageAllocator::claim_virtual_memory_multi_numa(ZPageAllocation* allocation) {
+  const int numa_nodes = ZNUMA::count();
+  const size_t size = allocation->size();
+  ZMemoryAllocation* const memory_allocation = allocation->memory_allocation();
+
+  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
+    ZMemoryRange vmem = _virtual.alloc(size, numa_id, false /* force_low_address */);
+    if (!vmem.is_null()) {
+      // Found an address range
+      memory_allocation->claimed_mappings()->append(vmem);
+
+      // Copy claimed multi numa mappings, we leave the old mappings mapped
+      // until after we have committed. In case committing fails we can simply
+      // reinsert the inital mappings.
+      copy_claimed_physical_multi_numa(allocation, vmem);
+
+      return true;
+    }
+  }
+  return false;
+}
+
 bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
+  if (allocation->is_multi_numa_allocation()) {
+    return claim_virtual_memory_multi_numa(allocation);
+  }
+
+  return claim_virtual_memory(allocation->memory_allocation());
+}
+
+bool ZPageAllocator::claim_virtual_memory(ZMemoryAllocation* allocation) {
   if (allocation->harvested() > 0) {
     // If we have harvested anything, we claim virtual memory from the harvested
     // mappings, and perhaps also allocate more to match the allocation request.
@@ -967,14 +1476,202 @@ bool ZPageAllocator::claim_virtual_memory(ZPageAllocation* allocation) {
   return false;
 }
 
-bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem, size_t committed_size) {
+void ZPageAllocator::allocate_remaining_physical_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem) {
+  ZMemoryRange remaining_vmem = vmem;
+  ZArrayMutableIterator<ZMemoryAllocation> allocation_iter(allocation->multi_numa_allocations());
+  for (ZMemoryAllocation* partial_allocation; allocation_iter.next_addr(&partial_allocation);) {
+    ZMemoryRange partial_allocation_vmem = remaining_vmem.split_from_front(partial_allocation->size());
+    allocate_remaining_physical(partial_allocation, partial_allocation_vmem);
+  }
+}
+
+void ZPageAllocator::allocate_remaining_physical(ZMemoryAllocation* allocation, const ZMemoryRange& vmem) {
+  const size_t remaining_physical = allocation->size() - allocation->harvested();
+  if (remaining_physical > 0) {
+    ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
+    alloc_physical(uncommitted_range, allocation->numa_id());
+  }
+}
+
+void ZPageAllocator::allocate_remaining_physical(ZPageAllocation* allocation, const ZMemoryRange& vmem) {
+  assert(allocation->size() == vmem.size(), "vmem should be the final mapping");
+
+  if (allocation->is_multi_numa_allocation()) {
+    allocate_remaining_physical_multi_numa(allocation, vmem);
+  } else {
+    allocate_remaining_physical(allocation->memory_allocation(), vmem);
+  }
+}
+
+bool ZPageAllocator::commit_and_map_memory_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem) {
+  // Helper to loop over each ZMemoryAllocation and its associated partial_vmem
+  const auto for_each_partial_vmem = [&](auto body_fn) {
+    ZMemoryRange remaining_vmem = vmem;
+
+    ZArrayMutableIterator<ZMemoryAllocation> allocation_iter(allocation->multi_numa_allocations());
+    for (ZMemoryAllocation* partial_allocation; allocation_iter.next_addr(&partial_allocation);) {
+      // Split of partial allocation's memory range
+      ZMemoryRange partial_vmem = remaining_vmem.split_from_front(partial_allocation->size());
+
+      body_fn(partial_allocation, partial_vmem);
+    }
+
+    assert(remaining_vmem.size() == 0, "all memory should be acountted for");
+  };
+
+  // First commit all uncommitted parts
+  bool commit_failed = false;
+  size_t total_committed = 0;
+
+  for_each_partial_vmem([&](ZMemoryAllocation* partial_allocation, ZMemoryRange partial_vmem) {
+    if (commit_failed) {
+      // Skip committing the rest after a commit failed.
+      return; // continue;
+    }
+
+    // Remove the harvested part
+    partial_vmem.shrink_from_front(partial_allocation->harvested());
+
+    // Try to commit
+    const int numa_id = partial_allocation->numa_id();
+    const size_t to_commit = partial_vmem.size();
+    const size_t committed = commit_physical(partial_vmem, numa_id);
+
+    // Keep track of the committed amount
+    partial_allocation->set_committed(committed);
+
+    if (committed != to_commit) {
+      commit_failed = true;
+      partial_allocation->set_commit_failed();
+
+      // Free uncommitted physical segments
+      const ZMemoryRange uncommitted = partial_vmem.split_from_back(to_commit - committed);
+      free_physical(uncommitted, numa_id);
+    }
+
+    // Account for all committed
+    total_committed += committed;
+  });
+
+  if (!commit_failed) {
+    // All memory has been committed, now unmap the original mappings and create the final mapping
+    for_each_partial_vmem([&](ZMemoryAllocation* partial_allocation, ZMemoryRange partial_vmem) {
+      const int numa_id = partial_allocation->numa_id();
+      ZArray<ZMemoryRange>* const mappings = partial_allocation->claimed_mappings();
+
+      // Unmap original mappings
+      while (!mappings->is_empty()) {
+        ZMemoryRange to_unmap = mappings->pop();
+        unmap_virtual(to_unmap);
+        free_virtual(to_unmap, numa_id);
+      }
+
+      // Sort physical segments
+      sort_segments_physical(partial_vmem);
+
+      // Map the partial_allocation to partial_vmem
+      map_virtual_to_physical(partial_vmem, numa_id);
+    });
+
+    // Keep track of the total committed memory
+    allocation->memory_allocation()->set_committed(total_committed);
+
+    return true;
+  }
+
+  // Deal with a failed commit
+  // All harvested mappings still remain, but we may have unmapped commited
+  // memory for each partial_allocation. Try to map this on the correct node,
+  // and in the case that no virtual memory can be found, simply uncommit.
+  for_each_partial_vmem([&](ZMemoryAllocation* partial_allocation, ZMemoryRange partial_vmem) {
+    const size_t committed = partial_allocation->committed();
+
+    if (committed == 0) {
+      // Nothing committed, nothing to handle
+      return; // continue;
+    }
+
+    // Remove the harvested part
+    partial_vmem.shrink_from_front(partial_allocation->harvested());
+
+    const int numa_id = partial_allocation->numa_id();
+    ZArray<ZMemoryRange>* const mappings = partial_allocation->claimed_mappings();
+    // Keep track of the start index
+    const int start_index = mappings->length();
+
+    // Try to allocated virtual memory for the committed part
+    const size_t to_map = _virtual.alloc_low_address_many_at_most(committed, numa_id, mappings);
+
+    if (to_map != committed) {
+      // Uncommit any memory that is unmappable due to no virtual memory
+      // We do not track this, so if the partial_allocation failed to commit,
+      // the unmappable memory will also count toward the reduction in
+      // current max capacity
+
+      const ZMemoryRange unmappable = partial_vmem.split_from_back(committed - to_map);
+      uncommit_physical(unmappable);
+      free_physical(unmappable, numa_id);
+
+      // Keep track of the total committed memory
+      total_committed -= unmappable.size();
+    }
+
+    for (int i = start_index; i < mappings->length(); ++i) {
+      // Get new virtual address
+      const ZMemoryRange& to_map = mappings->at(i);
+      const ZMemoryRange from = partial_vmem.split_from_front(to_map.size());
+
+      // Copy physical mappings
+      copy_physical_segments(to_map.start(), from);
+
+      // Map memory
+      map_virtual_to_physical(to_map, numa_id);
+    }
+
+    assert(partial_vmem.size() == 0, "all memory should be acountted for");
+  });
+
+  // Keep track of the total committed memory
+  allocation->memory_allocation()->set_committed(total_committed);
+
+  // Free the unused virtual mapping
+  free_virtual(vmem);
+
+  // All memory has been accounted for and are in the partial_allocation's
+  // claimed_mappings
+  return false;
+}
+
+bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZMemoryRange& vmem) {
+  assert(allocation->size() == vmem.size(), "vmem should be the final mapping");
+
+  if (allocation->is_multi_numa_allocation()) {
+    return commit_and_map_memory_multi_numa(allocation, vmem);
+  } else {
+    return commit_and_map_memory(allocation->memory_allocation(), vmem);
+  }
+}
+
+bool ZPageAllocator::commit_and_map_memory(ZMemoryAllocation* allocation, const ZMemoryRange& vmem) {
+  size_t const committed_size = allocation->harvested();
   ZMemoryRange to_be_committed_vmem = vmem;
   ZMemoryRange committed_vmem = to_be_committed_vmem.split_from_front(committed_size);
 
   // Try to commit all physical memory, commit_physical frees both the virtual
   // and physical parts that correspond to the memory that failed to be committed.
-  commit_physical(&to_be_committed_vmem, allocation->numa_id());
-  committed_vmem.grow_from_back(to_be_committed_vmem.size());
+  const size_t committed = commit_physical(to_be_committed_vmem, allocation->numa_id());
+
+  // Keep track of the committed amount
+  allocation->set_committed(committed);
+
+  if (committed != to_be_committed_vmem.size()) {
+    // Free the uncommitted memory and update vmem with the committed memory
+    ZMemoryRange not_commited_vmem = to_be_committed_vmem.split_from_back(committed);
+    free_physical(not_commited_vmem, allocation->numa_id());
+    free_virtual(not_commited_vmem);
+    allocation->set_commit_failed();
+  }
+  committed_vmem.grow_from_back(committed);
 
   // We have not managed to get any committed memory at all, meaning this allocation
   // failed to commit memory on capacity increase alone and nothing harvested.
@@ -1019,7 +1716,7 @@ retry:
   // If we have claimed a large enough contiguous mapping from the cache,
   // we're done.
   if (is_alloc_satisfied(allocation)) {
-    const ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+    const ZMemoryRange vmem = allocation->pop_final_mapping();
     return new ZPage(allocation->type(), vmem);
   }
 
@@ -1031,18 +1728,13 @@ retry:
     return nullptr;
   }
 
-  const ZMemoryRange vmem = allocation->claimed_mappings()->pop();
+  const ZMemoryRange vmem = allocation->pop_final_mapping();
 
   // Allocate any remaining physical memory. Capacity and used has already been
   // adjusted, we just need to fetch the memory, which is guaranteed to succeed.
-  const size_t remaining_physical = allocation->size() - allocation->harvested();
-  if (remaining_physical > 0) {
-    allocation->set_committed(remaining_physical);
-    const ZMemoryRange uncommitted_range = ZMemoryRange(vmem.start() + allocation->harvested(), remaining_physical);
-    alloc_physical(uncommitted_range, allocation->numa_id());
-  }
+  allocate_remaining_physical(allocation, vmem);
 
-  if (!commit_and_map_memory(allocation, vmem, allocation->harvested())) {
+  if (!commit_and_map_memory(allocation, vmem)) {
     free_memory_alloc_failed(allocation);
     goto retry;
   }
@@ -1050,12 +1742,25 @@ retry:
   return new ZPage(allocation->type(), vmem);
 }
 
-void ZPageAllocator::alloc_page_age_update(ZPage* page, size_t size, ZPageAge age, int numa_id) {
+void ZPageAllocator::increase_used_generation(const ZMemoryAllocation* allocation, ZGenerationId id) {
+  const int numa_id = allocation->numa_id();
+  const size_t size = allocation->size();
+  _states.get(numa_id).increase_used_generation(id, size);
+}
+
+void ZPageAllocator::alloc_page_age_update(ZPageAllocation* allocation, ZPage* page, ZPageAge age) {
   // The generation's used is tracked here when the page is handed out
   // to the allocating thread. The overall heap "used" is tracked in
   // the lower-level allocation code.
   const ZGenerationId id = age == ZPageAge::old ? ZGenerationId::old : ZGenerationId::young;
-  _states.get(numa_id).increase_used_generation(id, size);
+  if (allocation->is_multi_numa_allocation()) {
+    ZArrayIterator<ZMemoryAllocation> allocation_iter(allocation->multi_numa_allocations());
+    for (const ZMemoryAllocation* partial_allocation; allocation_iter.next_addr(&partial_allocation);) {
+      increase_used_generation(partial_allocation, id);
+    }
+  } else {
+    increase_used_generation(allocation->memory_allocation(), id);
+  }
 
   // Reset page. This updates the page's sequence number and must
   // be done after we potentially blocked in a safepoint (stalled)
@@ -1075,7 +1780,9 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
     return nullptr;
   }
 
-  alloc_page_age_update(page, size, age, allocation.numa_id());
+  alloc_page_age_update(&allocation, page, age);
+
+  MultiNUMATracker::install_tracker(&allocation, page);
 
   // Update allocation statistics. Exclude gc relocations to avoid
   // artificial inflation of the allocation rate during relocation.
@@ -1087,7 +1794,8 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   }
 
   // Send event
-  event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
+  ZMemoryAllocation* const memory_allocation = allocation.memory_allocation();
+  event.commit((u8)type, size, memory_allocation->harvested(), memory_allocation->committed(),
                (unsigned int)count_segments_physical(page->virtual_memory()), flags.non_blocking());
 
   return page;
@@ -1134,7 +1842,20 @@ void ZPageAllocator::prepare_memory_for_free(ZPage* page, ZArray<ZMemoryRange>* 
   }
 }
 
+void ZPageAllocator::free_page_multi_numa(ZPage* page) {
+  assert(page->is_multi_numa(), "only used for multi numa pages");
+  MultiNUMATracker::free_and_destroy(this, page);
+}
+
 void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
+  if (page->is_multi_numa()) {
+    // Multi numa is handled separately, multi numa allocations are always
+    // effectively defragmented
+    free_page_multi_numa(page);
+
+    return;
+  }
+
   ZArray<ZMemoryRange> to_cache;
 
   ZGenerationId id = page->generation_id();
@@ -1165,6 +1886,12 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
   for (ZPage* page; pages_iter.next(&page);) {
+    if (page->is_multi_numa()) {
+      // Multi numa is handled separately
+      free_page_multi_numa(page);
+
+      continue;
+    }
     gen_size += page->size();
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
@@ -1188,8 +1915,31 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   satisfy_stalled();
 }
 
+void ZPageAllocator::free_memory_alloc_failed_multi_numa(ZPageAllocation* allocation) {
+  ZArrayMutableIterator<ZMemoryAllocation> iter(allocation->multi_numa_allocations());
+  for (ZMemoryAllocation* partial_allocation; iter.next_addr(&partial_allocation);) {
+    free_memory_alloc_failed(partial_allocation);
+  }
+}
+
 void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   ZLocker<ZLock> locker(&_lock);
+
+  if (allocation->is_multi_numa_allocation()) {
+    // Free each partial allocation
+    free_memory_alloc_failed_multi_numa(allocation);
+  } else {
+    free_memory_alloc_failed(allocation->memory_allocation());
+  }
+
+  // Reset allocation for a potential retry
+  allocation->reset_for_retry();
+
+  // Try satisfy stalled allocations
+  satisfy_stalled();
+}
+
+void ZPageAllocator::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
   ZCacheState& state = _states.get(allocation->numa_id());
 
   // Only decrease the overall used and not the generation used,
@@ -1204,23 +1954,24 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
     freed += vmem.size();
     state._cache.insert(vmem);
   }
+  assert(allocation->harvested() + allocation->committed() == freed, "must have freed all");
 
   // Adjust capacity to reflect the failed capacity increase
   const size_t remaining = allocation->size() - freed;
   if (remaining > 0) {
-    state.decrease_capacity(remaining, true /* set_max_capacity */);
-    log_error_p(gc)("Forced to lower max Java heap size from "
-                    "%zuM(%.0f%%) to %zuM(%.0f%%) (NUMA id %d)",
-                    state._current_max_capacity / M, percent_of(state._current_max_capacity, _max_capacity),
-                    state._capacity / M, percent_of(state._capacity, _max_capacity),
-                    allocation->numa_id());
+    const bool set_max_capacity = allocation->commit_failed();
+    state.decrease_capacity(remaining, set_max_capacity);
+    if (set_max_capacity) {
+      log_error_p(gc)("Forced to lower max Java heap size from "
+                      "%zuM(%.0f%%) to %zuM(%.0f%%) (NUMA id %d)",
+                      state._current_max_capacity / M, percent_of(state._current_max_capacity, _max_capacity),
+                      state._capacity / M, percent_of(state._capacity, _max_capacity),
+                      allocation->numa_id());
+    }
   }
+}
 
-  // Reset allocation for a potential retry
-  allocation->reset_for_retry();
-
-  // Try satisfy stalled allocations
-  satisfy_stalled();
+void ZPageAllocator::adjust_capacity(size_t used_soon) {
 }
 
 void ZPageAllocator::adjust_capacity(size_t used_soon) {

@@ -126,7 +126,7 @@ private:
   size_t                     _harvested;
   size_t                     _committed;
   int                        _numa_id;
-  ZArray<ZMemoryRange>     _claimed_mappings;
+  ZArray<ZMemoryRange>       _claimed_mappings;
   ZListNode<ZPageAllocation> _node;
   ZFuture<bool>              _stall_result;
 

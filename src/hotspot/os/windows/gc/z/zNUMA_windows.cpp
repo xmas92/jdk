@@ -21,10 +21,12 @@
  * questions.
  */
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zNUMA.hpp"
 
 void ZNUMA::pd_initialize() {
   _enabled = false;
+  NOT_PRODUCT(ZFakeNUMA = 1;)
 }
 
 uint32_t ZNUMA::count() {

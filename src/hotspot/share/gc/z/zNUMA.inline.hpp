@@ -24,7 +24,12 @@
 #ifndef SHARE_GC_Z_ZNUMA_INLINE_HPP
 #define SHARE_GC_Z_ZNUMA_INLINE_HPP
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zNUMA.hpp"
+
+inline bool ZNUMA::is_faked() {
+  return ZFakeNUMA > 1;
+}
 
 inline bool ZNUMA::is_enabled() {
   return _enabled;

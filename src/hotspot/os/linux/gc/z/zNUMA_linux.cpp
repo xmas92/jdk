@@ -21,9 +21,10 @@
  * questions.
  */
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zCPU.inline.hpp"
 #include "gc/z/zErrno.hpp"
-#include "gc/z/zNUMA.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zSyscall_linux.hpp"
 #include "os_linux.hpp"
 #include "runtime/globals.hpp"
@@ -32,9 +33,16 @@
 
 void ZNUMA::pd_initialize() {
   _enabled = UseNUMA;
+
+  NOT_PRODUCT(ZFakeNUMA = UseNUMA ? 1 : ZFakeNUMA;)
 }
 
 uint32_t ZNUMA::count() {
+  if (is_faked()) {
+    // ZFakeNUMA testing, ignores _enabled
+    return ZFakeNUMA;
+  }
+
   if (!_enabled) {
     // NUMA support not enabled
     return 1;
@@ -44,6 +52,11 @@ uint32_t ZNUMA::count() {
 }
 
 uint32_t ZNUMA::id() {
+  if (is_faked()) {
+    // ZFakeNUMA testing, ignores _enabled
+    return ZCPU::id() % ZFakeNUMA;
+  }
+
   if (!_enabled) {
     // NUMA support not enabled
     return 0;

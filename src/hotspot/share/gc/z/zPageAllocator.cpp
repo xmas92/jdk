@@ -33,7 +33,7 @@
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zMemory.inline.hpp"
-#include "gc/z/zNUMA.hpp"
+#include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
@@ -467,7 +467,7 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
 
     // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
     int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
-    if (actual != numa_id) {
+    if (actual != numa_id && !ZNUMA::is_faked()) {
       log_debug(gc, heap)("NUMA Mismatch (priming): desired %d, actual %d", numa_id, actual);
     }
 
@@ -933,7 +933,7 @@ bool ZPageAllocator::commit_and_map_memory(ZPageAllocation* allocation, const ZM
 
   // Memory should have ended up on the desired NUMA id, if that's not the case, print error.
   int actual = ZNUMA::memory_id(untype(ZOffset::address(vmem.start())));
-  if (actual != allocation->numa_id()) {
+  if (actual != allocation->numa_id() && !ZNUMA::is_faked()) {
     log_debug(gc, heap)("NUMA Mismatch (allocation): desired %d, actual %d", allocation->numa_id(), actual);
   }
 

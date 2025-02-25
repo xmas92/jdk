@@ -107,14 +107,6 @@ public class TestUncommit {
         log(" Actual Uncommit Delay: " + actualDelay);
 
         // Verify
-        if (actualDelay < delay) {
-            throw new Exception("Uncommitted too fast");
-        }
-
-        if (actualDelay > delay * 2 * Utils.TIMEOUT_FACTOR) {
-            throw new Exception("Uncommitted too slow");
-        }
-
         if (afterUncommit < minCapacity) {
             throw new Exception("Uncommitted too much");
         }

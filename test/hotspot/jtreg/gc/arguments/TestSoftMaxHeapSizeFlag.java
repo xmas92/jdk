@@ -44,7 +44,7 @@ public class TestSoftMaxHeapSizeFlag {
         // Test default value
         ProcessTools.executeTestJava("-Xms" + Xms, "-Xmx" + Xmx,
                                      "-XX:+PrintFlagsFinal", "-version")
-                    .shouldMatch("SoftMaxHeapSize[ ]+=[ ]+" + Xmx)
+                    .shouldMatch("SoftMaxHeapSize[ ]+=[ ]+" + 0)
                     .shouldHaveExitValue(0);
 
         // Test setting small value

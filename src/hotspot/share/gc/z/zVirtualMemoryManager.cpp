@@ -233,6 +233,10 @@ void ZVirtualMemoryManager::shuffle_vmem_to_low_addresses_contiguous(size_t size
   _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, (ZArray<ZMemoryRange>*)mappings);
 }
 
+size_t ZVirtualMemoryManager::alloc_low_address_many_at_most(size_t size, int numa_id, ZArray<ZMemoryRange>* mappings) {
+  return _managers.get(numa_id).alloc_low_address_many_at_most(size, mappings);
+}
+
 ZMemoryRange ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_low_address) {
   ZMemoryRange range;
 
@@ -249,6 +253,11 @@ ZMemoryRange ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_l
 
 void ZVirtualMemoryManager::free(const ZMemoryRange& vmem) {
   const int numa_id = get_numa_id(vmem);
+  _managers.get(numa_id).free(vmem.start(), vmem.size());
+}
+
+void ZVirtualMemoryManager::free(const ZMemoryRange& vmem, int numa_id) {
+  assert(numa_id == get_numa_id(vmem), "wrong numa_id for vmem");
   _managers.get(numa_id).free(vmem.start(), vmem.size());
 }
 

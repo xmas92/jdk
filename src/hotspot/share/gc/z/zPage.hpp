@@ -35,6 +35,7 @@
 
 class ZGeneration;
 
+class MultiNUMATracker;
 class ZPage : public CHeapObj<mtGC> {
   friend class VMStructs;
   friend class ZForwardingTest;
@@ -49,6 +50,7 @@ private:
   volatile zoffset_end _top;
   ZLiveMap             _livemap;
   ZRememberedSet       _remembered_set;
+  MultiNUMATracker*    _multi_numa_tracker;
 
   const char* type_to_string() const;
 
@@ -66,6 +68,7 @@ private:
 
 public:
   ZPage(ZPageType type, const ZMemoryRange& vmem);
+  ZPage(ZPageType type, const ZMemoryRange& vmem, MultiNUMATracker* multi_numa_tracker);
 
   ZPage* clone_limited() const;
 
@@ -90,6 +93,9 @@ public:
   size_t used() const;
 
   const ZMemoryRange& virtual_memory() const;
+  bool is_multi_numa() const;
+  MultiNUMATracker* multi_numa_tracker() const;
+  void set_multi_numa_tracker(MultiNUMATracker* tracker);
 
   ZPageAge age() const;
 

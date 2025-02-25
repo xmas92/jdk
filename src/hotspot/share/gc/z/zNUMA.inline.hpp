@@ -26,8 +26,13 @@
 
 #include "gc/z/zNUMA.hpp"
 
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "utilities/align.hpp"
+
+inline bool ZNUMA::is_faked() {
+  return ZFakeNUMA > 1;
+}
 
 inline bool ZNUMA::is_enabled() {
   return _enabled;

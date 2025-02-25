@@ -121,6 +121,11 @@
   develop(bool, ZVerifyOops, false,                                         \
           "Verify accessed oops")                                           \
                                                                             \
+  develop(uint, ZFakeNUMA, 1,                                               \
+          "ZFakeNUMA is used to test the internal NUMA memory support "     \
+          "without the need for UseNUMA (Linux Only)")                      \
+          range(1, 16)                                                      \
+                                                                            \
   develop(size_t, ZForceDiscontiguousHeapReservations, 0,                   \
           "The gc will attempt to split the heap reservation into this "    \
           "many reservations, subject to available virtual address space "  \

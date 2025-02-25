@@ -130,7 +130,7 @@ void ZArguments::initialize() {
   }
 
   // Enable NUMA by default
-  if (FLAG_IS_DEFAULT(UseNUMA)) {
+  if (FLAG_IS_DEFAULT(UseNUMA) && FLAG_IS_DEFAULT(ZFakeNUMA)) {
     FLAG_SET_DEFAULT(UseNUMA, true);
   }
 

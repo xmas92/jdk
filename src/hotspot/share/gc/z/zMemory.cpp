@@ -289,8 +289,8 @@ ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
   return ZMemoryRange();
 }
 
-void ZMemoryManager::transfer_low_address(ZMemoryManager& other, size_t size) {
-  assert(other._freelist.is_empty(), "Should only be used for initializatiion");
+void ZMemoryManager::transfer_low_address(ZMemoryManager* other, size_t size) {
+  assert(other->_freelist.is_empty(), "Should only be used for initializatiion");
 
   ZLocker<ZLock> locker(&_lock);
   size_t to_move = size;
@@ -302,12 +302,12 @@ void ZMemoryManager::transfer_low_address(ZMemoryManager& other, size_t size) {
       // insert in other's freelist
       to_move -= area->size();
       _freelist.remove(area);
-      other._freelist.insert_last(area);
+      other->_freelist.insert_last(area);
     } else {
       // Larger than requested, shrink area
       const zoffset start = area->start();
       shrink_from_front(area, to_move);
-      other.free(start, to_move);
+      other->free(start, to_move);
       to_move = 0;
     }
 

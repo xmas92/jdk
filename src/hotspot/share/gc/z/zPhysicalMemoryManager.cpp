@@ -97,21 +97,21 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
 void ZPhysicalMemoryManager::alloc(zoffset* pmem, size_t size, int numa_id) {
   assert(is_aligned(size, ZGranuleSize), "Invalid size");
 
+  size_t to_alloc = size;
   size_t current_granule = 0;
 
-  while (size > 0) {
-    const ZMemoryRange range = _managers.get(numa_id).alloc_low_address_at_most(size);
+  while (to_alloc > 0) {
+    const ZMemoryRange range = _managers.get(numa_id).alloc_low_address_at_most(to_alloc);
     assert(!range.is_null(), "Allocation should never fail");
-    size -= range.size();
+    to_alloc -= range.size();
 
-    size_t num_granules = range.size_in_granules();
+    const size_t num_granules = range.size_in_granules();
     for (size_t i = 0; i < num_granules; i++) {
       pmem[current_granule + i] = range.start() + (ZGranuleSize * i);
     }
 
     current_granule += num_granules;
   }
-
 }
 
 template<typename ReturnType>
@@ -132,24 +132,30 @@ struct IterateInvoker<void> {
 };
 
 template<typename Function>
-bool for_each_segment_apply(const zoffset* pmem, size_t num_granules, Function function) {
+bool for_each_segment_apply(const zoffset* pmem, size_t size, Function function) {
   IterateInvoker<decltype(function(zoffset{}, size_t{}))> invoker;
+  const size_t num_granules = size >> ZGranuleSizeShift;
+
   for (size_t i = 0; i < num_granules; i++) {
     const size_t start_i = i;
     const zoffset start = pmem[i];
+
     while (i + 1 < num_granules && pmem[i] + ZGranuleSize == pmem[i + 1]) {
       i++;
     }
-    if (!invoker(function, start, (i - start_i + 1) * ZGranuleSize)) {
+
+    const size_t segment_size = (i - start_i + 1) * ZGranuleSize;
+    if (!invoker(function, start, segment_size)) {
       return false;
     }
   }
+
   return true;
 }
 
 void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size, int numa_id) {
   // Free segments
-  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zoffset segment_start, size_t segment_size) {
     _managers.get(numa_id).free(segment_start, segment_size);
   });
 }
@@ -157,7 +163,7 @@ void ZPhysicalMemoryManager::free(const zoffset* pmem, size_t size, int numa_id)
 size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int numa_id) {
   size_t total_committed = 0;
   // Commit segments
-  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zoffset segment_start, size_t segment_size) {
     // Commit segment
 #ifdef LINUX
     const size_t committed = _backing.commit(segment_start, segment_size, numa_id);
@@ -181,7 +187,7 @@ size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int numa
 size_t ZPhysicalMemoryManager::uncommit(const zoffset* pmem, size_t size) {
   size_t total_uncommitted = 0;
   // Uncommit segments
-  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zoffset segment_start, size_t segment_size) {
     // Uncommit segment
     const size_t uncommitted = _backing.uncommit(segment_start, segment_size);
     total_uncommitted += uncommitted;
@@ -202,7 +208,7 @@ void ZPhysicalMemoryManager::map(zoffset offset, const zoffset* pmem, size_t siz
   const zaddress_unsafe addr = ZOffset::address_unsafe(offset);
 
   size_t mapped = 0;
-  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zoffset segment_start, size_t segment_size) {
     _backing.map(addr + mapped, segment_size, segment_start);
     mapped += segment_size;
   });
@@ -222,8 +228,9 @@ void ZPhysicalMemoryManager::unmap(zoffset offset, const zoffset* /* ignored unt
 
 size_t ZPhysicalMemoryManager::count_segments(const zoffset* pmem, size_t size) {
   size_t count = 0;
-  for_each_segment_apply(pmem, size >> ZGranuleSizeShift, [&](zoffset, size_t) {
+  for_each_segment_apply(pmem, size, [&](zoffset, size_t) {
     count++;
   });
+
   return count;
 }

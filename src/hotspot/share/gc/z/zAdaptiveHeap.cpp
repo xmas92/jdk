@@ -33,6 +33,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/globals_extension.hpp"
 #include "utilities/debug.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 #include <math.h>
 
@@ -435,15 +436,15 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
   // forever, it might also be a bit pointless.
   const uint64_t delay = MIN2(implicit_delay, explicit_delay);
 
-  log_info(gc, ref)("Soft ref timeout: %zums", delay);
+  log_info(gc, ref)("Soft ref timeout: %.3fs", double(delay) / 1000);
 
   LogTarget(Debug, gc, ref) lt;
   if (lt.is_enabled()) {
     LogStream ls(lt);
 
     ls.print_cr("Soft ref time to old generation OOM: %.3fs", time_to_old_oom);
-    ls.print_cr("Soft ref explicit timeout: %zums", explicit_delay);
-    ls.print_cr("Soft ref implicit timeout: %zums", implicit_delay);
+    ls.print_cr("Soft ref explicit timeout: %.3fs", double(explicit_delay) / 1000);
+    ls.print_cr("Soft ref implicit timeout: %.3fs", double(implicit_delay) / 1000);
     ls.print_cr("Soft ref memory pressure: %.3fs", mem_pressure);
   }
 

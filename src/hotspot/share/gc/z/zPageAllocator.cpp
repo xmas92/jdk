@@ -347,8 +347,8 @@ bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation)
   ZArray<ZMemoryRange>* mappings = allocation->claimed_mappings();
 
   // Try to allocate a contiguous mapping.
-  ZMemoryRange mapping;
-  if (_cache.remove_mapping_contiguous(&mapping, size)) {
+  ZMemoryRange mapping = _cache.remove_contiguous(size);
+  if (!mapping.is_null()) {
     mappings->append(mapping);
     return true;
   }
@@ -370,7 +370,7 @@ bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation)
   // cache has enough remaining to cover the request.
   const size_t remaining = size - increased;
   if (_cache.size() >= remaining) {
-    const size_t removed = _cache.remove_mappings(mappings, remaining);
+    const size_t removed = _cache.remove_discontiguous(mappings, remaining);
     allocation->set_harvested(removed);
     assert(removed == remaining, "must be %zu != %zu", removed, remaining);
     return true;
@@ -522,9 +522,9 @@ bool ZPageAllocator::prime_state_cache(ZWorkers* workers, int numa_id, size_t to
     workers->run_all(&task);
   }
 
-  // We don't have to take a lock here as no other threads will access the
-  // mapped cache until we're finished.
-  state._cache.insert_mapping(vmem);
+  // We don't have to take a lock here as no other threads will access the cache
+  // until we're finished
+  state._cache.insert(vmem);
 
   return true;
 }
@@ -1084,7 +1084,7 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
     // Update used statistics and cache memory
     state.decrease_used(vmem.size());
     state.decrease_used_generation(id, vmem.size());
-    state._cache.insert_mapping(vmem);
+    state._cache.insert(vmem);
   }
 
   // Try satisfy stalled allocations
@@ -1117,7 +1117,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   for (ZMemoryRange vmem; iter.next(&vmem);) {
     ZCacheState& state = state_from_vmem(vmem);
     state.decrease_used(vmem.size());
-    state._cache.insert_mapping(vmem);
+    state._cache.insert(vmem);
   }
 
   for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
@@ -1143,7 +1143,7 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   ZArrayIterator<ZMemoryRange> iter(allocation->claimed_mappings());
   for (ZMemoryRange vmem; iter.next(&vmem);) {
     freed += vmem.size();
-    state._cache.insert_mapping(vmem);
+    state._cache.insert(vmem);
   }
 
   // Adjust capacity to reflect the failed capacity increase

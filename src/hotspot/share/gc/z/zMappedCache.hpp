@@ -30,8 +30,8 @@
 #include "utilities/globalDefinitions.hpp"
 
 class ZMappedCacheEntry;
+
 class ZMappedCache {
-  friend class ZMappedCacheTest;
   friend class ZMappedCacheEntry;
 
 private:
@@ -46,31 +46,33 @@ private:
   struct ZSizeClassListNode {
     ZListNode<ZSizeClassListNode> _node;
   };
+
   static constexpr size_t SizeClasses[] = {32 * M, 512 * M};
   static constexpr size_t NumSizeClasses = ARRAY_SIZE(SizeClasses);
 
-  Tree _tree;
+  Tree                      _tree;
   ZList<ZSizeClassListNode> _size_class_lists[NumSizeClasses];
-  size_t _size;
-  size_t _min;
+  size_t                    _size;
+  size_t                    _min;
 
   static size_t get_size_class(size_t index);
 
-  void insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
-  void update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
+  template <typename Function>
+  bool scan_size_classes(size_t size, Function function, bool contiguous);
+
+  void tree_insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
+  void tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
 
 public:
   ZMappedCache();
 
-  void insert_mapping(const ZMemoryRange& vmem);
+  void insert(const ZMemoryRange& vmem);
 
-  size_t remove_mappings(ZArray<ZMemoryRange>* mappings, size_t size);
+  ZMemoryRange remove_contiguous(size_t size);
+  size_t remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size);
 
-  bool remove_mapping_contiguous(ZMemoryRange* mapping, size_t size);
-
-  size_t min() const;
   size_t reset_min();
   size_t remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size);
 

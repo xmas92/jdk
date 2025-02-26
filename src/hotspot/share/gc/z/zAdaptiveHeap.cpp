@@ -112,7 +112,7 @@ double ZAdaptiveHeap::gc_pressure(double unscaled_pressure, double cpu_usage) {
   const size_t total_memory = os::physical_memory();
   const size_t used_memory = os::used_memory();
   const size_t capacity = ZHeap::heap()->capacity();
-  const size_t compressed_memory = MIN2(os::compressed_memory(), used_memory);
+  const size_t compressed_memory = MIN2(size_t(os::compressed_memory()), used_memory);
   const double mem_pressure = memory_pressure(unscaled_pressure, used_memory, compressed_memory, total_memory);
 
   const size_t heuristic_max_capacity = ZHeap::heap()->heuristic_max_capacity();

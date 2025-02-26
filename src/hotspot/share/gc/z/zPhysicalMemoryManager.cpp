@@ -43,6 +43,11 @@
 
 ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
   : _backing(max_capacity) {
+  assert(is_aligned(max_capacity, ZGranuleSize), "must be granule aligned");
+
+  // Setup backing storage limits
+  ZBackingOffsetMax = max_capacity;
+  ZBackingIndexMax = checked_cast<uint32_t>(max_capacity >> ZGranuleSizeShift);
 
   // Install capacity into manager(s)
   size_t installed_capacity = 0;

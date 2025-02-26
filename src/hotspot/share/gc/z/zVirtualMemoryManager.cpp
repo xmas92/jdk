@@ -189,7 +189,6 @@ bool ZVirtualMemoryManager::reserve_contiguous(size_t size) {
 size_t ZVirtualMemoryManager::reserve(size_t max_capacity) {
   const size_t limit = MIN2(ZAddressOffsetMax, ZAddressSpaceLimit::heap());
   const size_t size = MIN2(max_capacity * ZVirtualToPhysicalRatio, limit);
-  bool contiguous_reservation = false;
 
   auto do_reserve = [&]() {
 #ifdef ASSERT
@@ -200,7 +199,6 @@ size_t ZVirtualMemoryManager::reserve(size_t max_capacity) {
 
     // Prefer a contiguous address space
     if (reserve_contiguous(size)) {
-      contiguous_reservation = true;
       return size;
     }
 
@@ -209,6 +207,8 @@ size_t ZVirtualMemoryManager::reserve(size_t max_capacity) {
   };
 
   const size_t reserved = do_reserve();
+
+  const bool contiguous_reservation = _reserved_memory.free_is_contiguous();
 
   log_info_p(gc, init)("Address Space Type: %s/%s/%s",
                        (contiguous_reservation ? "Contiguous" : "Discontiguous"),

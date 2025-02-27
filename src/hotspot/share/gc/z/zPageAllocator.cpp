@@ -23,6 +23,7 @@
 
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zFuture.inline.hpp"
@@ -58,29 +59,49 @@ static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocat
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
-static void sort_zoffset_ptrs(void* at, size_t size) {
-  qsort(at, size, sizeof(zoffset),
+static void sort_zbacking_index_ptrs(void* at, size_t size) {
+  qsort(at, size, sizeof(zbacking_index),
     [](const void* a, const void* b) -> int {
-      return *static_cast<const zoffset*>(a) < *static_cast<const zoffset*>(b) ? -1 : 1;
+      return *static_cast<const zbacking_index*>(a) < *static_cast<const zbacking_index*>(b) ? -1 : 1;
     });
 }
 
 class ZSegmentStash {
 private:
-  ZGranuleMap<zoffset>* _physical_mappings;
-  ZArray<zoffset>       _stash;
+  ZGranuleMap<zbacking_index>* _physical_mappings;
+  ZArray<zbacking_index>       _stash;
 
   void sort_stashed_segments() {
-    sort_zoffset_ptrs(_stash.adr_at(0), (size_t)_stash.length());
+    sort_zbacking_index_ptrs(_stash.adr_at(0), (size_t)_stash.length());
+  }
+
+  void copy_to_stash(int index, const ZMemoryRange& vmem) {
+    void* const dest = _stash.adr_at(index);
+    const void* const src = _physical_mappings->get_addr(vmem.start());
+    const size_t num_granules = vmem.size_in_granules();
+    const size_t size = sizeof(zbacking_index) * num_granules;
+
+    // Copy to stash
+    memcpy(dest, src, size);
+  }
+
+  void copy_from_stash(int index, const ZMemoryRange& vmem) {
+    void* const dest = _physical_mappings->get_addr(vmem.start());
+    const void* const src = _stash.adr_at(index);
+    const size_t num_granules = vmem.size_in_granules();
+    const size_t size = sizeof(zbacking_index) * num_granules;
+
+    // Copy from stash
+    memcpy(dest, src, size);
   }
 
 public:
-  ZSegmentStash(ZGranuleMap<zoffset>* physical_mappings, int num_granules)
+  ZSegmentStash(ZGranuleMap<zbacking_index>* physical_mappings, int num_granules)
     : _physical_mappings(physical_mappings),
-      _stash(num_granules, num_granules, zoffset(0)) {}
+      _stash(num_granules, num_granules, zbacking_index::zero) {}
 
   void stash(const ZMemoryRange& vmem) {
-    memcpy(_stash.adr_at(0), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * (int)vmem.size_in_granules());
+    copy_to_stash(0, vmem);
     sort_stashed_segments();
   }
 
@@ -89,7 +110,7 @@ public:
     ZArrayIterator<ZMemoryRange> iter(mappings);
     for (ZMemoryRange vmem; iter.next(&vmem);) {
       const size_t num_granules = vmem.size_in_granules();
-      memcpy(_stash.adr_at(stash_index), _physical_mappings->get_addr(vmem.start()), sizeof(zoffset) * num_granules);
+      copy_to_stash(stash_index, vmem);
       stash_index += (int)num_granules;
     }
     sort_stashed_segments();
@@ -104,11 +125,12 @@ public:
 
       // If we run out of segments in the stash, we finish early
       if (num_granules >= granules_left) {
-        memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * granules_left);
+        const ZMemoryRange truncated_vmem(vmem.start(), granules_left * ZGranuleSize);
+        copy_from_stash(stash_index, truncated_vmem);
         return;
       }
 
-      memcpy(_physical_mappings->get_addr(vmem.start()), _stash.adr_at(stash_index), sizeof(zoffset) * num_granules);
+      copy_from_stash(stash_index, vmem);
       stash_index += (int)num_granules;
     }
   };
@@ -656,7 +678,7 @@ size_t ZPageAllocator::count_segments_physical(const ZMemoryRange& vmem) {
 }
 
 void ZPageAllocator::sort_segments_physical(const ZMemoryRange& vmem) {
-  sort_zoffset_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
+  sort_zbacking_index_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
 }
 
 void ZPageAllocator::alloc_physical(const ZMemoryRange& vmem, int numa_id) {

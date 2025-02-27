@@ -27,27 +27,31 @@
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
 
-class ZMemory : public CHeapObj<mtGC> {
-  friend class ZList<ZMemory>;
+template <typename Range>
+class ZRangeNode : public CHeapObj<mtGC> {
+  friend class ZList<ZRangeNode>;
 
 private:
-  ZMemoryRange       _range;
-  ZListNode<ZMemory> _node;
+  using offset     = typename Range::offset;
+  using offset_end = typename Range::offset_end;
+
+  Range                 _range;
+  ZListNode<ZRangeNode> _node;
 
 public:
-  ZMemory(zoffset start, size_t size)
+  ZRangeNode(offset start, size_t size)
     : _range(start, size),
       _node() {}
 
-  ZMemoryRange* range() {
+  Range* range() {
     return &_range;
   }
 
-  zoffset start() const {
+  offset start() const {
     return _range.start();
   }
 
-  zoffset_end end() const {
+  offset_end end() const {
     return _range.end();
   }
 
@@ -56,7 +60,8 @@ public:
   }
 };
 
-ZMemory* ZMemoryManager::create(zoffset start, size_t size) {
+template <typename Range>
+ZRangeNode<Range>* ZMemoryManagerImpl<Range>::create(offset start, size_t size) {
   ZMemory* const area = new ZMemory(start, size);
   if (_callbacks._create != nullptr) {
     _callbacks._create(*area->range());
@@ -64,62 +69,70 @@ ZMemory* ZMemoryManager::create(zoffset start, size_t size) {
   return area;
 }
 
-void ZMemoryManager::destroy(ZMemory* area) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::destroy(ZMemory* area) {
   if (_callbacks._destroy != nullptr) {
     _callbacks._destroy(*area->range());
   }
   delete area;
 }
 
-void ZMemoryManager::shrink_from_front(ZMemory* area, size_t size) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::shrink_from_front(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_front != nullptr) {
     _callbacks._shrink_from_front(*area->range(), size);
   }
   area->range()->shrink_from_front(size);
 }
 
-void ZMemoryManager::shrink_from_back(ZMemory* area, size_t size) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::shrink_from_back(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_back != nullptr) {
     _callbacks._shrink_from_back(*area->range(), size);
   }
   area->range()->shrink_from_back(size);
 }
 
-void ZMemoryManager::grow_from_front(ZMemory* area, size_t size) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::grow_from_front(ZMemory* area, size_t size) {
   if (_callbacks._grow_from_front != nullptr) {
     _callbacks._grow_from_front(*area->range(), size);
   }
   area->range()->grow_from_front(size);
 }
 
-void ZMemoryManager::grow_from_back(ZMemory* area, size_t size) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::grow_from_back(ZMemory* area, size_t size) {
   if (_callbacks._grow_from_back != nullptr) {
     _callbacks._grow_from_back(*area->range(), size);
   }
   area->range()->grow_from_back(size);
 }
 
-ZMemoryRange ZMemoryManager::split_from_front(ZMemory* area, size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::split_from_front(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_front != nullptr) {
     _callbacks._shrink_from_front(*area->range(), size);
   }
   return area->range()->split_from_front(size);
 }
 
-ZMemoryRange ZMemoryManager::split_from_back(ZMemory* area, size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::split_from_back(ZMemory* area, size_t size) {
   if (_callbacks._shrink_from_back != nullptr) {
     _callbacks._shrink_from_back(*area->range(), size);
   }
   return area->range()->split_from_back(size);
 }
 
-ZMemoryRange ZMemoryManager::alloc_low_address_inner(size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::alloc_low_address_inner(size_t size) {
   ZListIterator<ZMemory> iter(&_freelist);
   for (ZMemory* area; iter.next(&area);) {
     if (area->size() >= size) {
       if (area->size() == size) {
         // Exact match, remove area
-        const ZMemoryRange range = *area->range();
+        const Range range = *area->range();
         _freelist.remove(area);
         destroy(area);
         return range;
@@ -131,15 +144,16 @@ ZMemoryRange ZMemoryManager::alloc_low_address_inner(size_t size) {
   }
 
   // Out of memory
-  return ZMemoryRange();
+  return Range();
 }
 
-ZMemoryRange ZMemoryManager::alloc_low_address_at_most_inner(size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::alloc_low_address_at_most_inner(size_t size) {
   ZMemory* const area = _freelist.first();
   if (area != nullptr) {
     if (area->size() <= size) {
       // Smaller than or equal to requested, remove area
-      const ZMemoryRange range = *area->range();
+      const Range range = *area->range();
       _freelist.remove(area);
       destroy(area);
       return range;
@@ -149,12 +163,13 @@ ZMemoryRange ZMemoryManager::alloc_low_address_at_most_inner(size_t size) {
     }
   }
 
-  return ZMemoryRange();
+  return Range();
 }
 
-void ZMemoryManager::free_inner(zoffset start, size_t size) {
-  assert(start != zoffset(UINTPTR_MAX), "Invalid address");
-  const zoffset_end end = to_zoffset_end(start, size);
+template <typename Range>
+void ZMemoryManagerImpl<Range>::free_inner(offset start, size_t size) {
+  assert(start != offset::invalid, "Invalid address");
+  const offset_end end = to_end_type(start, size);
 
   ZListIterator<ZMemory> iter(&_freelist);
   for (ZMemory* area; iter.next(&area);) {
@@ -197,12 +212,13 @@ void ZMemoryManager::free_inner(zoffset start, size_t size) {
   }
 }
 
-int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMemoryRange>* out) {
+template <typename Range>
+int ZMemoryManagerImpl<Range>::alloc_low_address_many_at_most_inner(size_t size, ZArray<Range>* out) {
   int num_ranges = 0;
   size_t to_allocate = size;
 
   while (to_allocate > 0) {
-    const ZMemoryRange range = alloc_low_address_at_most_inner(to_allocate);
+    const Range range = alloc_low_address_at_most_inner(to_allocate);
     to_allocate -= range.size();
     num_ranges++;
     out->append(range);
@@ -211,7 +227,8 @@ int ZMemoryManager::alloc_low_address_many_at_most_inner(size_t size, ZArray<ZMe
   return num_ranges;
 }
 
-ZMemoryManager::Callbacks::Callbacks()
+template <typename Range>
+ZMemoryManagerImpl<Range>::Callbacks::Callbacks()
   : _create(nullptr),
     _destroy(nullptr),
     _shrink_from_front(nullptr),
@@ -219,32 +236,37 @@ ZMemoryManager::Callbacks::Callbacks()
     _grow_from_front(nullptr),
     _grow_from_back(nullptr) {}
 
-ZMemoryManager::ZMemoryManager()
+template <typename Range>
+ZMemoryManagerImpl<Range>::ZMemoryManagerImpl()
   : _freelist(),
     _callbacks() {}
 
-bool ZMemoryManager::free_is_contiguous() const {
+template <typename Range>
+bool ZMemoryManagerImpl<Range>::free_is_contiguous() const {
   return _freelist.size() == 1;
 }
 
-void ZMemoryManager::register_callbacks(const Callbacks& callbacks) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::register_callbacks(const Callbacks& callbacks) {
   _callbacks = callbacks;
 }
 
-ZMemoryRange ZMemoryManager::total_range() const {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::total_range() const {
   ZLocker<ZLock> locker(&_lock);
 
   if (_freelist.is_empty()) {
-    return ZMemoryRange();
+    return Range();
   }
 
-  const zoffset start = _freelist.first()->start();
+  const offset start = _freelist.first()->start();
   const size_t size = _freelist.last()->end() - start;
 
-  return ZMemoryRange(start, size);
+  return Range(start, size);
 }
 
-zoffset ZMemoryManager::peek_low_address() const {
+template <typename Range>
+typename ZMemoryManagerImpl<Range>::offset ZMemoryManagerImpl<Range>::peek_low_address() const {
   ZLocker<ZLock> locker(&_lock);
 
   const ZMemory* const area = _freelist.first();
@@ -253,20 +275,25 @@ zoffset ZMemoryManager::peek_low_address() const {
   }
 
   // Out of memory
-  return zoffset(UINTPTR_MAX);
+  return offset::invalid;
 }
 
-ZMemoryRange ZMemoryManager::alloc_low_address(size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::alloc_low_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
-  return alloc_low_address_inner(size);
+  Range range = alloc_low_address_inner(size);
+  return range;
 }
 
-ZMemoryRange ZMemoryManager::alloc_low_address_at_most(size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::alloc_low_address_at_most(size_t size) {
   ZLocker<ZLock> lock(&_lock);
-  return alloc_low_address_at_most_inner(size);
+  Range range = alloc_low_address_at_most_inner(size);
+  return range;
 }
 
-ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
+template <typename Range>
+Range ZMemoryManagerImpl<Range>::alloc_high_address(size_t size) {
   ZLocker<ZLock> locker(&_lock);
 
   ZListReverseIterator<ZMemory> iter(&_freelist);
@@ -274,7 +301,7 @@ ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
     if (area->size() >= size) {
       if (area->size() == size) {
         // Exact match, remove area
-        const ZMemoryRange range = *area->range();
+        const Range range = *area->range();
         _freelist.remove(area);
         destroy(area);
         return range;
@@ -286,11 +313,12 @@ ZMemoryRange ZMemoryManager::alloc_high_address(size_t size) {
   }
 
   // Out of memory
-  return ZMemoryRange();
+  return Range();
 }
 
-void ZMemoryManager::transfer_low_address(ZMemoryManager* other, size_t size) {
-  assert(other->_freelist.is_empty(), "Should only be used for initializatiion");
+template <typename Range>
+void ZMemoryManagerImpl<Range>::transfer_low_address(ZMemoryManagerImpl* other, size_t size) {
+  assert(other->_freelist.is_empty(), "Should only be used for initialization");
 
   ZLocker<ZLock> locker(&_lock);
   size_t to_move = size;
@@ -305,7 +333,7 @@ void ZMemoryManager::transfer_low_address(ZMemoryManager* other, size_t size) {
       other->_freelist.insert_last(area);
     } else {
       // Larger than requested, shrink area
-      const zoffset start = area->start();
+      const offset start = area->start();
       shrink_from_front(area, to_move);
       other->free(start, to_move);
       to_move = 0;
@@ -317,20 +345,22 @@ void ZMemoryManager::transfer_low_address(ZMemoryManager* other, size_t size) {
   }
 }
 
-int ZMemoryManager::shuffle_memory_low_addresses(zoffset start, size_t size, ZArray<ZMemoryRange>* out) {
+template <typename Range>
+int ZMemoryManagerImpl<Range>::shuffle_memory_low_addresses(offset start, size_t size, ZArray<Range>* out) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
   return alloc_low_address_many_at_most_inner(size, out);
 }
 
-void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* out) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::shuffle_memory_low_addresses_contiguous(size_t size, ZArray<Range>* out) {
   ZLocker<ZLock> locker(&_lock);
 
   size_t freed = 0;
 
   // Free everything
-  ZArrayIterator<ZMemoryRange> iter(out);
-  for (ZMemoryRange mem; iter.next(&mem);) {
+  ZArrayIterator<Range> iter(out);
+  for (Range mem; iter.next(&mem);) {
     free_inner(mem.start(), mem.size());
     freed += mem.size();
   }
@@ -339,7 +369,7 @@ void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray
   out->clear();
 
   // Try to allocate a contiguous chunk
-  ZMemoryRange range = alloc_low_address_inner(size);
+  Range range = alloc_low_address_inner(size);
   if (!range.is_null()) {
     out->append(range);
     return;
@@ -350,11 +380,17 @@ void ZMemoryManager::shuffle_memory_low_addresses_contiguous(size_t size, ZArray
   alloc_low_address_many_at_most_inner(freed, out);
 }
 
-void ZMemoryManager::free(zoffset start, size_t size) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::free(offset start, size_t size) {
   ZLocker<ZLock> locker(&_lock);
   free_inner(start, size);
 }
 
-void ZMemoryManager::free(const ZMemoryRange& range) {
+template <typename Range>
+void ZMemoryManagerImpl<Range>::free(const Range& range) {
   free(range.start(), range.size());
 }
+
+// Instantiate the concrete classes
+template class ZMemoryManagerImpl<ZMemoryRange>;
+template class ZMemoryManagerImpl<ZBackingIndexRange>;

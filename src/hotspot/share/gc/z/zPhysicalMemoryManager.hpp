@@ -33,6 +33,8 @@
 
 class ZPhysicalMemoryManager {
 private:
+  using ZMemoryManager = ZMemoryManagerImpl<ZBackingIndexRange>;
+
   ZPhysicalMemoryBacking   _backing;
   ZPerNUMA<ZMemoryManager> _managers;
 
@@ -44,16 +46,16 @@ public:
   void warn_commit_limits(size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 
-  void alloc(zoffset* pmem, size_t size, int numa_id);
-  void free(const zoffset* pmem, size_t size, int numa_id);
+  void alloc(zbacking_index* pmem, size_t size, int numa_id);
+  void free(const zbacking_index* pmem, size_t size, int numa_id);
 
-  size_t commit(const zoffset* pmem, size_t size, int numa_id);
-  size_t uncommit(const zoffset* pmem, size_t size);
+  size_t commit(const zbacking_index* pmem, size_t size, int numa_id);
+  size_t uncommit(const zbacking_index* pmem, size_t size);
 
-  void map(zoffset offset, const zoffset* pmem, size_t size, int numa_id) const;
-  void unmap(zoffset offset, const zoffset* pmem, size_t size) const;
+  void map(zoffset offset, const zbacking_index* pmem, size_t size, int numa_id) const;
+  void unmap(zoffset offset, const zbacking_index* pmem, size_t size) const;
 
-  size_t count_segments(const zoffset* pmem, size_t size);
+  size_t count_segments(const zbacking_index* pmem, size_t size);
 };
 
 #endif // SHARE_GC_Z_ZPHYSICALMEMORYMANAGER_HPP

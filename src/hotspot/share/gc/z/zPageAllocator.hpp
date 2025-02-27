@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 #define SHARE_GC_Z_ZPAGEALLOCATOR_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
 #include "gc/z/zGranuleMap.hpp"
@@ -52,18 +53,18 @@ class ZPageAllocator {
   friend class ZUncommitter;
 
 private:
-  mutable ZLock              _lock;
-  ZVirtualMemoryManager      _virtual;
-  ZPhysicalMemoryManager     _physical;
-  ZGranuleMap<zoffset>       _physical_mappings;
-  const size_t               _min_capacity;
-  const size_t               _initial_capacity;
-  const size_t               _max_capacity;
-  ZPerNUMA<ZCacheState>      _states;
-  ZPerNUMA<ZUncommitter*>    _uncommitters;
-  ZList<ZPageAllocation>     _stalled;
-  mutable ZSafeDelete<ZPage> _safe_destroy;
-  bool                       _initialized;
+  mutable ZLock               _lock;
+  ZVirtualMemoryManager       _virtual;
+  ZPhysicalMemoryManager      _physical;
+  ZGranuleMap<zbacking_index> _physical_mappings;
+  const size_t                _min_capacity;
+  const size_t                _initial_capacity;
+  const size_t                _max_capacity;
+  ZPerNUMA<ZCacheState>       _states;
+  ZPerNUMA<ZUncommitter*>     _uncommitters;
+  ZList<ZPageAllocation>      _stalled;
+  mutable ZSafeDelete<ZPage>  _safe_destroy;
+  bool                        _initialized;
 
   ZCacheState& state_from_vmem(const ZMemoryRange& vmem);
 

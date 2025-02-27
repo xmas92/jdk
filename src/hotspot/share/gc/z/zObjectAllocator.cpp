@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
@@ -40,13 +41,60 @@
 static const ZStatCounter ZCounterUndoObjectAllocationSucceeded("Memory", "Undo Object Allocation Succeeded", ZStatUnitOpsPerSecond);
 static const ZStatCounter ZCounterUndoObjectAllocationFailed("Memory", "Undo Object Allocation Failed", ZStatUnitOpsPerSecond);
 
+
+ZObjectAllocator::ZSharedMediumPageState::ZSharedMediumPageState()
+  : _previous(nullptr),
+    _current(nullptr) {}
+
+zaddress ZObjectAllocator::ZSharedMediumPageState::alloc_object(size_t size) {
+  zaddress addr = zaddress::null;
+
+  // Try to allocate in the previous page
+  ZPage* const previous = Atomic::load_acquire(&_previous);
+  if (previous != nullptr) {
+    addr = previous->alloc_object_atomic(size);
+  }
+
+  if (!is_null(addr)) {
+    // Success
+    return addr;
+  }
+
+  // Try to allocate in the current page if it is not the same as the previous page
+  ZPage* const current = Atomic::load_acquire(&_current);
+  if (current != nullptr && current != previous) {
+    addr = current->alloc_object_atomic(size);
+  }
+
+  return addr;
+}
+
+ZPage** ZObjectAllocator::ZSharedMediumPageState::get_shared_page_addr() {
+  // get_shared_page_addr() is always called under a lock, but both
+  // _current and _previous may be read concurrently, and _current
+  // may be written to concurrently
+
+  ZPage* const current = Atomic::load_acquire(&_current);
+  if (_previous != current) {
+    // If _previous and current are different update the previous value.
+    // It may be that current have already been replaced, but keeping track
+    // of the previous page when an allocation fails is purely an optimization
+    // to allow smaller allocation keep using a page after one large allocation
+    // has replaced current.
+    Atomic::release_store(&_previous, current);
+  }
+
+  // Current is always the shared page
+  return &_current;
+}
+
 ZObjectAllocator::ZObjectAllocator(ZPageAge age)
   : _age(age),
     _use_per_cpu_shared_small_pages(ZHeuristics::use_per_cpu_shared_small_pages()),
     _used(0),
     _undone(0),
     _shared_small_page(nullptr),
-    _shared_medium_page(nullptr),
+    _shared_medium_page_state(),
     _medium_page_alloc_lock() {}
 
 ZPage** ZObjectAllocator::shared_small_page_addr() {
@@ -130,12 +178,11 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
-  ZPage** shared_medium_page = _shared_medium_page.addr();
-  ZPage* page = Atomic::load_acquire(shared_medium_page);
+  ZSharedMediumPageState& state = _shared_medium_page_state;
 
-  if (page != nullptr) {
-    addr = page->alloc_object_atomic(size);
-  }
+  addr = state.alloc_object(size);
+
+  ZPage** shared_medium_page = nullptr;
 
   if (is_null(addr)) {
     // When a new medium page is required, we synchronize the allocation
@@ -143,6 +190,9 @@ zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
     // threads allocate a medium page when we know only one of them
     // will succeed in installing the page at this layer.
     ZLocker<ZLock> locker(&_medium_page_alloc_lock);
+
+    // Retrieve the shared page from the state
+    shared_medium_page = state.get_shared_page_addr();
 
     // When holding the lock we can't allow the page allocator to stall,
     // which in the common case it won't. The page allocation is thus done
@@ -265,6 +315,6 @@ void ZObjectAllocator::retire_pages() {
   _undone.set_all(0);
 
   // Reset allocation pages
-  _shared_medium_page.set(nullptr);
+  _shared_medium_page_state = {};
   _shared_small_page.set_all(nullptr);
 }

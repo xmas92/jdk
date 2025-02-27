@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
@@ -36,13 +37,25 @@ class ZPageTable;
 
 class ZObjectAllocator {
 private:
-  ZPageAge           _age;
-  const bool         _use_per_cpu_shared_small_pages;
-  ZPerCPU<size_t>    _used;
-  ZPerCPU<size_t>    _undone;
-  ZPerCPU<ZPage*>    _shared_small_page;
-  ZContended<ZPage*> _shared_medium_page;
-  ZLock              _medium_page_alloc_lock;
+  class ZSharedMediumPageState {
+  private:
+    ZCACHE_ALIGNED ZPage* _previous;
+    ZCACHE_ALIGNED ZPage* _current;
+
+  public:
+    ZSharedMediumPageState();
+
+    zaddress alloc_object(size_t size);
+    ZPage** get_shared_page_addr();
+  };
+
+  ZPageAge               _age;
+  const bool             _use_per_cpu_shared_small_pages;
+  ZPerCPU<size_t>        _used;
+  ZPerCPU<size_t>        _undone;
+  ZPerCPU<ZPage*>        _shared_small_page;
+  ZSharedMediumPageState _shared_medium_page_state;
+  ZLock                  _medium_page_alloc_lock;
 
   ZPage** shared_small_page_addr();
   ZPage* const* shared_small_page_addr() const;

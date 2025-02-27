@@ -115,6 +115,13 @@
   product(bool, ZVerifyRemembered, trueInDebug, DIAGNOSTIC,                 \
           "Verify remembered sets")                                         \
                                                                             \
+  product(bool, ZUseMediumPageSizeRange, true, DIAGNOSTIC,                  \
+          "TODO")                                                           \
+                                                                            \
+  product(bool, ZOnlyMediumPageSizeMin, false, DIAGNOSTIC,                  \
+          "Requires ZUseMediumPageSizeRange, will only allocate min sized " \
+          "medium pages.")                                                  \
+                                                                            \
   product(int, ZTenuringThreshold, -1, DIAGNOSTIC,                          \
           "Young generation tenuring threshold, -1 for dynamic computation")\
           range(-1, static_cast<int>(ZPageAgeMax))                          \

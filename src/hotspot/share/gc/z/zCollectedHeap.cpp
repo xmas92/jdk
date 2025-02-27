@@ -367,7 +367,15 @@ void ZCollectedHeap::print_on_error(outputStream* st) const {
                exact_unit_for_byte_size(ZAddressOffsetMax),
                ZAddressOffsetMax);
   st->print_cr(" Page Size Small:    %zuM", ZPageSizeSmall / M);
-  st->print_cr(" Page Size Medium:   %zuM", ZPageSizeMedium / M);
+  if (ZPageSizeMediumEnabled) {
+    if (ZPageSizeMediumMin == ZPageSizeMediumMax) {
+      st->print_cr(" Page Size Medium: %zuM", ZPageSizeMediumMax / M);
+    } else {
+      st->print_cr(" Page Size Medium: Range [%zuM, %zuM]", ZPageSizeMediumMin / M, ZPageSizeMediumMax / M);
+    }
+  } else {
+    st->print_cr(" Page Size Medium: N/A");
+  }
   st->cr();
   st->print_cr("ZGC Metadata Bits:");
   st->print_cr(" LoadGood:           " PTR_FORMAT, ZPointerLoadGoodMask);

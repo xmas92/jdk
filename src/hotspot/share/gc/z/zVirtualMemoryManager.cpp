@@ -238,7 +238,7 @@ ZMemoryRange ZVirtualMemoryManager::alloc(size_t size, int numa_id, bool force_l
 
   // Small/medium pages are allocated at low addresses, while large pages are
   // allocated at high addresses (unless forced to be at a low address).
-  if (force_low_address || size <= ZPageSizeSmall || size <= ZPageSizeMedium) {
+  if (force_low_address || size <= ZPageSizeSmall || size <= ZPageSizeMediumMax) {
     range = _managers.get(numa_id).alloc_low_address(size);
   } else {
     range = _managers.get(numa_id).alloc_high_address(size);

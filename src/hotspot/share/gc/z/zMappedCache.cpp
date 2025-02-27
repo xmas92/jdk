@@ -28,6 +28,7 @@
 #include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/powerOfTwo.hpp"
 
 constexpr size_t ZMappedCache::SizeClasses[];
 
@@ -134,8 +135,17 @@ int ZMappedCache::EntryCompare::operator()(zoffset key, ZIntrusiveRBTreeNode* no
 }
 
 size_t ZMappedCache::get_size_class(size_t index) {
-  if (index == 0 && ZPageSizeMedium > ZPageSizeSmall) {
-    return ZPageSizeMedium;
+  if (ZPageSizeMediumEnabled) {
+    // TODO: Move this to lazily initialized array, rather than recalculate each time
+    // The first two size special if medium pages are enabled
+    const size_t index0return = ZPageSizeMediumMin == ZPageSizeSmall ? ZPageSizeMediumMax : ZPageSizeMediumMin;
+    if (index == 0) {
+      // Return ZPageSizeMediumMin unless it is the same size as a small page
+      return index0return;
+    } else if (index == 1 && index0return != ZPageSizeMediumMax) {
+      // Return ZPageSizeMediumMax unless it was returned as index0
+      return ZPageSizeMediumMax;
+    }
   }
 
   return SizeClasses[index];
@@ -253,6 +263,47 @@ void ZMappedCache::tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vme
 
   // And update entry
   entry->update_start(vmem.start());
+}
+
+ZMemoryRange ZMappedCache::remove_mapping_power_of_2(ZMappedCacheEntry* entry, size_t min_size, size_t max_size) {
+  precond(is_power_of_2(min_size));
+  precond(is_power_of_2(max_size));
+
+  ZIntrusiveRBTreeNode* const node = entry->node_addr();
+  ZMemoryRange vmem = entry->vmem();
+  const size_t node_size = vmem.size();
+
+  if (node_size < min_size) {
+    // Not large enough
+    return ZMemoryRange();
+  }
+
+  if (node_size > max_size) {
+    // Node larger than max_size split from front
+    const ZMemoryRange used = vmem.split_from_front(max_size);
+    tree_update(entry, vmem);
+
+    return used;
+  }
+
+  assert(node_size >= min_size && node_size <= max_size, "must be");
+  const size_t size = round_down_power_of_2(node_size);
+
+  if (node_size != size) {
+    // Node not a power of 2, split from front
+    const ZMemoryRange used = vmem.split_from_front(size);
+    tree_update(entry, vmem);
+
+    return used;
+  }
+
+
+  // Node is in the required range and a power of 2, use whole node
+  auto cursor = _tree.get_cursor(node);
+  assert(cursor.is_valid(), "must be");
+  tree_remove(cursor, vmem);
+
+  return vmem;
 }
 
 ZMappedCache::ZMappedCache()
@@ -427,6 +478,50 @@ size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t
   _size -= removed;
   _min = MIN2(_size, _min);
   return removed;
+}
+
+ZMemoryRange ZMappedCache::remove_contiguous_power_of_2(size_t min_size, size_t max_size) {
+  precond(is_power_of_2(min_size));
+  precond(is_power_of_2(max_size));
+
+  // Scan size classes
+  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
+    const size_t index = index_plus_one - 1;
+    const size_t size_class = get_size_class(index);
+
+    if (min_size > size_class) {
+      // No use walking any more, other lists and the tree will only contain smaller nodes.
+      return ZMemoryRange();
+    }
+
+    if (max_size >= size_class) {
+      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
+      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
+        ZMappedCacheEntry* const entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
+        const ZMemoryRange vmem = remove_mapping_power_of_2(entry, min_size, max_size);
+        if (!vmem.is_null()) {
+          // TODO: Cleanup mode size and min to remove, update and insert
+          _size -= vmem.size();
+          _min = MIN2(_size, _min);
+          return vmem;
+        }
+      }
+    }
+  }
+
+  // Scan whole tree
+  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
+    ZMappedCacheEntry* const entry = ZMappedCacheEntry::cast_to_entry(node);
+    const ZMemoryRange vmem = remove_mapping_power_of_2(entry, min_size, max_size);
+    if (!vmem.is_null()) {
+      // TODO: Cleanup mode size and min to remove, update and insert
+      _size -= vmem.size();
+      _min = MIN2(_size, _min);
+      return vmem;
+    }
+  }
+
+  return ZMemoryRange();
 }
 
 size_t ZMappedCache::reset_min() {

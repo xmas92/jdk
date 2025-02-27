@@ -23,6 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGeneration.inline.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zRememberedSet.inline.hpp"
 #include "utilities/align.hpp"
@@ -40,7 +41,7 @@ ZPage::ZPage(ZPageType type, const ZMemoryRange& vmem)
     _remembered_set() {
   assert(!_virtual.is_null(), "Should not be null");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
-         (_type == ZPageType::medium && size() == ZPageSizeMedium) ||
+         (_type == ZPageType::medium && size() <= ZPageSizeMediumMax && size() >= ZPageSizeMediumMin) ||
          (_type == ZPageType::large && is_aligned(size(), ZGranuleSize)),
          "Page type/size mismatch");
 }

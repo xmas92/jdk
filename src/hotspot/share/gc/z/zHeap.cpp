@@ -36,6 +36,7 @@
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
+#include "gc/z/zPageType.hpp"
 #include "gc/z/zResurrection.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"

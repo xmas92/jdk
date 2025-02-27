@@ -23,6 +23,7 @@
 
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
+#include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zFuture.inline.hpp"
@@ -37,6 +38,7 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageAllocator.inline.hpp"
+#include "gc/z/zPageType.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
@@ -247,6 +249,7 @@ public:
   void reset_statistics(ZGenerationId id);
 
   bool claim_mapped_or_increase_capacity(ZPageAllocation* allocation);
+  bool claim_physical_fast_medium(ZPageAllocation* allocation);
   bool claim_physical(ZPageAllocation* allocation);
 };
 
@@ -381,8 +384,48 @@ bool ZCacheState::claim_mapped_or_increase_capacity(ZPageAllocation* allocation)
   return false;
 }
 
+bool ZCacheState::claim_physical_fast_medium(ZPageAllocation* allocation) {
+  const ZAllocationFlags flags = allocation->flags();
+  const ZPageType type = allocation->type();
+
+  assert(flags.fast_medium(), "should not call otherwise");
+  assert(flags.non_blocking(), "fast_medium must be non_blocking");
+  assert(type == ZPageType::medium, "should only be used for medium pages");
+
+  const size_t capacity = available_capacity();
+  const size_t min_size = ZPageSizeMediumMin;
+  const size_t max_size = MIN2(capacity, ZOnlyMediumPageSizeMin ? ZPageSizeMediumMin : ZPageSizeMediumMax);
+
+  if (max_size < min_size) {
+    // Out of memory
+    return false;
+  }
+
+  // Try and claim a contiguous mapping power of 2 in the range [min_size, max_size]
+  ZMemoryRange mapping = _cache.remove_contiguous_power_of_2(min_size, max_size);
+  if (mapping.is_null()) {
+    // No contiguous mapping available
+    return false;
+  }
+
+  // Success, mapping claimed
+  ZArray<ZMemoryRange>* const mappings = allocation->claimed_mappings();
+  mappings->append(mapping);
+
+  // Updated used statistics
+  increase_used(mapping.size());
+
+  return true;
+
+}
+
 bool ZCacheState::claim_physical(ZPageAllocation* allocation) {
   const size_t size = allocation->size();
+  const ZAllocationFlags flags = allocation->flags();
+
+  if (flags.fast_medium()) {
+    return claim_physical_fast_medium(allocation);
+  }
 
   if (available_capacity() < size) {
     // Out of memory
@@ -430,8 +473,12 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
   log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M);
   log_info_p(gc, init)("Max Capacity: %zuM", max_capacity / M);
   log_info_p(gc, init)("Soft Max Capacity: %zuM", soft_max_capacity / M);
-  if (ZPageSizeMedium > 0) {
-    log_info_p(gc, init)("Medium Page Size: %zuM", ZPageSizeMedium / M);
+  if (ZPageSizeMediumEnabled) {
+    if (ZPageSizeMediumMin == ZPageSizeMediumMax) {
+      log_info_p(gc, init)("Medium Page Size: %zuM", ZPageSizeMediumMax / M);
+    } else {
+      log_info_p(gc, init)("Medium Page Size: Range [%zuM, %zuM]", ZPageSizeMediumMin / M, ZPageSizeMediumMax / M);
+    }
   } else {
     log_info_p(gc, init)("Medium Page Size: N/A");
   }
@@ -858,6 +905,15 @@ bool ZPageAllocator::is_alloc_satisfied(ZPageAllocation* allocation) const {
   // The allocation is immediately satisfied if the list of mappings contains
   // exactly one mapping and is of the correct size.
 
+  if (allocation->flags().fast_medium()) {
+    assert(allocation->claimed_mappings()->length() == 1, "must have one mapping");
+    const size_t size = allocation->claimed_mappings()->first().size();
+    assert(size >= ZPageSizeMediumMin && size <= ZPageSizeMediumMax, "bad size %zu", size);
+
+    // A fast_medium is always satisfied
+    return true;
+  }
+
   if (allocation->claimed_mappings()->length() != 1) {
     // No mapping(s) or not a contiguous mapping
     return false;
@@ -1012,19 +1068,23 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
     return nullptr;
   }
 
-  alloc_page_age_update(page, size, age, allocation.numa_id());
+  // In the case of fast_medium allocation, the size may differ.
+  const size_t page_size = page->size();
+  assert(page_size == size || flags.fast_medium(), "only a fast_medium may change size");
+
+  alloc_page_age_update(page, page_size, age, allocation.numa_id());
 
   // Update allocation statistics. Exclude gc relocations to avoid
   // artificial inflation of the allocation rate during relocation.
   if (!flags.gc_relocation() && is_init_completed()) {
     // Note that there are two allocation rate counters, which have
     // different purposes and are sampled at different frequencies.
-    ZStatInc(ZCounterMutatorAllocationRate, size);
-    ZStatMutatorAllocRate::sample_allocation(size);
+    ZStatInc(ZCounterMutatorAllocationRate, page_size);
+    ZStatMutatorAllocRate::sample_allocation(page_size);
   }
 
   // Send event
-  event.commit((u8)type, size, allocation.harvested(), allocation.committed(),
+  event.commit((u8)type, page_size, allocation.harvested(), allocation.committed(),
                (unsigned int)count_segments_physical(page->virtual_memory()), flags.non_blocking());
 
   return page;

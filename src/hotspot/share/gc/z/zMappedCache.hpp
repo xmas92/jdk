@@ -47,7 +47,7 @@ private:
     ZListNode<ZSizeClassListNode> _node;
   };
 
-  static constexpr size_t SizeClasses[] = {32 * M, 512 * M};
+  static constexpr size_t SizeClasses[] = {4 * M, 32 * M};
   static constexpr size_t NumSizeClasses = ARRAY_SIZE(SizeClasses);
 
   Tree                      _tree;
@@ -65,12 +65,15 @@ private:
   void tree_replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
 
+  ZMemoryRange remove_mapping_power_of_2(ZMappedCacheEntry* entry, size_t min_size, size_t max_size);
+
 public:
   ZMappedCache();
 
   void insert(const ZMemoryRange& vmem);
 
   ZMemoryRange remove_contiguous(size_t size);
+  ZMemoryRange remove_contiguous_power_of_2(size_t min_size, size_t max_size);
   size_t remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size);
 
   size_t reset_min();

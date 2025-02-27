@@ -58,7 +58,7 @@ ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
 
 bool ZRelocationSetSelectorGroup::is_disabled() {
   // Medium pages are disabled when their page size is zero
-  return _page_type == ZPageType::medium && _page_size == 0;
+  return _page_type == ZPageType::medium && !ZPageSizeMediumEnabled;
 }
 
 bool ZRelocationSetSelectorGroup::is_selectable() {
@@ -211,9 +211,17 @@ void ZRelocationSetSelectorGroup::select() {
 
 ZRelocationSetSelector::ZRelocationSetSelector(double fragmentation_limit)
   : _small("Small", ZPageType::small, ZPageSizeSmall, ZObjectSizeLimitSmall, fragmentation_limit),
-    _medium("Medium", ZPageType::medium, ZPageSizeMedium, ZObjectSizeLimitMedium, fragmentation_limit),
+    _medium("Medium", ZPageType::medium, ZPageSizeMediumMax, ZObjectSizeLimitMedium, fragmentation_limit),
     _large("Large", ZPageType::large, 0 /* page_size */, 0 /* object_size_limit */, fragmentation_limit),
-    _empty_pages() {}
+    _empty_pages() {
+  // Note about using ZPageMaxSizeMedium as the page size for medium,
+  // even though they have a smaller size. This will cause the pages
+  // to appear like they are more fragmented than they are, causing
+  // these pages to be selected earlier. Have to see what the result
+  // is for our accounting, but relocating smaller medium pages to,
+  // from the GC into larger pages is probably beneficial for surviving
+  // objects.
+}
 
 void ZRelocationSetSelector::select() {
   // Select pages to relocate. The resulting relocation set will be

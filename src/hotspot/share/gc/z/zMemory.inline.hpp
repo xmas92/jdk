@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -27,68 +27,97 @@
 #include "gc/z/zMemory.hpp"
 
 #include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zList.inline.hpp"
+#include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
-inline ZMemoryRange::ZMemoryRange()
-  : _start(zoffset(UINTPTR_MAX)),
-    _end(zoffset_end(UINTPTR_MAX)) {}
 
-inline ZMemoryRange::ZMemoryRange(zoffset start, size_t size)
+template <typename Start, typename End>
+inline ZRange<Start, End>::ZRange()
+  : _start(Start::invalid),
+    _end(End::invalid) {}
+
+template <typename Start, typename End>
+inline ZRange<Start, End>::ZRange(Start start, size_t size)
   : _start(start),
-    _end(to_zoffset_end(start, size)) {}
+    _end(to_end_type(start, size)) {}
 
-inline bool ZMemoryRange::is_null() const {
-  return _start == zoffset(UINTPTR_MAX);
+template <typename Start, typename End>
+inline bool ZRange<Start, End>::is_null() const {
+  return _start == Start::invalid;
 }
 
-inline zoffset ZMemoryRange::start() const {
+template <typename Start, typename End>
+inline Start ZRange<Start, End>::start() const {
   return _start;
 }
 
-inline zoffset_end ZMemoryRange::end() const {
+template <typename Start, typename End>
+inline End ZRange<Start, End>::end() const {
   return _end;
 }
 
-inline size_t ZMemoryRange::size() const {
+template <typename Start, typename End>
+inline size_t ZRange<Start, End>::size() const {
   return end() - start();
 }
 
-inline size_t ZMemoryRange::size_in_granules() const {
-  return size() >> ZGranuleSizeShift;
-}
-
-inline void ZMemoryRange::shrink_from_front(size_t size) {
+template <typename Start, typename End>
+inline void ZRange<Start, End>::shrink_from_front(size_t size) {
   assert(this->size() >= size, "Too small");
   _start += size;
 }
 
-inline void ZMemoryRange::shrink_from_back(size_t size) {
+template <typename Start, typename End>
+inline void ZRange<Start, End>::shrink_from_back(size_t size) {
   assert(this->size() >= size, "Too small");
   _end -= size;
 }
 
-inline void ZMemoryRange::grow_from_front(size_t size) {
+template <typename Start, typename End>
+inline void ZRange<Start, End>::grow_from_front(size_t size) {
   assert(size_t(start()) >= size, "Too big");
   _start -= size;
 }
 
-inline void ZMemoryRange::grow_from_back(size_t size) {
+template <typename Start, typename End>
+inline void ZRange<Start, End>::grow_from_back(size_t size) {
   _end += size;
 }
 
-inline ZMemoryRange ZMemoryRange::split_from_front(size_t size) {
+template <typename Start, typename End>
+inline ZRange<Start, End> ZRange<Start, End>::split_from_front(size_t size) {
   shrink_from_front(size);
-  return ZMemoryRange(_start - size, size);
+  return ZRange(_start - size, size);
 }
 
-inline ZMemoryRange ZMemoryRange::split_from_back(size_t size) {
+template <typename Start, typename End>
+inline ZRange<Start, End> ZRange<Start, End>::split_from_back(size_t size) {
   shrink_from_back(size);
-  return ZMemoryRange(to_zoffset(_end), size);
+  return ZRange(to_start_type(_end), size);
 }
 
-inline bool ZMemoryRange::adjacent_to(const ZMemoryRange& other) const {
-  return zoffset(end()) == other.start() || zoffset(other.end()) == start();
+template <typename Start, typename End>
+inline bool ZRange<Start, End>::adjacent_to(const ZRange<Start, End>& other) const {
+  return end() == other.start() || other.end() == start();
+}
+
+inline ZMemoryRange::ZMemoryRange()
+  : ZRange() {}
+
+inline ZMemoryRange::ZMemoryRange(zoffset start, size_t size)
+  : ZRange(start, size) {
+  // ZMemoryRange is only used for ZGranuleSize multiple ranges
+  assert(is_aligned(untype(start), ZGranuleSize), "must be multiple of ZGranuleSize");
+  assert(is_aligned(size, ZGranuleSize), "must be multiple of ZGranuleSize");
+}
+
+inline ZMemoryRange::ZMemoryRange(const ZRange<zoffset, zoffset_end>& range)
+  : ZMemoryRange(range.start(), range.size()) {}
+
+inline size_t ZMemoryRange::size_in_granules() const {
+  return size() >> ZGranuleSizeShift;
 }
 
 #endif // SHARE_GC_Z_ZMEMORY_INLINE_HPP

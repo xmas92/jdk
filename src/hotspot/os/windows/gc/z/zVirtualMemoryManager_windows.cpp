@@ -28,13 +28,14 @@
 #include "gc/z/zSyscall_windows.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zMemory.inline.hpp"
+#include "gc/z/zVirtualMemoryManager.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
 class ZVirtualMemoryManagerImpl : public CHeapObj<mtGC> {
 public:
   virtual void initialize_before_reserve() {}
-  virtual void initialize_after_reserve(ZMemoryManager* manager) {}
+  virtual void initialize_after_reserve(ZVirtualMemoryManager::ZMemoryManager* manager) {}
   virtual bool reserve(zaddress_unsafe addr, size_t size) = 0;
   virtual void unreserve(zaddress_unsafe addr, size_t size) = 0;
 };
@@ -141,7 +142,7 @@ private:
       coalesce_into_one_placeholder(range.start(), range.size() + size);
     }
 
-    static void register_with(ZMemoryManager* manager) {
+    static void register_with(ZVirtualMemoryManager::ZMemoryManager* manager) {
       // Each reserved virtual memory address area registered in _manager is
       // exactly covered by a single placeholder. Callbacks are installed so
       // that whenever a memory area changes, the corresponding placeholder
@@ -158,7 +159,7 @@ private:
       // See comment in zMapper_windows.cpp explaining why placeholders are
       // split into ZGranuleSize sized placeholders.
 
-      ZMemoryManager::Callbacks callbacks;
+      ZVirtualMemoryManager::ZMemoryManager::Callbacks callbacks;
 
       callbacks._create = &create_callback;
       callbacks._destroy = &destroy_callback;
@@ -171,7 +172,7 @@ private:
     }
   };
 
-  virtual void initialize_after_reserve(ZMemoryManager* manager) {
+  virtual void initialize_after_reserve(ZVirtualMemoryManager::ZMemoryManager* manager) {
     PlaceholderCallbacks::register_with(manager);
   }
 

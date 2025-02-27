@@ -37,6 +37,8 @@ using namespace testing;
 
 #define EXPECT_ALLOC_OK(range) EXPECT_FALSE(range.is_null())
 
+using ZMemoryManager = ZVirtualMemoryManager::ZMemoryManager;
+
 class ZMapperTest : public Test {
 private:
   static constexpr size_t ZMapperTestReservationSize = 32 * M;

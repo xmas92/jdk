@@ -39,15 +39,15 @@ void ZNMT::reserve(zaddress_unsafe start, size_t size) {
   MemTracker::record_virtual_memory_reserve((address)untype(start), size, CALLER_PC, mtJavaHeap);
 }
 
-void ZNMT::commit(zoffset offset, size_t size) {
+void ZNMT::commit(zbacking_offset offset, size_t size) {
   MemTracker::allocate_memory_in(ZNMT::_device, untype(offset), size, CALLER_PC, mtJavaHeap);
 }
 
-void ZNMT::uncommit(zoffset offset, size_t size) {
+void ZNMT::uncommit(zbacking_offset offset, size_t size) {
   MemTracker::free_memory_in(ZNMT::_device, untype(offset), size);
 }
 
-void ZNMT::map(zaddress_unsafe addr, size_t size, zoffset offset) {
+void ZNMT::map(zaddress_unsafe addr, size_t size, zbacking_offset offset) {
   // NMT doesn't track mappings at the moment.
 }
 

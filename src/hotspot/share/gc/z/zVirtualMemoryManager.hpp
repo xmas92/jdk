@@ -32,6 +32,9 @@
 class ZVirtualMemoryManager {
   friend class ZMapperTest;
 
+public:
+  using ZMemoryManager = ZMemoryManagerImpl<ZMemoryRange>;
+
 private:
   static size_t calculate_min_range(size_t size);
 

@@ -49,13 +49,13 @@ private:
     ZPage** get_shared_page_addr();
   };
 
-  ZPageAge               _age;
-  const bool             _use_per_cpu_shared_small_pages;
-  ZPerCPU<size_t>        _used;
-  ZPerCPU<size_t>        _undone;
-  ZPerCPU<ZPage*>        _shared_small_page;
-  ZSharedMediumPageState _shared_medium_page_state;
-  ZLock                  _medium_page_alloc_lock;
+  ZPageAge                         _age;
+  const bool                       _use_per_cpu_shared_small_pages;
+  ZPerCPU<size_t>                  _used;
+  ZPerCPU<size_t>                  _undone;
+  ZPerCPU<ZPage*>                  _shared_small_page;
+  ZPerNUMA<ZSharedMediumPageState> _shared_medium_page_state;
+  ZLock                            _medium_page_alloc_lock;
 
   ZPage** shared_small_page_addr();
   ZPage* const* shared_small_page_addr() const;

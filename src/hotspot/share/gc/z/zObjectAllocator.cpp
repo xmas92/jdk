@@ -178,7 +178,7 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
-  ZSharedMediumPageState& state = _shared_medium_page_state;
+  ZSharedMediumPageState& state = _shared_medium_page_state.get();
 
   addr = state.alloc_object(size);
 
@@ -203,6 +203,8 @@ zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
 
     addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMedium, size, non_blocking_flags);
   }
+
+  // Question: Should we attempt to alloc object on the other numa states here?
 
   if (is_null(addr) && !flags.non_blocking()) {
     // The above allocation attempts failed and this allocation should stall
@@ -315,6 +317,6 @@ void ZObjectAllocator::retire_pages() {
   _undone.set_all(0);
 
   // Reset allocation pages
-  _shared_medium_page_state = {};
+  _shared_medium_page_state.set_all({});
   _shared_small_page.set_all(nullptr);
 }

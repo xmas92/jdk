@@ -39,6 +39,11 @@ ZCommitter::ZCommitter(ZPageAllocator* page_allocator)
   create_and_start();
 }
 
+bool ZCommitter::is_stop_requested() {
+  ZLocker<ZConditionLock> locker(&_lock);
+  return _stop;
+}
+
 size_t ZCommitter::commit_granule(size_t capacity, size_t target_capacity) {
   const size_t smallest_granule = ZGranuleSize;
   const size_t largest_granule = MAX2(ZPageSizeMedium, smallest_granule);
@@ -179,6 +184,10 @@ void ZCommitter::set_target_capacity(size_t target_capacity) {
 
 void ZCommitter::register_heating_request(const ZPage* page) {
   ZLocker<ZConditionLock> locker(&_lock);
+  if (_stop) {
+    // Don't add more requests during termination
+    return;
+  }
   for (size_t granule = 0; granule < page->size(); granule += ZGranuleSize) {
     _heating_requests.upsert(page->start() + granule, ZGranuleSize);
   }
@@ -260,6 +269,10 @@ void ZCommitter::run_thread() {
       const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
       const size_t granule = commit_granule(capacity, target_capacity);
 
+      if (is_stop_requested()) {
+        return;
+      }
+
       if (last_target_capacity != 0 && last_target_capacity != target_capacity) {
         // Printouts look better when flushing across target capacity changes
         break;
@@ -313,4 +326,11 @@ void ZCommitter::terminate() {
   ZLocker<ZConditionLock> locker(&_lock);
   _stop = true;
   _lock.notify_all();
+
+  _heating_requests.remove_all();
+
+  while (_currently_heating != zaddress::null) {
+    // Trying to unmap what's currently being heated; calm down!
+    _lock.wait();
+  }
 }

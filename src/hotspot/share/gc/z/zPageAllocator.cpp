@@ -232,8 +232,10 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
   }
   log_info_p(gc, init)("Pre-touch: %s", AlwaysPreTouch ? "Enabled" : "Disabled");
 
-  // Warn if system limits could stop us from reaching max capacity
-  _physical.warn_commit_limits(initial_max_capacity);
+  // Warn if system limits could stop us from reaching desired capacity
+  size_t expected_capacity = ZAdaptiveHeap::explicit_max_capacity() ? initial_max_capacity
+                                                                    : initial_capacity;
+  _physical.warn_commit_limits(expected_capacity, initial_max_capacity);
 
   // Check if uncommit should and can be enabled
   _physical.try_enable_uncommit(min_capacity, static_max_capacity);
@@ -394,6 +396,9 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
   const size_t selected_capacity = ZAdaptiveHeap::compute_heap_size(&metrics, generation);
 
   Atomic::store(&_heuristic_max_capacity, selected_capacity);
+
+  // Complain about misconfigurations
+  _physical.warn_commit_limits(selected_capacity, dynamic_max_capacity());
 
   _committer->heap_resized(capacity, selected_capacity);
 }

@@ -166,11 +166,7 @@ size_t ZPhysicalMemoryManager::commit(const zoffset* pmem, size_t size, int numa
   // Commit segments
   for_each_segment_apply(pmem, size, [&](zoffset segment_start, size_t segment_size) {
     // Commit segment
-#ifdef LINUX
     const size_t committed = _backing.commit(segment_start, segment_size, numa_id);
-#else
-    const size_t committed = _backing.commit(segment_start, segment_size);
-#endif
 
     total_committed += committed;
     // Register with NMT

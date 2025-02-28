@@ -40,7 +40,7 @@ public:
 
   void warn_commit_limits(size_t max_capacity) const;
 
-  size_t commit(zoffset offset, size_t length) const;
+  size_t commit(zoffset offset, size_t length, int numa_id) const;
   size_t uncommit(zoffset offset, size_t length) const;
 
   void map(zaddress_unsafe addr, size_t size, zoffset offset) const;

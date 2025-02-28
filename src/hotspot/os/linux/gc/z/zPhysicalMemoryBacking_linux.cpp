@@ -668,7 +668,9 @@ size_t ZPhysicalMemoryBacking::commit_default(zoffset offset, size_t length) con
 }
 
 size_t ZPhysicalMemoryBacking::commit(zoffset offset, size_t length, int numa_id) const {
-  if (ZNUMA::is_enabled()) {
+  if (ZNUMA::is_enabled() && !ZLargePages::is_explicit()) {
+    // The memory is required to be preferred at the time it is paged in. As a
+    // consequence we must prefer the memory when committing non-large pages
     return commit_numa_preferred(offset, length, numa_id);
   }
 

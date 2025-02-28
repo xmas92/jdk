@@ -52,8 +52,6 @@ private:
   size_t reserve_discontiguous(size_t size);
   size_t reserve(size_t max_capacity);
 
-  void set_vmem_range_for_manager(int numa_id);
-
   DEBUG_ONLY(size_t force_reserve_discontiguous(size_t size);)
 
 public:

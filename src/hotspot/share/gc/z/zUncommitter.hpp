@@ -31,6 +31,7 @@ class ZPageAllocator;
 
 class ZUncommitter : public ZThread {
 private:
+  uint32_t               _id;
   ZPageAllocator* const  _page_allocator;
   mutable ZConditionLock _lock;
   bool                   _stop;
@@ -43,7 +44,7 @@ protected:
   virtual void terminate();
 
 public:
-  ZUncommitter(ZPageAllocator* page_allocator);
+  ZUncommitter(uint32_t id, ZPageAllocator* page_allocator);
 };
 
 #endif // SHARE_GC_Z_ZUNCOMMITTER_HPP

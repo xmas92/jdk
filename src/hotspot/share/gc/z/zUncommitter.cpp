@@ -31,11 +31,13 @@
 
 static const ZStatCounter ZCounterUncommit("Memory", "Uncommit", ZStatUnitBytesPerSecond);
 
-ZUncommitter::ZUncommitter(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
+ZUncommitter::ZUncommitter(uint32_t id, ZPageAllocator* page_allocator)
+  : _id(id),
+    _page_allocator(page_allocator),
     _lock(),
     _stop(false) {
-  set_name("ZUncommitter");
+
+  set_name("ZUncommitter#%d", id);
   create_and_start();
 }
 
@@ -46,7 +48,7 @@ bool ZUncommitter::wait(uint64_t timeout) const {
   }
 
   if (!_stop && timeout > 0) {
-    log_debug(gc, heap)("Uncommit Timeout: " UINT64_FORMAT "s", timeout);
+    log_debug(gc, heap)("Uncommitter (%d) Timeout: " UINT64_FORMAT "s", _id, timeout);
     _lock.wait(timeout * MILLIUNITS);
   }
 
@@ -67,7 +69,7 @@ void ZUncommitter::run_thread() {
 
     while (should_continue()) {
       // Uncommit chunk
-      const size_t flushed = _page_allocator->uncommit(&timeout);
+      const size_t flushed = _page_allocator->uncommit(_id, &timeout);
       if (flushed == 0) {
         // Done
         break;

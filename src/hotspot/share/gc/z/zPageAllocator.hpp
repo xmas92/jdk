@@ -192,8 +192,6 @@ public:
   size_t used_high() const;
   size_t used_low() const;
   size_t used_generation() const;
-
-  void set_soft_max_capacity(size_t soft_max_capacity);
 };
 
 #endif // SHARE_GC_Z_ZPAGEALLOCATOR_HPP

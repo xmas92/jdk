@@ -106,8 +106,4 @@ inline size_t ZPageAllocatorStats::allocation_stalls() const {
   return _allocation_stalls;
 }
 
-inline void ZPageAllocatorStats::set_soft_max_capacity(size_t soft_max_capacity) {
-  _soft_max_capacity = soft_max_capacity;
-}
-
 #endif // SHARE_GC_Z_ZPAGEALLOCATOR_INLINE_HPP

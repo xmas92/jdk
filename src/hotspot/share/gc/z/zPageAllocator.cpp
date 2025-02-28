@@ -612,29 +612,22 @@ ZPageAllocatorStats ZPageAllocator::stats(ZGeneration* generation) const {
 
   ZPageAllocatorStats stats(_min_capacity,
                             _max_capacity,
-                            0,
+                            soft_max_capacity(),
                             generation->freed(),
                             generation->promoted(),
                             generation->compacted(),
                             _stalled.size());
 
+  // Aggregate per ZCacheState stats
   const int gen_id = (int)generation->id();
-  size_t current_max_capacity = 0;
   ZPerNUMAConstIterator<ZCacheState> iter(&_states);
   for (const ZCacheState* state; iter.next(&state);) {
-    current_max_capacity += state->_current_max_capacity;
     stats.increment_stats(state->_capacity,
                           state->_used,
                           state->_collection_stats[gen_id]._used_high,
                           state->_collection_stats[gen_id]._used_low,
                           state->_used_generations[gen_id]);
   }
-
-  // We can only calculate the soft_max_capacity after finding the combined value
-  // for current_max_capacity, so we set it after incrementing all the other stats.
-  const size_t soft_max_heapsize = Atomic::load(&SoftMaxHeapSize);
-  const size_t soft_max_capacity = MIN2(soft_max_heapsize, current_max_capacity);
-  stats.set_soft_max_capacity(soft_max_capacity);
 
   return stats;
 }

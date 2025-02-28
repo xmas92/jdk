@@ -63,9 +63,9 @@ private:
   const size_t               _static_max_capacity;
   volatile size_t            _heuristic_max_capacity;
   ZPerNUMA<ZCacheState>      _states;
+  ZPerNUMA<ZUncommitter*>    _uncommitters;
   ZList<ZPageAllocation>     _stalled;
   ZCommitter*                _committer;
-  ZUncommitter*              _uncommitter;
   mutable ZSafeDelete<ZPage> _safe_destroy;
   bool                       _initialized;
 
@@ -104,7 +104,7 @@ private:
 
   void satisfy_stalled();
 
-  size_t uncommit(uint64_t* timeout, size_t limit);
+  size_t uncommit(uint32_t numa_id, uint64_t* timeout, size_t limit);
 
   void notify_out_of_memory();
   void restart_gc() const;

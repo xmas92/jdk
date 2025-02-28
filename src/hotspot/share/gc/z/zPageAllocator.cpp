@@ -424,9 +424,9 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _static_max_capacity(static_max_capacity),
     _heuristic_max_capacity(initial_capacity),
     _states(),
+    _uncommitters(),
     _stalled(),
     _committer(new ZCommitter(this)),
-    _uncommitter(new ZUncommitter(this)),
     _safe_destroy(),
     _initialized(false) {
 
@@ -435,6 +435,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
   }
 
   ZNUMA::divide_resource(static_max_capacity, [&](uint32_t numa_id, size_t capacity) {
+    _uncommitters.set(new ZUncommitter(numa_id, this), numa_id);
     _states.get(numa_id).initialize(capacity);
   });
 
@@ -1252,114 +1253,92 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
 
 void ZPageAllocator::adjust_capacity(size_t used_soon) {
 }
-size_t ZPageAllocator::uncommit(uint64_t* timeout) {
-  // We need to join the suspendible thread set while manipulating capacity and
-  // used, to make sure GC safepoints will have a consistent view.
-  ZList<ZPage> pages;
-  size_t flushed;
+
+size_t ZPageAllocator::uncommit(uint32_t numa_id, uint64_t* timeout) {
+  ZCacheState& state = _states.get(numa_id);
+  ZArray<ZMemoryRange> flushed_mappings;
+  size_t flushed = 0;
 
   {
+    // We need to join the suspendible thread set while manipulating capacity and
+    // used, to make sure GC safepoints will have a consistent view.
     SuspendibleThreadSetJoiner sts_joiner;
     ZLocker<ZLock> locker(&_lock);
 
-    for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-      ZCacheState& state = _states.get(numa_id);
+    const double now = os::elapsedTime();
+    const double time_since_last_commit = std::floor(now - state._last_commit);
+    const double time_since_last_uncommit = std::floor(now - state._last_uncommit);
 
-      const double now = os::elapsedTime();
-      const double time_since_last_commit = std::floor(now - state._last_commit);
-      const double time_since_last_uncommit = std::floor(now - state._last_uncommit);
-
-      if (time_since_last_commit < double(ZUncommitDelay)) {
-        // We have committed within the delay, stop uncommitting.
-        lowest_timeout = MIN2(lowest_timeout, uint64_t(double(ZUncommitDelay) - time_since_last_commit));
-        continue;
-      }
-
-      const size_t limit = MIN2(align_up(state._current_max_capacity >> 7, ZGranuleSize), 256 * M / ZNUMA::count());
-
-      if (time_since_last_uncommit < double(ZUncommitDelay)) {
-        // We are in the uncommit phase
-        const size_t num_uncommits_left = state._to_uncommit / limit;
-        const double time_left = double(ZUncommitDelay) - time_since_last_uncommit;
-        if (time_left < *timeout * num_uncommits_left) {
-          // Running out of time, speed up.
-          uint64_t new_timeout = uint64_t(std::floor(time_left / double(num_uncommits_left + 1)));
-          lowest_timeout = MIN2(lowest_timeout, new_timeout);
-        }
-      } else {
-        // We are about to start uncommitting
-        state._to_uncommit = state._cache.reset_min();
-        state._last_uncommit = now;
-
-        const size_t split = state._to_uncommit / limit + 1;
-        uint64_t new_timeout = ZUncommitDelay / split;
-        lowest_timeout = MIN2(lowest_timeout, new_timeout);
-      }
-
-      // Never uncommit below min capacity. We flush out and uncommit chunks at
-      // a time (~0.8% of the max capacity, but at least one granule and at most
-      // 256M), in case demand for memory increases while we are uncommitting.
-      const size_t retain = MAX2(state._used, _min_capacity / ZNUMA::count());
-      const size_t release = state._capacity - retain;
-      const size_t flush = MIN3(release, limit, state._to_uncommit);
-
-      if (flush == 0) {
-      // Nothing to flush
-        continue;
-      }
-
-      // Flush memory from the mapped cache to uncommit
-      const size_t flushed = state._cache.remove_from_min(&flushed_mappings, flush);
-      if (flushed == 0) {
-        // Nothing flushed
-        continue;
-      }
-
-      // Record flushed memory as claimed and how much we've flushed for this NUMA node
-      Atomic::add(&state._claimed, flushed);
-      state._to_uncommit -= flushed;
-      flushed_per_numa.set(flushed, numa_id);
+    if (time_since_last_commit < double(ZUncommitDelay)) {
+      // We have committed within the delay, stop uncommitting.
+      *timeout = uint64_t(double(ZUncommitDelay) - time_since_last_commit);
+      return 0;
     }
-  }
 
-  *timeout = lowest_timeout;
+    const size_t limit = MIN2(align_up(state._current_max_capacity >> 7, ZGranuleSize), 256 * M / ZNUMA::count());
+
+    if (time_since_last_uncommit < double(ZUncommitDelay)) {
+      // We are in the uncommit phase
+      const size_t num_uncommits_left = state._to_uncommit / limit;
+      const double time_left = double(ZUncommitDelay) - time_since_last_uncommit;
+      if (time_left < *timeout * num_uncommits_left) {
+        // Running out of time, speed up.
+        uint64_t new_timeout = uint64_t(std::floor(time_left / double(num_uncommits_left + 1)));
+        *timeout = new_timeout;
+      }
+    } else {
+      // We are about to start uncommitting
+      state._to_uncommit = state._cache.reset_min();
+      state._last_uncommit = now;
+
+      const size_t split = state._to_uncommit / limit + 1;
+      uint64_t new_timeout = ZUncommitDelay / split;
+      *timeout = new_timeout;
+    }
+
+    // Never uncommit below min capacity. We flush out and uncommit chunks at
+    // a time (~0.8% of the max capacity, but at least one granule and at most
+    // 256M), in case demand for memory increases while we are uncommitting.
+    const size_t retain = MAX2(state._used, _min_capacity / ZNUMA::count());
+    const size_t release = state._capacity - retain;
+    const size_t flush = MIN3(release, limit, state._to_uncommit);
+
+    if (flush == 0) {
+      // Nothing to flush
+      return 0;
+    }
+
+    // Flush memory from the mapped cache to uncommit
+    flushed = state._cache.remove_from_min(&flushed_mappings, flush);
+    if (flushed == 0) {
+      // Nothing flushed
+      return 0;
+    }
+
+    // Record flushed memory as claimed and how much we've flushed for this NUMA node
+    Atomic::add(&state._claimed, flushed);
+    state._to_uncommit -= flushed;
+  }
 
   // Unmap and uncommit flushed memory
   ZArrayIterator<ZMemoryRange> it(&flushed_mappings);
   for (ZMemoryRange vmem; it.next(&vmem);) {
-    const int numa_id = _virtual.get_numa_id(vmem);
     unmap_virtual(vmem);
     uncommit_physical(vmem);
     free_physical(vmem, numa_id);
     free_virtual(vmem);
   }
 
-  size_t total_flushed = 0;
-
   {
     SuspendibleThreadSetJoiner sts_joiner;
     ZLocker<ZLock> locker(&_lock);
 
-    for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-      const size_t flushed = flushed_per_numa.get(numa_id);
-      if (flushed == 0) {
-        continue;
-      }
-
-    for (int numa_id = 0; numa_id < numa_nodes; numa_id++) {
-      const size_t flushed = flushed_per_numa.get(numa_id);
-      if (flushed == 0) {
-        continue;
-      }
-
-      // Adjust claimed and capacity to reflect the uncommit
-      ZCacheState& state = _states.get(numa_id);
-      Atomic::sub(&state._claimed, flushed);
-      state.decrease_capacity(flushed, false /* set_max_capacity */);
-      total_flushed += flushed;
+    // Adjust claimed and capacity to reflect the uncommit
+    Atomic::sub(&state._claimed, flushed);
+    state.decrease_capacity(flushed, false /* set_max_capacity */);
   }
 
-  return total_flushed;
+  return flushed;
 }
 
 void ZPageAllocator::enable_safe_destroy() const {
@@ -1442,5 +1421,7 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
   tc->do_thread(_committer);
-  tc->do_thread(_uncommitter);
+  for (uint32_t id = 0; id < ZNUMA::count(); id++) {
+    tc->do_thread(_uncommitters.get(id));
+  }
 }

@@ -89,7 +89,7 @@ public:
 
   bool is_initialized() const;
 
-  void warn_commit_limits(size_t max_capacity) const;
+  void warn_commit_limits(size_t expected_capacity, size_t max_capacity) const;
   void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
 
   void alloc(ZPhysicalMemory& pmem, size_t size);

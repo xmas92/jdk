@@ -422,9 +422,9 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     return;
   }
 
-  ZNUMA::divide_resource(max_capacity, [&](uint32_t numa_id, size_t capacity) {
-    _uncommitters.set(new ZUncommitter(numa_id, this), numa_id);
-    _states.get(numa_id).initialize(capacity);
+  ZNUMA::divide_resource(max_capacity, [&](uint32_t id, size_t capacity) {
+    _uncommitters.set(new ZUncommitter(id, this), id);
+    _states.get(id).initialize(capacity);
   });
 
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);

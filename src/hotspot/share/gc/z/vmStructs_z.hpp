@@ -31,6 +31,7 @@
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zPageType.hpp"
+#include "gc/z/zValue.hpp"
 #include "utilities/macros.hpp"
 
 // Expose some ZGC globals to the SA agent.
@@ -61,6 +62,7 @@ public:
 typedef ZGranuleMap<ZPage*> ZGranuleMapForPageTable;
 typedef ZGranuleMap<ZForwarding*> ZGranuleMapForForwarding;
 typedef ZAttachedArray<ZForwarding, ZForwardingEntry> ZAttachedArrayForForwarding;
+typedef ZValue<ZPerNUMAStorage, ZCacheState> ZPerNUMACacheState;
 
 #define VM_STRUCTS_Z(nonstatic_field, volatile_nonstatic_field, static_field)                        \
   static_field(ZGlobalsForVMStructs,            _instance_p,          ZGlobalsForVMStructs*)         \
@@ -85,6 +87,14 @@ typedef ZAttachedArray<ZForwarding, ZForwardingEntry> ZAttachedArrayForForwardin
   volatile_nonstatic_field(ZPage,               _seqnum,              uint32_t)                      \
   nonstatic_field(ZPage,                        _virtual,             const ZMemoryRange)            \
   volatile_nonstatic_field(ZPage,               _top,                 zoffset_end)                   \
+                                                                                                     \
+  nonstatic_field(ZPageAllocator,               _max_capacity,        const size_t)                  \
+  nonstatic_field(ZPageAllocator,               _states,              ZPerNUMACacheState)            \
+                                                                                                     \
+  nonstatic_field(ZPerNUMACacheState,           _addr,                const uintptr_t)               \
+                                                                                                     \
+  volatile_nonstatic_field(ZCacheState,         _capacity,            size_t)                        \
+  volatile_nonstatic_field(ZCacheState,         _used,                size_t)                        \
                                                                                                      \
   nonstatic_field(ZPageTable,                   _map,                 ZGranuleMapForPageTable)       \
                                                                                                      \
@@ -130,6 +140,8 @@ typedef ZAttachedArray<ZForwarding, ZForwardingEntry> ZAttachedArrayForForwardin
   declare_toplevel_type(ZPage)                                                                       \
   declare_toplevel_type(ZPageType)                                                                   \
   declare_toplevel_type(ZPageAllocator)                                                              \
+  declare_toplevel_type(ZPerNUMACacheState)                                                          \
+  declare_toplevel_type(ZCacheState)                                                                 \
   declare_toplevel_type(ZPageTable)                                                                  \
   declare_toplevel_type(ZAttachedArrayForForwarding)                                                 \
   declare_toplevel_type(ZGranuleMapForPageTable)                                                     \

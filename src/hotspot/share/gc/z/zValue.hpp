@@ -78,6 +78,8 @@ public:
 
 template <typename S, typename T>
 class ZValue : public CHeapObj<mtGC> {
+  friend class VMStructs;
+
 private:
   const uintptr_t _addr;
 

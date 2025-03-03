@@ -29,6 +29,7 @@
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zMappedCache.hpp"
 #include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
@@ -38,7 +39,6 @@
 #include "gc/z/zVirtualMemoryManager.hpp"
 
 class ThreadClosure;
-class ZCacheState;
 class ZGeneration;
 class ZCommitter;
 class ZPageAllocation;
@@ -47,6 +47,46 @@ class ZPageAllocatorStats;
 class ZSegmentStash;
 class ZUncommitter;
 class ZWorkers;
+
+class ZCacheState {
+  friend class VMStructs;
+  friend class ZPageAllocator;
+
+private:
+  ZMappedCache               _cache;
+  volatile size_t            _current_max_capacity;
+  volatile size_t            _capacity;
+  volatile size_t            _claimed;
+  volatile size_t            _used;
+  size_t                     _used_generations[2];
+  struct {
+    size_t                   _used_high;
+    size_t                   _used_low;
+  } _collection_stats[2];
+  double                     _last_commit;
+  double                     _last_uncommit;
+  size_t                     _to_uncommit;
+
+public:
+  void initialize(size_t max_capacity);
+
+  size_t available_capacity() const;
+  size_t soft_max_capacity() const;
+
+  size_t increase_capacity(size_t size);
+  void decrease_capacity(size_t size, bool set_max_capacity);
+
+  void increase_used(size_t size);
+  void decrease_used(size_t size);
+
+  void increase_used_generation(ZGenerationId id, size_t size);
+  void decrease_used_generation(ZGenerationId id, size_t size);
+
+  void reset_statistics(ZGenerationId id);
+
+  bool claim_mapped_or_increase_capacity(ZPageAllocation* allocation);
+  bool claim_physical(ZPageAllocation* allocation);
+};
 
 class ZPageAllocator {
   friend class VMStructs;

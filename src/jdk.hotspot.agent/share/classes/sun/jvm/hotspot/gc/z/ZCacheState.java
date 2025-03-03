@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -27,47 +27,37 @@ package sun.jvm.hotspot.gc.z;
 import sun.jvm.hotspot.debugger.Address;
 import sun.jvm.hotspot.runtime.VM;
 import sun.jvm.hotspot.runtime.VMObject;
-import sun.jvm.hotspot.runtime.VMObjectFactory;
 import sun.jvm.hotspot.types.CIntegerField;
 import sun.jvm.hotspot.types.Type;
 import sun.jvm.hotspot.types.TypeDataBase;
 
-// Mirror class for ZPageAllocator
+// Mirror class for ZCacheState
 
-public class ZPageAllocator extends VMObject {
+public class ZCacheState extends VMObject {
 
-    private static CIntegerField maxCapacityField;
-    private static long cacheStateFieldOffset;
+    private static CIntegerField capacityField;
+    private static CIntegerField usedField;
 
     static {
         VM.registerVMInitializedObserver((o, d) -> initialize(VM.getVM().getTypeDataBase()));
     }
 
     private static synchronized void initialize(TypeDataBase db) {
-        Type type = db.lookupType("ZPageAllocator");
+        Type type = db.lookupType("ZCacheState");
 
-        maxCapacityField = type.getCIntegerField("_static_max_capacity");
-        cacheStateFieldOffset = type.getAddressField("_states").getOffset();
+        capacityField = type.getCIntegerField("_capacity");
+        usedField = type.getCIntegerField("_used");
     }
 
-    private ZPerNUMACacheState states() {
-        Address cacheStatesAddr = addr.addOffsetTo(cacheStateFieldOffset);
-        return VMObjectFactory.newObject(ZPerNUMACacheState.class, cacheStatesAddr);
-    }
-
-    public long maxCapacity() {
-        return maxCapacityField.getValue(addr);
+    public ZCacheState(Address addr) {
+        super(addr);
     }
 
     public long capacity() {
-        return states().value().capacity();
+        return capacityField.getValue(addr);
     }
 
     public long used() {
-        return states().value().used();
-    }
-
-    public ZPageAllocator(Address addr) {
-        super(addr);
+        return usedField.getValue(addr);
     }
 }

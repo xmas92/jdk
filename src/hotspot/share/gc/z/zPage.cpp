@@ -161,6 +161,10 @@ void ZPage::print_on(outputStream* out) const {
   print_on_msg(out, nullptr);
 }
 
+void ZPage::print() const {
+  print_on(tty);
+}
+
 void ZPage::verify_live(uint32_t live_objects, size_t live_bytes, bool in_place) const {
   if (!in_place) {
     // In-place relocation has changed the page to allocating

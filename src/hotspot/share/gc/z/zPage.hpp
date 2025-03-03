@@ -173,6 +173,7 @@ public:
 
   void print_on_msg(outputStream* out, const char* msg) const;
   void print_on(outputStream* out) const;
+  void print() const;
 
   // Verification
   bool was_remembered(volatile zpointer* p);

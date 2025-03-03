@@ -57,13 +57,17 @@ private:
 
   static size_t get_size_class(size_t index);
 
-  template <typename Function>
-  bool scan_size_classes(size_t size, Function function, bool contiguous);
-
   void tree_insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void tree_remove(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void tree_replace(const Tree::FindCursor& cursor, const ZMemoryRange& vmem);
   void tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vmem);
+
+  template <typename SelectFunction>
+  ZMemoryRange remove_mapping(ZMappedCacheEntry* const entry, size_t min_size, SelectFunction select);
+  template <typename SelectFunction, typename ConsumeFunction>
+  void scan_remove_mapping(size_t min_size, SelectFunction select, ConsumeFunction consume);
+  template <typename SelectFunction, typename ConsumeFunction>
+  void scan_remove_mapping(SelectFunction select, ConsumeFunction consume);
 
 public:
   ZMappedCache();

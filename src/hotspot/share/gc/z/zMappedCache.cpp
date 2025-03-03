@@ -141,31 +141,6 @@ size_t ZMappedCache::get_size_class(size_t index) {
   return SizeClasses[index];
 }
 
-template <typename Function>
-bool ZMappedCache::scan_size_classes(size_t size, Function function, bool contiguous) {
-  // Scan size classes from largest matching size class
-  for (size_t i = 0; i < NumSizeClasses; i++) {
-    const size_t index = NumSizeClasses - 1 - i;
-    const size_t size_class = get_size_class(index);
-    if (size >= size_class) {
-      ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
-      for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
-        ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
-        if (function(entry->node_addr())) {
-          return true;
-        }
-      }
-
-      if (contiguous) {
-        // No use walking any more, other lists and the tree will only contain smaller nodes.
-        return false;
-      }
-    }
-  }
-
-  return false;
-}
-
 void ZMappedCache::tree_insert(const Tree::FindCursor& cursor, const ZMemoryRange& vmem) {
   ZMappedCacheEntry* entry = create_entry(vmem);
 
@@ -255,6 +230,88 @@ void ZMappedCache::tree_update(ZMappedCacheEntry* entry, const ZMemoryRange& vme
   entry->update_start(vmem.start());
 }
 
+template <typename SelectFunction>
+ZMemoryRange ZMappedCache::remove_mapping(ZMappedCacheEntry* const entry, size_t min_size, SelectFunction select) {
+  ZMemoryRange vmem = entry->vmem();
+  const size_t size = vmem.size();
+
+  if (size < min_size) {
+    // Do not select this, smaller than min_size
+    return ZMemoryRange();
+  }
+
+  // Query how much to remove
+  const size_t to_remove = select(size);
+  assert(to_remove <= size, "must not remove more than size");
+
+  if (to_remove == 0) {
+    // Nothing to remove
+    return ZMemoryRange();
+  }
+
+  if (to_remove != size) {
+    // Partial removal
+    const size_t unused_size = size - to_remove;
+    const ZMemoryRange unused_vmem = vmem.split_from_back(unused_size);
+    tree_update(entry, unused_vmem);
+  } else {
+    // Whole removal
+    auto cursor = _tree.get_cursor(entry->node_addr());
+    assert(cursor.is_valid(), "must be");
+    tree_remove(cursor, vmem);
+  }
+
+  // Update statistics
+  _size -= to_remove;
+  _min = MIN2(_size, _min);
+
+  postcond(to_remove == vmem.size());
+  return vmem;
+}
+
+template <typename SelectFunction, typename ConsumeFunction>
+void ZMappedCache::scan_remove_mapping(size_t min_size, SelectFunction select, ConsumeFunction consume) {
+  // TODO: Maybe start on best fit size class first, and only then go from large to small.
+
+  // Scan size classes
+  for (size_t index_plus_one = NumSizeClasses; index_plus_one > 0; index_plus_one--) {
+    const size_t index = index_plus_one - 1;
+    const size_t size_class = get_size_class(index);
+
+    // Scan the list
+    ZListIterator<ZSizeClassListNode> iter(&_size_class_lists[index]);
+    for (ZSizeClassListNode* list_node; iter.next(&list_node);) {
+      ZMappedCacheEntry* const entry = ZMappedCacheEntry::cast_to_entry(list_node, index);
+      const ZMemoryRange vmem = remove_mapping(entry, min_size, select);
+      if (!vmem.is_null() && consume(vmem)) {
+        // Found a mapping and consume is satisfied.
+        return;
+      }
+    }
+
+    if (min_size > size_class) {
+      // No use walking any more, other lists and the tree will only contain smaller nodes.
+      return;
+    }
+  }
+
+  // Scan whole tree
+  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
+    ZMappedCacheEntry* const entry = ZMappedCacheEntry::cast_to_entry(node);
+    const ZMemoryRange vmem = remove_mapping(entry, min_size, select);
+    if (!vmem.is_null() && consume(vmem)) {
+      // Found a mapping and consume is satisfied.
+      return;
+    }
+  }
+}
+
+template <typename SelectFunction, typename ConsumeFunction>
+void ZMappedCache::scan_remove_mapping(SelectFunction select, ConsumeFunction consume) {
+  // Scan without a min_size
+  scan_remove_mapping(0, select, consume);
+}
+
 ZMappedCache::ZMappedCache()
   : _tree(),
     _size_class_lists{},
@@ -323,110 +380,54 @@ void ZMappedCache::insert(const ZMemoryRange& vmem) {
 }
 
 ZMemoryRange ZMappedCache::remove_contiguous(size_t size) {
-  ZMemoryRange mapping;
+  precond(size > 0);
+  precond(size % ZGranuleSize == 0);
 
-  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
-    ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-    ZMemoryRange cached_vmem = entry->vmem();
+  ZMemoryRange result;
 
-    if (cached_vmem.size() == size) {
-      Tree::FindCursor cursor = _tree.get_cursor(node);
-      assert(cursor.is_valid(), "must be");
-
-      tree_remove(cursor, cached_vmem);
-      mapping = cached_vmem;
-
-      return true;
-    } else if (cached_vmem.size() > size) {
-      const ZMemoryRange used = cached_vmem.split_from_front(size);
-
-      tree_update(entry, cached_vmem);
-      mapping = used;
-
-      return true;
-    }
-
-    return false;
+  const auto select_mapping = [&](size_t) {
+    // We always select the size
+    return size;
   };
 
-  // Start by scanning size classes
-  if (scan_size_classes(size, remove_mapping, true /* contiguous */)) {
-    _size -= size;
-    _min = MIN2(_size, _min);
-    return mapping;
-  }
+  const auto consume_mapping = [&](ZMemoryRange vmem) {
+    assert(result.is_null(), "only consume once");
+    assert(vmem.size() == size, "wrong size consumed");
+    result = vmem;
 
-  // Fall back to scanning the entire tree
-  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr; node = node->next()) {
-    if (remove_mapping(node)) {
-      _size -= size;
-      _min = MIN2(_size, _min);
-      return mapping;
-    }
-  }
+    // Only require one mapping
+    return true;
+  };
 
-  return ZMemoryRange();
+  scan_remove_mapping(size, select_mapping, consume_mapping);
+
+  return result;
 }
 
 size_t ZMappedCache::remove_discontiguous(ZArray<ZMemoryRange>* mappings, size_t size) {
   precond(size > 0);
   precond(size % ZGranuleSize == 0);
 
-  size_t removed = 0;
-  const auto remove_mapping = [&](ZIntrusiveRBTreeNode* node) {
-    ZMappedCacheEntry* entry = ZMappedCacheEntry::cast_to_entry(node);
-    ZMemoryRange cached_vmem = entry->vmem();
-    size_t after_remove = removed + cached_vmem.size();
-
-    if (after_remove <= size) {
-      Tree::FindCursor cursor = _tree.get_cursor(node);
-      assert(cursor.is_valid(), "must be");
-
-      tree_remove(cursor, cached_vmem);
-      removed = after_remove;
-      mappings->append(cached_vmem);
-
-      if (removed == size) {
-        return true;
-      }
-    } else {
-      const size_t uneeded = after_remove - size;
-      const size_t needed =  cached_vmem.size() - uneeded;
-      const ZMemoryRange used = cached_vmem.split_from_front(needed);
-
-      tree_update(entry, cached_vmem);
-      mappings->append(used);
-      removed = size;
-
-      return true;
-    }
-
-    return false;
+  size_t remaining = size;
+  const auto select_mapping = [&](size_t mapping_size) {
+    // Select at most remaining
+    return MIN2(remaining, mapping_size);
   };
 
-  // Start by scanning size classes
-  if (scan_size_classes(size, remove_mapping, false /* contiguous */)) {
-    assert(removed == size, "must be");
-    _size -= size;
-    _min = MIN2(_size, _min);
-    return size;
-  }
+  const auto consume_mapping = [&](ZMemoryRange vmem) {
+    const size_t vmem_size = vmem.size();
+    mappings->append(vmem);
 
-  // Find what mappings to remove
-  for (ZIntrusiveRBTreeNode* node = _tree.first(); node != nullptr;) {
-    ZIntrusiveRBTreeNode* next_node = node->next();
-    if (remove_mapping(node)) {
-      assert(removed == size, "must be");
-      _size -= size;
-      _min = MIN2(_size, _min);
-      return size;
-    }
-    node = next_node;
-  }
+    assert(vmem_size <= remaining, "consumed to much");
 
-  _size -= removed;
-  _min = MIN2(_size, _min);
-  return removed;
+    // Track remaining, and stop when it reaches zero
+    remaining -= vmem_size;
+    return remaining == 0;
+  };
+
+  scan_remove_mapping(select_mapping, consume_mapping);
+
+  return size - remaining;
 }
 
 size_t ZMappedCache::reset_min() {

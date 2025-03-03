@@ -238,8 +238,8 @@ public:
     return _numa_id;
   }
 
-  void set_numa_id(int id) {
-    _numa_id = id;
+  void set_numa_id(int numa_id) {
+    _numa_id = numa_id;
   }
 
   bool commit_failed() const {
@@ -895,7 +895,8 @@ bool ZPageAllocator::prime_state_cache(ZWorkers* workers, int numa_id, size_t to
 }
 
 bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
-  for (uint32_t numa_id = 0; numa_id < ZNUMA::count(); numa_id++) {
+  const int numa_nodes = ZNUMA::count();
+  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
     const size_t to_prime = ZNUMA::calculate_share(numa_id, size);
     if (!prime_state_cache(workers, numa_id, to_prime)) {
       return false;
@@ -1148,7 +1149,7 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
 bool ZPageAllocator::claim_physical_multi_numa(ZPageAllocation* allocation) {
   // Start at the allocating thread's affinity
   const int start_node = allocation->initiating_numa_id();
-  const size_t numa_nodes = ZNUMA::count();
+  const int numa_nodes = ZNUMA::count();
 
   const size_t size = allocation->size();
   size_t remaining = size;
@@ -1159,8 +1160,8 @@ bool ZPageAllocator::claim_physical_multi_numa(ZPageAllocation* allocation) {
 
   // Loops over every node and allocates get_alloc_size per node
   const auto do_claim_each_node = [&](auto get_alloc_size) {
-    int current_node = start_node;
-    do {
+    for (int i = 0; i < numa_nodes; ++i) {
+      uint32_t current_node = (start_node + i) % numa_nodes;
       ZCacheState& state = _states.get(current_node);
       size_t alloc_size = get_alloc_size(state);
 
@@ -1185,9 +1186,7 @@ bool ZPageAllocator::claim_physical_multi_numa(ZPageAllocation* allocation) {
           return true;
         }
       }
-
-      current_node = (current_node + 1) % numa_nodes;
-    } while(current_node != start_node);
+    }
     return true;
   };
 
@@ -1220,11 +1219,12 @@ bool ZPageAllocator::claim_physical_multi_numa(ZPageAllocation* allocation) {
 bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
   // Start at the allocating thread's affinity
   const int start_node = allocation->initiating_numa_id();
-  const size_t numa_nodes = ZNUMA::count();
+  const int numa_nodes = ZNUMA::count();
   size_t total_available = 0;
   int current_node = start_node;
 
-  do {
+  for (int i = 0; i < numa_nodes; ++i) {
+    uint32_t current_node = (start_node + i) % numa_nodes;
     ZCacheState& state = _states.get(current_node);
     ZMemoryAllocation* memory_allocation = allocation->memory_allocation();
 
@@ -1235,12 +1235,9 @@ bool ZPageAllocator::claim_physical_round_robin(ZPageAllocation* allocation) {
       return true;
     }
 
+    // Keep track of total availability for a potential multi NUMA allocation
     total_available += state.available_capacity();
-
-    // Could not claim physical memory on current node, potentially move on to
-    // the next node
-    current_node = (current_node + 1) % numa_nodes;
-  } while(current_node != start_node);
+  }
 
   if (numa_nodes > 1 && total_available >= allocation->size()) {
     if (!claim_physical_multi_numa(allocation)) {
@@ -1853,6 +1850,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
+  const int numa_nodes = ZNUMA::count();
   ZLocker<ZLock> locker(&_lock);
 
   // Insert mappings to the cache
@@ -1863,7 +1861,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     state._cache.insert(vmem);
   }
 
-  for (int numa_id = 0; numa_id < (int)ZNUMA::count(); numa_id++) {
+  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
     ZCacheState& state = _states.get(numa_id);
     state.decrease_used_generation(gen_id, gen_size);
   }
@@ -2094,7 +2092,8 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 }
 
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
-  for (uint32_t id = 0; id < ZNUMA::count(); id++) {
-    tc->do_thread(_uncommitters.get(id));
+  const int numa_nodes = ZNUMA::count();
+  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
+    tc->do_thread(_uncommitters.get(numa_id));
   }
 }

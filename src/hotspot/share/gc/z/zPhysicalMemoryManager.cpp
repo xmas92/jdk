@@ -56,10 +56,6 @@ bool ZPhysicalMemoryManager::is_initialized() const {
   return _backing.is_initialized();
 }
 
-void ZPhysicalMemoryManager::install_capacity(int numa_id, zoffset start, size_t max_capacity) {
-  _managers.get(numa_id).free(start, max_capacity);
-}
-
 void ZPhysicalMemoryManager::warn_commit_limits(size_t max_capacity) const {
   _backing.warn_commit_limits(max_capacity);
 }

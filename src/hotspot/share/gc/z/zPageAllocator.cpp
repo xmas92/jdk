@@ -1178,11 +1178,6 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
   satisfy_stalled();
 }
 
-struct ZGenStats {
-  size_t young_size;
-  size_t old_size;
-};
-
 void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArray<ZMemoryRange> to_cache;
 

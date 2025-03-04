@@ -61,7 +61,7 @@ inline ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::ColoredNodePtr::black_node() 
   return reinterpret_cast<ZIntrusiveRBTreeNode*>(_value ^ BLACK);
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::find_next_node() const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
   const ZIntrusiveRBTreeNode* node = this;
@@ -84,7 +84,7 @@ inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::find_next_node() const 
   return parent;
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::child() const {
   if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
     return _left;
@@ -93,12 +93,12 @@ inline const ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::child() const {
   return _right;
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::child() {
   return const_cast<ZIntrusiveRBTreeNode*>(const_cast<const ZIntrusiveRBTreeNode*>(this)->template child<DIRECTION>());
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline ZIntrusiveRBTreeNode* const* ZIntrusiveRBTreeNode::child_addr() const {
   if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
     return &_left;
@@ -107,7 +107,7 @@ inline ZIntrusiveRBTreeNode* const* ZIntrusiveRBTreeNode::child_addr() const {
   return &_right;
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline bool ZIntrusiveRBTreeNode::has_child() const {
   if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
     return _left != nullptr;
@@ -116,7 +116,7 @@ inline bool ZIntrusiveRBTreeNode::has_child() const {
   return _right != nullptr;
 }
 
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline void ZIntrusiveRBTreeNode::update_child(ZIntrusiveRBTreeNode* new_child) {
   if (DIRECTION == ZIntrusiveRBTreeDirection::LEFT) {
     _left = new_child;
@@ -253,8 +253,8 @@ inline ZIntrusiveRBTreeNode* ZIntrusiveRBTreeNode::next() {
 }
 
 #ifdef ASSERT
-template<typename Key, typename Compare>
-template<bool swap_left_right>
+template <typename Key, typename Compare>
+template <bool swap_left_right>
 inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child, ZIntrusiveRBTreeNode* right_child) {
   if (swap_left_right) {
     ::swap(left_child, right_child);
@@ -270,8 +270,8 @@ inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* pa
   return true;
 }
 
-template<typename Key, typename Compare>
-template<bool swap_left_right>
+template <typename Key, typename Compare>
+template <bool swap_left_right>
 inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* parent) {
   if (parent == nullptr) {
     return true;
@@ -282,8 +282,8 @@ inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* pa
   return verify_node<swap_left_right>(parent, parent->left_child());
 }
 
-template<typename Key, typename Compare>
-template<bool swap_left_right>
+template <typename Key, typename Compare>
+template <bool swap_left_right>
 inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child) {
   if (swap_left_right) {
     return verify_node<swap_left_right>(parent, left_child, parent->left_child());
@@ -291,8 +291,8 @@ inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* pa
   return verify_node<swap_left_right>(parent, left_child, parent->right_child());
 }
 
-template<typename Key, typename Compare>
-template<bool swap_left_right>
+template <typename Key, typename Compare>
+template <bool swap_left_right>
 inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* parent, any_t, ZIntrusiveRBTreeNode* right_child) {
   if (swap_left_right) {
     return verify_node<swap_left_right>(parent, parent->right_child(), right_child);
@@ -301,12 +301,12 @@ inline bool ZIntrusiveRBTree<Key, Compare>::verify_node(ZIntrusiveRBTreeNode* pa
 }
 #endif // ASSERT
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* const* ZIntrusiveRBTree<Key, Compare>::root_node_addr() const {
   return &_root_node;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 void ZIntrusiveRBTree<Key, Compare>::update_child_or_root(ZIntrusiveRBTreeNode* old_node, ZIntrusiveRBTreeNode* new_node, ZIntrusiveRBTreeNode* parent) {
   if (parent == nullptr) {
     // Update root
@@ -321,7 +321,7 @@ void ZIntrusiveRBTree<Key, Compare>::update_child_or_root(ZIntrusiveRBTreeNode* 
   parent->update_right_child(new_node);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::rotate_and_update_child_or_root(ZIntrusiveRBTreeNode* old_node, ZIntrusiveRBTreeNode* new_node, ZIntrusiveRBTreeNode::Color color) {
   ZIntrusiveRBTreeNode* const parent = old_node->parent();
   new_node->copy_parent_and_color(old_node);
@@ -329,8 +329,8 @@ inline void ZIntrusiveRBTree<Key, Compare>::rotate_and_update_child_or_root(ZInt
   update_child_or_root(old_node, new_node, parent);
 }
 
-template<typename Key, typename Compare>
-template<ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
+template <typename Key, typename Compare>
+template <ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
 inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert_with_sibling(ZIntrusiveRBTreeNode* node, ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* grand_parent) {
   DEBUG_ONLY(const bool swap_left_right = PARENT_SIBLING_DIRECTION == ZIntrusiveRBTreeDirection::LEFT;)
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(PARENT_SIBLING_DIRECTION);
@@ -444,8 +444,8 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert_with_sibling(ZIntru
   postcond(verify_node<swap_left_right>(sibling));
 }
 
-template<typename Key, typename Compare>
-template<ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
+template <typename Key, typename Compare>
+template <ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
 inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_insert_with_parent_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr, ZIntrusiveRBTreeNode* grand_parent) {
   DEBUG_ONLY(const bool swap_left_right = PARENT_SIBLING_DIRECTION == ZIntrusiveRBTreeDirection::LEFT;)
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(PARENT_SIBLING_DIRECTION);
@@ -507,7 +507,7 @@ inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_insert_with_parent_sibling
   return true; // Finished
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert(ZIntrusiveRBTreeNode* new_node) {
   ZIntrusiveRBTreeNode* node = new_node;
   ZIntrusiveRBTreeNode* parent = node->red_parent();
@@ -530,8 +530,8 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_insert(ZIntrusiveRBTreeNod
   }
 }
 
-template<typename Key, typename Compare>
-template<ZIntrusiveRBTreeDirection SIBLING_DIRECTION>
+template <typename Key, typename Compare>
+template <ZIntrusiveRBTreeDirection SIBLING_DIRECTION>
 inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_remove_with_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr) {
   DEBUG_ONLY(const bool swap_left_right = SIBLING_DIRECTION == ZIntrusiveRBTreeDirection::LEFT;)
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(SIBLING_DIRECTION);
@@ -752,7 +752,7 @@ inline bool ZIntrusiveRBTree<Key, Compare>::rebalance_remove_with_sibling(ZIntru
   return true;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::rebalance_remove(ZIntrusiveRBTreeNode* rebalance_from) {
   ZIntrusiveRBTreeNode* node = nullptr;
   ZIntrusiveRBTreeNode* parent = rebalance_from;
@@ -767,7 +767,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::rebalance_remove(ZIntrusiveRBTreeNod
   }
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTree<Key, Compare>::FindCursor::FindCursor(ZIntrusiveRBTreeNode** insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most DEBUG_ONLY(COMMA uintptr_t sequence_number))
   : _insert_location(insert_location),
     _parent(parent),
@@ -775,7 +775,7 @@ inline ZIntrusiveRBTree<Key, Compare>::FindCursor::FindCursor(ZIntrusiveRBTreeNo
     _right_most(right_most)
     DEBUG_ONLY(COMMA _sequence_number(sequence_number)) {}
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTree<Key, Compare>::FindCursor::FindCursor()
   : _insert_location(nullptr),
     _parent(nullptr),
@@ -784,58 +784,58 @@ inline ZIntrusiveRBTree<Key, Compare>::FindCursor::FindCursor()
     DEBUG_ONLY(COMMA _sequence_number()) {}
 
 #ifdef ASSERT
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline bool ZIntrusiveRBTree<Key, Compare>::FindCursor::is_valid(uintptr_t sequence_number) const {
   return is_valid() && _sequence_number == sequence_number;
 }
 #endif // ASSERT
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline bool ZIntrusiveRBTree<Key, Compare>::FindCursor::is_valid() const {
   return insert_location() != nullptr;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline bool ZIntrusiveRBTree<Key, Compare>::FindCursor::found() const {
   return node() != nullptr;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::FindCursor::node() const {
   precond(is_valid());
   return *_insert_location == nullptr ? nullptr : *_insert_location;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline bool ZIntrusiveRBTree<Key, Compare>::FindCursor::is_left_most() const {
   precond(is_valid());
   return _left_most;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline bool ZIntrusiveRBTree<Key, Compare>::FindCursor::is_right_most() const {
   precond(is_valid());
   return _right_most;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::FindCursor::parent() const {
   precond(is_valid());
   return _parent;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode** ZIntrusiveRBTree<Key, Compare>::FindCursor::insert_location() const {
   return _insert_location;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::make_cursor(ZIntrusiveRBTreeNode* const* insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most) const {
   return FindCursor(const_cast<ZIntrusiveRBTreeNode**>(insert_location), parent, left_most, right_most DEBUG_ONLY(COMMA _sequence_number));
 }
 
-template<typename Key, typename Compare>
-template<ZIntrusiveRBTreeDirection DIRECTION>
+template <typename Key, typename Compare>
+template <ZIntrusiveRBTreeDirection DIRECTION>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::find_next(const FindCursor& cursor) const {
   constexpr ZIntrusiveRBTreeDirection OTHER_DIRECTION = other(DIRECTION);
   if (cursor.found()) {
@@ -863,31 +863,31 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
   return get_cursor(parent->template find_next_node<DIRECTION>());
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTree<Key, Compare>::ZIntrusiveRBTree()
   : _root_node(nullptr),
     _left_most(nullptr),
     _right_most(nullptr)
     DEBUG_ONLY(COMMA _sequence_number()) {}
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::first() const {
   return _left_most;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline ZIntrusiveRBTreeNode* ZIntrusiveRBTree<Key, Compare>::last() const {
   return _right_most;
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::root_cursor() const {
   const bool is_left_most = _root_node == _left_most;
   const bool is_right_most = _root_node == _right_most;
   return make_cursor(&_root_node, nullptr, is_left_most, is_right_most);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::get_cursor(const ZIntrusiveRBTreeNode* node) const {
   if (node == nullptr) {
     // Return a invalid cursor
@@ -907,27 +907,27 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
   return make_cursor(&_root_node, nullptr, is_left_most, is_right_most);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::prev_cursor(const ZIntrusiveRBTreeNode* node) const {
   return prev(get_cursor(node));
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::next_cursor(const ZIntrusiveRBTreeNode* node) const {
   return next(get_cursor(node));
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::prev(const FindCursor& cursor) const {
   return find_next<ZIntrusiveRBTreeDirection::LEFT>(cursor);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::next(const FindCursor& cursor) const {
   return find_next<ZIntrusiveRBTreeDirection::RIGHT>(cursor);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key, Compare>::find(const Key& key) const {
   Compare compare_fn;
   ZIntrusiveRBTreeNode* const* insert_location = root_node_addr();
@@ -955,7 +955,7 @@ inline typename ZIntrusiveRBTree<Key, Compare>::FindCursor ZIntrusiveRBTree<Key,
   return make_cursor(insert_location, parent, left_most, right_most);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::insert(ZIntrusiveRBTreeNode* new_node, const FindCursor& find_cursor) {
   precond(find_cursor.is_valid(_sequence_number));
   precond(!find_cursor.found());
@@ -975,7 +975,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::insert(ZIntrusiveRBTreeNode* new_nod
   rebalance_insert(new_node);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::replace(ZIntrusiveRBTreeNode* new_node, const FindCursor& find_cursor) {
   precond(find_cursor.is_valid(_sequence_number));
   precond(find_cursor.found());
@@ -1012,7 +1012,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::replace(ZIntrusiveRBTreeNode* new_no
   }
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::remove(const FindCursor& find_cursor) {
   precond(find_cursor.is_valid(_sequence_number));
   precond(find_cursor.found());
@@ -1100,7 +1100,7 @@ inline void ZIntrusiveRBTree<Key, Compare>::remove(const FindCursor& find_cursor
   rebalance_remove(rebalance_from);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline void ZIntrusiveRBTree<Key, Compare>::verify_tree() {
   // Properties:
   //  (a) Node's are either BLACK or RED
@@ -1184,103 +1184,103 @@ inline void ZIntrusiveRBTree<Key, Compare>::verify_tree() {
   recursive_walk(recursive_walk, root_node, 0);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::Iterator ZIntrusiveRBTree<Key, Compare>::begin() {
   return Iterator(*this, first());
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::Iterator ZIntrusiveRBTree<Key, Compare>::end() {
   return Iterator(*this, nullptr);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::begin() const {
   return cbegin();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::end() const {
   return cend();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::cbegin() const {
   return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->begin();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstIterator ZIntrusiveRBTree<Key, Compare>::cend() const {
   return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->end();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ReverseIterator ZIntrusiveRBTree<Key, Compare>::rbegin() {
   return ReverseIterator(*this, last());
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ReverseIterator ZIntrusiveRBTree<Key, Compare>::rend() {
   return ReverseIterator(*this, nullptr);
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::rbegin() const {
   return crbegin();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::rend() const {
   return crend();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::crbegin() const {
   return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->rbegin();
 }
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 inline typename ZIntrusiveRBTree<Key, Compare>::ConstReverseIterator ZIntrusiveRBTree<Key, Compare>::crend() const {
   return const_cast<ZIntrusiveRBTree<Key, Compare>*>(this)->rend();
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline bool ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::at_end() const {
   return _node == nullptr;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::IteratorImplementation(ZIntrusiveRBTree<Key, Compare>& tree, pointer node)
 : _tree(&tree),
   _node(node),
   _removed(false) {}
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
-template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
 inline ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::IteratorImplementation(const IteratorImplementation<false, Reverse>& other)
 : _tree(other._tree),
   _node(other._node),
   _removed(false) {}
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>::reference ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator*() const {
   precond(!_removed);
   return *_node;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>::pointer ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator->() {
   precond(!_removed);
   return _node;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>& ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator--() {
   if (_removed) {
     _removed = false;
@@ -1294,16 +1294,16 @@ inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<
   return *this;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse> ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator--(int) {
   IteratorImplementation tmp = *this;
   --(*this);
   return tmp;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse>& ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator++() {
   if (_removed) {
     _removed = false;
@@ -1317,17 +1317,17 @@ inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<
   return *this;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 inline typename ZIntrusiveRBTree<Key, Compare>::template IteratorImplementation<IsConst, Reverse> ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::operator++(int) {
   IteratorImplementation tmp = *this;
   ++(*this);
   return tmp;
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
-template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
 void ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::replace(ZIntrusiveRBTreeNode* new_node) {
   precond(!_removed);
   precond(!at_end());
@@ -1336,9 +1336,9 @@ void ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::r
   _tree->replace(new_node, cursor);
 }
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
-template<bool Enable, ENABLE_IF_SDEFN(Enable)>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
 void ZIntrusiveRBTree<Key, Compare>::IteratorImplementation<IsConst, Reverse>::remove() {
   precond(!_removed);
   precond(!at_end());

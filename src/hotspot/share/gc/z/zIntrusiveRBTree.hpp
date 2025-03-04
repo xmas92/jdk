@@ -31,7 +31,7 @@
 enum class ZIntrusiveRBTreeDirection { LEFT, RIGHT };
 
 class ZIntrusiveRBTreeNode {
-  template<typename Key, typename Compare>
+  template <typename Key, typename Compare>
   friend class ZIntrusiveRBTree;
 
 public:
@@ -59,21 +59,21 @@ private:
   ZIntrusiveRBTreeNode* _left;
   ZIntrusiveRBTreeNode* _right;
 
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   const ZIntrusiveRBTreeNode* find_next_node() const;
 
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   const ZIntrusiveRBTreeNode* child() const;
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   ZIntrusiveRBTreeNode* child();
 
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   ZIntrusiveRBTreeNode* const* child_addr() const;
 
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   bool has_child() const;
 
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   void update_child(ZIntrusiveRBTreeNode* new_child);
 
   void link_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode** insert_location);
@@ -121,7 +121,7 @@ public:
   ZIntrusiveRBTreeNode* next();
 };
 
-template<typename Key, typename Compare>
+template <typename Key, typename Compare>
 class ZIntrusiveRBTree {
 public:
   class FindCursor {
@@ -162,14 +162,14 @@ private:
   NONCOPYABLE(ZIntrusiveRBTree);
 
 #ifdef ASSERT
-  template<bool swap_left_right>
+  template <bool swap_left_right>
   bool verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child, ZIntrusiveRBTreeNode* right_child);
-  template<bool swap_left_right>
+  template <bool swap_left_right>
   bool verify_node(ZIntrusiveRBTreeNode* parent);
-  template<bool swap_left_right>
+  template <bool swap_left_right>
   bool verify_node(ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* left_child);
   struct any_t {};
-  template<bool swap_left_right>
+  template <bool swap_left_right>
   bool verify_node(ZIntrusiveRBTreeNode* parent, any_t, ZIntrusiveRBTreeNode* right_child);
 #endif // ASSERT
 
@@ -178,18 +178,18 @@ private:
   void update_child_or_root(ZIntrusiveRBTreeNode* old_node, ZIntrusiveRBTreeNode* new_node, ZIntrusiveRBTreeNode* parent);
   void rotate_and_update_child_or_root(ZIntrusiveRBTreeNode* old_node, ZIntrusiveRBTreeNode* new_node, ZIntrusiveRBTreeNode::Color color);
 
-  template<ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
+  template <ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
   void rebalance_insert_with_sibling(ZIntrusiveRBTreeNode* node, ZIntrusiveRBTreeNode* parent, ZIntrusiveRBTreeNode* grand_parent);
-  template<ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
+  template <ZIntrusiveRBTreeDirection PARENT_SIBLING_DIRECTION>
   bool rebalance_insert_with_parent_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr, ZIntrusiveRBTreeNode* grand_parent);
   void rebalance_insert(ZIntrusiveRBTreeNode* new_node);
 
-  template<ZIntrusiveRBTreeDirection SIBLING_DIRECTION>
+  template <ZIntrusiveRBTreeDirection SIBLING_DIRECTION>
   bool rebalance_remove_with_sibling(ZIntrusiveRBTreeNode** node_addr, ZIntrusiveRBTreeNode** parent_addr);
   void rebalance_remove(ZIntrusiveRBTreeNode* rebalance_from);
 
   FindCursor make_cursor(ZIntrusiveRBTreeNode* const* insert_location, ZIntrusiveRBTreeNode* parent, bool left_most, bool right_most) const;
-  template<ZIntrusiveRBTreeDirection DIRECTION>
+  template <ZIntrusiveRBTreeDirection DIRECTION>
   FindCursor find_next(const FindCursor& cursor) const;
 
 public:
@@ -213,7 +213,7 @@ public:
   void verify_tree();
 
 public:
-  template<bool IsConst, bool Reverse>
+  template <bool IsConst, bool Reverse>
   class IteratorImplementation;
 
   using Iterator = IteratorImplementation<false, false>;
@@ -239,8 +239,8 @@ public:
   ConstReverseIterator crend() const;
 };
 
-template<typename Key, typename Compare>
-template<bool IsConst, bool Reverse>
+template <typename Key, typename Compare>
+template <bool IsConst, bool Reverse>
 class ZIntrusiveRBTree<Key, Compare>::IteratorImplementation {
   friend IteratorImplementation<true, Reverse>;
 
@@ -260,7 +260,7 @@ private:
 public:
   IteratorImplementation(ZIntrusiveRBTree<Key, Compare>& tree, pointer node);
   IteratorImplementation(const IteratorImplementation<IsConst, Reverse>&) = default;
-  template<bool Enable = IsConst, ENABLE_IF(Enable)>
+  template <bool Enable = IsConst, ENABLE_IF(Enable)>
   IteratorImplementation(const IteratorImplementation<false, Reverse>& other);
 
   reference operator*() const;
@@ -270,9 +270,9 @@ public:
   IteratorImplementation& operator++();
   IteratorImplementation operator++(int);
 
-  template<bool Enable = !IsConst, ENABLE_IF(Enable)>
+  template <bool Enable = !IsConst, ENABLE_IF(Enable)>
   void replace(ZIntrusiveRBTreeNode * new_node);
-  template<bool Enable = !IsConst, ENABLE_IF(Enable)>
+  template <bool Enable = !IsConst, ENABLE_IF(Enable)>
   void remove();
 
   // Note: friend operator overloads defined inside class declaration because of problems with ADL

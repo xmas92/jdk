@@ -129,7 +129,7 @@ void ZPhysicalMemoryManager::alloc(zbacking_index* pmem, size_t size, int numa_i
   }
 }
 
-template<typename ReturnType>
+template <typename ReturnType>
 struct IterateInvoker {
   template<typename Function>
   bool operator()(Function function, zbacking_offset segment_start, size_t segment_size) const {

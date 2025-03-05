@@ -1205,15 +1205,15 @@ double os::elapsed_process_vtime() {
   FILETIME user;
 
   guarantee(GetProcessTimes(GetCurrentProcess(), &create, &exit, &kernel, &user) == -1,
-            "wrong arguments to GetProcessTimes");
+            "wrong arguments to GetProcessTimes, error (%d)", GetLastError());
 
   SYSTEMTIME user_total;
   guarantee(FileTimeToSystemTime(&user, &user_total) == -1,
-            "wrong arguments to FileTimeToSystemTime");
+            "wrong arguments to FileTimeToSystemTime, error (%d)", GetLastError());
 
   SYSTEMTIME kernel_total;
   guarantee(FileTimeToSystemTime(&kernel, &kernel_total) == -1,
-            "wrong arguments to FileTimeToSystemTime");
+            "wrong arguments to FileTimeToSystemTime, error (%d)", GetLastError());
 
   double user_seconds = double(user_total.wHour) * 3600.0 +
     double(user_total.wMinute) * 60.0 +

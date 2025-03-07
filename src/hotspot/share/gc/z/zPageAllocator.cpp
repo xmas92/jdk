@@ -585,7 +585,7 @@ static size_t calculate_heuristic_max_capacity(size_t soft_max_capacity, size_t 
 
 size_t ZCacheState::heuristic_max_capacity() const {
   // Note that SoftMaxHeapSize is a manageable flag
-  const size_t soft_max_capacity = ZNUMA::calculate_share(_numa_id, Atomic::load(&SoftMaxHeapSize));
+  const size_t soft_max_capacity = ZNUMA::calculate_share(_numa_id, align_down(Atomic::load(&SoftMaxHeapSize), ZGranuleSize));
   const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
   const size_t curr_max_capacity = current_max_capacity();
   return calculate_heuristic_max_capacity(soft_max_capacity, heuristic_max_capacity, curr_max_capacity);
@@ -1223,14 +1223,14 @@ size_t ZPageAllocator::current_max_capacity() const {
 
 size_t ZPageAllocator::heuristic_max_capacity() const {
   // Note that SoftMaxHeapSize is a manageable flag
-  const size_t soft_max_capacity = Atomic::load(&SoftMaxHeapSize);
+  const size_t soft_max_capacity = align_down(Atomic::load(&SoftMaxHeapSize), ZGranuleSize);
   const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
   const size_t curr_max_capacity = current_max_capacity();
   return calculate_heuristic_max_capacity(soft_max_capacity, heuristic_max_capacity, curr_max_capacity);
 }
 
 void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
-  const size_t soft_max_capacity = Atomic::load(&SoftMaxHeapSize);
+  const size_t soft_max_capacity = align_down(Atomic::load(&SoftMaxHeapSize), ZGranuleSize);
   const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
   const size_t min_capacity = _min_capacity;
   const size_t used = ZPageAllocator::used();

@@ -25,6 +25,7 @@
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zDriver.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zStat.hpp"
@@ -248,7 +249,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
   const size_t heuristic_low = MAX2(size_t(used * 1.1), size_t(alloc_rate / alloc_rate_scaling));
 
   const size_t upper_bound = MIN2(soft_max_capacity, current_max_capacity);
-  size_t lower_bound = clamp(heuristic_low, min_capacity, upper_bound);
+  const size_t lower_bound = clamp(align_down(heuristic_low, ZGranuleSize), min_capacity, upper_bound);
 
   const double current_cpu_overhead = gc_time / process_time;
 

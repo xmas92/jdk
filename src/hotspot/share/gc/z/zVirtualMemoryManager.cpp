@@ -56,15 +56,16 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   pd_initialize_after_reserve();
 
   // Install reserved memory into manager(s)
-  ZNUMA::divide_resource(reserved_total, [&](uint32_t id, size_t reserved) {
-    ZMemoryManager* manager = _managers.addr(id);
-
+  uint32_t numa_id;
+  ZPerNUMAIterator<ZMemoryManager> iter(&_managers);
+  for (ZMemoryManager* manager; iter.next(&manager, &numa_id);) {
+    const size_t reserved = ZNUMA::calculate_share(numa_id, reserved_total);
     // Transfer reserved memory
     _reserved_memory.transfer_low_address(manager, reserved);
 
     // Store the range for the manager
-    _vmem_ranges.set(manager->total_range(), id);
-  });
+    _vmem_ranges.set(manager->total_range(), numa_id);
+  }
 
   // Successfully initialized
   _initialized = true;

@@ -517,29 +517,24 @@ void ZMemoryAllocationData::remove_last_multi_numa_allocation() {
   _multi_numa_allocations.pop();
 }
 
-
-void ZCacheState::initialize(ZPageAllocator* page_allocator, size_t min_capacity, size_t initial_capacity, size_t max_capacity, int numa_id) {
-  _page_allocator = page_allocator;
-  _min_capacity = min_capacity;
-  _initial_capacity = initial_capacity;
-  _static_max_capacity = max_capacity;
-  _committed = 0;
-  _observed_max_committed = max_capacity;
-  _heuristic_max_capacity = initial_capacity;
-  _capacity = 0;
-  _claimed = 0;
-  _used = 0;
-
-  for (int i = 0; i < 2; i++) {
-    _used_generations[i] = 0;
-    _collection_stats[i] = {0, 0};
-  }
-
-  _last_commit = 0.0;
-  _last_uncommit = 0.0;
-  _to_uncommit = 0;
-  _numa_id = numa_id;
-}
+ZCacheState::ZCacheState(uint32_t numa_id, ZPageAllocator* page_allocator)
+  : _page_allocator(page_allocator),
+    _cache(),
+    _min_capacity(ZNUMA::calculate_share(numa_id, page_allocator->min_capacity())),
+    _initial_capacity(ZNUMA::calculate_share(numa_id, page_allocator->initial_capacity())),
+    _static_max_capacity(ZNUMA::calculate_share(numa_id, page_allocator->static_max_capacity())),
+    _committed(0),
+    _observed_max_committed(0),
+    _heuristic_max_capacity(_initial_capacity),
+    _capacity(0),
+    _claimed(0),
+    _used(0),
+    _used_generations{0,0},
+    _collection_stats{{0, 0},{0, 0}},
+    _last_commit(0.0),
+    _last_uncommit(0.0),
+    _to_uncommit(0),
+    _numa_id(numa_id) {}
 
 void ZCacheState::set_heuristic_max_capacity(size_t heuristic_max_capacity) {
   Atomic::store(&_heuristic_max_capacity, heuristic_max_capacity);
@@ -589,6 +584,10 @@ size_t ZCacheState::heuristic_max_capacity() const {
   const size_t heuristic_max_capacity = Atomic::load(&_heuristic_max_capacity);
   const size_t curr_max_capacity = current_max_capacity();
   return calculate_heuristic_max_capacity(soft_max_capacity, heuristic_max_capacity, curr_max_capacity);
+}
+
+size_t ZCacheState::capacity() const {
+  return Atomic::load(&_capacity);
 }
 
 size_t ZCacheState::available(size_t current_max_capacity) const {
@@ -1047,26 +1046,16 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _initial_capacity(initial_capacity),
     _static_max_capacity(static_max_capacity),
     _heuristic_max_capacity(initial_capacity),
-    _states(),
-    _uncommitters(),
+    _states(ZValueIdTagType{}, this),
+    _uncommitters(ZValueIdTagType{}, this),
     _stalled(),
-    _committers(),
+    _committers(ZValueIdTagType{}, this),
     _safe_destroy(),
     _initialized(false) {
 
   if (!_virtual.is_initialized() || !_physical.is_initialized()) {
     return;
   }
-
-  // Initialise states
-  ZNUMA::divide_resource(static_max_capacity, [&](uint32_t numa_id, size_t max_capacity_share) {
-    _uncommitters.set(new ZUncommitter(numa_id, this), numa_id);
-    _committers.set(new ZCommitter(numa_id, this), numa_id);
-    const size_t min_capacity_share = ZNUMA::calculate_share(numa_id, min_capacity);
-    const size_t initial_capacity_share = ZNUMA::calculate_share(numa_id, initial_capacity);
-    ZCacheState& state = _states.get(numa_id);
-    state.initialize(this, min_capacity_share, initial_capacity_share, max_capacity_share, numa_id);
-  });
 
   log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
   log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M);
@@ -1254,10 +1243,17 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
 
   // Update heuristic max capacity
   Atomic::store(&_heuristic_max_capacity, selected_capacity);
-  ZNUMA::divide_resource(selected_capacity, [&](uint32_t id, size_t heuristic_max_capacity) {
-    _states.get(id).set_heuristic_max_capacity(heuristic_max_capacity);
-    _committers.get(id)->heap_resized(_states.get(id)._capacity, heuristic_max_capacity);
-  });
+  uint32_t numa_id;
+  ZPerNUMAIterator<ZCacheState> iter(&_states);
+  for (ZCacheState* state; iter.next(&state, &numa_id);) {
+    // Update per state heuristic max capacity
+    const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
+    state->set_heuristic_max_capacity(selected_capacity_share);
+
+    // Update committer target capacity
+    ZCommitter& committer = _committers.get(numa_id);
+    committer.heap_resized(state->capacity(), selected_capacity_share);
+  }
 
   // Complain about misconfigurations
   _physical.warn_commit_limits(selected_capacity, dynamic_max_capacity());
@@ -1416,7 +1412,7 @@ void ZPageAllocator::map_virtual_to_physical(const ZMemoryRange& vmem, int numa_
 void ZPageAllocator::unmap_virtual(const ZMemoryRange& vmem) {
   const int numa_id = _virtual.get_numa_id(vmem);
   // Make sure we don't try to pretouch unmapped pages
-  _committers.get(numa_id)->remove_heating_request(vmem);
+  _committers.get(numa_id).remove_heating_request(vmem);
 
   // Unmap virtual memory from physical memory
   _physical.unmap(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
@@ -2320,14 +2316,22 @@ void ZPageAllocator::adjust_capacity(size_t used_soon) {
   const size_t used_memory = os::used_memory();
   const bool force_uncommit = double(used_memory) > double(total_memory) * (1.0 - ZMemoryCriticalThreshold);
 
-  ZNUMA::divide_resource(used_soon, [&](uint32_t numa_id, size_t used_soon) {
-    if (force_uncommit || _states.get(numa_id).may_uncommit(total_memory, used_memory)) {
-      _uncommitters.get(numa_id)->wake_up();
-    } else if (used_soon > _committers.get(numa_id)->target_capacity()) {
-      const size_t used_soon_share = ZNUMA::calculate_share(numa_id, used_soon);
-      _committers.get(numa_id)->set_target_capacity(used_soon_share);
+  uint32_t numa_id;
+  ZPerNUMAIterator<ZCacheState> iter(&_states);
+  for (ZCacheState* state; iter.next(&state, &numa_id);) {
+    if (force_uncommit || state->may_uncommit(total_memory, used_memory)) {
+      // Uncommit is urgent, or uncommit delay has changed
+      ZUncommitter& uncommitter = _uncommitters.get(numa_id);
+      uncommitter.wake_up();
+      continue;
     }
-  });
+
+    ZCommitter& committer = _committers.get(numa_id);
+    if (used_soon > committer.target_capacity()) {
+      const size_t used_soon_share = ZNUMA::calculate_share(numa_id, used_soon);
+      committer.set_target_capacity(used_soon_share);
+    }
+  }
 }
 
 size_t ZPageAllocator::commit(uint32_t numa_id, size_t size) {
@@ -2520,7 +2524,7 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
   const int numa_nodes = ZNUMA::count();
   for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
-    tc->do_thread(_committers.get(numa_id));
-    tc->do_thread(_uncommitters.get(numa_id));
+    tc->do_thread(const_cast<ZCommitter*>(&_committers.get(numa_id)));
+    tc->do_thread(const_cast<ZUncommitter*>(&_uncommitters.get(numa_id)));
   }
 }

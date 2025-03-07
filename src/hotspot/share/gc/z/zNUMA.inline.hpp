@@ -38,23 +38,17 @@ inline bool ZNUMA::is_enabled() {
   return _enabled;
 }
 
-inline size_t ZNUMA::calculate_share(uint32_t numa_id, size_t total) {
+inline size_t ZNUMA::calculate_share(uint32_t numa_id, size_t total, size_t granule) {
+  assert(total % granule == 0, "total must be divisible by granule");
   const uint32_t num_nodes = count();
-  const size_t base_share = align_down(total / num_nodes, ZGranuleSize);
+  const size_t base_share = ((total / num_nodes) / granule) * granule;
 
-  const size_t extra_share_nodes = (total - base_share * num_nodes) / ZGranuleSize;
+  const size_t extra_share_nodes = (total - base_share * num_nodes) / granule;
   if (numa_id < extra_share_nodes) {
-    return base_share + ZGranuleSize;
+    return base_share + granule;
   }
 
   return base_share;
-}
-
-template <typename Function>
-inline void ZNUMA::divide_resource(size_t total, Function function) {
-  for (uint32_t numa_id = 0; numa_id < count(); numa_id++) {
-    function(numa_id, calculate_share(numa_id, total));
-  }
 }
 
 #endif // SHARE_GC_Z_ZNUMA_INLINE_HPP

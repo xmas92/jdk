@@ -143,6 +143,18 @@ inline ZValue<S, T>::ZValue(const T& value)
 }
 
 template <typename S, typename T>
+template <typename... Args>
+inline ZValue<S, T>::ZValue(ZValueIdTagType, Args&&... args)
+  : _addr(S::alloc(sizeof(T))) {
+  // Initialize all instances
+  uint32_t value_id;
+  ZValueIterator<S, T> iter(this);
+  for (T* addr; iter.next(&addr, &value_id);) {
+    ::new (addr) T(value_id, args...);
+  }
+}
+
+template <typename S, typename T>
 inline const T* ZValue<S, T>::addr(uint32_t value_id) const {
   return reinterpret_cast<const T*>(value_addr(value_id));
 }
@@ -187,6 +199,15 @@ inline ZValueIterator<S, T>::ZValueIterator(ZValue<S, T>* value)
 template <typename S, typename T>
 inline bool ZValueIterator<S, T>::next(T** value) {
   if (_value_id < S::count()) {
+    *value = _value->addr(_value_id++);
+    return true;
+  }
+  return false;
+}
+template <typename S, typename T>
+inline bool ZValueIterator<S, T>::next(T** value, uint32_t* value_id) {
+  if (_value_id < S::count()) {
+    *value_id = _value_id;
     *value = _value->addr(_value_id++);
     return true;
   }

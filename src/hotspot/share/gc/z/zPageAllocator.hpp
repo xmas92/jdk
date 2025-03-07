@@ -57,11 +57,11 @@ class ZCacheState {
   friend class ZCommitter;
 
 private:
-  ZPageAllocator*            _page_allocator;
+  ZPageAllocator* const      _page_allocator;
   ZMappedCache               _cache;
-  size_t                     _min_capacity;
-  size_t                     _initial_capacity;
-  size_t                     _static_max_capacity;
+  const size_t               _min_capacity;
+  const size_t               _initial_capacity;
+  const size_t               _static_max_capacity;
   size_t                     _committed;
   size_t                     _observed_max_committed;
   volatile size_t            _heuristic_max_capacity;
@@ -76,11 +76,10 @@ private:
   double                     _last_commit;
   double                     _last_uncommit;
   size_t                     _to_uncommit;
-  int                        _numa_id;
+  const int                  _numa_id;
 
 public:
-  // TODO: ZCacheState();
-  void initialize(ZPageAllocator* page_allocator, size_t min_capacity, size_t initial_capacity, size_t max_capacity, int numa_id);
+  ZCacheState(uint32_t numa_id, ZPageAllocator* page_allocator);
 
   void set_heuristic_max_capacity(size_t heuristic_max_capacity);
 
@@ -88,6 +87,7 @@ public:
   size_t current_max_capacity(ZPageAllocation* allocation) const;
   size_t current_max_capacity() const;
   size_t heuristic_max_capacity() const;
+  size_t capacity() const;
 
   size_t available(size_t current_max_capacity) const;
   size_t available(ZMemoryAllocation* allocation) const;
@@ -141,9 +141,9 @@ private:
   const size_t                _static_max_capacity;
   volatile size_t             _heuristic_max_capacity;
   ZPerNUMA<ZCacheState>       _states;
-  ZPerNUMA<ZUncommitter*>     _uncommitters;
+  ZPerNUMA<ZUncommitter>      _uncommitters;
   ZList<ZPageAllocation>      _stalled;
-  ZPerNUMA<ZCommitter*>       _committers;
+  ZPerNUMA<ZCommitter>        _committers;
   mutable ZSafeDelete<ZPage>  _safe_destroy;
   bool                        _initialized;
 

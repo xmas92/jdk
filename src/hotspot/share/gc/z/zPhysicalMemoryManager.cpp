@@ -31,6 +31,7 @@
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPhysicalMemoryManager.hpp"
+#include "gc/z/zValue.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/globals.hpp"
@@ -41,6 +42,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
+#include <cstdint>
 
 ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
   : _backing(max_capacity) {
@@ -52,17 +54,19 @@ ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
 
   // Install capacity into manager(s)
   zbacking_index_end next_index = zbacking_index_end::zero;
-  ZNUMA::divide_resource(max_capacity, [&](uint32_t id, size_t capacity) {
-    assert(is_aligned(capacity, ZGranuleSize), "must be granule aligned");
+  uint32_t numa_id;
+  ZPerNUMAIterator<ZMemoryManager> iter(&_managers);
+  for (ZMemoryManager* manager; iter.next(&manager, &numa_id);) {
+    const size_t capacity = ZNUMA::calculate_share(numa_id, max_capacity);
     const size_t num_segments = capacity >> ZGranuleSizeShift;
     const zbacking_index index = to_zbacking_index(next_index);
 
     // Insert the next number of segment indicies into id's manager
-    _managers.get(id).free(index, num_segments);
+    manager->free(index, num_segments);
 
     // Advance to next index by the inserted number of segment indicies
     next_index += num_segments;
-  });
+  }
 
   assert(untype(next_index) == ZBackingIndexMax, "must insert all capacity");
 }

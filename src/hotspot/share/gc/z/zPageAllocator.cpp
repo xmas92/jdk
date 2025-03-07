@@ -1878,7 +1878,6 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
   // All pages belong to the same generation, so either only young or old.
   const ZGenerationId gen_id = pages->first()->generation_id();
-  size_t gen_size = 0;
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
@@ -1889,7 +1888,6 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
       continue;
     }
-    gen_size += page->size();
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
@@ -1900,13 +1898,14 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArrayIterator<ZMemoryRange> iter(&to_cache);
   for (ZMemoryRange vmem; iter.next(&vmem);) {
     ZCacheState& state = state_from_vmem(vmem);
-    state.decrease_used(vmem.size());
-    state._cache.insert(vmem);
-  }
+    const size_t size = vmem.size();
 
-  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
-    ZCacheState& state = _states.get(numa_id);
-    state.decrease_used_generation(gen_id, gen_size);
+    // Reinsert mappings
+    state.cache()->insert(vmem);
+
+    // Update accounting
+    state.decrease_used(size);
+    state.decrease_used_generation(gen_id, size);
   }
 
   // Try satisfy stalled allocations

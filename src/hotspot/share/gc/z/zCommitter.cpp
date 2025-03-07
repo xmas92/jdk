@@ -23,19 +23,22 @@
 
 #include "gc/z/zAdaptiveHeap.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zCommitter.hpp"
 #include "utilities/rbTree.inline.hpp"
 
-ZCommitter::ZCommitter(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
+ZCommitter::ZCommitter(uint32_t id, ZPageAllocator* page_allocator)
+  : _id(id),
+    _page_allocator(page_allocator),
     _lock(),
     _heating_requests(),
     _target_capacity(0),
     _stop(false),
     _currently_heating(zaddress::null) {
-  set_name("ZCommitter");
+
+  set_name("ZCommitter#%d", id);
   create_and_start();
 }
 
@@ -45,13 +48,14 @@ bool ZCommitter::is_stop_requested() {
 }
 
 size_t ZCommitter::commit_granule(size_t capacity, size_t target_capacity) {
+  ZCacheState& state = _page_allocator->state_from_numa_id(_id);
   const size_t smallest_granule = ZGranuleSize;
   const size_t largest_granule = MAX2(ZPageSizeMedium, smallest_granule);
 
-  const size_t heuristic_max_capacity = _page_allocator->heuristic_max_capacity();
+  const size_t heuristic_max_capacity = state.heuristic_max_capacity();
 
   // Don't allocate things that are larger than the largest medium page size, in the lower address space
-  return clamp(round_down_power_of_2(heuristic_max_capacity / 64), smallest_granule, largest_granule);
+  return round_down_power_of_2(clamp(heuristic_max_capacity / 64, smallest_granule, largest_granule));
 }
 
 bool ZCommitter::should_commit(size_t granule, size_t capacity, size_t target_capacity, size_t curr_max_capacity) {
@@ -130,7 +134,7 @@ size_t ZCommitter::target_capacity() {
 void ZCommitter::heap_resized(size_t capacity, size_t heuristic_max_capacity) {
   if (capacity <= heuristic_max_capacity) {
     // Heap increases are handled lazily through the director monitoring
-    // This allows growing to be more vigilent and not have to wait for
+    // This allows growing to be more vigilant and not have to wait for
     // a GC before growing can commence. Uncommitting though, is less urgent.
     return;
   }
@@ -182,14 +186,14 @@ void ZCommitter::set_target_capacity(size_t target_capacity) {
   }
 }
 
-void ZCommitter::register_heating_request(const ZPage* page) {
+void ZCommitter::register_heating_request(const ZMemoryRange& vmem) {
   ZLocker<ZConditionLock> locker(&_lock);
   if (_stop) {
     // Don't add more requests during termination
     return;
   }
-  for (size_t granule = 0; granule < page->size(); granule += ZGranuleSize) {
-    _heating_requests.upsert(page->start() + granule, ZGranuleSize);
+  for (size_t granule = 0; granule < vmem.size(); granule += ZGranuleSize) {
+    _heating_requests.upsert(vmem.start() + granule, ZGranuleSize);
   }
 }
 
@@ -206,9 +210,9 @@ zoffset ZCommitter::pop_heating_request(size_t& size) {
   return offset;
 }
 
-void ZCommitter::remove_heating_request(const ZPage* page) {
-  for (size_t granule = 0; granule < page->size(); granule += ZGranuleSize) {
-    const zoffset offset = page->start() + granule;
+void ZCommitter::remove_heating_request(const ZMemoryRange& vmem) {
+  for (size_t granule = 0; granule < vmem.size(); granule += ZGranuleSize) {
+    const zoffset offset = vmem.start() + granule;
     const zaddress addr = ZOffset::address(offset);
 
     ZLocker<ZConditionLock> locker(&_lock);
@@ -258,14 +262,15 @@ void ZCommitter::run_thread() {
       return;
     }
 
+    ZCacheState& state = _page_allocator->state_from_numa_id(_id);
     size_t committed = 0;
     size_t uncommitted = 0;
     size_t heated = 0;
     size_t last_target_capacity = 0;
 
     for (;;) {
-      const size_t capacity = _page_allocator->capacity();
-      const size_t curr_max_capacity = ZHeap::heap()->current_max_capacity();
+      const size_t capacity = Atomic::load(&state._capacity);
+      const size_t curr_max_capacity = state.current_max_capacity();
       const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
       const size_t granule = commit_granule(capacity, target_capacity);
 
@@ -282,9 +287,7 @@ void ZCommitter::run_thread() {
 
       // Prioritize committing memory if needed
       if (uncommitted == 0 && should_commit(granule, capacity, target_capacity, curr_max_capacity)) {
-        if (_page_allocator->prime_alloc_page(granule)) {
-          committed += granule;
-        }
+        committed += _page_allocator->commit(_id, granule);
         assert(!should_uncommit(granule, capacity + granule, target_capacity, curr_max_capacity), "commit rule mismatch");
         continue;
       }
@@ -297,7 +300,7 @@ void ZCommitter::run_thread() {
 
       // The lowest priority is uncommitting memory if needed
       if (committed == 0 && should_uncommit(granule, capacity, target_capacity, curr_max_capacity)) {
-        uncommitted += _page_allocator->uncommit(nullptr, granule);
+        uncommitted += _page_allocator->uncommit(_id, granule);
         assert(!should_commit(granule, capacity - granule, target_capacity, curr_max_capacity), "uncommit rule mismatch");
         continue;
       }

@@ -28,6 +28,7 @@
 #include "gc/z/zArray.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zThread.hpp"
 #include "memory/allocation.hpp"
 #include "utilities/rbTree.hpp"
@@ -55,6 +56,7 @@ using ZHeatingRequestNode = ZHeatingRequestTree::RBNode;
 
 class ZCommitter : public ZThread {
 private:
+  uint32_t const        _id;
   ZPageAllocator* const _page_allocator;
   ZConditionLock        _lock;
   ZHeatingRequestTree   _heating_requests;
@@ -77,14 +79,14 @@ protected:
   virtual void terminate();
 
 public:
-  ZCommitter(ZPageAllocator* page_allocator);
+  ZCommitter(uint32_t id, ZPageAllocator* page_allocator);
 
   void heap_resized(size_t capacity, size_t heuristic_max_capacity);
   void set_target_capacity(size_t target_capacity);
   size_t target_capacity();
 
-  void register_heating_request(const ZPage* page);
-  void remove_heating_request(const ZPage* page);
+  void register_heating_request(const ZMemoryRange& vmem);
+  void remove_heating_request(const ZMemoryRange& vmem);
 };
 
 #endif // SHARE_GC_Z_ZCOMMITTER_HPP

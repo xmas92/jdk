@@ -47,7 +47,6 @@ class ZAllocationFlags {
 private:
   typedef ZBitField<uint8_t, bool, 0, 1> field_non_blocking;
   typedef ZBitField<uint8_t, bool, 1, 1> field_gc_relocation;
-  typedef ZBitField<uint8_t, bool, 3, 1> field_no_cache;
 
   uint8_t _flags;
 
@@ -63,20 +62,12 @@ public:
     _flags |= field_gc_relocation::encode(true);
   }
 
-  void set_no_cache() {
-    _flags |= field_no_cache::encode(true);
-  }
-
   bool non_blocking() const {
     return field_non_blocking::decode(_flags);
   }
 
   bool gc_relocation() const {
     return field_gc_relocation::decode(_flags);
-  }
-
-  bool use_cache() const {
-    return field_no_cache::decode(_flags) == 0;
   }
 };
 

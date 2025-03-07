@@ -88,7 +88,7 @@ typedef ZValue<ZPerNUMAStorage, ZCacheState> ZPerNUMACacheState;
   nonstatic_field(ZPage,                        _virtual,             const ZMemoryRange)            \
   volatile_nonstatic_field(ZPage,               _top,                 zoffset_end)                   \
                                                                                                      \
-  nonstatic_field(ZPageAllocator,               _max_capacity,        const size_t)                  \
+  nonstatic_field(ZPageAllocator,               _static_max_capacity, const size_t)                  \
   nonstatic_field(ZPageAllocator,               _states,              ZPerNUMACacheState)            \
                                                                                                      \
   nonstatic_field(ZPerNUMACacheState,           _addr,                const uintptr_t)               \

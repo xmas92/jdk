@@ -25,6 +25,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zIntrusiveRBTree.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -444,6 +445,18 @@ size_t ZMappedCache::remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_
   }
 
   return remove_discontiguous(mappings, size);
+}
+
+ZMemoryRange ZMappedCache::first() const {
+  auto first_node = _tree.first();
+
+  if (first_node == nullptr) {
+    // Tree is empty
+    return ZMemoryRange();
+  }
+
+  const ZMappedCacheEntry* const entry = ZMappedCacheEntry::cast_to_entry(first_node);
+  return entry->vmem();
 }
 
 size_t ZMappedCache::size() const {

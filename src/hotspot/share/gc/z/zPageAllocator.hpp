@@ -52,11 +52,19 @@ class ZWorkers;
 
 class ZCacheState {
   friend class VMStructs;
+  // TODO: Fix accessors
   friend class ZPageAllocator;
+  friend class ZCommitter;
 
 private:
+  ZPageAllocator*            _page_allocator;
   ZMappedCache               _cache;
-  volatile size_t            _current_max_capacity;
+  size_t                     _min_capacity;
+  size_t                     _initial_capacity;
+  size_t                     _static_max_capacity;
+  size_t                     _committed;
+  size_t                     _observed_max_committed;
+  volatile size_t            _heuristic_max_capacity;
   volatile size_t            _capacity;
   volatile size_t            _claimed;
   volatile size_t            _used;
@@ -68,15 +76,29 @@ private:
   double                     _last_commit;
   double                     _last_uncommit;
   size_t                     _to_uncommit;
+  int                        _numa_id;
 
 public:
-  void initialize(size_t max_capacity);
+  // TODO: ZCacheState();
+  void initialize(ZPageAllocator* page_allocator, size_t min_capacity, size_t initial_capacity, size_t max_capacity, int numa_id);
 
-  size_t available_capacity() const;
+  void set_heuristic_max_capacity(size_t heuristic_max_capacity);
+
+  size_t dynamic_max_capacity() const;
+  size_t current_max_capacity(ZPageAllocation* allocation) const;
+  size_t current_max_capacity() const;
+  size_t heuristic_max_capacity() const;
+
+  size_t available(size_t current_max_capacity) const;
+  size_t available(ZMemoryAllocation* allocation) const;
+  bool is_allocation_allowed(ZMemoryAllocation* allocation) const;
   size_t soft_max_capacity() const;
 
-  size_t increase_capacity(size_t size);
-  void decrease_capacity(size_t size, bool set_max_capacity);
+  size_t increase_capacity(ZMemoryAllocation* allocation);
+  void decrease_capacity(size_t size);
+
+  void increase_committed(size_t increment, bool commit_failed);
+  void decrease_committed(size_t decrement);
 
   void increase_used(size_t size);
   void decrease_used(size_t size);
@@ -86,16 +108,27 @@ public:
 
   void reset_statistics(ZGenerationId id);
 
-  bool claim_mapped_or_increase_capacity(ZMemoryAllocation* allocation);
+  void claim_mapped_or_increase_capacity(ZMemoryAllocation* allocation);
   bool claim_physical(ZMemoryAllocation* allocation);
+  bool claim_committed(ZMemoryAllocation* allocation);
+  bool claim_cached(ZMemoryAllocation* allocation);
+
+  ZMemoryRange get_primed_mapping() const;
+
+  bool may_uncommit(size_t total_memory, size_t used_memory) const;
 
   ZMappedCache* cache();
+  int numa_id() const;
+
+  template <typename Decider>
+  size_t uncommit(ZPageAllocator* page_allocator, size_t limit, Decider decide);
 };
 
 class ZPageAllocator {
   friend class VMStructs;
   friend class ZCommitter;
   friend class ZUncommitter;
+  friend class ZCacheState;
   friend class MultiNUMATracker;
 
 private:
@@ -110,7 +143,7 @@ private:
   ZPerNUMA<ZCacheState>       _states;
   ZPerNUMA<ZUncommitter*>     _uncommitters;
   ZList<ZPageAllocation>      _stalled;
-  ZCommitter*                 _committer;
+  ZPerNUMA<ZCommitter*>       _committers;
   mutable ZSafeDelete<ZPage>  _safe_destroy;
   bool                        _initialized;
 
@@ -123,11 +156,11 @@ private:
   void alloc_physical(const ZMemoryRange& vmem, int numa_id);
   void free_physical(const ZMemoryRange& vmem, int numa_id);
   size_t commit_physical(const ZMemoryRange& vmem, int numa_id);
-  void uncommit_physical(const ZMemoryRange& vmem);
+  void uncommit_physical(const ZMemoryRange& vmem, int numa_id);
 
   void map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id);
-
   void unmap_virtual(const ZMemoryRange& vmem);
+
   void free_virtual(const ZMemoryRange& vmem);
   void free_virtual(const ZMemoryRange& vmem, int numa_id);
 
@@ -166,17 +199,22 @@ private:
   void alloc_page_age_update(ZPageAllocation* allocation, ZPage* page, ZPageAge age);
 
   void free_memory_alloc_failed_multi_numa(ZPageAllocation* allocation);
-  void free_memory_alloc_failed(ZPageAllocation* allocation);
+  ZPage* free_memory_alloc_failed_and_retry(ZPageAllocation* allocation);
   void free_memory_alloc_failed(ZMemoryAllocation* allocation);
 
   void satisfy_stalled();
 
-  size_t uncommit(uint32_t numa_id, uint64_t* timeout, size_t limit);
+  size_t commit(uint32_t numa_id, size_t size);
+  size_t uncommit(uint32_t numa_id, size_t limit);
+  size_t uncommit(uint32_t numa_id, size_t limit, uint64_t* timeout);
 
   void notify_out_of_memory();
   void restart_gc() const;
 
   bool prime_state_cache(ZWorkers* workers, int numa_id, size_t size);
+
+  size_t dynamic_max_capacity(int numa_id) const;
+  size_t current_max_capacity(int numa_id) const;
 
 public:
   ZPageAllocator(size_t min_capacity,
@@ -205,7 +243,7 @@ public:
   void adapt_heuristic_max_capacity(ZGenerationId generation);
   void adjust_capacity(size_t used_soon);
 
-  void promote_used(const ZMemoryRange& from, const ZMemoryRange& to);
+  void promote_used(const ZPage* from, const ZPage* to);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
 

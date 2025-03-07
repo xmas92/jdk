@@ -72,7 +72,7 @@ void ZUncommitter::run_thread() {
       // Uncommit chunk
       const size_t heuristic_max = ZHeap::heap()->heuristic_max_capacity();
       const size_t uncommit_request = MIN2(align_up(heuristic_max >> 7, ZGranuleSize), 256 * M);
-      const size_t flushed = _page_allocator->uncommit(_id, &timeout, uncommit_request);
+      const size_t flushed = _page_allocator->uncommit(_id, uncommit_request, &timeout);
       if (flushed == 0) {
         // Done
         break;

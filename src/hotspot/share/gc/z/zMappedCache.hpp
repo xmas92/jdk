@@ -80,6 +80,7 @@ public:
   size_t reset_min();
   size_t remove_from_min(ZArray<ZMemoryRange>* mappings, size_t max_size);
 
+  ZMemoryRange first() const;
   size_t size() const;
 };
 

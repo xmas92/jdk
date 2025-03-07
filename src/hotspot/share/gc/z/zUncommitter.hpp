@@ -31,7 +31,7 @@ class ZPageAllocator;
 
 class ZUncommitter : public ZThread {
 private:
-  uint32_t               _id;
+  uint32_t const         _id;
   ZPageAllocator* const  _page_allocator;
   mutable ZConditionLock _lock;
   bool                   _stop;

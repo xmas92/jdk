@@ -231,7 +231,7 @@ int ZVirtualMemoryManager::shuffle_vmem_to_low_addresses(const ZMemoryRange& vme
 
 void ZVirtualMemoryManager::shuffle_vmem_to_low_addresses_contiguous(size_t size, ZArray<ZMemoryRange>* mappings) {
   const int numa_id = get_numa_id(mappings->first());
-  _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, (ZArray<ZMemoryRange>*)mappings);
+  _managers.get(numa_id).shuffle_memory_low_addresses_contiguous(size, mappings);
 }
 
 size_t ZVirtualMemoryManager::alloc_low_address_many_at_most(size_t size, int numa_id, ZArray<ZMemoryRange>* mappings) {

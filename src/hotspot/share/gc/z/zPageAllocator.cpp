@@ -2186,12 +2186,17 @@ void ZPageAllocator::free_page(ZPage* page, bool allow_defragment) {
 
   ZLocker<ZLock> locker(&_lock);
 
+  // Update used statistics and cache memory
   ZArrayIterator<ZMemoryRange> iter(&to_cache);
   for (ZMemoryRange vmem; iter.next(&vmem);) {
-    // Update used statistics and cache memory
-    state.decrease_used(vmem.size());
-    state.decrease_used_generation(id, vmem.size());
-    state._cache.insert(vmem);
+    const size_t size = vmem.size();
+
+    // Reinsert mappings
+    state.cache()->insert(vmem);
+
+    // Update accounting
+    state.decrease_used(size);
+    state.decrease_used_generation(id, size);
   }
 
   // Try satisfy stalled allocations
@@ -2202,7 +2207,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
   ZArray<ZMemoryRange> to_cache;
 
   // All pages belong to the same generation, so either only young or old.
-  const ZGenerationId gen_id = pages->first()->generation_id();
+  const ZGenerationId id = pages->first()->generation_id();
 
   // Prepare memory from pages to be cached before taking the lock
   ZArrayIterator<ZPage*> pages_iter(pages);
@@ -2216,10 +2221,9 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
     prepare_memory_for_free(page, &to_cache, true /* allow_defragment */);
   }
 
-  const int numa_nodes = ZNUMA::count();
   ZLocker<ZLock> locker(&_lock);
 
-  // Insert mappings to the cache
+    // Update used statistics and cache memory
   ZArrayIterator<ZMemoryRange> iter(&to_cache);
   for (ZMemoryRange vmem; iter.next(&vmem);) {
     ZCacheState& state = state_from_vmem(vmem);
@@ -2230,7 +2234,7 @@ void ZPageAllocator::free_pages(const ZArray<ZPage*>* pages) {
 
     // Update accounting
     state.decrease_used(size);
-    state.decrease_used_generation(gen_id, size);
+    state.decrease_used_generation(id, size);
   }
 
   // Try satisfy stalled allocations

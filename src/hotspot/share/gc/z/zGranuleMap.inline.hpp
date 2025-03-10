@@ -67,9 +67,14 @@ inline T ZGranuleMap<T>::get(zoffset offset) const {
 }
 
 template <typename T>
-inline T* ZGranuleMap<T>::get_addr(zoffset offset) const {
+inline const T* ZGranuleMap<T>::get_addr(zoffset offset) const {
   const size_t index = index_for_offset(offset);
   return _map + index;
+}
+
+template <typename T>
+inline T* ZGranuleMap<T>::get_addr(zoffset offset) {
+  return const_cast<T*>(const_cast<const ZGranuleMap<T>*>(this)->get_addr(offset));
 }
 
 template <typename T>

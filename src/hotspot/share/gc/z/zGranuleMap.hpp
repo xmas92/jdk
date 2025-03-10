@@ -49,7 +49,8 @@ public:
   ~ZGranuleMap();
 
   T get(zoffset offset) const;
-  T* get_addr(zoffset offset) const;
+  const T* get_addr(zoffset offset) const;
+  T* get_addr(zoffset offset);
   void put(zoffset offset, T value);
   void put(zoffset offset, size_t size, T value);
 

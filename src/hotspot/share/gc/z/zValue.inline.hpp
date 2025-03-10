@@ -220,6 +220,11 @@ inline ZValueConstIterator<S, T>::ZValueConstIterator(const ZValue<S, T>* value)
     _value_id(0) {}
 
 template <typename S, typename T>
+inline ZValueConstIterator<S, T>::ZValueConstIterator(const ZValueIterator<S, T>& other)
+  : _value(other._value),
+    _value_id(other._value_id) {}
+
+template <typename S, typename T>
 inline bool ZValueConstIterator<S, T>::next(const T** value) {
   if (_value_id < S::count()) {
     *value = _value->addr(_value_id++);

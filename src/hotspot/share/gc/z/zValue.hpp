@@ -114,14 +114,20 @@ template <typename T> using ZPerWorker = ZValue<ZPerWorkerStorage, T>;
 // Iterator
 //
 
+template<typename S, typename T>
+class ZValueConstIterator;
+
 template <typename S, typename T>
 class ZValueIterator {
+  friend class ZValueConstIterator<S, T>;
+
 private:
   ZValue<S, T>* const _value;
   uint32_t            _value_id;
 
 public:
   ZValueIterator(ZValue<S, T>* value);
+  ZValueIterator(const ZValueIterator&) = default;
 
   bool next(T** value);
   bool next(T** value, uint32_t* value_id);
@@ -139,6 +145,8 @@ private:
 
 public:
   ZValueConstIterator(const ZValue<S, T>* value);
+  ZValueConstIterator(const ZValueIterator<S, T>& other);
+  ZValueConstIterator(const ZValueConstIterator&) = default;
 
   bool next(const T** value);
 };

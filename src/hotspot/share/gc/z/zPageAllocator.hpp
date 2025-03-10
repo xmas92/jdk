@@ -220,9 +220,6 @@ private:
 
   bool prime_state_cache(ZWorkers* workers, int numa_id, size_t size);
 
-  size_t dynamic_max_capacity(int numa_id) const;
-  size_t current_max_capacity(int numa_id) const;
-
 public:
   ZPageAllocator(size_t min_capacity,
                  size_t initial_capacity,

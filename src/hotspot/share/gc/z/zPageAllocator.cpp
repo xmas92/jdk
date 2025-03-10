@@ -1206,28 +1206,20 @@ size_t ZPageAllocator::static_max_capacity() const {
   return _static_max_capacity;
 }
 
-size_t ZPageAllocator::dynamic_max_capacity(int numa_id) const {
-  return _states.get(numa_id).dynamic_max_capacity();
-}
-
 size_t ZPageAllocator::dynamic_max_capacity() const {
-  const int numa_count = ZNUMA::count();
   size_t total_dynamic_max_capacity = 0;
-  for (int numa_id = 0; numa_id < numa_count; ++numa_id) {
-    total_dynamic_max_capacity += dynamic_max_capacity(numa_id);
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    total_dynamic_max_capacity += state->dynamic_max_capacity();
   }
   return total_dynamic_max_capacity;
 }
 
-size_t ZPageAllocator::current_max_capacity(int numa_id) const {
-  return _states.get(numa_id).current_max_capacity();
-}
-
 size_t ZPageAllocator::current_max_capacity() const {
-  const int numa_count = ZNUMA::count();
   size_t total_current_max_capacity = 0;
-  for (int numa_id = 0; numa_id < numa_count; ++numa_id) {
-    total_current_max_capacity += current_max_capacity(numa_id);
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    total_current_max_capacity += state->current_max_capacity();
   }
   return total_current_max_capacity;
 }

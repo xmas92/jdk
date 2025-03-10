@@ -520,6 +520,8 @@ void ZMemoryAllocationData::remove_last_multi_numa_allocation() {
 ZCacheState::ZCacheState(uint32_t numa_id, ZPageAllocator* page_allocator)
   : _page_allocator(page_allocator),
     _cache(),
+    _uncommitter(numa_id, page_allocator),
+    _committer(numa_id, page_allocator),
     _min_capacity(ZNUMA::calculate_share(numa_id, page_allocator->min_capacity())),
     _initial_capacity(ZNUMA::calculate_share(numa_id, page_allocator->initial_capacity())),
     _static_max_capacity(ZNUMA::calculate_share(numa_id, page_allocator->static_max_capacity())),
@@ -885,6 +887,28 @@ size_t ZCacheState::uncommit(ZPageAllocator* page_allocator, size_t limit, Decid
   return flushed;
 }
 
+
+const ZUncommitter& ZCacheState::uncommitter() const {
+  return _uncommitter;
+}
+
+ZUncommitter& ZCacheState::uncommitter() {
+  return _uncommitter;
+}
+
+const ZCommitter& ZCacheState::committer() const {
+  return _committer;
+}
+
+ZCommitter& ZCacheState::committer() {
+  return _committer;
+}
+
+void ZCacheState::threads_do(ThreadClosure* tc) const {
+  tc->do_thread(const_cast<ZUncommitter*>(&_uncommitter));
+  tc->do_thread(const_cast<ZCommitter*>(&_committer));
+}
+
 class MultiNUMATracker : CHeapObj<mtGC> {
 private:
   struct Element {
@@ -1047,9 +1071,7 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     _static_max_capacity(static_max_capacity),
     _heuristic_max_capacity(initial_capacity),
     _states(ZValueIdTagType{}, this),
-    _uncommitters(ZValueIdTagType{}, this),
     _stalled(),
-    _committers(ZValueIdTagType{}, this),
     _safe_destroy(),
     _initialized(false) {
 
@@ -1243,15 +1265,15 @@ void ZPageAllocator::adapt_heuristic_max_capacity(ZGenerationId generation) {
 
   // Update heuristic max capacity
   Atomic::store(&_heuristic_max_capacity, selected_capacity);
-  uint32_t numa_id;
   ZPerNUMAIterator<ZCacheState> iter(&_states);
-  for (ZCacheState* state; iter.next(&state, &numa_id);) {
+  for (ZCacheState* state; iter.next(&state);) {
+    const int numa_id = state->numa_id();
     // Update per state heuristic max capacity
     const size_t selected_capacity_share = ZNUMA::calculate_share(numa_id, selected_capacity);
     state->set_heuristic_max_capacity(selected_capacity_share);
 
     // Update committer target capacity
-    ZCommitter& committer = _committers.get(numa_id);
+    ZCommitter& committer = state->committer();
     committer.heap_resized(state->capacity(), selected_capacity_share);
   }
 
@@ -1412,7 +1434,9 @@ void ZPageAllocator::map_virtual_to_physical(const ZMemoryRange& vmem, int numa_
 void ZPageAllocator::unmap_virtual(const ZMemoryRange& vmem) {
   const int numa_id = _virtual.get_numa_id(vmem);
   // Make sure we don't try to pretouch unmapped pages
-  _committers.get(numa_id).remove_heating_request(vmem);
+  ZCacheState& state = _states.get(numa_id);
+  ZCommitter& committer = state.committer();
+  committer.remove_heating_request(vmem);
 
   // Unmap virtual memory from physical memory
   _physical.unmap(vmem.start(), _physical_mappings.get_addr(vmem.start()), vmem.size());
@@ -2320,18 +2344,18 @@ void ZPageAllocator::adjust_capacity(size_t used_soon) {
   const size_t used_memory = os::used_memory();
   const bool force_uncommit = double(used_memory) > double(total_memory) * (1.0 - ZMemoryCriticalThreshold);
 
-  uint32_t numa_id;
   ZPerNUMAIterator<ZCacheState> iter(&_states);
-  for (ZCacheState* state; iter.next(&state, &numa_id);) {
+  for (ZCacheState* state; iter.next(&state);) {
     if (force_uncommit || state->may_uncommit(total_memory, used_memory)) {
       // Uncommit is urgent, or uncommit delay has changed
-      ZUncommitter& uncommitter = _uncommitters.get(numa_id);
+      ZUncommitter& uncommitter = state->uncommitter();
       uncommitter.wake_up();
       continue;
     }
 
-    ZCommitter& committer = _committers.get(numa_id);
+    ZCommitter& committer = state->committer();
     if (used_soon > committer.target_capacity()) {
+      const int numa_id = state->numa_id();
       const size_t used_soon_share = ZNUMA::calculate_share(numa_id, used_soon);
       committer.set_target_capacity(used_soon_share);
     }
@@ -2526,9 +2550,8 @@ void ZPageAllocator::handle_alloc_stalling_for_old(bool cleared_all_soft_refs) {
 }
 
 void ZPageAllocator::threads_do(ThreadClosure* tc) const {
-  const int numa_nodes = ZNUMA::count();
-  for (int numa_id = 0; numa_id < numa_nodes; ++numa_id) {
-    tc->do_thread(const_cast<ZCommitter*>(&_committers.get(numa_id)));
-    tc->do_thread(const_cast<ZUncommitter*>(&_uncommitters.get(numa_id)));
+  ZPerNUMAConstIterator<ZCacheState> iter(&_states);
+  for (const ZCacheState* state; iter.next(&state);) {
+    state->threads_do(tc);
   }
 }

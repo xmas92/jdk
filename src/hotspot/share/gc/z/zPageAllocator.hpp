@@ -27,6 +27,7 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zCommitter.hpp"
 #include "gc/z/zGranuleMap.hpp"
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
@@ -36,18 +37,17 @@
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemoryManager.hpp"
 #include "gc/z/zSafeDelete.hpp"
+#include "gc/z/zUncommitter.hpp"
 #include "gc/z/zValue.hpp"
 #include "gc/z/zVirtualMemoryManager.hpp"
 
 class ThreadClosure;
 class ZGeneration;
-class ZCommitter;
 class ZMemoryAllocation;
 class ZPageAllocation;
 class ZPageAllocator;
 class ZPageAllocatorStats;
 class ZSegmentStash;
-class ZUncommitter;
 class ZWorkers;
 
 class ZCacheState {
@@ -59,6 +59,8 @@ class ZCacheState {
 private:
   ZPageAllocator* const      _page_allocator;
   ZMappedCache               _cache;
+  ZUncommitter               _uncommitter;
+  ZCommitter                 _committer;
   const size_t               _min_capacity;
   const size_t               _initial_capacity;
   const size_t               _static_max_capacity;
@@ -122,6 +124,13 @@ public:
 
   template <typename Decider>
   size_t uncommit(ZPageAllocator* page_allocator, size_t limit, Decider decide);
+
+  const ZUncommitter& uncommitter() const;
+  ZUncommitter& uncommitter();
+  const ZCommitter& committer() const;
+  ZCommitter& committer();
+
+  void threads_do(ThreadClosure* tc) const;
 };
 
 class ZPageAllocator {
@@ -141,9 +150,7 @@ private:
   const size_t                _static_max_capacity;
   volatile size_t             _heuristic_max_capacity;
   ZPerNUMA<ZCacheState>       _states;
-  ZPerNUMA<ZUncommitter>      _uncommitters;
   ZList<ZPageAllocation>      _stalled;
-  ZPerNUMA<ZCommitter>        _committers;
   mutable ZSafeDelete<ZPage>  _safe_destroy;
   bool                        _initialized;
 

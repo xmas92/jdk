@@ -32,6 +32,7 @@
 #include "gc/z/zList.hpp"
 #include "gc/z/zLock.hpp"
 #include "gc/z/zMappedCache.hpp"
+#include "gc/z/zMemory.hpp"
 #include "gc/z/zPage.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
@@ -80,6 +81,20 @@ private:
   size_t                     _to_uncommit;
   const int                  _numa_id;
 
+  const ZVirtualMemoryManager& virtual_memory_manager() const;
+  ZVirtualMemoryManager& virtual_memory_manager();
+
+  const ZPhysicalMemoryManager& physical_memory_manager() const;
+  ZPhysicalMemoryManager& physical_memory_manager();
+
+  const ZGranuleMap<zbacking_index>& physical_mappings() const;
+  ZGranuleMap<zbacking_index>& physical_mappings();
+
+  const zbacking_index* physical_mappings_addr(const ZMemoryRange& vmem) const;
+  zbacking_index* physical_mappings_addr(const ZMemoryRange& vmem);
+
+  ZLock* lock() const;
+
 public:
   ZCacheState(uint32_t numa_id, ZPageAllocator* page_allocator);
 
@@ -127,10 +142,16 @@ public:
 
   const ZUncommitter& uncommitter() const;
   ZUncommitter& uncommitter();
+
   const ZCommitter& committer() const;
   ZCommitter& committer();
 
   void threads_do(ThreadClosure* tc) const;
+
+  void alloc_physical(const ZMemoryRange& vmem);
+  void free_physical(const ZMemoryRange& vmem);
+  size_t commit_physical(const ZMemoryRange& vmem);
+  void uncommit_physical(const ZMemoryRange& vmem);
 };
 
 class ZPageAllocator {
@@ -159,11 +180,6 @@ private:
 
   size_t count_segments_physical(const ZMemoryRange& vmem);
   void sort_segments_physical(const ZMemoryRange& vmem);
-
-  void alloc_physical(const ZMemoryRange& vmem, int numa_id);
-  void free_physical(const ZMemoryRange& vmem, int numa_id);
-  size_t commit_physical(const ZMemoryRange& vmem, int numa_id);
-  void uncommit_physical(const ZMemoryRange& vmem, int numa_id);
 
   void map_virtual_to_physical(const ZMemoryRange& vmem, int numa_id);
   void unmap_virtual(const ZMemoryRange& vmem);
@@ -268,6 +284,9 @@ public:
   void handle_alloc_stalling_for_old(bool cleared_soft_refs);
 
   void threads_do(ThreadClosure* tc) const;
+
+  ZPerNUMAConstIterator<ZCacheState> state_iterator() const;
+  ZPerNUMAIterator<ZCacheState> state_iterator();
 };
 
 class ZPageAllocatorStats {

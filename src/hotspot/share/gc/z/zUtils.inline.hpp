@@ -69,4 +69,9 @@ inline void ZUtils::object_copy_conjoint(zaddress from, zaddress to, size_t size
   }
 }
 
+template <typename T>
+inline void ZUtils::copy_disjoint(T* dest, const T* src, size_t count) {
+  memcpy(dest, src, sizeof(T) * count);
+}
+
 #endif // SHARE_GC_Z_ZUTILS_INLINE_HPP

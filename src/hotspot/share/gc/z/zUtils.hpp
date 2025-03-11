@@ -47,6 +47,8 @@ public:
 
   // Memory
   static void fill(uintptr_t* addr, size_t count, uintptr_t value);
+  template <typename T>
+  static void copy_disjoint(T* dest, const T* src, size_t count);
 };
 
 #endif // SHARE_GC_Z_ZUTILS_HPP

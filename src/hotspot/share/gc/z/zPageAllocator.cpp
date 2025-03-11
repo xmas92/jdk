@@ -52,6 +52,7 @@
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncommitter.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "gc/z/zValue.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zWorkers.hpp"
@@ -91,23 +92,21 @@ private:
   }
 
   void copy_to_stash(int index, const ZMemoryRange& vmem) {
-    void* const dest = _stash.adr_at(index);
-    const void* const src = _physical_mappings->get_addr(vmem.start());
+    zbacking_index* const dest = _stash.adr_at(index);
+    const zbacking_index* const src = _physical_mappings->get_addr(vmem.start());
     const size_t num_granules = vmem.size_in_granules();
-    const size_t size = sizeof(zbacking_index) * num_granules;
 
     // Copy to stash
-    memcpy(dest, src, size);
+    ZUtils::copy_disjoint(dest, src, num_granules);
   }
 
   void copy_from_stash(int index, const ZMemoryRange& vmem) {
-    void* const dest = _physical_mappings->get_addr(vmem.start());
-    const void* const src = _stash.adr_at(index);
+    zbacking_index* const dest = _physical_mappings->get_addr(vmem.start());
+    const zbacking_index* const src = _stash.adr_at(index);
     const size_t num_granules = vmem.size_in_granules();
-    const size_t size = sizeof(zbacking_index) * num_granules;
 
     // Copy from stash
-    memcpy(dest, src, size);
+    ZUtils::copy_disjoint(dest, src, num_granules);
   }
 
 public:
@@ -1780,10 +1779,11 @@ bool ZPageAllocator::is_alloc_satisfied(ZMemoryAllocation* allocation) const {
 }
 
 void ZPageAllocator::copy_physical_segments(zoffset to, const ZMemoryRange& from) {
-  const size_t copy_size = sizeof(zoffset) * from.size_in_granules();
-  const void* const src = _physical_mappings.get_addr(from.start());
-  void* const dest = _physical_mappings.get_addr(to);
-  memcpy(dest, src, copy_size);
+  zbacking_index* const dest = _physical_mappings.get_addr(to);
+  const zbacking_index* const src = _physical_mappings.get_addr(from.start());
+  const size_t num_granules = from.size_in_granules();
+
+  ZUtils::copy_disjoint(dest, src, num_granules);
 }
 
 void ZPageAllocator::copy_claimed_physical_multi_numa(ZPageAllocation* allocation, const ZMemoryRange& vmem) {

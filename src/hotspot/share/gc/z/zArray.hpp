@@ -51,8 +51,8 @@ private:
   bool next_parallel(size_t* index);
 
 public:
-  ZArrayIteratorImpl(PtrType array, size_t length);
-  ZArrayIteratorImpl(ZArrayType* array);
+  ZArrayIteratorImpl(PtrType array, size_t length, size_t start_index = 0);
+  ZArrayIteratorImpl(ZArrayType* array, int start_index = 0);
 
   template <bool Enable = IsConst, ENABLE_IF(Enable)>
   bool next(T* elem);

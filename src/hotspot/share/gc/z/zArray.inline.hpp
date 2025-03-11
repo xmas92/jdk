@@ -54,14 +54,16 @@ inline bool ZArrayIteratorImpl<T, Parallel, IsConst>::next_parallel(size_t* inde
 }
 
 template <typename T, bool Parallel, bool IsConst>
-inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(PtrType array, size_t length)
-  : _next(0),
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(PtrType array, size_t length, size_t start_index)
+  : _next(start_index),
     _end(length),
-    _array(array) {}
+    _array(array) {
+  assert(start_index < length, "start index out of bounds");
+}
 
 template <typename T, bool Parallel, bool IsConst>
-inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(ZArrayType* array)
-  : ZArrayIteratorImpl<T, Parallel, IsConst>(array->is_empty() ? nullptr : array->adr_at(0), (size_t)array->length()) {}
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(ZArrayType* array, int start_index)
+  : ZArrayIteratorImpl<T, Parallel, IsConst>(array->is_empty() ? nullptr : array->adr_at(0), (size_t)array->length(), (size_t)start_index) {}
 
 template <typename T, bool Parallel, bool IsConst>
 template <bool Enable, ENABLE_IF_SDEFN(Enable)>

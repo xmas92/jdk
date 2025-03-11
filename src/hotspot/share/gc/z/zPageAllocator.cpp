@@ -132,8 +132,9 @@ public:
 
   void pop(ZArray<ZMemoryRange>* mappings, size_t num_mappings) {
     int stash_index = 0;
-    for (int idx = mappings->length() - (int)num_mappings; idx < mappings->length(); idx++) {
-      const ZMemoryRange& vmem = mappings->at(idx);
+    const int pop_start_index = mappings->length() - (int)num_mappings;
+    ZArrayIterator<ZMemoryRange> iter(mappings, pop_start_index);
+    for (ZMemoryRange vmem; iter.next(&vmem);) {
       const size_t num_granules = vmem.size_in_granules();
       const size_t granules_left = _stash.length() - stash_index;
 
@@ -466,8 +467,9 @@ public:
 ZMemoryAllocationData::~ZMemoryAllocationData() {
   if (_multi_numa_claimed_mappings != nullptr) {
     const int length = get_multi_numa_count();
-    for (int i = 0; i < length; ++i) {
-      _multi_numa_claimed_mappings[i].~ZArray<ZMemoryRange>();
+    ZArrayMutableIterator<ZArray<ZMemoryRange>> iter(_multi_numa_claimed_mappings, length);
+    for (ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
+      claimed_mappings->~ZArray<ZMemoryRange>();
     }
     FREE_C_HEAP_ARRAY(ZArray<ZMemoryRange>, _multi_numa_claimed_mappings);
   }
@@ -482,8 +484,9 @@ void ZMemoryAllocationData::reset() {
   _multi_numa_allocations.clear();
   if (_multi_numa_claimed_mappings != nullptr) {
     const int length = get_multi_numa_count();
-    for (int i = 0; i < length; ++i) {
-      _multi_numa_claimed_mappings[i].clear();
+    ZArrayMutableIterator<ZArray<ZMemoryRange>> iter(_multi_numa_claimed_mappings, length);
+    for (ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
+      claimed_mappings->clear();
     }
   }
   _is_multi_numa_allocation = false;
@@ -1071,8 +1074,8 @@ public:
 
       // Remap to the newly allocated virtual address ranges
       size_t mapped = 0;
-      for (int i = start_index; i < numa_memory_mappings->length(); ++i) {
-        ZMemoryRange to_vmem = numa_memory_mappings->at(i);
+      ZArrayIterator<ZMemoryRange> iter(numa_memory_mappings, start_index);
+      for (ZMemoryRange to_vmem; iter.next(&to_vmem);) {
         ZMemoryRange from_vmem = remaining_vmem.split_from_front(to_vmem.size());
 
         // Copy physical segments
@@ -1521,6 +1524,7 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArr
   segments.stash(vmem);
 
   // Shuffle vmem
+  const int start_index = entries->length();
   const int num_ranges = _virtual.shuffle_vmem_to_low_addresses(vmem, entries);
 
   // Restore segments
@@ -1529,8 +1533,8 @@ void ZPageAllocator::remap_and_defragment_mapping(const ZMemoryRange& vmem, ZArr
   // The entries array may contain entries from other defragmentations as well,
   // so we only operate on the last ranges that we have just inserted
   const int numa_id = _virtual.get_numa_id(vmem);
-  for (int idx = entries->length() - num_ranges; idx < entries->length(); idx++) {
-    const ZMemoryRange v = entries->at(idx);
+  ZArrayIterator<ZMemoryRange> iter(entries, start_index);
+  for (ZMemoryRange v; iter.next(&v);) {
     map_virtual_to_physical(v, numa_id);
     pretouch_memory(v.start(), v.size());
   }
@@ -2020,9 +2024,8 @@ bool ZPageAllocator::commit_and_map_memory_multi_numa(ZPageAllocation* allocatio
       total_committed -= unmappable.size();
     }
 
-    for (int i = start_index; i < mappings->length(); ++i) {
-      // Get new virtual address
-      const ZMemoryRange& to_map = mappings->at(i);
+    ZArrayIterator<ZMemoryRange> iter(mappings, start_index);
+    for (ZMemoryRange to_map; iter.next(&to_map);) {
       const ZMemoryRange from = partial_vmem.split_from_front(to_map.size());
 
       // Copy physical mappings

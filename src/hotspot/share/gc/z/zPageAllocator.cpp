@@ -75,11 +75,10 @@ static const ZStatCounter       ZCounterMutatorAllocationRate("Memory", "Allocat
 static const ZStatCounter       ZCounterDefragment("Memory", "Defragment", ZStatUnitOpsPerSecond);
 static const ZStatCriticalPhase ZCriticalPhaseAllocationStall("Allocation Stall");
 
-static void sort_zbacking_index_ptrs(void* at, size_t size) {
-  qsort(at, size, sizeof(zbacking_index),
-    [](const void* a, const void* b) -> int {
-      return *static_cast<const zbacking_index*>(a) < *static_cast<const zbacking_index*>(b) ? -1 : 1;
-    });
+static void sort_zbacking_index_array(zbacking_index* array, size_t count) {
+  ZUtils::sort(array, count, [](const zbacking_index* e1, const zbacking_index* e2) {
+    return *e1 < *e2 ? -1 : 1;
+  });
 }
 
 class ZSegmentStash {
@@ -88,7 +87,7 @@ private:
   ZArray<zbacking_index>             _stash;
 
   void sort_stashed_segments() {
-    sort_zbacking_index_ptrs(_stash.adr_at(0), (size_t)_stash.length());
+    sort_zbacking_index_array(_stash.adr_at(0), (size_t)_stash.length());
   }
 
   void copy_to_stash(int index, const ZMemoryRange& vmem) {
@@ -1471,7 +1470,7 @@ size_t ZPageAllocator::count_segments_physical(const ZMemoryRange& vmem) {
 }
 
 void ZPageAllocator::sort_segments_physical(const ZMemoryRange& vmem) {
-  sort_zbacking_index_ptrs(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
+  sort_zbacking_index_array(_physical_mappings.get_addr(vmem.start()), vmem.size_in_granules());
 }
 
 void ZPageAllocator::heat_memory(zoffset start, size_t size) const {

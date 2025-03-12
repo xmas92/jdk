@@ -1016,6 +1016,11 @@ private:
   const ZArray<Element>* map() const {
     return &_map;
   }
+
+  ZArray<Element>* map() {
+    return &_map;
+  }
+
 public:
   static void install_tracker(const ZPageAllocation* allocation, ZPage* page) {
     if (!allocation->is_multi_numa_allocation()) {
@@ -1032,7 +1037,7 @@ public:
       // Track each separate mapping's numa node
       const ZMemoryRange partial_vmem = vmem.split_from_front(partial_allocation->size());
       const int numa_id = partial_allocation->numa_id();
-      tracker->_map.push({partial_vmem, numa_id});
+      tracker->map()->push({partial_vmem, numa_id});
     }
 
     // Install the tracker
@@ -1045,7 +1050,7 @@ public:
     // Extract data and destroy page
     const ZMemoryRange vmem = page->virtual_memory();
     const ZGenerationId id = page->generation_id();
-    MultiNUMATracker* const tracker = page->multi_numa_tracker();
+    const MultiNUMATracker* const tracker = page->multi_numa_tracker();
     allocator->safe_destroy_page(page);
 
     // Keep track of to be inserted mappings

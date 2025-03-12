@@ -27,6 +27,7 @@
 #include "gc/z/zArray.hpp"
 
 #include "gc/z/zLock.inline.hpp"
+#include "metaprogramming/enableIf.hpp"
 #include "runtime/atomic.hpp"
 
 template <typename T, bool Parallel, bool IsConst>
@@ -64,6 +65,20 @@ inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(PtrType arra
 template <typename T, bool Parallel, bool IsConst>
 inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(ZArrayType* array, int start_index)
   : ZArrayIteratorImpl<T, Parallel, IsConst>(array->is_empty() ? nullptr : array->adr_at(0), (size_t)array->length(), (size_t)start_index) {}
+
+template <typename T, bool Parallel, bool IsConst>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(const ZArrayIteratorImpl<T, Parallel, true>& other)
+  : _next(other._next),
+    _end(other._end),
+    _array(other._array) {}
+
+template <typename T, bool Parallel, bool IsConst>
+template <bool Enable, ENABLE_IF_SDEFN(Enable)>
+inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(const ZArrayIteratorImpl<T, Parallel, false>& other)
+  : _next(other._next),
+    _end(other._end),
+    _array(other._array) {}
 
 template <typename T, bool Parallel, bool IsConst>
 template <bool Enable, ENABLE_IF_SDEFN(Enable)>

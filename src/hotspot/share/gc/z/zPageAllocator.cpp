@@ -164,6 +164,11 @@ private:
     return ZNUMA::count() * 2;
   }
 
+  ZArrayMutableIterator<ZArray<ZMemoryRange>> claimed_mappings_iter() {
+    const size_t count = _multi_numa_claimed_mappings == nullptr ? 0 : get_multi_numa_count();
+    return ZArrayMutableIterator<ZArray<ZMemoryRange>>(_multi_numa_claimed_mappings, count);
+  }
+
 public:
   ZMemoryAllocationData()
     : _claimed_mappings(1),
@@ -464,14 +469,11 @@ public:
 };
 
 ZMemoryAllocationData::~ZMemoryAllocationData() {
-  if (_multi_numa_claimed_mappings != nullptr) {
-    const int length = get_multi_numa_count();
-    ZArrayMutableIterator<ZArray<ZMemoryRange>> iter(_multi_numa_claimed_mappings, length);
-    for (ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
-      claimed_mappings->~ZArray<ZMemoryRange>();
-    }
-    FREE_C_HEAP_ARRAY(ZArray<ZMemoryRange>, _multi_numa_claimed_mappings);
+  ZArrayIterator<ZArray<ZMemoryRange>> iter = claimed_mappings_iter();
+  for (const ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
+    claimed_mappings->~ZArray<ZMemoryRange>();
   }
+  FREE_C_HEAP_ARRAY(ZArray<ZMemoryRange>, _multi_numa_claimed_mappings);
 }
 
 void ZMemoryAllocationData::reset() {
@@ -481,12 +483,9 @@ void ZMemoryAllocationData::reset() {
   // Clear multi numa allocations and mappings, but do not deallocate, it will
   // more than likely be a multi numa allocation the next time around
   _multi_numa_allocations.clear();
-  if (_multi_numa_claimed_mappings != nullptr) {
-    const int length = get_multi_numa_count();
-    ZArrayMutableIterator<ZArray<ZMemoryRange>> iter(_multi_numa_claimed_mappings, length);
-    for (ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
-      claimed_mappings->clear();
-    }
+  ZArrayMutableIterator<ZArray<ZMemoryRange>> iter = claimed_mappings_iter();
+  for (ZArray<ZMemoryRange>* claimed_mappings; iter.next_addr(&claimed_mappings);) {
+    claimed_mappings->clear();
   }
   _is_multi_numa_allocation = false;
 }

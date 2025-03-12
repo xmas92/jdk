@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZARRAY_HPP
 
 #include "memory/allocation.hpp"
+#include "metaprogramming/enableIf.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/os.hpp"
 #include "runtime/thread.hpp"
@@ -38,6 +39,8 @@ template <typename T> using ZArray = GrowableArrayCHeap<T, mtGC>;
 
 template <typename T, bool Parallel, bool IsConst>
 class ZArrayIteratorImpl : public StackObj {
+  friend class ZArrayIteratorImpl<T, Parallel, true>;
+
 private:
   using ZArrayType = std::conditional_t<IsConst, const ZArray<T>, ZArray<T>>;
   using RefType = std::conditional_t<IsConst, const T&, T&>;
@@ -53,6 +56,11 @@ private:
 public:
   ZArrayIteratorImpl(PtrType array, size_t length, size_t start_index = 0);
   ZArrayIteratorImpl(ZArrayType* array, int start_index = 0);
+  template <bool Enable = !Parallel, ENABLE_IF(Enable)>
+  ZArrayIteratorImpl(const ZArrayIteratorImpl<T, Parallel, false>& other);
+  template <bool Enable = !Parallel && IsConst, ENABLE_IF(Enable)>
+  ZArrayIteratorImpl(const ZArrayIteratorImpl<T, Parallel, true>& other);
+
 
   template <bool Enable = IsConst, ENABLE_IF(Enable)>
   bool next(T* elem);

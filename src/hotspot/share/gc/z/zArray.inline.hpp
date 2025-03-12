@@ -59,7 +59,7 @@ inline ZArrayIteratorImpl<T, Parallel, IsConst>::ZArrayIteratorImpl(PtrType arra
   : _next(start_index),
     _end(length),
     _array(array) {
-  assert(start_index < length, "start index out of bounds");
+  assert(start_index <= length, "start index out of bounds");
 }
 
 template <typename T, bool Parallel, bool IsConst>

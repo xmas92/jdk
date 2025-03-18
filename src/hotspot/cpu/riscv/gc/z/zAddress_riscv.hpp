@@ -29,6 +29,5 @@
 const size_t ZPointerLoadShift = 16;
 
 size_t ZPlatformAddressOffsetBits();
-size_t ZPlatformAddressHeapBaseShift();
 
 #endif // CPU_RISCV_GC_Z_ZADDRESS_RISCV_HPP

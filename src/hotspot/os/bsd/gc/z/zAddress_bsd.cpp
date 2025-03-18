@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,11 +21,9 @@
  * questions.
  */
 
-#ifndef CPU_PPC_GC_Z_ZADDRESS_PPC_HPP
-#define CPU_PPC_GC_Z_ZADDRESS_PPC_HPP
+#include "gc/z/zAddress.hpp"
 
-#include "utilities/globalDefinitions.hpp"
-
-const size_t ZPointerLoadShift = 16;
-
-#endif // CPU_PPC_GC_Z_ZADDRESS_PPC_HPP
+int ZGlobalsPointers::pd_max_heap_base_shift() {
+  // TODO: Seems like the highest address in mach is 46 bits.
+  return MIN2(ZAddressHeapBaseMaxShift, 45);
+}

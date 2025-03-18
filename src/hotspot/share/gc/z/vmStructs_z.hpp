@@ -117,6 +117,7 @@ typedef ZValue<ZPerNUMAStorage, ZPartition> ZPerNUMAZPartition;
   nonstatic_field(ZAttachedArrayForForwarding,  _length,              const size_t)
 
 #define VM_INT_CONSTANTS_Z(declare_constant, declare_constant_with_value)                            \
+  declare_constant(ZAddressOffsetBits)                                                               \
   declare_constant(ZPageType::small)                                                                 \
   declare_constant(ZPageType::medium)                                                                \
   declare_constant(ZPageType::large)                                                                 \
@@ -127,8 +128,6 @@ typedef ZValue<ZPerNUMAStorage, ZPartition> ZPerNUMAZPartition;
 
 #define VM_LONG_CONSTANTS_Z(declare_constant)                                                        \
   declare_constant(ZGranuleSizeShift)                                                                \
-  declare_constant(ZAddressOffsetShift)                                                              \
-  declare_constant(ZAddressOffsetBits)                                                               \
   declare_constant(ZAddressOffsetMask)                                                               \
   declare_constant(ZAddressOffsetMax)
 

@@ -36,9 +36,12 @@
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
-ZVirtualMemoryReserver::ZVirtualMemoryReserver(size_t size)
+ZVirtualMemoryReserver::ZVirtualMemoryReserver(size_t required_size)
+  : ZVirtualMemoryReserver(required_size, required_size) {}
+
+ZVirtualMemoryReserver::ZVirtualMemoryReserver(size_t requested_size, size_t required_size)
   : _registry(),
-    _reserved(reserve(size)) {}
+    _reserved(reserve(requested_size, required_size)) {}
 
 void ZVirtualMemoryReserver::initialize_partition_registry(ZVirtualMemoryRegistry* partition_registry, size_t size) {
   assert(partition_registry->is_empty(), "Should be empty when initializing");
@@ -201,25 +204,51 @@ bool ZVirtualMemoryReserver::reserve_contiguous(size_t size) {
   return false;
 }
 
-size_t ZVirtualMemoryReserver::reserve(size_t size) {
+size_t ZVirtualMemoryReserver::reserve(size_t requested_size, size_t required_size) {
   // Register Windows callbacks
   pd_register_callbacks(&_registry);
 
   // Reserve address space
 
-#ifdef ASSERT
-  if (ZForceDiscontiguousHeapReservations > 0) {
-    return force_reserve_discontiguous(size);
-  }
-#endif
-
   // Prefer a contiguous address space
-  if (reserve_contiguous(size)) {
-    return size;
+  while (DEBUG_ONLY(ZForceDiscontiguousHeapReservations == 0) NOT_DEBUG(true)) {
+    if (reserve_contiguous(requested_size)) {
+      // Found reservation
+      return requested_size;
+    }
+
+    if (!ZGlobalsPointers::try_lowering_heap_base(requested_size)) {
+      // No more heap bases to try
+
+      // Reset and try discontiguous
+      ZGlobalsPointers::reset_heap_base();
+      break;
+    }
   }
 
   // Fall back to a discontiguous address space
-  return reserve_discontiguous(size);
+
+  for (;;) {
+    const size_t reserved = DEBUG_ONLY(ZForceDiscontiguousHeapReservations > 0
+                                           ? force_reserve_discontiguous(requested_size)
+                                           :) reserve_discontiguous(requested_size);
+    if (reserved >= required_size) {
+      // Found reservation
+      return reserved;
+    }
+
+    // Reserve any potential reservations
+    unreserve_all();
+
+    if (!ZGlobalsPointers::try_lowering_heap_base(required_size)) {
+      // No more heap bases to try
+      break;
+    }
+  }
+
+  // No reservation found
+  assert(is_empty(), "Reservation failed, should be empty");
+  return 0;
 }
 
 ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
@@ -243,7 +272,7 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
       : MIN2(desired_for_partitions, limit);
 
   // Reserve virtual memory for the heap
-  ZVirtualMemoryReserver reserver(requested);
+  ZVirtualMemoryReserver reserver(requested, max_capacity);
 
   const size_t reserved = reserver.reserved();
   const bool is_contiguous = reserver.is_contiguous();
@@ -276,11 +305,17 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
 
   assert(reserver.is_empty(), "Must have handled all reserved memory");
 
+  const double heap_ratio = static_cast<double>(reserved) / static_cast<double>(max_capacity);
+
   log_info_p(gc, init)("Reserved Space Type: %s/%s/%s",
                        (is_contiguous ? "Contiguous" : "Discontiguous"),
                        (requested == desired ? "Unrestricted" : "Restricted"),
                        (reserved == desired ? "Complete" : ((reserved < desired_for_partitions) ? "Degraded"  : "NUMA-Degraded")));
-  log_info_p(gc, init)("Reserved Space Size: " EXACTFMT, EXACTFMTARGS(reserved));
+  log_info_p(gc, init)("Reserved Space Size: " EXACTFMT " (x%.2f Heap Ratio)", EXACTFMTARGS(reserved), heap_ratio);
+  log_debug_p(gc, init)("Address Space Range: " RANGE2FMT,
+                        untype(lowest_available_address(0)) | ZAddressHeapBase,
+                        ZAddressOffsetMax | ZAddressHeapBase,
+                        ZAddressOffsetMax - untype(lowest_available_address(0)));
 
   // Successfully initialized
   _initialized = true;

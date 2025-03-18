@@ -30,12 +30,16 @@
 
 // One bit that denotes where the heap start. All uncolored
 // oops have this bit set, plus an offset within the heap.
+extern int        ZAddressHeapBaseShift;
 extern uintptr_t  ZAddressHeapBase;
-extern uintptr_t  ZAddressHeapBaseShift;
+
+// The min and max shift allowed for the heap base. The max is
+// the limit that our ZForwardingEntry encoding can handle.
+const int ZAddressHeapBaseMaxShift = 44; // 16TB
+const int ZAddressHeapBaseMinShift = 34; // 16GB
 
 // Describes the maximal offset inside the heap.
-extern size_t    ZAddressOffsetBits;
-const  size_t    ZAddressOffsetShift = 0;
+extern int       ZAddressOffsetBits;
 extern uintptr_t ZAddressOffsetMask;
 extern size_t    ZAddressOffsetMax;
 
@@ -315,15 +319,19 @@ private:
   static void set_good_masks();
   static void pd_set_good_masks();
 
+  static void set_heap_base(int heap_base_shift);
+  static int pd_max_heap_base_shift();
+
 public:
   static void initialize();
+
+  static bool try_lowering_heap_base(size_t min_size);
+  static void reset_heap_base();
 
   static void flip_young_mark_start();
   static void flip_young_relocate_start();
   static void flip_old_mark_start();
   static void flip_old_relocate_start();
-
-  static size_t min_address_offset_request();
 };
 
 #endif // SHARE_GC_Z_ZADDRESS_HPP

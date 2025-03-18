@@ -21,19 +21,20 @@
  * questions.
  */
 
-#include "gc/shared/barrierSet.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zAddress.inline.hpp"
-#include "gc/z/zNUMA.inline.hpp"
-#include "gc/z/zVerify.hpp"
+#include "logging/log.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "runtime/java.hpp"
 #include "utilities/formatBuffer.hpp"
 
-size_t     ZAddressHeapBaseShift;
-size_t     ZAddressHeapBase;
+int        ZAddressHeapBaseShift;
+uintptr_t  ZAddressHeapBase;
 
-size_t     ZAddressOffsetBits;
+static int       ZAddressInitialHeapBaseShift;
+static uintptr_t ZAddressInitialHeapBase;
+
+int        ZAddressOffsetBits;
 uintptr_t  ZAddressOffsetMask;
 size_t     ZAddressOffsetMax;
 
@@ -102,20 +103,39 @@ static void initialize_check_oop_function() {
 #endif
 }
 
+void ZGlobalsPointers::set_heap_base(int heap_base_shift) {
+  assert(heap_base_shift <= ZAddressHeapBaseMaxShift, "Precond: %d <= %d",
+         heap_base_shift, ZAddressHeapBaseMaxShift);
+  assert(heap_base_shift >= ZAddressHeapBaseMinShift, "Precond: %d >= %d",
+         heap_base_shift, ZAddressHeapBaseMinShift);
+
+  // Setup the heap base
+  ZAddressHeapBaseShift = heap_base_shift;
+  ZAddressHeapBase = (uintptr_t)1 << ZAddressHeapBaseShift;
+
+  // Setup the offset
+  ZAddressOffsetBits = ZAddressHeapBaseShift;
+  ZAddressOffsetMask = ((uintptr_t)1 << ZAddressOffsetBits) - 1;
+  ZAddressOffsetMax = (size_t)1 << ZAddressOffsetBits;
+
+  log_debug(gc, init)("Set Heap Base: " PTR_FORMAT, ZAddressHeapBase);
+}
+
 void ZGlobalsPointers::initialize() {
-  ZAddressOffsetBits = ZPlatformAddressOffsetBits();
-  ZAddressOffsetMask = (((uintptr_t)1 << ZAddressOffsetBits) - 1) << ZAddressOffsetShift;
-  ZAddressOffsetMax = (uintptr_t)1 << ZAddressOffsetBits;
+  const int heap_base_shift = MIN2(ZAddressHeapBaseMaxShift, pd_max_heap_base_shift());
+  const size_t max_supported_heap = size_t(1) << heap_base_shift;
 
   // Check max supported heap size
-  if (MaxHeapSize > ZAddressOffsetMax) {
+  if (MaxHeapSize > max_supported_heap) {
     vm_exit_during_initialization(
-        err_msg("Java heap too large (max supported heap size is %zuG)",
-                ZAddressOffsetMax / G));
+        err_msg("Java heap too large (max supported heap size is " EXACTFMT ")",
+                EXACTFMTARGS(max_supported_heap)));
   }
 
-  ZAddressHeapBaseShift = ZPlatformAddressHeapBaseShift();
-  ZAddressHeapBase = (uintptr_t)1 << ZAddressHeapBaseShift;
+  // Set heap base
+  set_heap_base(heap_base_shift);
+  ZAddressInitialHeapBaseShift = ZAddressHeapBaseShift;
+  ZAddressInitialHeapBase = ZAddressHeapBase;
 
   ZPointerRemappedYoungMask = ZPointerRemapped10 | ZPointerRemapped00;
   ZPointerRemappedOldMask = ZPointerRemapped01 | ZPointerRemapped00;
@@ -127,6 +147,33 @@ void ZGlobalsPointers::initialize() {
   set_good_masks();
 
   initialize_check_oop_function();
+}
+
+bool ZGlobalsPointers::try_lowering_heap_base(size_t min_size) {
+  const size_t next_heap_base = ZAddressHeapBase >> 1;
+  const int next_heap_base_shift = ZAddressHeapBaseShift - 1;
+
+  if (min_size > next_heap_base) {
+    // Cannot fit the min size
+    return false;
+  }
+
+  if (next_heap_base_shift < ZAddressHeapBaseMinShift) {
+    // Lower heap base limit reached
+    return false;
+  }
+
+
+  // Lower heap base
+  set_heap_base(next_heap_base_shift);
+  return true;
+}
+
+void ZGlobalsPointers::reset_heap_base() {
+  set_heap_base(ZAddressInitialHeapBaseShift);
+  assert(ZAddressHeapBase == ZAddressInitialHeapBase,
+         "Postcond: " PTR_FORMAT " == " PTR_FORMAT, ZAddressHeapBase,
+         ZAddressInitialHeapBase);
 }
 
 void ZGlobalsPointers::flip_young_mark_start() {
@@ -149,11 +196,4 @@ void ZGlobalsPointers::flip_old_mark_start() {
 void ZGlobalsPointers::flip_old_relocate_start() {
   ZPointerRemappedOldMask ^= ZPointerRemappedMask;
   set_good_masks();
-}
-
-size_t ZGlobalsPointers::min_address_offset_request() {
-  // See ZVirtualMemoryReserver for logic around setting up the heap for NUMA
-  const size_t desired_for_heap = MaxHeapSize * ZVirtualToPhysicalRatio;
-  const size_t desired_for_numa_multiplier = ZNUMA::count() > 1 ? 2 : 1;
-  return round_up_power_of_2(desired_for_heap * desired_for_numa_multiplier);
 }

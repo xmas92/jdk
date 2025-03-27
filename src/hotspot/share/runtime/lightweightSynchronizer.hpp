@@ -70,6 +70,8 @@ class LightweightSynchronizer : AllStatic {
 
   static void deflate_monitor(Thread* current, oop obj, ObjectMonitor* monitor);
 
+  static ObjectMonitor* read_caches(JavaThread* current, oop obj, BasicLock* lock);
+
   static ObjectMonitor* get_monitor_from_table(Thread* current, oop obj);
 
   static bool contains_monitor(Thread* current, ObjectMonitor* monitor);

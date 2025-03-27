@@ -27,7 +27,9 @@
 
 #include "runtime/synchronizer.hpp"
 
-#include "runtime/lightweightSynchronizer.hpp"
+#include "runtime/basicLock.inline.hpp"
+#include "runtime/javaThread.inline.hpp"
+#include "runtime/lightweightSynchronizer.inline.hpp"
 #include "runtime/safepointVerifiers.hpp"
 
 inline ObjectMonitor* ObjectSynchronizer::read_monitor(markWord mark) {
@@ -38,6 +40,22 @@ inline ObjectMonitor* ObjectSynchronizer::read_monitor(Thread* current, oop obj,
   if (!UseObjectMonitorTable) {
     return read_monitor(mark);
   } else {
+    return LightweightSynchronizer::get_monitor_from_table(current, obj);
+  }
+}
+
+inline ObjectMonitor* ObjectSynchronizer::read_monitor(JavaThread* current, oop obj, markWord mark, BasicLock* lock) {
+  if (!UseObjectMonitorTable) {
+    return read_monitor(mark);
+  } else {
+    // Check caches
+    ObjectMonitor* mon = LightweightSynchronizer::read_caches(current, obj, lock);
+    if (mon != nullptr) {
+      // Found in caches
+      return mon;
+    }
+
+    // Lookup in table
     return LightweightSynchronizer::get_monitor_from_table(current, obj);
   }
 }

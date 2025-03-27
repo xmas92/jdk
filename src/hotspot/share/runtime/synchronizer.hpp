@@ -147,6 +147,7 @@ public:
 
   inline static ObjectMonitor* read_monitor(markWord mark);
   inline static ObjectMonitor* read_monitor(Thread* current, oop obj, markWord mark);
+  inline static ObjectMonitor* read_monitor(JavaThread* current, oop obj, markWord mark, BasicLock* lock);
 
   // Returns the identity hash value for an oop
   // NOTE: It may cause monitor inflation

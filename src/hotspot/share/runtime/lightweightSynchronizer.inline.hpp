@@ -33,7 +33,7 @@
 inline ObjectMonitor* LightweightSynchronizer::read_caches(JavaThread* current, oop obj, BasicLock* lock) {
   // Check thread stack cache
   ObjectMonitor* mon = lock->object_monitor_cache();
-  if (mon != nullptr && !mon->is_being_async_deflated()) {
+  if (mon != nullptr) {
     // Found monitor in thread stack cache
     return mon;
   }

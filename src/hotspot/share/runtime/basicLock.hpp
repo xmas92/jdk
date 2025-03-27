@@ -61,12 +61,12 @@ class BasicLock {
   static int displaced_header_offset_in_bytes() { return metadata_offset_in_bytes(); }
 
   // LM_LIGHTWEIGHT
-  inline ObjectMonitor* object_monitor_cache();
+  inline ObjectMonitor* object_monitor_cache() const;
   inline void clear_object_monitor_cache();
   inline void set_object_monitor_cache(ObjectMonitor* mon);
   static int object_monitor_cache_offset_in_bytes() { return metadata_offset_in_bytes(); }
 
-  void print_on(outputStream* st, oop owner);
+  void print_on(outputStream* st, oop owner) const;
 
   // move a basic lock (used during deoptimization)
   void move_to(oop obj, BasicLock* dest);

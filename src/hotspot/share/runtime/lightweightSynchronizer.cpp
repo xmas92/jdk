@@ -34,7 +34,7 @@
 #include "runtime/globals_extension.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/javaThread.inline.hpp"
-#include "runtime/lightweightSynchronizer.hpp"
+#include "runtime/lightweightSynchronizer.inline.hpp"
 #include "runtime/lockStack.inline.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/objectMonitor.inline.hpp"
@@ -48,6 +48,7 @@
 #include "utilities/concurrentHashTable.inline.hpp"
 #include "utilities/concurrentHashTableTasks.inline.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/macros.hpp"
 
 // ConcurrentHashTable storing links from objects to ObjectMonitors
 class ObjectMonitorTable : AllStatic {
@@ -1013,14 +1014,11 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
 
   NoSafepointVerifier nsv;
 
-  // Try to get the monitor from the thread-local cache.
+  // Try to get the monitor from the thread caches.
   // There's no need to use the cache if we are locking
   // on behalf of another thread.
   if (current == locking_thread) {
-    monitor = lock->object_monitor_cache();
-    if (monitor == nullptr) {
-      monitor = current->om_get_from_monitor_cache(object);
-    }
+    monitor = read_caches(current, object, lock);
   }
 
   // Get or create the monitor
@@ -1041,6 +1039,10 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
   if (monitor->is_being_async_deflated()) {
     // The MonitorDeflation thread is deflating the monitor. The locking thread
     // must spin until further progress has been made.
+
+    // Because we may have gotten this monitor from the cache, we create a
+    // CacheSetter which ensures the cache is clear for the next go around.
+    CacheSetter cache_setter(current, lock);
 
     const markWord mark = object->mark_acquire();
 
@@ -1183,6 +1185,9 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
   const markWord mark = obj->mark();
 
 #ifndef _LP64
+  // If quick_enter succeeds with entering, the cache should be in a valid initialized state.
+  lock->clear_object_monitor_cache();
+
   // Only for 32bit which has limited support for fast locking outside the runtime.
   if (lock_stack.try_recursive_enter(obj)) {
     // Recursive lock successful.
@@ -1200,17 +1205,9 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
 #endif
 
   if (mark.has_monitor()) {
-    ObjectMonitor* monitor;
-    if (UseObjectMonitorTable) {
-      // C2 fast-path may have put the monitor in the cache in the BasicLock.
-      monitor = lock->object_monitor_cache();
-      if (monitor == nullptr) {
-        // Otherwise look up the monitor in the thread's OMCache.
-        monitor = current->om_get_from_monitor_cache(obj);
-      }
-    } else {
-      monitor = ObjectSynchronizer::read_monitor(mark);
-    }
+    ObjectMonitor* const monitor = UseObjectMonitorTable
+      ? LightweightSynchronizer::read_caches(current, obj, lock)
+      : ObjectSynchronizer::read_monitor(mark);
 
     if (monitor == nullptr) {
       // Take the slow-path on a cache miss.
@@ -1218,7 +1215,7 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
     }
 
     if (UseObjectMonitorTable) {
-      lock->set_object_monitor_cache(monitor);
+      LP64_ONLY(lock->set_object_monitor_cache(monitor);)
     }
 
     if (monitor->spin_enter(current)) {

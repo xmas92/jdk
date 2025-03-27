@@ -461,9 +461,6 @@ bool ObjectMonitor::spin_enter(JavaThread* current) {
 
   // Check for recursion.
   if (try_enter(current)) {
-    if (has_successor(current)) {
-      clear_successor();
-    }
     return true;
   }
 
@@ -478,9 +475,6 @@ bool ObjectMonitor::spin_enter(JavaThread* current) {
   // Note that if we acquire the monitor from an initial spin
   // we forgo posting JVMTI events and firing DTRACE probes.
   if (try_spin(current)) {
-    if (has_successor(current)) {
-      clear_successor();
-    }
     assert(has_owner(current), "must be current: owner=" INT64_FORMAT, owner_raw());
     assert(_recursions == 0, "must be 0: recursions=%zd", _recursions);
     assert_mark_word_consistency();
@@ -498,6 +492,7 @@ bool ObjectMonitor::enter(JavaThread* current) {
   }
 
   assert(!has_owner(current), "invariant");
+  assert(!has_successor(current), "invariant");
   assert(!SafepointSynchronize::is_at_safepoint(), "invariant");
   assert(current->thread_state() != _thread_blocked, "invariant");
 
@@ -556,12 +551,6 @@ void ObjectMonitor::enter_with_contention_mark(JavaThread* current, ObjectMonito
     notify_contended_enter(current);
     result = Continuation::try_preempt(current, ce->cont_oop(current));
     if (result == freeze_ok) {
-      if (has_successor(current)) {
-        clear_successor();
-        // Invariant: after setting succ=null a contending thread
-        // must recheck-retry _owner before parking. (Done in vthread_monitor_enter)
-        OrderAccess::fence();
-      }
       bool acquired = vthread_monitor_enter(current);
       if (acquired) {
         // We actually acquired the monitor while trying to add the vthread to the
@@ -938,9 +927,7 @@ void ObjectMonitor::enter_internal(JavaThread* current) {
 
   // Try the lock - TATAS
   if (try_lock(current) == TryLockResult::Success) {
-    if (has_successor(current)) {
-      clear_successor();
-    }
+    assert(!has_successor(current), "invariant");
     assert(has_owner(current), "invariant");
     return;
   }
@@ -954,7 +941,7 @@ void ObjectMonitor::enter_internal(JavaThread* current) {
   // to the owner.  This has subtle but beneficial affinity
   // effects.
 
-  if (final_try_spin(current)) {
+  if (try_spin(current)) {
     assert(has_owner(current), "invariant");
     assert(!has_successor(current), "invariant");
     return;
@@ -1119,7 +1106,7 @@ void ObjectMonitor::reenter_internal(JavaThread* current, ObjectWaiter* currentN
 
     // If that fails, spin again.  Note that spin count may be zero so the above TryLock
     // is necessary.
-    if (final_try_spin(current)) {
+    if (try_spin(current)) {
         break;
     }
 
@@ -2342,6 +2329,9 @@ bool ObjectMonitor::try_spin(JavaThread* current) {
     // This is in keeping with the "no loitering in runtime" rule.
     // We periodically check to see if there's a safepoint pending.
     if ((ctr & 0xFF) == 0) {
+      if (has_successor(current)) {
+        clear_successor();
+      }
       // Can't call SafepointMechanism::should_process() since that
       // might update the poll values and we could be in a thread_blocked
       // state here which is not allowed so just check the poll.
@@ -2406,22 +2396,12 @@ bool ObjectMonitor::try_spin(JavaThread* current) {
     _SpinDuration = adjust_down(_SpinDuration);
   }
 
-  return false;
-}
-
-bool ObjectMonitor::final_try_spin(JavaThread* current) {
-  if (try_spin(current)) {
-    if (has_successor(current)) {
-      // We are locked, clear the successor.
-      clear_successor();
-    }
-    return true;
-  }
-
   if (has_successor(current)) {
     clear_successor();
     // Invariant: after setting succ=null a contending thread
-    // must recheck-retry _owner before parking.
+    // must recheck-retry _owner before parking.  This usually happens
+    // in the normal usage of try_spin(), but it's safest
+    // to make try_spin() as foolproof as possible.
     OrderAccess::fence();
     if (try_lock(current) == TryLockResult::Success) {
       return true;

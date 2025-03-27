@@ -1029,9 +1029,6 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
   }
 
   if (monitor->try_enter(locking_thread)) {
-    if (monitor->has_successor(current)) {
-      monitor->clear_successor();
-    }
     return monitor;
   }
 
@@ -1147,7 +1144,6 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
 
   if (current == locking_thread) {
     monitor->enter_with_contention_mark(locking_thread, contention_mark);
-    assert(!monitor->has_successor(current), "what?");
   } else {
     monitor->enter_for_with_contention_mark(locking_thread, contention_mark);
   }

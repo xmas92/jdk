@@ -339,7 +339,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
   bool      has_successor(JavaThread* thread) const;
   void      set_successor(JavaThread* thread);
   void      set_successor(oop vthread);
-  void      clear_successor();
+  bool      clear_successor(JavaThread* thread);
   int64_t   successor() const;
 
   // Returns true if _owner field == owner_id of thread, false otherwise.

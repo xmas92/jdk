@@ -1029,9 +1029,7 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
   }
 
   if (monitor->try_enter(locking_thread)) {
-    if (monitor->has_successor(current)) {
-      monitor->clear_successor();
-    }
+    monitor->clear_successor(current);
     return monitor;
   }
 

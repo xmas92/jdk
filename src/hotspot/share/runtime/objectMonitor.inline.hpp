@@ -221,8 +221,9 @@ inline void ObjectMonitor::set_successor(oop vthread) {
   Atomic::store(&_succ, java_lang_Thread::thread_id(vthread));
 }
 
-inline void ObjectMonitor::clear_successor() {
-  Atomic::store(&_succ, NO_OWNER);
+inline bool ObjectMonitor::clear_successor(JavaThread* thread) {
+  const int64_t owner = owner_id_from(thread);
+  return Atomic::cmpxchg(&_succ, owner, NO_OWNER, memory_order_relaxed) == owner;
 }
 
 inline int64_t ObjectMonitor::successor() const {

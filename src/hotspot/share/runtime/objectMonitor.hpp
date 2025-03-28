@@ -456,6 +456,7 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
   TryLockResult  try_lock(JavaThread* current);
 
   bool      try_spin(JavaThread* current);
+  bool      final_try_spin(JavaThread* current);
   bool      short_fixed_spin(JavaThread* current, int spin_count, bool adapt);
   void      exit_epilog(JavaThread* current, ObjectWaiter* Wakee);
 

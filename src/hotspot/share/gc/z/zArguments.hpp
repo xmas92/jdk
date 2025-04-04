@@ -29,7 +29,7 @@
 class CollectedHeap;
 
 class ZArguments : public GCArguments {
-  friend class ZVirtualMemoryManagerTest;
+  friend class ZTest;
 
 private:
   static void select_max_gc_threads();

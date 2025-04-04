@@ -37,7 +37,7 @@ public:
 };
 
 class ZInitialize : public AllStatic {
-  friend class ZVirtualMemoryManagerTest;
+  friend class ZTest;
 
 private:
   static constexpr size_t ErrorMessageLength = 256;

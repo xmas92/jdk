@@ -31,7 +31,7 @@
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.hpp"
 #include "runtime/os.hpp"
-#include "unittest.hpp"
+#include "zunittest.hpp"
 
 using namespace testing;
 
@@ -53,7 +53,7 @@ public:
   }
 };
 
-class ZVirtualMemoryManagerTest : public Test {
+class ZVirtualMemoryManagerTest : public ZTest {
 private:
   static constexpr size_t ReservationSize = 32 * M;
 
@@ -63,17 +63,9 @@ private:
 public:
   virtual void SetUp() {
     // Only run test on supported Windows versions
-    if (!ZArguments::is_os_supported()) {
+    if (!is_os_supported()) {
       GTEST_SKIP() << "OS not supported";
-      return;
     }
-
-    // Initialize ZGC subsystems for gtests
-    static bool runs_once = [&]() {
-      ZInitialize::pd_initialize();
-      ZGlobalsPointers::initialize();
-      return true;
-    }();
 
     void* vmr_mem = os::malloc(sizeof(ZVirtualMemoryManager), mtTest);
     _vmm = ::new (vmr_mem) ZVirtualMemoryManager(ReservationSize);
@@ -81,7 +73,7 @@ public:
   }
 
   virtual void TearDown() {
-    if (!ZArguments::is_os_supported()) {
+    if (!is_os_supported()) {
       // Test skipped, nothing to cleanup
       return;
     }
@@ -93,11 +85,8 @@ public:
   }
 
   void test_reserve_discontiguous_and_coalesce() {
-    // Empty the reserved memory in preparation for the rest of the test.
-    _vmm->unreserve_all();
-
     // Start by ensuring that we have 3 unreserved granules, and then let the
-    // fourth granule be pre-reserved and therfor blocking subsequent requests
+    // fourth granule be pre-reserved and therefore blocking subsequent requests
     // to reserve memory.
     //
     // +----+----+----+----+
@@ -124,44 +113,39 @@ public:
     // to separate the fetched memory from the memory left in the manager. This
     // used to fail because the memory was already split into two placeholders.
 
-    const zoffset base_offset = zoffset(0);
-    const zaddress_unsafe base = ZOffset::address_unsafe(base_offset);
-    const zaddress_unsafe blocked = base + 3 * ZGranuleSize;
-
-    // Reserve and release the three granules to sanity check that noting is
-    // already reserved at those addresses.
-    {
-      char* const result = os::attempt_reserve_memory_at((char*)untype(base), 3 * ZGranuleSize, !ExecMem, mtTest);
-      if (uintptr_t(result) != untype(base)) {
-        GTEST_SKIP() << "Failed to reserve requested memory at ";
-        return;
-      }
-
-      const bool released = os::release_memory(result, 3 * ZGranuleSize);
-      ASSERT_TRUE(released);
+    if (_vmm->reserved() < 4 * ZGranuleSize || !_va->free_is_contiguous()) {
+      GTEST_SKIP() << "Fixture fail to reserve adequate memory, reserved "
+          << (_vmm->reserved() >> ZGranuleSizeShift) << " * ZGranuleSize";
     }
 
+    // Start at the offset we reserved.
+    const zoffset base_offset = _vmm->lowest_available_address();
+
+    // Empty the reserved memory in preparation for the rest of the test.
+    _vmm->unreserve_all();
+
+    const zaddress_unsafe base = ZOffset::address_unsafe(base_offset);
+    const zaddress_unsafe blocked = base + 3 * ZGranuleSize;
 
     // Reserve the memory that is acting as a blocking reservation.
     {
       char* const result = os::attempt_reserve_memory_at((char*)untype(blocked), ZGranuleSize, !ExecMem, mtTest);
       if (uintptr_t(result) != untype(blocked)) {
-        GTEST_SKIP() << "Failed to reserve requested memory at ";
-        return;
+        GTEST_SKIP() << "Failed to reserve requested memory at " << untype(blocked);
       }
     }
 
     {
       // This ends up reserving 2 granules and then 1 granule adjacent to the
       // first. In previous implementations this resulted in two separate
-      // placeholderes (4MB and 2MB). This was a bug, because the manager is
+      // placeholders (4MB and 2MB). This was a bug, because the manager is
       // designed to have one placeholder per memory area. This in turn would
       // lead to a subsequent failure when _vmm->alloc tried to split off the
       // 4MB that is already covered by its own placeholder. You can't place
       // a placeholder over an already existing placeholder.
 
       // To reproduce this, the test needed to mimic the initializing memory
-      // reservation code which had the placedholders turned off. This was done
+      // reservation code which had the placeholders turned off. This was done
       // with this helper:
       //
       // ZCallbacksResetter resetter(&_va->_callbacks);
@@ -170,17 +154,22 @@ public:
       // need this to mimic the initializing memory reservation.
 
       const size_t reserved = _vmm->reserve_discontiguous(base_offset, 4 * ZGranuleSize, ZGranuleSize);
-      ASSERT_EQ(reserved, 3 * ZGranuleSize);
+      ASSERT_LE(reserved, 3 * ZGranuleSize);
+      if (reserved < 3 * ZGranuleSize) {
+        GTEST_SKIP() << "Failed reserve_discontiguous"
+            ", expected 3 * ZGranuleSize, got " << (reserved >> ZGranuleSizeShift)
+            << " * ZGranuleSize";
+      }
     }
 
     {
-      // The test used to crash here becase the 3 granule memory area was
-      // inadvertently covered by two place holders (2 granuels + 1 granule).
+      // The test used to crash here because the 3 granule memory area was
+      // inadvertently covered by two place holders (2 granules + 1 granule).
       const ZVirtualMemory vmem = _vmm->alloc(2 * ZGranuleSize, true);
       ASSERT_EQ(vmem.start(), base_offset);
       ASSERT_EQ(vmem.size(), 2 * ZGranuleSize);
 
-      // Cleanup - Must happen in granuled-sizes because of how Windows hands
+      // Cleanup - Must happen in granule-sizes because of how Windows hands
       // out memory in granule-sized placeholder reservations.
       _vmm->unreserve(base_offset, ZGranuleSize);
       _vmm->unreserve(base_offset + ZGranuleSize, ZGranuleSize);

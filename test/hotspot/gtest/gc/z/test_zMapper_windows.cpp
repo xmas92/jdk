@@ -35,7 +35,7 @@
 
 using namespace testing;
 
-class ZMapperTest : public Test {
+class ZMapperTest : public ZTest {
 private:
   static constexpr size_t ReservationSize = 32 * M;
 
@@ -46,13 +46,9 @@ private:
 public:
   virtual void SetUp() {
     // Only run test on supported Windows versions
-    if (!ZSyscall::is_supported()) {
+    if (!is_os_supported()) {
       GTEST_SKIP() << "Requires Windows version 1803 or later";
-      return;
     }
-
-    ZSyscall::initialize();
-    ZGlobalsPointers::initialize();
 
     // Fake a ZVirtualMemoryManager
     _vmm = (ZVirtualMemoryManager*)os::malloc(sizeof(ZVirtualMemoryManager), mtTest);
@@ -64,12 +60,11 @@ public:
     // Reserve address space for the test
     if (_vmm->reserved() != ReservationSize) {
       GTEST_SKIP() << "Failed to reserve address space";
-      return;
     }
   }
 
   virtual void TearDown() {
-    if (!ZSyscall::is_supported()) {
+    if (!is_os_supported()) {
       // Test skipped, nothing to cleanup
       return;
     }

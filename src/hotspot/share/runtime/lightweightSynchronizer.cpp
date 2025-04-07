@@ -622,8 +622,6 @@ void LightweightSynchronizer::enter_for(Handle obj, BasicLock* lock, JavaThread*
     ObjectSynchronizer::handle_sync_on_value_based_class(obj, locking_thread);
   }
 
-  CacheSetter cache_setter(locking_thread, lock);
-
   LockStack& lock_stack = locking_thread->lock_stack();
 
   ObjectMonitor* monitor = nullptr;
@@ -640,7 +638,6 @@ void LightweightSynchronizer::enter_for(Handle obj, BasicLock* lock, JavaThread*
   }
 
   assert(monitor != nullptr, "LightweightSynchronizer::enter_for must succeed");
-  cache_setter.set_monitor(monitor);
 }
 
 void LightweightSynchronizer::enter(Handle obj, BasicLock* lock, JavaThread* current) {

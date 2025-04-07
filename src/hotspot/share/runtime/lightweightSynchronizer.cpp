@@ -518,8 +518,12 @@ class LightweightSynchronizer::CacheSetter : StackObj {
     // Only use the cache if using the table.
     if (UseObjectMonitorTable) {
       if (_monitor != nullptr) {
-        _thread->om_set_monitor_cache(_monitor);
-        _lock->set_object_monitor_cache(_monitor);
+        // If the monitor is already in the BasicLock cache then it is most
+        // likely in the thread cache, do not set it again to avoid reordering.
+        if (_monitor != _lock->object_monitor_cache()) {
+          _thread->om_set_monitor_cache(_monitor);
+          _lock->set_object_monitor_cache(_monitor);
+        }
       } else {
         _lock->clear_object_monitor_cache();
       }
@@ -1176,6 +1180,9 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
   assert(obj != nullptr, "must be");
   NoSafepointVerifier nsv;
 
+  // If quick_enter succeeds with entering, the cache should be in a valid initialized state.
+  CacheSetter cache_setter(current, lock);
+
   LockStack& lock_stack = current->lock_stack();
   if (lock_stack.is_full()) {
     // Always go into runtime if the lock stack is full.
@@ -1219,9 +1226,8 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
       return false;
     }
 
-    if (UseObjectMonitorTable) {
-      lock->set_object_monitor_cache(monitor);
-    }
+    // Set the monitor regardless of success, it may be used in the slow path
+    cache_setter.set_monitor(monitor);
 
     if (monitor->spin_enter(current)) {
       return true;

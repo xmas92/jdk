@@ -1043,6 +1043,9 @@ ObjectMonitor* LightweightSynchronizer::inflate_and_enter(oop object, BasicLock*
     // The MonitorDeflation thread is deflating the monitor. The locking thread
     // must spin until further progress has been made.
 
+    // Clear the BasicLock cache as it may contain this monitor.
+    lock->clear_object_monitor_cache();
+
     const markWord mark = object->mark_acquire();
 
     if (mark.has_monitor()) {

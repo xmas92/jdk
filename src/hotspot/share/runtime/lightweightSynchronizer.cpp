@@ -1232,6 +1232,14 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
     if (monitor->spin_enter(current)) {
       return true;
     }
+
+    if (UseObjectMonitorTable) {
+      // Save the monitor to be used in enter slowpath
+      // Blocks the cache setter from updating the cache, this is non-obvious,
+      // needs to be cleaned up. Maybe better to not have the CacheSetter, or
+      // enhance it with some "don't clear cache" boolean.
+      lock->set_object_monitor_cache(monitor);
+    }
   }
 
   // Slow-path.

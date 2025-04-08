@@ -1180,9 +1180,6 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
   assert(obj != nullptr, "must be");
   NoSafepointVerifier nsv;
 
-  // If quick_enter succeeds with entering, the cache should be in a valid initialized state.
-  CacheSetter cache_setter(current, lock);
-
   LockStack& lock_stack = current->lock_stack();
   if (lock_stack.is_full()) {
     // Always go into runtime if the lock stack is full.
@@ -1226,19 +1223,17 @@ bool LightweightSynchronizer::quick_enter(oop obj, BasicLock* lock, JavaThread* 
       return false;
     }
 
-    // Set the monitor regardless of success, it may be used in the slow path
-    cache_setter.set_monitor(monitor);
+    if (UseObjectMonitorTable) {
+      // Set the monitor regardless of success.
+      // Either we successfully lock on the monitor, or we retry with the
+      // monitor in the slow path. If the monitor gets deflated, it will be
+      // cleared, either by the CacheSetter if we fast lock in enter or in
+      // inflate_and_enter when we see that the monitor is deflated.
+      lock->set_object_monitor_cache(monitor);
+    }
 
     if (monitor->spin_enter(current)) {
       return true;
-    }
-
-    if (UseObjectMonitorTable) {
-      // Save the monitor to be used in enter slowpath
-      // Blocks the cache setter from updating the cache, this is non-obvious,
-      // needs to be cleaned up. Maybe better to not have the CacheSetter, or
-      // enhance it with some "don't clear cache" boolean.
-      lock->set_object_monitor_cache(monitor);
     }
   }
 

@@ -245,7 +245,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
   if (is_heap_anti_pressure_gc) {
     // The GC is bored. The impact of shrinking should not cost a considerable amount of
     // CPU, or we would not get here.
-    const size_t selected_capacity = MAX2(size_t(metrics->_heuristic_max_capacity * 0.95), used);
+    const size_t selected_capacity = MAX2(size_t(double(heuristic_max_capacity) * 0.95), used);
     return clamp(align_down(selected_capacity, ZGranuleSize), min_capacity, current_max_capacity);
   }
 
@@ -282,7 +282,7 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
   // Since a GC cycle is obviously round, we can estimate the minimum bytes due to
   // a particular allocation rate and GC pressure by calculating GC pressure * pi.
   const double alloc_rate_scaling = warmness_squared / (pressure * M_PI);
-  const size_t heuristic_low = MAX2(size_t(used * 1.1), size_t(alloc_rate * alloc_rate_scaling)) / mem_pressure;
+  const size_t heuristic_low = align_down(size_t(double(MAX2(size_t(double(used) * 1.1), size_t(alloc_rate * alloc_rate_scaling))) / mem_pressure), ZGranuleSize);
 
   const size_t upper_bound = MIN2(soft_max_capacity, current_max_capacity);
   const size_t lower_bound = clamp(heuristic_low, min_capacity, upper_bound);
@@ -334,8 +334,8 @@ size_t ZAdaptiveHeap::compute_heap_size(ZHeapResizeMetrics* metrics, ZGeneration
   const double lower_smoothened_error = smoothing_function(lower_error_signal, warmness);
   const double lower_correction_factor = lower_smoothened_error + 0.5;
 
-  const size_t upper_suggested_capacity = align_up(size_t(heuristic_max_capacity * upper_correction_factor), ZGranuleSize);
-  const size_t lower_suggested_capacity = align_up(size_t(heuristic_max_capacity * lower_correction_factor), ZGranuleSize);
+  const size_t upper_suggested_capacity = align_up(size_t(double(heuristic_max_capacity) * upper_correction_factor), ZGranuleSize);
+  const size_t lower_suggested_capacity = align_up(size_t(double(heuristic_max_capacity) * lower_correction_factor), ZGranuleSize);
 
   const size_t upper_bounded_capacity = clamp(upper_suggested_capacity, lower_bound, upper_bound);
   const size_t lower_bounded_capacity = clamp(lower_suggested_capacity, lower_bound, upper_bound);
@@ -435,7 +435,7 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
   const size_t target_capacity = MAX2(ZHeap::heap()->heuristic_max_capacity(), old_used_reloc_end);
   const size_t free_heap = target_capacity - old_used_reloc_end;
 
-  const uint64_t explicit_delay = free_heap / M * SoftRefLRUPolicyMSPerMB;
+  const uint64_t explicit_delay = free_heap / M * uint64_t(SoftRefLRUPolicyMSPerMB);
 
   if (explicit_max_capacity()) {
     // Use the good old policy we all know and love so much when automatic heap
@@ -470,17 +470,17 @@ uint64_t ZAdaptiveHeap::soft_ref_delay() {
   const double mem_pressure = free_ratio;
 
   // No point to clear more soft references due to external memory pressure if the
-  // Scale the SoftRefLRUPolicyMSPerMB as an nth rooot where n is the memory pressure.
+  // Scale the SoftRefLRUPolicyMSPerMB as an nth root where n is the memory pressure.
   // The reason for using the nth root is that it might not necessarily be that
   // linearly decreasing the interval with memory pressure yields linearly more
   // soft references being cleared. It rather depends on the access frequency.
   // If they get accessed very frequently, then it's likely that no soft reference
   // get cleared at all, until the interval is made *very* small. Therefore, the
   // more aggressive nth root is used.
-  const uint64_t scaled_interval = pow(SoftRefLRUPolicyMSPerMB, 1.0 / mem_pressure);
+  const uint64_t scaled_interval = uint64_t(pow(SoftRefLRUPolicyMSPerMB, 1.0 / mem_pressure));
 
   // Compute the potentially more aggressive delay that cuts the feedback loop.
-  const uint64_t implicit_delay = time_to_old_oom * scaled_interval;
+  const uint64_t implicit_delay = uint64_t(time_to_old_oom * double(scaled_interval));
 
   // If the new policy yields earlier cut off points, then use that. Otherwise,
   // we still use the more relaxed policy to cut off soft references when they

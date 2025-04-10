@@ -22,21 +22,41 @@
  */
 
 #include "gc/z/zAdaptiveHeap.hpp"
+#include "gc/z/zCommitter.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAllocator.hpp"
-#include "gc/z/zCommitter.hpp"
+#include "gc/z/zVirtualMemory.inline.hpp"
 #include "runtime/init.hpp"
+#include "utilities/debug.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/rbTree.inline.hpp"
 
-ZCommitter::ZCommitter(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
+int ZHeatingRequestTreeComparator::cmp(ZVirtualMemory first, ZVirtualMemory second) {
+  const zoffset start = first.start();
+  if (start < second.start()) {
+    // Start before second
+    return -1;
+  }
+
+  if (start >= second.end()) {
+    // Start after second
+    return 1;
+  }
+
+  return 0;
+}
+
+ZCommitter::ZCommitter(uint32_t id, ZPartition* partition)
+  : _id(id),
+    _partition(partition),
     _lock(),
     _heating_requests(),
     _target_capacity(0),
     _stop(false),
-    _currently_heating(zaddress::null) {
-  set_name("ZCommitter");
+    _currently_heating() {
+  set_name("ZCommitter#%u", _id);
   create_and_start();
 }
 
@@ -49,17 +69,17 @@ size_t ZCommitter::commit_granule(size_t capacity, size_t target_capacity) {
   const size_t smallest_granule = ZGranuleSize;
   const size_t largest_granule = MAX2(ZPageSizeMedium, smallest_granule);
 
-  const size_t heuristic_max_capacity = _page_allocator->heuristic_max_capacity();
+  const size_t heuristic_max_capacity = _partition->heuristic_max_capacity();
 
   // Don't allocate things that are larger than the largest medium page size, in the lower address space
-  return clamp(round_down_power_of_2(heuristic_max_capacity / 64), smallest_granule, largest_granule);
+  return clamp(align_up(heuristic_max_capacity / 64, ZGranuleSize), smallest_granule, largest_granule);
 }
 
 bool ZCommitter::should_commit(size_t granule, size_t capacity, size_t target_capacity, size_t curr_max_capacity) {
   const size_t new_capacity = capacity + granule;
 
   if (!ZAdaptiveHeap::explicit_max_capacity() &&
-      new_capacity > size_t(curr_max_capacity * (1.0 - ZMemoryCriticalThreshold))) {
+      new_capacity > size_t(double(curr_max_capacity) * (1.0 - ZMemoryCriticalThreshold))) {
     // Don't speculatively commit memory around the machine boundaries; it interacts poorly with
     // panic uncommitting around the same boundaries. When a user is this close to falling over,
     // this instead acts as an implicit allocation pacer to try to avoid an allocation stall.
@@ -96,8 +116,8 @@ bool ZCommitter::has_heating_request() {
 
 bool ZCommitter::peek() {
   for (;;) {
-    const size_t capacity = _page_allocator->capacity();
-    const size_t curr_max_capacity = ZHeap::heap()->current_max_capacity();
+    const size_t capacity = _partition->capacity();
+    const size_t curr_max_capacity = _partition->current_max_capacity();
     const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
     const size_t granule = commit_granule(capacity, target_capacity);
 
@@ -137,7 +157,7 @@ size_t ZCommitter::target_capacity() {
 void ZCommitter::heap_resized(size_t capacity, size_t heuristic_max_capacity) {
   if (capacity <= heuristic_max_capacity) {
     // Heap increases are handled lazily through the director monitoring
-    // This allows growing to be more vigilent and not have to wait for
+    // This allows growing to be more vigilant and not have to wait for
     // a GC before growing can commence. Uncommitting though, is less urgent.
     return;
   }
@@ -171,13 +191,13 @@ void ZCommitter::heap_resized(size_t capacity, size_t heuristic_max_capacity) {
 }
 
 void ZCommitter::set_target_capacity(size_t target_capacity) {
-  const size_t curr_max_capacity = ZHeap::heap()->current_max_capacity();
+  const size_t curr_max_capacity = _partition->current_max_capacity();
 
   ZLocker<ZConditionLock> locker(&_lock);
   Atomic::store(&_target_capacity, target_capacity);
 
-  const size_t capacity = _page_allocator->capacity();
-  target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
+  const size_t capacity = _partition->capacity();
+  target_capacity = MIN2(target_capacity, curr_max_capacity);
   const size_t granule = commit_granule(capacity, target_capacity);
 
   if (should_commit(granule, capacity, target_capacity, curr_max_capacity)) {
@@ -191,51 +211,116 @@ void ZCommitter::set_target_capacity(size_t target_capacity) {
   }
 }
 
-void ZCommitter::register_heating_request(const ZPage* page) {
+void ZCommitter::register_heating_request(const ZVirtualMemory& vmem) {
   ZLocker<ZConditionLock> locker(&_lock);
   if (_stop) {
     // Don't add more requests during termination
     return;
   }
-  for (size_t granule = 0; granule < page->size(); granule += ZGranuleSize) {
-    _heating_requests.upsert(page->start() + granule, ZGranuleSize);
-  }
+  _heating_requests.upsert(vmem, true);
 }
 
-zoffset ZCommitter::pop_heating_request(size_t& size) {
+ZVirtualMemory ZCommitter::pop_heating_request() {
   assert(has_heating_request(), "precondition");
 
-  ZHeatingRequestNode* node = _heating_requests.leftmost();
+  ZHeatingRequestNode* const node = _heating_requests.leftmost();
 
-  zoffset offset = node->key();
-  size = node->val();
+  ZVirtualMemory vmem = node->key();
+  const ZVirtualMemory popped_vmem = vmem.shrink_from_front(ZGranuleSize);
+  if (vmem.size() == 0) {
+    // Popped the last memory in node
+    _heating_requests.remove(node);
+  } else {
+    // Memory still left, create and replace node
+    ZHeatingRequestNode* const new_node = _heating_requests.allocate_node(popped_vmem, true);
+    _heating_requests.replace_at_cursor(new_node, _heating_requests.cursor(node));
+  }
 
-  _heating_requests.remove(offset);
-
-  return offset;
+  return popped_vmem;
 }
 
-void ZCommitter::remove_heating_request(const ZPage* page) {
-  for (size_t granule = 0; granule < page->size(); granule += ZGranuleSize) {
-    const zoffset offset = page->start() + granule;
-    const zaddress addr = ZOffset::address(offset);
+void ZCommitter::remove_heating_request(const ZVirtualMemory& vmem) {
+  const auto remove_vmem_entires = [&](const ZVirtualMemory& remove_vmem) {
+    ZArray<ZHeatingRequestNode*> to_remove;
 
-    ZLocker<ZConditionLock> locker(&_lock);
-    while (_currently_heating == addr) {
-      // Trying to unmap what's currently being heated; calm down!
-      _lock.wait();
-    }
+    // ZHeatingRequestTreeComparator::cmp only checks if a node contains the
+    // lookup keys start(). Construct virtual vmems representing the first and
+    // last granule.
+    const ZVirtualMemory first_vmem = remove_vmem.first_part(ZGranuleSize);
+    const ZVirtualMemory last_vmem = remove_vmem.last_part(remove_vmem.size() - ZGranuleSize);
+    _heating_requests.visit_range_in_order(first_vmem, last_vmem,[&](const ZHeatingRequestNode* node) {
+      // Const cast the node, we only use it to modify the tree after
+      // visit_range_in_order is completed.
+      to_remove.push(const_cast<ZHeatingRequestNode*>(node));
+    });
 
-    ZHeatingRequestNode* node = _heating_requests.find_node(offset);
-    if (node != nullptr) {
+    for (ZHeatingRequestNode* node : to_remove) {
+      assert(node->key().overlaps(remove_vmem), "must overlap");
+      ZVirtualMemory node_vmem = node->key();
+      // First remove the node
       _heating_requests.remove(node);
+      if (remove_vmem.contains(node_vmem)) {
+        // Memory in node is completely contain by remove_vmem,
+        // nothing to reinsert.
+        continue;
+      }
+
+      if (node_vmem.start() < remove_vmem.start()) {
+        // Keep part of node_vmem front
+        const size_t prefix_size = remove_vmem.start() - node_vmem.start();
+        _heating_requests.upsert(node_vmem.shrink_from_front(prefix_size), true);
+      }
+
+      if (node_vmem.end() > remove_vmem.end()) {
+        // Keep part of node_vmem back
+        const size_t suffix_size = node_vmem.end() - remove_vmem.end();
+        _heating_requests.upsert(node_vmem.shrink_from_back(suffix_size), true);
+      }
+
+      assert(remove_vmem.contains(node_vmem), "what is left must be a subset of remove_vmem");
     }
+  };
+
+  ZLocker<ZConditionLock> locker(&_lock);
+  if (!_currently_heating.is_null() && vmem.overlaps(_currently_heating)) {
+    ZVirtualMemory to_remove = vmem;
+
+    if (to_remove.start() < _currently_heating.start()) {
+      // Remove prefix
+      const size_t prefix_size = _currently_heating.start() - to_remove.start();
+      remove_vmem_entires(to_remove.shrink_from_front(prefix_size));
+    }
+
+    if (to_remove.end() > _currently_heating.end()) {
+      // Remove suffix
+        const size_t suffix_size = to_remove.end() - _currently_heating.end();
+        remove_vmem_entires(to_remove.shrink_from_back(suffix_size));
+    }
+
+    assert(_currently_heating.contains(to_remove), "must only have _currently_heating left");
+
+    do {
+      // Wait until heating is finished
+      _lock.wait();
+    } while (!_currently_heating.is_null() && _currently_heating.contains(to_remove));
+  } else {
+    // No heating of memory we are removing, just remove everything
+    remove_vmem_entires(vmem);
   }
+
+  postcond(_currently_heating.is_null() || !vmem.overlaps(_currently_heating));
+#ifdef ASSERT
+  const ZVirtualMemory first_vmem = vmem.first_part(ZGranuleSize);
+  const ZVirtualMemory last_vmem = vmem.last_part(vmem.size() - ZGranuleSize);
+  _heating_requests.visit_range_in_order(first_vmem, last_vmem,[&](const ZHeatingRequestNode* node) {
+    // Should contain no nodes with memory that overlaps with vmem
+    ShouldNotReachHere();
+  });
+#endif
 }
 
 size_t ZCommitter::process_heating_request() {
-  zoffset offset;
-  size_t size;
+  ZVirtualMemory vmem;
   {
     ZLocker<ZConditionLock> locker(&_lock);
     if (!has_heating_request()) {
@@ -244,20 +329,22 @@ size_t ZCommitter::process_heating_request() {
     }
 
     assert(has_heating_request(), "who else processed it?");
-    offset = pop_heating_request(size);
 
-    _currently_heating = ZOffset::address(offset);
+    vmem = pop_heating_request();
+
+    assert(_currently_heating.is_null(), "must be");
+    _currently_heating = vmem;
   }
 
-  _page_allocator->heat_memory(offset, size);
+  _partition->heat_memory(vmem);
 
   {
     ZLocker<ZConditionLock> locker(&_lock);
     _lock.notify_all();
-    _currently_heating = zaddress::null;
+    _currently_heating = {};
   }
 
-  return size;
+  return vmem.size();
 }
 
 void ZCommitter::run_thread() {
@@ -273,8 +360,8 @@ void ZCommitter::run_thread() {
     size_t last_target_capacity = 0;
 
     for (;;) {
-      const size_t capacity = _page_allocator->capacity();
-      const size_t curr_max_capacity = ZHeap::heap()->current_max_capacity();
+      const size_t capacity = _partition->capacity();
+      const size_t curr_max_capacity = _partition->current_max_capacity();
       const size_t target_capacity = MIN2(Atomic::load(&_target_capacity), curr_max_capacity);
       const size_t granule = commit_granule(capacity, target_capacity);
 
@@ -291,9 +378,7 @@ void ZCommitter::run_thread() {
 
       // Prioritize committing memory if needed
       if (uncommitted == 0 && should_commit(granule, capacity, target_capacity, curr_max_capacity)) {
-        if (_page_allocator->prime_alloc_page(granule)) {
-          committed += granule;
-        }
+        committed += _partition->commit(granule);
         assert(!should_uncommit(granule, capacity + granule, target_capacity, curr_max_capacity), "commit rule mismatch");
         continue;
       }
@@ -306,7 +391,7 @@ void ZCommitter::run_thread() {
 
       // The lowest priority is uncommitting memory if needed
       if (committed == 0 && should_uncommit(granule, capacity, target_capacity, curr_max_capacity)) {
-        uncommitted += _page_allocator->uncommit(nullptr, granule);
+        uncommitted += _partition->uncommit(granule);
         assert(!should_commit(granule, capacity - granule, target_capacity, curr_max_capacity), "uncommit rule mismatch");
         continue;
       }
@@ -338,7 +423,7 @@ void ZCommitter::terminate() {
 
   _heating_requests.remove_all();
 
-  while (_currently_heating != zaddress::null) {
+  while (!_currently_heating.is_null()) {
     // Trying to unmap what's currently being heated; calm down!
     _lock.wait();
   }

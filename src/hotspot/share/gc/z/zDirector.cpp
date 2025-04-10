@@ -27,6 +27,7 @@
 #include "gc/z/zDirector.hpp"
 #include "gc/z/zDriver.hpp"
 #include "gc/z/zGeneration.inline.hpp"
+#include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zLock.inline.hpp"
@@ -959,7 +960,7 @@ static void adjust_capacity(const ZDirectorStats& stats, double sampling_interva
 
   const size_t used_after_yc = stats._heap._heuristic_max_capacity;
 
-  const size_t used_soon = MAX3(used_next_time_sample, used_next_byte_sample, used_after_yc);
+  const size_t used_soon = align_up(MAX3(used_next_time_sample, used_next_byte_sample, used_after_yc), ZGranuleSize);
 
   ZHeap::heap()->adjust_capacity(used_soon);
 }

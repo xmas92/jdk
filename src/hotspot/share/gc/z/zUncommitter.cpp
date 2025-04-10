@@ -35,11 +35,12 @@
 
 static const ZStatCounter ZCounterUncommit("Memory", "Uncommit", ZStatUnitBytesPerSecond);
 
-ZUncommitter::ZUncommitter(ZPageAllocator* page_allocator)
-  : _page_allocator(page_allocator),
+ZUncommitter::ZUncommitter(uint32_t id, ZPartition* partition)
+  : _id(id),
+    _partition(partition),
     _lock(),
     _stop(false) {
-  set_name("ZUncommitter");
+  set_name("ZUncommitter#%u", id);
   create_and_start();
 }
 
@@ -58,7 +59,6 @@ bool ZUncommitter::wait(uint64_t timeout) const {
     log_debug(gc, heap)("Uncommit Timeout: infinity");
     _lock.wait();
   } else if (timeout > 0) {
-    log_debug(gc, heap)("Uncommit Timeout: " UINT64_FORMAT "s", timeout);
     _lock.wait(timeout * MILLIUNITS);
   }
 
@@ -75,29 +75,38 @@ void ZUncommitter::run_thread() {
 
   while (wait(timeout)) {
     EventZUncommit event;
-    size_t uncommitted = 0;
+    size_t total_uncommitted = 0;
 
     while (should_continue()) {
       // Uncommit chunk
-      const size_t heuristic_max = ZHeap::heap()->heuristic_max_capacity();
-      const size_t uncommit_request = MIN2(align_up(heuristic_max >> 7, ZGranuleSize), 256 * M);
-      const size_t flushed = _page_allocator->uncommit(&timeout, uncommit_request);
-      if (flushed == 0) {
+
+      // We flush out and uncommit chunks at a time (~0.8% of the max capacity,
+      // but at least one granule and at most 256M), in case demand for memory
+      // increases while we are uncommitting.
+      const size_t heuristic_max = _partition->heuristic_max_capacity();
+      const size_t limit = MIN2(align_up(heuristic_max >> 7, ZGranuleSize), 256 * M);
+
+      const size_t uncommitted = _partition->uncommit(&timeout, limit);
+
+      if (uncommitted == 0) {
         // Done
         break;
       }
 
-      uncommitted += flushed;
+      total_uncommitted += uncommitted;
+
+      // Wait until next uncommit portion
+      wait(timeout);
     }
 
-    if (uncommitted > 0) {
+    if (total_uncommitted > 0) {
       // Update statistics
-      ZStatInc(ZCounterUncommit, uncommitted);
-      log_info(gc, heap)("Uncommitted: %zuM(%.0f%%)",
-                         uncommitted / M, percent_of(uncommitted, ZHeap::heap()->dynamic_max_capacity()));
+      ZStatInc(ZCounterUncommit, total_uncommitted);
+      log_info(gc, heap)("Uncommitter (%u) Uncommitted: %zuM(%.0f%%)",
+                         _id, total_uncommitted / M, percent_of(total_uncommitted, ZHeap::heap()->dynamic_max_capacity()));
 
       // Send event
-      event.commit(uncommitted);
+      event.commit(total_uncommitted);
     }
   }
 }

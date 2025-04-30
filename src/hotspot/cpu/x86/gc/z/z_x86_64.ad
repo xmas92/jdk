@@ -36,15 +36,14 @@ source %{
 
 static void z_color(MacroAssembler* masm, const MachNode* node, Register ref) {
   __ shlq(ref, barrier_Relocation::unpatched);
-  __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodAfterShX);
+  __ relocate(__ pc() - 1, barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodShX);
   __ orq_imm32(ref, barrier_Relocation::unpatched);
   __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatStoreGoodAfterOr);
 }
 
 static void z_uncolor(MacroAssembler* masm, const MachNode* node, Register ref) {
   __ shrq(ref, barrier_Relocation::unpatched);
-  __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodAfterShX);
-  __ nop(1);
+  __ relocate(__ pc() - 1, barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodShX);
 }
 
 static void z_keep_alive_load_barrier(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref) {

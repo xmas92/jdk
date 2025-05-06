@@ -32,6 +32,7 @@
 #include "logging/log.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
+#include "utilities/ticks.hpp"
 
 #include <cmath>
 
@@ -95,7 +96,9 @@ void ZUncommitter::run_thread() {
   _next_cycle_timeout = ZUncommitDelay;
 
   while (wait(_next_cycle_timeout)) {
-    EventZUncommit event;
+    // Counters for event and statistics
+    Ticks start = Ticks::now();
+    size_t uncommitted_since_last_timeout = 0;
 
     while (should_continue()) {
       // Uncommit chunk
@@ -105,18 +108,35 @@ void ZUncommitter::run_thread() {
         break;
       }
 
-      // Wait until next uncommit
-      wait(_next_uncommit_timeout);
+      uncommitted_since_last_timeout += uncommitted;
+
+      if (_next_uncommit_timeout != 0) {
+        // Update statistics
+        ZStatInc(ZCounterUncommit, uncommitted_since_last_timeout);
+
+        // Send event
+        EventZUncommit::commit(start, Ticks::now(), uncommitted_since_last_timeout);
+
+        // Wait until next uncommit
+        wait(_next_uncommit_timeout);
+
+        // Reset event and statistics counters
+        start = Ticks::now();
+        uncommitted_since_last_timeout = 0;
+      }
     }
 
     if (_uncommitted > 0) {
-      // Update statistics
-      ZStatInc(ZCounterUncommit, _uncommitted);
       log_info(gc, heap)("Uncommitter (%u) Uncommitted: %zuM(%.0f%%)",
                          _id, _uncommitted / M, percent_of(_uncommitted, ZHeap::heap()->max_capacity()));
 
-      // Send event
-      event.commit(_uncommitted);
+      if (uncommitted_since_last_timeout > 0) {
+        // Update statistics
+        ZStatInc(ZCounterUncommit, uncommitted_since_last_timeout);
+
+        // Send event
+        EventZUncommit::commit(start, Ticks::now(), uncommitted_since_last_timeout);
+      }
     }
 
     deactivate_uncommit_cycle();

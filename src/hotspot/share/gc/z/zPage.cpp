@@ -166,7 +166,7 @@ void* ZPage::remset_current() {
 
 void ZPage::print_on_msg(outputStream* st, const char* msg) const {
   st->print_cr("%-6s  " PTR_FORMAT " " PTR_FORMAT " " PTR_FORMAT " %s/%-4u %s%s%s%s",
-                type_to_string(), untype(start()), untype(top()), untype(end()),
+                type_to_string(), untype(start()), untype(top_atomic()), untype(end()),
                 is_young() ? "Y" : "O",
                 seqnum(),
                 is_relocatable() ? " Relocatable" : "",

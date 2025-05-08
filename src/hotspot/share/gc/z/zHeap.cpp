@@ -185,7 +185,7 @@ bool ZHeap::is_in(uintptr_t addr) const {
 }
 
 bool ZHeap::is_in_page_relaxed(const ZPage* page, zaddress addr) const {
-  if (page->is_in(addr)) {
+  if (page->is_in_atomic(addr)) {
     return true;
   }
 

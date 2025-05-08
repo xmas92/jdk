@@ -94,6 +94,9 @@ public:
   zoffset_end top() const;
   size_t remaining() const;
   size_t used() const;
+  zoffset_end top_atomic() const;
+  size_t remaining_atomic() const;
+  size_t used_atomic() const;
 
   const ZVirtualMemory& virtual_memory() const;
 
@@ -113,6 +116,8 @@ public:
 
   bool is_in(zoffset offset) const;
   bool is_in(zaddress addr) const;
+  bool is_in_atomic(zoffset offset) const;
+  bool is_in_atomic(zaddress addr) const;
 
   uintptr_t local_offset(zoffset offset) const;
   uintptr_t local_offset(zoffset_end offset) const;

@@ -399,12 +399,16 @@ static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, siz
   return allocator->alloc_page_for_relocation(type, size, flags);
 }
 
-static void retire_target_page(ZGeneration* generation, ZPage* page) {
+static void account_for_retired_target_page(ZGeneration* generation, ZPage* page) {
   if (generation->is_young() && page->is_old()) {
     generation->increase_promoted(page->used());
   } else {
     generation->increase_compacted(page->used());
   }
+}
+
+static void retire_target_page(ZGeneration* generation, ZPage* page) {
+  account_for_retired_target_page(generation, page);
 
   // Free target page if it is empty. We can end up with an empty target
   // page if we allocated a new target page, and then lost the race to
@@ -413,6 +417,14 @@ static void retire_target_page(ZGeneration* generation, ZPage* page) {
   if (page->used() == 0) {
     ZHeap::heap()->free_page(page);
   }
+}
+
+static void retire_target_page_concurrently(ZGeneration* generation, ZPage* page) {
+  // The page may still allocated in when multiple relocation workers work on a
+  // shared page. This may result in some inconsistent values in the accounting.
+  // Currently this accounting is only used for loging where we accept some
+  // inconsistencies.
+  account_for_retired_target_page(generation, page);
 }
 
 class ZRelocateSmallAllocator {
@@ -519,7 +531,7 @@ public:
 
       // This thread is responsible for retiring the shared target page
       if (target != nullptr) {
-        retire_target_page(_generation, target);
+        retire_target_page_concurrently(_generation, target);
       }
     }
 

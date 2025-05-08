@@ -141,7 +141,7 @@ inline size_t ZPage::size() const {
 }
 
 inline zoffset_end ZPage::top() const {
-  return _top;
+  return Atomic::load(&_top);
 }
 
 inline size_t ZPage::remaining() const {
@@ -429,7 +429,7 @@ inline zaddress ZPage::alloc_object(size_t size) {
   assert(is_allocating(), "Invalid state");
 
   const size_t aligned_size = align_up(size, object_alignment());
-  const zoffset_end addr = top();
+  const zoffset_end addr = _top;
 
   zoffset_end new_top;
 
@@ -483,7 +483,7 @@ inline bool ZPage::undo_alloc_object(zaddress addr, size_t size) {
 
   const zoffset offset = ZAddress::offset(addr);
   const size_t aligned_size = align_up(size, object_alignment());
-  const zoffset_end old_top = top();
+  const zoffset_end old_top = _top;
   const zoffset_end new_top = old_top - aligned_size;
 
   if (new_top != offset) {

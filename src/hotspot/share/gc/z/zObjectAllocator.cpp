@@ -251,7 +251,7 @@ size_t ZObjectAllocator::remaining() const {
 
   const ZPage* const page = Atomic::load_acquire(shared_small_page_addr());
   if (page != nullptr) {
-    return page->remaining_atomic();
+    return page->remaining();
   }
 
   return 0;

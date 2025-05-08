@@ -141,7 +141,7 @@ inline size_t ZPage::size() const {
 }
 
 inline zoffset_end ZPage::top() const {
-  return Atomic::load(&_top);
+  return _top;
 }
 
 inline size_t ZPage::remaining() const {
@@ -150,18 +150,6 @@ inline size_t ZPage::remaining() const {
 
 inline size_t ZPage::used() const {
   return top() - start();
-}
-
-inline zoffset_end ZPage::top_atomic() const {
-  return _top;
-}
-
-inline size_t ZPage::remaining_atomic() const {
-  return end() - top_atomic();
-}
-
-inline size_t ZPage::used_atomic() const {
-  return top_atomic() - start();
 }
 
 inline const ZVirtualMemory& ZPage::virtual_memory() const {
@@ -203,15 +191,6 @@ inline bool ZPage::is_in(zoffset offset) const {
 inline bool ZPage::is_in(zaddress addr) const {
   const zoffset offset = ZAddress::offset(addr);
   return is_in(offset);
-}
-
-inline bool ZPage::is_in_atomic(zoffset offset) const {
-  return offset >= start() && offset < top_atomic();
-}
-
-inline bool ZPage::is_in_atomic(zaddress addr) const {
-  const zoffset offset = ZAddress::offset(addr);
-  return is_in_atomic(offset);
 }
 
 inline uintptr_t ZPage::local_offset(zoffset offset) const {
@@ -473,7 +452,7 @@ inline zaddress ZPage::alloc_object_atomic(size_t size) {
   assert(is_allocating(), "Invalid state");
 
   const size_t aligned_size = align_up(size, object_alignment());
-  zoffset_end addr = top_atomic();
+  zoffset_end addr = top();
 
   for (;;) {
     zoffset_end new_top;
@@ -523,7 +502,7 @@ inline bool ZPage::undo_alloc_object_atomic(zaddress addr, size_t size) {
 
   const zoffset offset = ZAddress::offset(addr);
   const size_t aligned_size = align_up(size, object_alignment());
-  zoffset_end old_top = top_atomic();
+  zoffset_end old_top = top();
 
   for (;;) {
     const zoffset_end new_top = old_top - aligned_size;

@@ -652,7 +652,7 @@ private:
 
     // Uses _relaxed version to handle that in-place relocation resets _top
     assert(ZHeap::heap()->is_in_page_relaxed(from_page, from_addr), "Must be");
-    assert(to_page->is_in_atomic(to_addr), "Must be");
+    assert(to_page->is_in(to_addr), "Must be");
 
 
     // Read the size from the to-object, since the from-object

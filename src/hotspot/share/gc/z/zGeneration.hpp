@@ -242,8 +242,8 @@ public:
   void register_in_place_relocate_promoted(ZPage* page);
 
   uint tenuring_threshold();
-  void select_tenuring_threshold(ZRelocationSetSelectorStats stats, bool promote_all);
-  uint compute_tenuring_threshold(ZRelocationSetSelectorStats stats);
+  void select_tenuring_threshold(ZRelocationSetSelectorLiveStats stats, bool promote_all);
+  uint compute_tenuring_threshold(ZRelocationSetSelectorLiveStats stats);
 
   // Add remembered set entries
   void remember(volatile zpointer* p);

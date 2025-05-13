@@ -680,7 +680,7 @@ public:
   void at_collection_start(const ZPageAllocatorStats& stats);
   void at_mark_start(const ZPageAllocatorStats& stats);
   void at_mark_end(const ZPageAllocatorStats& stats);
-  void at_select_relocation_set(const ZRelocationSetSelectorStats& stats);
+  void at_select_relocation_set(const ZRelocationSetSelectorLiveStats& stats);
   void at_relocate_start(const ZPageAllocatorStats& stats);
   void at_relocate_end(const ZPageAllocatorStats& stats, bool record_stats);
 

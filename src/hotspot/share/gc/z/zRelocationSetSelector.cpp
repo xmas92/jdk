@@ -41,6 +41,9 @@ ZRelocationSetSelectorGroupStats::ZRelocationSetSelectorGroupStats()
     _npages_selected(0),
     _relocate(0) {}
 
+ZRelocationSetSelectorGroupLiveStats::ZRelocationSetSelectorGroupLiveStats(size_t live)
+  : _live(live) {}
+
 ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
                                                          ZPageType page_type,
                                                          size_t max_page_size,
@@ -252,6 +255,19 @@ ZRelocationSetSelectorStats ZRelocationSetSelector::stats() const {
   }
 
   stats._has_relocatable_pages = total() > 0;
+
+  return stats;
+}
+
+ZRelocationSetSelectorLiveStats ZRelocationSetSelector::live_stats() const {
+  ZRelocationSetSelectorLiveStats stats;
+
+  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+    const ZPageAge age = static_cast<ZPageAge>(i);
+    stats._small[i] = _small.live_stats(age);
+    stats._medium[i] = _medium.live_stats(age);
+    stats._large[i] = _large.live_stats(age);
+  }
 
   return stats;
 }

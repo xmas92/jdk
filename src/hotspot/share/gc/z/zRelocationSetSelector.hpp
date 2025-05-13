@@ -58,6 +58,17 @@ public:
   size_t relocate() const;
 };
 
+class ZRelocationSetSelectorGroupLiveStats {
+private:
+  // Candidate set
+  size_t _live;
+
+public:
+  explicit ZRelocationSetSelectorGroupLiveStats(size_t live = 0);
+
+  size_t live() const;
+};
+
 class ZRelocationSetSelectorStats {
   friend class ZRelocationSetSelector;
 
@@ -74,6 +85,20 @@ public:
   const ZRelocationSetSelectorGroupStats& large(ZPageAge age) const;
 
   bool has_relocatable_pages() const;
+};
+
+class ZRelocationSetSelectorLiveStats {
+  friend class ZRelocationSetSelector;
+
+  private:
+    ZRelocationSetSelectorGroupLiveStats _small[ZPageAgeMax + 1];
+    ZRelocationSetSelectorGroupLiveStats _medium[ZPageAgeMax + 1];
+    ZRelocationSetSelectorGroupLiveStats _large[ZPageAgeMax + 1];
+
+  public:
+    const ZRelocationSetSelectorGroupLiveStats& small(ZPageAge age) const;
+    const ZRelocationSetSelectorGroupLiveStats& medium(ZPageAge age) const;
+    const ZRelocationSetSelectorGroupLiveStats& large(ZPageAge age) const;
 };
 
 class ZRelocationSetSelectorGroup {
@@ -120,6 +145,7 @@ public:
   size_t forwarding_entries() const;
 
   const ZRelocationSetSelectorGroupStats& stats(ZPageAge age) const;
+  const ZRelocationSetSelectorGroupLiveStats live_stats(ZPageAge age) const;
 };
 
 class ZRelocationSetSelector : public StackObj {
@@ -154,6 +180,7 @@ public:
   size_t forwarding_entries() const;
 
   ZRelocationSetSelectorStats stats() const;
+  ZRelocationSetSelectorLiveStats live_stats() const;
 };
 
 #endif // SHARE_GC_Z_ZRELOCATIONSETSELECTOR_HPP

@@ -212,15 +212,16 @@ void ZGeneration::select_relocation_set(bool promote_all) {
     free_empty_pages(&selector, 0 /* bulk */);
   }
 
+  // Must be called after register_live_page, which collects live stats.
+  ZRelocationSetSelectorLiveStats live_stats = selector.live_stats();
+
+  // Select tenuring threshold
+  if (is_young()) {
+    ZGeneration::young()->select_tenuring_threshold(live_stats, promote_all);
+  }
+
   // Select relocation set
   selector.select();
-
-  // Selecting tenuring threshold must be done after select
-  // which produces the liveness data, but before install,
-  // which consumes the tenuring threshold.
-  if (is_young()) {
-    ZGeneration::young()->select_tenuring_threshold(selector.stats(), promote_all);
-  }
 
   // Install relocation set
   _relocation_set.install(&selector);
@@ -236,7 +237,7 @@ void ZGeneration::select_relocation_set(bool promote_all) {
 
   // Update statistics
   stat_relocation()->at_select_relocation_set(selector.stats());
-  stat_heap()->at_select_relocation_set(selector.stats());
+  stat_heap()->at_select_relocation_set(live_stats);
 }
 
 ZRelocationSetParallelIterator ZGeneration::relocation_set_parallel_iterator() {
@@ -668,7 +669,7 @@ void ZGenerationYoung::concurrent_reset_relocation_set() {
   reset_relocation_set();
 }
 
-void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStats stats, bool promote_all) {
+void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorLiveStats stats, bool promote_all) {
   const char* reason = "";
   if (promote_all) {
     _tenuring_threshold = 0;
@@ -683,7 +684,7 @@ void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStats sta
   log_info(gc, reloc)("Using tenuring threshold: %d (%s)", _tenuring_threshold, reason);
 }
 
-uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats stats) {
+uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorLiveStats stats) {
   size_t young_live_total = 0;
   size_t young_live_last = 0;
   double young_life_expectancy_sum = 0.0;

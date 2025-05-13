@@ -1787,7 +1787,7 @@ void ZStatHeap::at_mark_end(const ZPageAllocatorStats& stats) {
   _at_mark_end.allocation_stalls = stats.allocation_stalls();
 }
 
-void ZStatHeap::at_select_relocation_set(const ZRelocationSetSelectorStats& stats) {
+void ZStatHeap::at_select_relocation_set(const ZRelocationSetSelectorLiveStats& stats) {
   ZLocker<ZLock> locker(&_stat_lock);
 
   size_t live = 0;

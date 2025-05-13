@@ -108,7 +108,7 @@ inline void ZRelocationSetSelectorGroup::register_live_page(ZPage* page) {
   // Pre-filter out pages that are guaranteed to not be selected
   if (pre_filter_page(page, live)) {
     _live_pages.append(page);
-  } else if (page->is_young()) {
+  } else if (is_young()) {
     _not_selected_pages.append(page);
   }
 

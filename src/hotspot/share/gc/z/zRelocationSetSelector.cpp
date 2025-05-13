@@ -24,6 +24,7 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"
+#include "gc/z/zGenerationId.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"
 #include "jfr/jfrEvents.hpp"
@@ -44,12 +45,13 @@ ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
                                                          ZPageType page_type,
                                                          size_t max_page_size,
                                                          size_t object_size_limit,
-                                                         double fragmentation_limit)
+                                                         ZGenerationId id)
   : _name(name),
+    _id(id),
     _page_type(page_type),
     _max_page_size(max_page_size),
     _object_size_limit(object_size_limit),
-    _fragmentation_limit(fragmentation_limit),
+    _fragmentation_limit(id == ZGenerationId::old ? ZFragmentationLimit : ZYoungCompactionLimit),
     _page_fragmentation_limit((size_t)(_max_page_size * (_fragmentation_limit / 100))),
     _live_pages(),
     _not_selected_pages(),
@@ -64,6 +66,10 @@ bool ZRelocationSetSelectorGroup::is_disabled() {
 bool ZRelocationSetSelectorGroup::is_selectable() {
   // Large pages are not selectable
   return _page_type != ZPageType::large;
+}
+
+bool ZRelocationSetSelectorGroup::is_young() const {
+  return _id == ZGenerationId::young;
 }
 
 size_t ZRelocationSetSelectorGroup::partition_index(const ZPage* page) const {
@@ -162,11 +168,9 @@ void ZRelocationSetSelectorGroup::select_inner() {
   }
 
   // Finalize selection
-  for (int i = selected_from; i < _live_pages.length(); i++) {
-    ZPage* const page = _live_pages.at(i);
-    if (page->is_young()) {
-      _not_selected_pages.append(page);
-    }
+  if (is_young()) {
+    ZArraySlice<ZPage*> _not_selected = _live_pages.slice_back(selected_from);
+    _not_selected_pages.appendAll(&_not_selected);
   }
   _live_pages.trunc_to(selected_from);
   _forwarding_entries = selected_forwarding_entries;
@@ -190,13 +194,9 @@ void ZRelocationSetSelectorGroup::select() {
 
   if (is_selectable()) {
     select_inner();
-  } else {
+  } else if (is_young()) {
     // Mark pages as not selected
-    const int npages = _live_pages.length();
-    for (int from = 1; from <= npages; from++) {
-      ZPage* const page = _live_pages.at(from - 1);
-      _not_selected_pages.append(page);
-    }
+    _not_selected_pages.appendAll(&_live_pages);
   }
 
   ZRelocationSetSelectorGroupStats s{};
@@ -212,10 +212,10 @@ void ZRelocationSetSelectorGroup::select() {
   event.commit((u8)_page_type, s._npages_candidates, s._total, s._empty, s._npages_selected, s._relocate);
 }
 
-ZRelocationSetSelector::ZRelocationSetSelector(double fragmentation_limit)
-  : _small("Small", ZPageType::small, ZPageSizeSmall, ZObjectSizeLimitSmall, fragmentation_limit),
-    _medium("Medium", ZPageType::medium, ZPageSizeMediumMax, ZObjectSizeLimitMedium, fragmentation_limit),
-    _large("Large", ZPageType::large, 0 /* max_page_size */, 0 /* object_size_limit */, fragmentation_limit),
+ZRelocationSetSelector::ZRelocationSetSelector(ZGenerationId id)
+  : _small("Small", ZPageType::small, ZPageSizeSmall, ZObjectSizeLimitSmall, id),
+    _medium("Medium", ZPageType::medium, ZPageSizeMediumMax, ZObjectSizeLimitMedium, id),
+    _large("Large", ZPageType::large, 0 /* max_page_size */, 0 /* object_size_limit */, id),
     _empty_pages() {}
 
 void ZRelocationSetSelector::select() {

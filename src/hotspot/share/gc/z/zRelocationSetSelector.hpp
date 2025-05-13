@@ -82,6 +82,7 @@ private:
   static constexpr int NumPartitions = int(1) << NumPartitionsShift;
 
   const char* const                _name;
+  const ZGenerationId              _id;
   const ZPageType                  _page_type;
   const size_t                     _max_page_size;
   const size_t                     _object_size_limit;
@@ -94,6 +95,7 @@ private:
 
   bool is_disabled();
   bool is_selectable();
+  bool is_young() const;
 
   size_t partition_index(const ZPage* page) const;
   void semi_sort();
@@ -106,7 +108,7 @@ public:
                               ZPageType page_type,
                               size_t max_page_size,
                               size_t object_size_limit,
-                              double fragmentation_limit);
+                              ZGenerationId id);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);
@@ -132,7 +134,7 @@ private:
   size_t relocate() const;
 
 public:
-  ZRelocationSetSelector(double fragmentation_limit);
+  ZRelocationSetSelector(ZGenerationId id);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);

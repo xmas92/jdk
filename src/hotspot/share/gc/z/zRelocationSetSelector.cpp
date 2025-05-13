@@ -58,12 +58,12 @@ ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
     _forwarding_entries(0),
     _stats() {}
 
-bool ZRelocationSetSelectorGroup::is_disabled() {
+bool ZRelocationSetSelectorGroup::is_disabled() const {
   // Medium pages are disabled when their page size is zero
   return _page_type == ZPageType::medium && _page_size == 0;
 }
 
-bool ZRelocationSetSelectorGroup::is_selectable() {
+bool ZRelocationSetSelectorGroup::is_selectable() const {
   // Large pages are not selectable
   return _page_type != ZPageType::large;
 }

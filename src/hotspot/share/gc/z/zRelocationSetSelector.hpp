@@ -90,8 +90,8 @@ private:
   size_t                           _forwarding_entries;
   ZRelocationSetSelectorGroupStats _stats[ZPageAgeMax + 1];
 
-  bool is_disabled();
-  bool is_selectable();
+  bool is_disabled() const;
+  bool is_selectable() const;
   bool is_young() const;
 
   void semi_sort();

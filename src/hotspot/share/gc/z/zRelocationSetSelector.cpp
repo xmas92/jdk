@@ -74,43 +74,45 @@ bool ZRelocationSetSelectorGroup::is_young() const {
 
 void ZRelocationSetSelectorGroup::semi_sort() {
   // Semi-sort live pages by number of live bytes in ascending order
-  const size_t npartitions_shift = 11;
-  const size_t npartitions = (size_t)1 << npartitions_shift;
-  const size_t partition_size = _page_size >> npartitions_shift;
+  const size_t partition_size = _page_size >> NumPartitionsShift;
   const int partition_size_shift = log2i_exact(partition_size);
 
-  // Partition slots/fingers
-  int partitions[npartitions] = { /* zero initialize */ };
+  // Partition ends/fingers
+  int partition_end[NumPartitions] = { /* zero initialize */ };
+  int partition_finger[NumPartitions] = { /* zero initialize */ };
 
-  // Calculate partition slots
-  ZArrayIterator<ZPage*> iter1(&_live_pages);
-  for (ZPage* page; iter1.next(&page);) {
+  // Calculate partition sizes
+  for (const ZPage* page : _live_pages) {
     const size_t index = page->live_bytes() >> partition_size_shift;
-    partitions[index]++;
+    partition_end[index]++;
+  }
+
+  // Calculate partition ends
+  for (size_t i = 1; i < NumPartitions; i++) {
+    partition_end[i] += partition_end[i - 1];
   }
 
   // Calculate partition fingers
-  int finger = 0;
-  for (size_t i = 0; i < npartitions; i++) {
-    const int slots = partitions[i];
-    partitions[i] = finger;
-    finger += slots;
+  for (size_t i = 1; i < NumPartitions; i++) {
+    partition_finger[i] = partition_end[i - 1];
   }
-
-  // Allocate destination array
-  const int npages = _live_pages.length();
-  ZArray<ZPage*> sorted_live_pages(npages, npages, nullptr);
 
   // Sort pages into partitions
-  ZArrayIterator<ZPage*> iter2(&_live_pages);
-  for (ZPage* page; iter2.next(&page);) {
-    const size_t index = page->live_bytes() >> partition_size_shift;
-    const int finger = partitions[index]++;
-    assert(sorted_live_pages.at(finger) == nullptr, "Invalid finger");
-    sorted_live_pages.at_put(finger, page);
-  }
+  for (size_t i = 0; i < NumPartitions; i++) {
+    while (partition_finger[i] != partition_end[i]) {
+      const int page_index = partition_finger[i];
+      ZPage*& page = _live_pages.at(page_index);
+      const size_t partition_index = (page->live_bytes() >> partition_size_shift);
 
-  _live_pages.swap(&sorted_live_pages);
+      if (partition_index == i) {
+        // Already correct
+        partition_finger[i] += 1;
+      } else {
+        // Page belongs in another partition
+        ::swap(page, _live_pages.at(partition_finger[partition_index]++));
+      }
+    }
+  }
 }
 
 void ZRelocationSetSelectorGroup::select_inner() {

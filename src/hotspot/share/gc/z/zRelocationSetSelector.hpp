@@ -79,6 +79,7 @@ public:
 class ZRelocationSetSelectorGroup {
 private:
   const char* const                _name;
+  const ZGenerationId              _id;
   const ZPageType                  _page_type;
   const size_t                     _page_size;
   const size_t                     _object_size_limit;
@@ -91,6 +92,8 @@ private:
 
   bool is_disabled();
   bool is_selectable();
+  bool is_young() const;
+
   void semi_sort();
   void select_inner();
 
@@ -99,7 +102,7 @@ public:
                               ZPageType page_type,
                               size_t page_size,
                               size_t object_size_limit,
-                              double fragmentation_limit);
+                              ZGenerationId id);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);
@@ -125,7 +128,7 @@ private:
   size_t relocate() const;
 
 public:
-  ZRelocationSetSelector(double fragmentation_limit);
+  ZRelocationSetSelector(ZGenerationId id);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);

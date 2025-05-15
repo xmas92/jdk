@@ -176,7 +176,7 @@ void ZGeneration::flip_age_pages(const ZRelocationSetSelector* selector) {
 
 void ZGeneration::select_relocation_set(bool promote_all) {
   // Register relocatable pages with selector
-  ZRelocationSetSelector selector(_id);
+  ZRelocationSetSelector selector(_id, promote_all);
   {
     ZGenerationPagesIterator pt_iter(_page_table, _id, _page_allocator);
     for (ZPage* page; pt_iter.next(&page);) {

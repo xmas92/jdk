@@ -24,8 +24,10 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"
+#include "gc/z/zGeneration.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zPageAge.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "logging/log.hpp"
@@ -48,18 +50,32 @@ ZRelocationSetSelectorGroup::ZRelocationSetSelectorGroup(const char* name,
                                                          ZPageType page_type,
                                                          size_t max_page_size,
                                                          size_t object_size_limit,
-                                                         ZGenerationId id)
+                                                         ZGenerationId id,
+                                                         bool promote_all)
   : _name(name),
     _id(id),
     _page_type(page_type),
     _max_page_size(max_page_size),
     _object_size_limit(object_size_limit),
-    _fragmentation_limit(id == ZGenerationId::old ? ZFragmentationLimit : ZYoungCompactionLimit),
-    _page_fragmentation_limit((size_t)(_max_page_size * (_fragmentation_limit / 100))),
+    _promote_all(promote_all),
+    _tenuring_threshold(/* set with update_tenuring_threshold*/),
+    _fragmentation_limit(),
+    _page_fragmentation_limit(),
     _live_pages(),
     _not_selected_pages(),
     _forwarding_entries(0),
-    _stats() {}
+    _stats() {
+  if (!is_young()) {
+    // Old, use old as tenuring
+    update_tenuring_threshold(ZPageAge::old);
+  } else if (promote_all) {
+    // Everything is tenured, use eden
+    update_tenuring_threshold(ZPageAge::eden);
+  } else {
+    // Use last tenuring threshold as an initial value
+    update_tenuring_threshold(static_cast<ZPageAge>(ZGeneration::young()->tenuring_threshold()));
+  }
+}
 
 bool ZRelocationSetSelectorGroup::is_disabled() const {
   // Only medium pages can be disabled
@@ -82,7 +98,7 @@ size_t ZRelocationSetSelectorGroup::partition_index(const ZPage* page) const {
   return page->live_bytes() >> partition_size_shift;
 }
 
-void ZRelocationSetSelectorGroup::semi_sort() {
+void ZRelocationSetSelectorGroup::semi_sort(ZArray<ZPage*>* pages) {
   // Semi-sort live pages by number of live bytes in ascending order
   const size_t partition_size = _max_page_size >> NumPartitionsShift;
 
@@ -91,7 +107,7 @@ void ZRelocationSetSelectorGroup::semi_sort() {
   int partition_finger[NumPartitions] = { /* zero initialize */ };
 
   // Calculate partition sizes
-  for (const ZPage* page : _live_pages) {
+  for (const ZPage* page : *pages) {
     const size_t index = partition_index(page);
     partition_end[index]++;
   }
@@ -110,7 +126,7 @@ void ZRelocationSetSelectorGroup::semi_sort() {
   for (size_t i = 0; i < NumPartitions; i++) {
     while (partition_finger[i] != partition_end[i]) {
       const int page_index = partition_finger[i];
-      ZPage*& page = _live_pages.at(page_index);
+      ZPage*& page = pages->at(page_index);
       const size_t index = partition_index(page);
 
       if (index == i) {
@@ -118,34 +134,44 @@ void ZRelocationSetSelectorGroup::semi_sort() {
         partition_finger[i] += 1;
       } else {
         // Page belongs in another partition
-        ::swap(page, _live_pages.at(partition_finger[index]++));
+        ::swap(page, pages->at(partition_finger[index]++));
       }
     }
   }
 }
 
-void ZRelocationSetSelectorGroup::select_inner() {
+int ZRelocationSetSelectorGroup::select_inner(ZPageAge age) {
+  // Get the live pages for this age
+  ZArray<ZPage*>& pages = live_pages(age);
+
+  if (pages.length() == 0) {
+    // Nothing to select
+    return 0;
+  }
+
   // Calculate the number of pages to relocate by successively including pages in
   // a candidate relocation set and calculate the maximum space requirement for
   // their live objects.
-  const int npages = _live_pages.length();
   int selected_from = 0;
   int selected_to = 0;
-  size_t npages_selected[ZPageAgeMax + 1] = { 0 };
-  size_t selected_live_bytes[ZPageAgeMax + 1] = { 0 };
-  size_t selected_forwarding_entries = 0;
+
+  size_t rejected_live_bytes = 0;
+  size_t rejected_forwarding_entries = 0;
+  size_t rejected_num_pages = 0;
 
   size_t from_live_bytes = 0;
   size_t from_forwarding_entries = 0;
+  const int from_num_pages = pages.length();
 
-  semi_sort();
+  semi_sort(&pages);
 
-  for (int from = 1; from <= npages; from++) {
+  for (int from = 1; from <= from_num_pages; from++) {
     // Add page to the candidate relocation set
-    ZPage* const page = _live_pages.at(from - 1);
+    ZPage* const page = pages.at(from - 1);
     const size_t page_live_bytes = page->live_bytes();
+    const size_t page_forwardin_entires = ZForwarding::nentries(page);
     from_live_bytes += page_live_bytes;
-    from_forwarding_entries += ZForwarding::nentries(page);
+    from_forwarding_entries += page_forwardin_entires;
 
     // Calculate the maximum number of pages needed by the candidate relocation set.
     // By subtracting the object size limit from the pages size we get the maximum
@@ -160,37 +186,119 @@ void ZRelocationSetSelectorGroup::select_inner() {
     const int diff_from = from - selected_from;
     const int diff_to = to - selected_to;
     const double diff_reclaimable = 100 - percent_of(diff_to, diff_from);
-    if (diff_reclaimable > _fragmentation_limit) {
+    if (diff_reclaimable > fragmentation_limit(page->age())) {
       selected_from = from;
       selected_to = to;
-      selected_live_bytes[static_cast<uint>(page->age())] += page_live_bytes;
-      npages_selected[static_cast<uint>(page->age())] += 1;
-      selected_forwarding_entries = from_forwarding_entries;
+
+      // A page was selected, reset the rejected counters
+      rejected_live_bytes = 0;
+      rejected_forwarding_entries = 0;
+      rejected_num_pages = 0;
+    } else {
+      rejected_live_bytes += page_live_bytes;
+      rejected_forwarding_entries += page_forwardin_entires;
+      rejected_num_pages += 1;
     }
 
-    log_trace(gc, reloc)("Candidate Relocation Set (%s Pages): %d->%d, "
+    log_trace(gc, reloc)("Candidate Relocation Set (%s Pages, %u Age): %d->%d, "
                          "%.1f%% relative defragmentation, %zu forwarding entries, %s, live %d",
-                         _name, from, to, diff_reclaimable, from_forwarding_entries,
-                         (selected_from == from) ? "Selected" : "Rejected",
+                         _name, static_cast<uint>(age), from, to, diff_reclaimable,
+                         from_forwarding_entries, (selected_from == from) ? "Selected" : "Rejected",
                          int(page_live_bytes * 100 / page->size()));
   }
 
+  const size_t npages_selected = from_num_pages - rejected_num_pages;
+  const size_t selected_live_bytes = from_live_bytes - rejected_live_bytes;
+  const size_t selected_forwarding_entries = from_forwarding_entries - rejected_forwarding_entries;
+
   // Finalize selection
   if (is_young()) {
-    ZArraySlice<ZPage*> _not_selected = _live_pages.slice_back(selected_from);
+    ZArraySlice<ZPage*> _not_selected = pages.slice_back(selected_from);
     _not_selected_pages.appendAll(&_not_selected);
   }
-  _live_pages.trunc_to(selected_from);
-  _forwarding_entries = selected_forwarding_entries;
+  pages.trunc_to(selected_from);
+  _forwarding_entries += selected_forwarding_entries;
 
   // Update statistics
-  for (uint i = 0; i <= ZPageAgeMax; ++i) {
-    _stats[i]._relocate = selected_live_bytes[i];
-    _stats[i]._npages_selected = npages_selected[i];
+  ZRelocationSetSelectorGroupStats& stats = this->stats(age);
+  stats._relocate = selected_live_bytes;
+  stats._npages_selected = npages_selected;
+
+  log_debug(gc, reloc)("Relocation Set (%s Pages, %u Age): %d->%d, %d skipped, %zu forwarding entries",
+                       _name, static_cast<uint>(age), selected_from, selected_to, from_num_pages - selected_from, selected_forwarding_entries);
+
+  return selected_to;
+}
+
+void ZRelocationSetSelectorGroup::select_inner() {
+  int from_num_pages = 0;
+  int selected_to = 0;
+
+  if (!is_young()) {
+    from_num_pages = _live_pages.length();
+    // Old collections only have one age
+    selected_to = select_inner(ZPageAge::old);
+  } else {
+    int total_selected = 0;
+    // Select for each age
+    for (uint i = 0; i < ZPageAgeMax; ++i) {
+      const ZPageAge age = static_cast<ZPageAge>(i);
+
+      from_num_pages += live_pages(age).length();
+
+      selected_to += select_inner(age);
+
+      total_selected += live_pages(age).length();
+    }
+
+    // Merge young live pages into final array
+    _live_pages.reserve(total_selected);
+
+    // Insert young pages
+    for (uint i = 0; i < ZPageAgeMax; ++i) {
+      const ZPageAge age = static_cast<ZPageAge>(i);
+
+      _live_pages.appendAll(&live_pages(age));
+    }
+
+    // Sort the per age selected pages into one list
+    semi_sort(&_live_pages);
   }
 
+  const int selected_from = _live_pages.length();
+
   log_debug(gc, reloc)("Relocation Set (%s Pages): %d->%d, %d skipped, %zu forwarding entries",
-                       _name, selected_from, selected_to, npages - selected_from, selected_forwarding_entries);
+                       _name, selected_from, selected_to, from_num_pages - selected_from, _forwarding_entries);
+
+}
+
+void ZRelocationSetSelectorGroup::calculate_fragmentation_limits() {
+  const auto lerp = [&](double t) {
+    return (1. - t) * ZYoungCompactionLimit + t * ZFragmentationLimit;
+  };
+
+  const auto step = [&](double t) {
+      return t < 1. ? ZYoungCompactionLimit : ZFragmentationLimit;
+  };
+
+  const bool use_step = false;
+
+  for (uint i = 0; i <= ZPageAgeMax; ++i) {
+    if (_tenuring_threshold == ZPageAge::eden) {
+      _fragmentation_limit[i] = ZFragmentationLimit;
+    } else {
+      // Interpolate between eden and tenuring threshold
+      const double t = MIN2(double(i) / static_cast<uint>(_tenuring_threshold), 1.0);
+      _fragmentation_limit[i] = use_step ? step(t) : lerp(t);
+    }
+
+    _page_fragmentation_limit[i] = static_cast<size_t>(_max_page_size * _fragmentation_limit[i] / 100.);
+  }
+}
+
+void ZRelocationSetSelectorGroup::update_tenuring_threshold(ZPageAge tenuring_threshold) {
+  _tenuring_threshold = tenuring_threshold;
+  calculate_fragmentation_limits();
 }
 
 void ZRelocationSetSelectorGroup::select() {
@@ -200,11 +308,15 @@ void ZRelocationSetSelectorGroup::select() {
 
   EventZRelocationSetGroup event;
 
+  if (is_young() && !_promote_all) {
+    // Update the tenuring threshold to the selected threshold
+    update_tenuring_threshold(static_cast<ZPageAge>(ZGeneration::young()->tenuring_threshold()));
+  }
+
   if (is_selectable()) {
     select_inner();
   } else if (is_young()) {
-    // Mark pages as not selected
-    _not_selected_pages.appendAll(&_live_pages);
+    assert(_live_pages.length() == 0, "Should not have been registered");
   }
 
   ZRelocationSetSelectorGroupStats s{};
@@ -220,10 +332,10 @@ void ZRelocationSetSelectorGroup::select() {
   event.commit((u8)_page_type, s._npages_candidates, s._total, s._empty, s._npages_selected, s._relocate);
 }
 
-ZRelocationSetSelector::ZRelocationSetSelector(ZGenerationId id)
-  : _small("Small", ZPageType::small, ZPageSizeSmall, ZObjectSizeLimitSmall, id),
-    _medium("Medium", ZPageType::medium, ZPageSizeMediumMax, ZObjectSizeLimitMedium, id),
-    _large("Large", ZPageType::large, 0 /* max_page_size */, 0 /* object_size_limit */, id),
+ZRelocationSetSelector::ZRelocationSetSelector(ZGenerationId id, bool promote_all)
+  : _small("Small", ZPageType::small, ZPageSizeSmall, ZObjectSizeLimitSmall, id, promote_all),
+    _medium("Medium", ZPageType::medium, ZPageSizeMediumMax, ZObjectSizeLimitMedium, id, promote_all),
+    _large("Large", ZPageType::large, 0 /* max_page_size */, 0 /* object_size_limit */, id, promote_all),
     _empty_pages() {}
 
 void ZRelocationSetSelector::select() {

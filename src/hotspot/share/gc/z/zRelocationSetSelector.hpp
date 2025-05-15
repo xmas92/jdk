@@ -111,8 +111,11 @@ private:
   const ZPageType                  _page_type;
   const size_t                     _max_page_size;
   const size_t                     _object_size_limit;
-  const double                     _fragmentation_limit;
-  const size_t                     _page_fragmentation_limit;
+  const bool                       _promote_all;
+  ZPageAge                         _tenuring_threshold;
+  double                           _fragmentation_limit[ZPageAgeMax + 1];
+  size_t                           _page_fragmentation_limit[ZPageAgeMax + 1];
+  ZArray<ZPage*>                   _live_pages_young[ZPageAgeMax];
   ZArray<ZPage*>                   _live_pages;
   ZArray<ZPage*>                   _not_selected_pages;
   size_t                           _forwarding_entries;
@@ -123,17 +126,28 @@ private:
   bool is_young() const;
 
   size_t partition_index(const ZPage* page) const;
-  void semi_sort();
+  void semi_sort(ZArray<ZPage*>* pages);
+  int select_inner(ZPageAge age);
   void select_inner();
 
-  bool pre_filter_page(const ZPage* page, size_t live_bytes) const;
+  bool pre_filter_page(const ZPage* page, ZPageAge age, size_t live_bytes) const;
+
+  void calculate_fragmentation_limits();
+  void update_tenuring_threshold(ZPageAge tenuring_threshold);
+
+  double fragmentation_limit(ZPageAge age) const;
+  size_t page_fragmentation_limit(ZPageAge age) const;
+  ZRelocationSetSelectorGroupStats& stats(ZPageAge age);
+
+  ZArray<ZPage*>& live_pages(ZPageAge age);
 
 public:
   ZRelocationSetSelectorGroup(const char* name,
                               ZPageType page_type,
                               size_t max_page_size,
                               size_t object_size_limit,
-                              ZGenerationId id);
+                              ZGenerationId id,
+                              bool promote_all);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);
@@ -160,7 +174,7 @@ private:
   size_t relocate() const;
 
 public:
-  ZRelocationSetSelector(ZGenerationId id);
+  ZRelocationSetSelector(ZGenerationId id, bool promote_all);
 
   void register_live_page(ZPage* page);
   void register_empty_page(ZPage* page);

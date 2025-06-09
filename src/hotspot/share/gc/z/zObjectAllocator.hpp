@@ -36,25 +36,49 @@ class ZPageTable;
 
 class ZObjectAllocator {
 private:
-  ZPageAge           _age;
-  const bool         _use_per_cpu_shared_small_pages;
-  ZPerCPU<ZPage*>    _shared_small_page;
-  ZContended<ZPage*> _shared_medium_page;
-  ZLock              _medium_page_alloc_lock;
+  template<size_t N>
+  class ZPageState {
+  private:
+    ZPage* volatile _shared_page;
+    ZPage* volatile _extra_pages[N];
 
-  ZPage** shared_small_page_addr();
-  ZPage* const* shared_small_page_addr() const;
+  public:
+    ZPageState();
+
+    ZPage* volatile* shared_page_addr();
+    ZPage* volatile const* shared_page_addr() const;
+
+    void insert_replaced_page(ZPage* page);
+    zaddress alloc_object(size_t size);
+  };
+
+  using ZSmallPageState = ZPageState<7>;
+
+  ZPageAge                    _age;
+  const bool                  _use_per_cpu_shared_small_pages;
+  ZPerCPU<ZSmallPageState>    _shared_small_page_state;
+  ZContended<ZPage* volatile> _shared_medium_page;
+  ZLock                       _medium_page_alloc_lock;
+
+  ZSmallPageState* shared_small_state();
+  const ZSmallPageState* shared_small_state() const;
 
   ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
   void undo_alloc_page(ZPage* page);
 
   // Allocate an object in a shared page. Allocate and
   // atomically install a new page if necessary.
-  zaddress alloc_object_in_shared_page(ZPage** shared_page,
+  zaddress alloc_object_in_shared_page(ZPage* volatile* shared_page,
                                        ZPageType page_type,
                                        size_t page_size,
                                        size_t size,
                                        ZAllocationFlags flags);
+  zaddress alloc_object_in_shared_page(ZPage* volatile* shared_page,
+                                       ZPageType page_type,
+                                       size_t page_size,
+                                       size_t size,
+                                       ZAllocationFlags flags,
+                                       ZPage** replaced_page);
 
   zaddress alloc_object_in_medium_page(size_t size,
                                        ZAllocationFlags flags);

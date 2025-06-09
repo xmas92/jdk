@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
@@ -28,6 +29,7 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
+#include "gc/z/zPageType.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "logging/log.hpp"
@@ -40,19 +42,71 @@
 static const ZStatCounter ZCounterUndoObjectAllocationSucceeded("Memory", "Undo Object Allocation Succeeded", ZStatUnitOpsPerSecond);
 static const ZStatCounter ZCounterUndoObjectAllocationFailed("Memory", "Undo Object Allocation Failed", ZStatUnitOpsPerSecond);
 
+template <size_t N>
+ZObjectAllocator::ZPageState<N>::ZPageState()
+  : _shared_page(nullptr),
+    _extra_pages() {}
+
+template <size_t N>
+ZPage* volatile* ZObjectAllocator::ZPageState<N>::shared_page_addr() {
+  return &_shared_page;
+}
+
+template <size_t N>
+ZPage* volatile const* ZObjectAllocator::ZPageState<N>::shared_page_addr() const {
+  return &_shared_page;
+}
+
+template <size_t N>
+void ZObjectAllocator::ZPageState<N>::insert_replaced_page(ZPage* page) {
+  ZPage* replaced_page = page;
+  for (ZPage* volatile& extra_page : _extra_pages) {
+    if (replaced_page == nullptr || replaced_page->remaining() == 0) {
+      break;
+    }
+
+    if (extra_page == nullptr || extra_page->size() < replaced_page->size()) {
+      replaced_page = Atomic::xchg(&extra_page, replaced_page, memory_order_relaxed);
+    }
+  }
+}
+
+template <size_t N>
+zaddress ZObjectAllocator::ZPageState<N>::alloc_object(size_t size) {
+  ZPage* shared_page = Atomic::load_acquire(&_shared_page);
+  zaddress addr = zaddress::null;
+
+  for (ZPage* volatile& extra_page : _extra_pages) {
+    if (extra_page == nullptr) {
+      continue;
+    }
+
+    addr = extra_page->alloc_object_atomic(size);
+    if (!is_null(addr)) {
+      return addr;
+    }
+  }
+
+  if (shared_page != nullptr) {
+    addr = shared_page->alloc_object_atomic(size);
+  }
+
+  return addr;
+}
+
 ZObjectAllocator::ZObjectAllocator(ZPageAge age)
   : _age(age),
     _use_per_cpu_shared_small_pages(ZHeuristics::use_per_cpu_shared_small_pages()),
-    _shared_small_page(nullptr),
+    _shared_small_page_state(),
     _shared_medium_page(nullptr),
     _medium_page_alloc_lock() {}
 
-ZPage** ZObjectAllocator::shared_small_page_addr() {
-  return _use_per_cpu_shared_small_pages ? _shared_small_page.addr() : _shared_small_page.addr(0);
+ZObjectAllocator::ZSmallPageState* ZObjectAllocator::shared_small_state() {
+  return _use_per_cpu_shared_small_pages ? _shared_small_page_state.addr() : _shared_small_page_state.addr(0);
 }
 
-ZPage* const* ZObjectAllocator::shared_small_page_addr() const {
-  return _use_per_cpu_shared_small_pages ? _shared_small_page.addr() : _shared_small_page.addr(0);
+const ZObjectAllocator::ZSmallPageState* ZObjectAllocator::shared_small_state() const {
+  return _use_per_cpu_shared_small_pages ? _shared_small_page_state.addr() : _shared_small_page_state.addr(0);
 }
 
 ZPage* ZObjectAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags) {
@@ -67,13 +121,25 @@ void ZObjectAllocator::undo_alloc_page(ZPage* page) {
   ZHeap::heap()->undo_alloc_page(page);
 }
 
-zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
+zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage* volatile* shared_page,
                                                        ZPageType page_type,
                                                        size_t page_size,
                                                        size_t size,
                                                        ZAllocationFlags flags) {
+  ZPage* unused;
+  return alloc_object_in_shared_page(shared_page, page_type, page_size, size, flags, &unused);
+}
+
+zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage* volatile* shared_page,
+                                                       ZPageType page_type,
+                                                       size_t page_size,
+                                                       size_t size,
+                                                       ZAllocationFlags flags,
+                                                       ZPage** replaced_page) {
   zaddress addr = zaddress::null;
   ZPage* page = Atomic::load_acquire(shared_page);
+
+  *replaced_page = nullptr;
 
   if (page != nullptr) {
     addr = page->alloc_object_atomic(size);
@@ -109,6 +175,8 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 
         // Undo new page allocation
         undo_alloc_page(new_page);
+      } else {
+        *replaced_page = page;
       }
     }
   }
@@ -119,7 +187,7 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage** shared_page,
 zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
-  ZPage** shared_medium_page = _shared_medium_page.addr();
+  ZPage* volatile* shared_medium_page = _shared_medium_page.addr();
   ZPage* page = Atomic::load_acquire(shared_medium_page);
 
   if (page != nullptr) {
@@ -184,7 +252,20 @@ zaddress ZObjectAllocator::alloc_medium_object(size_t size, ZAllocationFlags fla
 }
 
 zaddress ZObjectAllocator::alloc_small_object(size_t size, ZAllocationFlags flags) {
-  return alloc_object_in_shared_page(shared_small_page_addr(), ZPageType::small, ZPageSizeSmall, size, flags);
+  ZSmallPageState* page_state = shared_small_state();
+  zaddress addr = zaddress::null;
+
+  addr = page_state->alloc_object(size);
+  if (!is_null(addr)) {
+    return addr;
+  }
+
+  ZPage* replaced_page = nullptr;
+  addr = alloc_object_in_shared_page(page_state->shared_page_addr(), ZPageType::small, ZPageSizeSmall, size, flags, &replaced_page);
+
+  page_state->insert_replaced_page(replaced_page);
+
+  return addr;
 }
 
 zaddress ZObjectAllocator::alloc_object(size_t size, ZAllocationFlags flags) {
@@ -234,7 +315,7 @@ ZPageAge ZObjectAllocator::age() const {
 size_t ZObjectAllocator::remaining() const {
   assert(Thread::current()->is_Java_thread(), "Should be a Java thread");
 
-  const ZPage* const page = Atomic::load_acquire(shared_small_page_addr());
+  const ZPage* const page = Atomic::load_acquire(shared_small_state()->shared_page_addr());
   if (page != nullptr) {
     return page->remaining();
   }
@@ -247,5 +328,5 @@ void ZObjectAllocator::retire_pages() {
 
   // Reset allocation pages
   _shared_medium_page.set(nullptr);
-  _shared_small_page.set_all(nullptr);
+  _shared_small_page_state.set_all({});
 }

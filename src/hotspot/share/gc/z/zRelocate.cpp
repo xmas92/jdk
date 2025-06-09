@@ -94,7 +94,7 @@ void ZRelocateQueue::join(uint nworkers) {
   assert(_nworkers == 0, "Invalid state");
   assert(_nsynchronized == 0, "Invalid state");
 
-  log_debug(gc, reloc)("Joining workers: %u", nworkers);
+  log_trace(gc, reloc)("Joining workers: %u", nworkers);
 
   _nworkers = nworkers;
 }
@@ -104,7 +104,7 @@ void ZRelocateQueue::resize_workers(uint nworkers) {
   assert(_nworkers == 0, "Invalid state");
   assert(_nsynchronized == 0, "Invalid state");
 
-  log_debug(gc, reloc)("Resize workers: %u", nworkers);
+  log_trace(gc, reloc)("Resize workers: %u", nworkers);
 
   ZLocker<ZConditionLock> locker(&_lock);
   _nworkers = nworkers;
@@ -116,7 +116,7 @@ void ZRelocateQueue::leave() {
 
   assert(_nsynchronized <= _nworkers, "_nsynchronized: %u _nworkers: %u", _nsynchronized, _nworkers);
 
-  log_debug(gc, reloc)("Leaving workers: left: %u _synchronize: %d _nsynchronized: %u", _nworkers, _synchronize, _nsynchronized);
+  log_trace(gc, reloc)("Leaving workers: left: %u _synchronize: %d _nsynchronized: %u", _nworkers, _synchronize, _nsynchronized);
 
   // Prune done forwardings
   const bool forwardings_done = prune();
@@ -207,7 +207,7 @@ public:
 void ZRelocateQueue::synchronize_thread() {
   _nsynchronized++;
 
-  log_debug(gc, reloc)("Synchronize worker _nsynchronized %u", _nsynchronized);
+  log_trace(gc, reloc)("Synchronize worker _nsynchronized %u", _nsynchronized);
 
   assert(_nsynchronized <= _nworkers, "_nsynchronized: %u _nworkers: %u", _nsynchronized, _nworkers);
   if (_nsynchronized == _nworkers) {
@@ -219,7 +219,7 @@ void ZRelocateQueue::synchronize_thread() {
 void ZRelocateQueue::desynchronize_thread() {
   _nsynchronized--;
 
-  log_debug(gc, reloc)("Desynchronize worker _nsynchronized %u", _nsynchronized);
+  log_trace(gc, reloc)("Desynchronize worker _nsynchronized %u", _nsynchronized);
 
   assert(_nsynchronized < _nworkers, "_nsynchronized: %u _nworkers: %u", _nsynchronized, _nworkers);
 }
@@ -283,11 +283,11 @@ void ZRelocateQueue::synchronize() {
 
   inc_needs_attention();
 
-  log_debug(gc, reloc)("Synchronize all workers 1 _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
+  log_trace(gc, reloc)("Synchronize all workers 1 _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
 
   while (_nworkers != _nsynchronized) {
     _lock.wait();
-    log_debug(gc, reloc)("Synchronize all workers 2 _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
+    log_trace(gc, reloc)("Synchronize all workers 2 _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
   }
 }
 
@@ -295,7 +295,7 @@ void ZRelocateQueue::desynchronize() {
   ZLocker<ZConditionLock> locker(&_lock);
   _synchronize = false;
 
-  log_debug(gc, reloc)("Desynchronize all workers _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
+  log_trace(gc, reloc)("Desynchronize all workers _nworkers: %u _nsynchronized: %u", _nworkers, _nsynchronized);
 
   assert(_nsynchronized <= _nworkers, "_nsynchronized: %u _nworkers: %u", _nsynchronized, _nworkers);
 

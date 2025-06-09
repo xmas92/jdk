@@ -126,19 +126,19 @@ template <typename S, typename T>
 inline ZValue<S, T>::ZValue()
   : _addr(S::alloc(sizeof(T))) {
   // Initialize all instances
-  ZValueIterator<S, T> iter(this);
-  for (T* addr; iter.next(&addr);) {
-    ::new (addr) T;
+  for (uint32_t value_id = 0; value_id < S::count(); ++value_id) {
+    const uintptr_t addr = value_addr(value_id);
+    ::new (reinterpret_cast<void*>(addr)) T;
   }
 }
 
 template <typename S, typename T>
-inline ZValue<S, T>::ZValue(const T& value)
+inline ZValue<S, T>::ZValue(const std::remove_cv_t<T>& value)
   : _addr(S::alloc(sizeof(T))) {
   // Initialize all instances
-  ZValueIterator<S, T> iter(this);
-  for (T* addr; iter.next(&addr);) {
-    ::new (addr) T(value);
+  for (uint32_t value_id = 0; value_id < S::count(); ++value_id) {
+    const uintptr_t addr = value_addr(value_id);
+    ::new (reinterpret_cast<void*>(addr)) T(value);
   }
 }
 
@@ -147,10 +147,9 @@ template <typename... Args>
 inline ZValue<S, T>::ZValue(ZValueIdTagType, Args&&... args)
   : _addr(S::alloc(sizeof(T))) {
   // Initialize all instances
-  uint32_t value_id;
-  ZValueIterator<S, T> iter(this);
-  for (T* addr; iter.next(&addr, &value_id);) {
-    ::new (addr) T(value_id, args...);
+  for (uint32_t value_id = 0; value_id < S::count(); ++value_id) {
+    const uintptr_t addr = value_addr(value_id);
+    ::new (reinterpret_cast<void*>(addr)) T(value_id, args...);
   }
 }
 
@@ -175,12 +174,12 @@ inline T& ZValue<S, T>::get(uint32_t value_id) {
 }
 
 template <typename S, typename T>
-inline void ZValue<S, T>::set(const T& value, uint32_t value_id) {
+inline void ZValue<S, T>::set(const std::remove_cv_t<T>& value, uint32_t value_id) {
   get(value_id) = value;
 }
 
 template <typename S, typename T>
-inline void ZValue<S, T>::set_all(const T& value) {
+inline void ZValue<S, T>::set_all(const std::remove_cv_t<T>& value) {
   ZValueIterator<S, T> iter(this);
   for (T* addr; iter.next(&addr);) {
     *addr = value;

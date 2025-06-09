@@ -89,7 +89,7 @@ private:
 
 public:
   ZValue();
-  ZValue(const T& value);
+  ZValue(const std::remove_cv_t<T>& value);
   template <typename... Args>
   ZValue(ZValueIdTagType, Args&&... args);
 
@@ -99,8 +99,8 @@ public:
   const T& get(uint32_t value_id = S::id()) const;
   T& get(uint32_t value_id = S::id());
 
-  void set(const T& value, uint32_t value_id = S::id());
-  void set_all(const T& value);
+  void set(const std::remove_cv_t<T>& value, uint32_t value_id = S::id());
+  void set_all(const std::remove_cv_t<T>& value);
 
   uint32_t count() const;
 };

@@ -98,7 +98,7 @@ ZObjectAllocator::ZObjectAllocator(ZPageAge age)
   : _age(age),
     _use_per_cpu_shared_small_pages(ZHeuristics::use_per_cpu_shared_small_pages()),
     _shared_small_page_state(),
-    _shared_medium_page(nullptr),
+    _shared_medium_page_state(),
     _medium_page_alloc_lock() {}
 
 ZObjectAllocator::ZSmallPageState* ZObjectAllocator::shared_small_state() {
@@ -119,15 +119,6 @@ ZPage* ZObjectAllocator::alloc_page_for_relocation(ZPageType type, size_t size, 
 
 void ZObjectAllocator::undo_alloc_page(ZPage* page) {
   ZHeap::heap()->undo_alloc_page(page);
-}
-
-zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage* volatile* shared_page,
-                                                       ZPageType page_type,
-                                                       size_t page_size,
-                                                       size_t size,
-                                                       ZAllocationFlags flags) {
-  ZPage* unused;
-  return alloc_object_in_shared_page(shared_page, page_type, page_size, size, flags, &unused);
 }
 
 zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage* volatile* shared_page,
@@ -187,12 +178,12 @@ zaddress ZObjectAllocator::alloc_object_in_shared_page(ZPage* volatile* shared_p
 zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
                                                        ZAllocationFlags flags) {
   zaddress addr = zaddress::null;
-  ZPage* volatile* shared_medium_page = _shared_medium_page.addr();
-  ZPage* page = Atomic::load_acquire(shared_medium_page);
+  ZMediumPageState* page_state = _shared_medium_page_state.addr();
 
-  if (page != nullptr) {
-    addr = page->alloc_object_atomic(size);
-  }
+  addr = page_state->alloc_object(size);
+
+  ZPage* volatile* const shared_page = page_state->shared_page_addr();
+  ZPage* replaced_page = nullptr;
 
   if (is_null(addr)) {
     // When a new medium page is required, we synchronize the allocation of the
@@ -215,11 +206,11 @@ zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
       // be allocated without any expensive syscalls, directly from the cache.
       ZAllocationFlags fast_medium_flags = non_blocking_flags;
       fast_medium_flags.set_fast_medium();
-      addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMediumMax, size, fast_medium_flags);
+      addr = alloc_object_in_shared_page(shared_page, ZPageType::medium, ZPageSizeMediumMax, size, fast_medium_flags, &replaced_page);
     }
 
     if (is_null(addr)) {
-      addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMediumMax, size, non_blocking_flags);
+      addr = alloc_object_in_shared_page(shared_page, ZPageType::medium, ZPageSizeMediumMax, size, non_blocking_flags, &replaced_page);
     }
 
   }
@@ -227,8 +218,10 @@ zaddress ZObjectAllocator::alloc_object_in_medium_page(size_t size,
   if (is_null(addr) && !flags.non_blocking()) {
     // The above allocation attempts failed and this allocation should stall
     // until memory is available. Redo the allocation with blocking enabled.
-    addr = alloc_object_in_shared_page(shared_medium_page, ZPageType::medium, ZPageSizeMediumMax, size, flags);
+    addr = alloc_object_in_shared_page(shared_page, ZPageType::medium, ZPageSizeMediumMax, size, flags, &replaced_page);
   }
+
+  page_state->insert_replaced_page(replaced_page);
 
   return addr;
 }
@@ -327,6 +320,6 @@ void ZObjectAllocator::retire_pages() {
   assert(SafepointSynchronize::is_at_safepoint(), "Should be at safepoint");
 
   // Reset allocation pages
-  _shared_medium_page.set(nullptr);
+  _shared_medium_page_state.set({});
   _shared_small_page_state.set_all({});
 }

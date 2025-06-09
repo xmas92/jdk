@@ -53,12 +53,13 @@ private:
   };
 
   using ZSmallPageState = ZPageState<7>;
+  using ZMediumPageState = ZPageState<7>;
 
-  ZPageAge                    _age;
-  const bool                  _use_per_cpu_shared_small_pages;
-  ZPerCPU<ZSmallPageState>    _shared_small_page_state;
-  ZContended<ZPage* volatile> _shared_medium_page;
-  ZLock                       _medium_page_alloc_lock;
+  ZPageAge                     _age;
+  const bool                   _use_per_cpu_shared_small_pages;
+  ZPerCPU<ZSmallPageState>     _shared_small_page_state;
+  ZContended<ZMediumPageState> _shared_medium_page_state;
+  ZLock                        _medium_page_alloc_lock;
 
   ZSmallPageState* shared_small_state();
   const ZSmallPageState* shared_small_state() const;
@@ -68,11 +69,6 @@ private:
 
   // Allocate an object in a shared page. Allocate and
   // atomically install a new page if necessary.
-  zaddress alloc_object_in_shared_page(ZPage* volatile* shared_page,
-                                       ZPageType page_type,
-                                       size_t page_size,
-                                       size_t size,
-                                       ZAllocationFlags flags);
   zaddress alloc_object_in_shared_page(ZPage* volatile* shared_page,
                                        ZPageType page_type,
                                        size_t page_size,

@@ -24,6 +24,7 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zArray.inline.hpp"
 #include "gc/z/zForwarding.inline.hpp"
+#include "gc/z/zForwardingEntry.hpp"
 #include "gc/z/zGeneration.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zPage.inline.hpp"
@@ -165,6 +166,14 @@ int ZRelocationSetSelectorGroup::select_inner(ZPageAge age) {
 
   semi_sort(&pages);
 
+  const size_t max_survivor_forwarding_entries_size = (size_t)((double)ZHeap::heap()->max_capacity() * (ZMaxForwardinHeapPercentPerYoungAge / 100.));
+  const size_t forwarding_entries_limit = max_survivor_forwarding_entries_size / sizeof(ZForwardingEntry);
+  bool hit_forwarding_entries_limit = false;
+  size_t forwarding_entries_limit_from_live_bytes = 0;
+  size_t forwarding_entries_limit_from_forwarding_entries = 0;
+  int forwarding_entries_limit_from = 0;
+  int forwarding_entries_limit_to = 0;
+
   for (int from = 1; from <= from_num_pages; from++) {
     // Add page to the candidate relocation set
     ZPage* const page = pages.at(from - 1);
@@ -179,6 +188,15 @@ int ZRelocationSetSelectorGroup::select_inner(ZPageAge age) {
     // of in which order the objects are relocated.
     const int to = (int)ceil(from_live_bytes / (double)(_max_page_size - _object_size_limit));
 
+
+    if (is_young() & !hit_forwarding_entries_limit && from_forwarding_entries >= forwarding_entries_limit) {
+      hit_forwarding_entries_limit = true;
+      forwarding_entries_limit_from_live_bytes = from_live_bytes;
+      forwarding_entries_limit_from_forwarding_entries = from_forwarding_entries;
+      forwarding_entries_limit_from = from;
+      forwarding_entries_limit_to = to;
+    }
+
     // Calculate the relative difference in reclaimable space compared to our
     // currently selected final relocation set. If this number is larger than the
     // acceptable fragmentation limit, then the current candidate relocation set
@@ -187,13 +205,22 @@ int ZRelocationSetSelectorGroup::select_inner(ZPageAge age) {
     const int diff_to = to - selected_to;
     const double diff_reclaimable = 100 - percent_of(diff_to, diff_from);
     if (diff_reclaimable > fragmentation_limit(page->age())) {
-      selected_from = from;
-      selected_to = to;
+      if (hit_forwarding_entries_limit) {
+        selected_from = forwarding_entries_limit_from;
+        selected_to = forwarding_entries_limit_to;
 
-      // A page was selected, reset the rejected counters
-      rejected_live_bytes = 0;
-      rejected_forwarding_entries = 0;
-      rejected_num_pages = 0;
+        rejected_live_bytes = from_live_bytes - forwarding_entries_limit_from_live_bytes;
+        rejected_forwarding_entries = from_forwarding_entries - forwarding_entries_limit_from_forwarding_entries;
+        rejected_num_pages = from - forwarding_entries_limit_from;
+      } else {
+        selected_from = from;
+        selected_to = to;
+
+        // A page was selected, reset the rejected counters
+        rejected_live_bytes = 0;
+        rejected_forwarding_entries = 0;
+        rejected_num_pages = 0;
+      }
     } else {
       rejected_live_bytes += page_live_bytes;
       rejected_forwarding_entries += page_forwardin_entires;
@@ -266,6 +293,19 @@ void ZRelocationSetSelectorGroup::select_inner() {
   }
 
   const int selected_from = _live_pages.length();
+
+  const int percent_bucked = 1;
+  int i = 0;
+  for (int percent = 0; percent < 100; percent += percent_bucked) {
+    int count = 0;
+    while (i < _live_pages.length() && (int)((_live_pages.at(i)->live_bytes() * 100) / _live_pages.at(i)->size()) < percent) {
+      ++count;
+      ++i;
+    }
+    if (count != 0) {
+      log_debug(gc, reloc)("Relocation Fragmentation %2u-%3u%%: %u", percent, percent + percent_bucked, count);
+    }
+  }
 
   log_debug(gc, reloc)("Relocation Set (%s Pages): %d->%d, %d skipped, %zu forwarding entries",
                        _name, selected_from, selected_to, from_num_pages - selected_from, _forwarding_entries);

@@ -41,10 +41,6 @@
           "Maximum allowed heap fragmentation")                             \
           range(0, 100)                                                     \
                                                                             \
-  product(double, ZMaxForwardinHeapPercentPerYoungAge, 6.25,                \
-          "Maximum allowed heap fragmentation")                             \
-          range(3.125, 12.5)                                                \
-                                                                            \
   product(double, ZCollectionInterval, 0,                                   \
           "Force GC at a fixed time interval (in seconds). "                \
           "Backwards compatible alias for ZCollectionIntervalMajor")        \

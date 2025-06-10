@@ -404,6 +404,7 @@ class Thread: public ThreadShadow {
   // Thread-Local Allocation Buffer (TLAB) support
   ThreadLocalAllocBuffer& tlab()                 { return _tlab; }
   void initialize_tlab();
+  void retire_tlab_for_extend(ThreadLocalAllocStats* stats = nullptr);
   void retire_tlab(ThreadLocalAllocStats* stats = nullptr);
   void fill_tlab(HeapWord* start, size_t pre_reserved, size_t new_size);
 

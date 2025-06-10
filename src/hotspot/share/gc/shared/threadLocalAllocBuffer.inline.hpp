@@ -51,7 +51,7 @@ inline HeapWord* ThreadLocalAllocBuffer::allocate(size_t size) {
   return nullptr;
 }
 
-inline size_t ThreadLocalAllocBuffer::compute_size(size_t obj_size) {
+inline size_t ThreadLocalAllocBuffer::compute_size(size_t obj_size) const {
   // Compute the size for the new TLAB.
   // The "last" tlab may be smaller to reduce fragmentation.
   // unsafe_max_tlab_alloc is just a hint.
@@ -70,10 +70,48 @@ inline size_t ThreadLocalAllocBuffer::compute_size(size_t obj_size) {
   return new_tlab_size;
 }
 
+inline size_t ThreadLocalAllocBuffer::compute_extend_size(size_t obj_size) const {
+  size_t new_tlab_size = MIN2(desired_size() + align_object_size(obj_size), max_size());
+  size_t free = this->free();
+  if (free > new_tlab_size) {
+    // Why not just allocate then.
+    return 0;
+  }
+
+  size_t extended_size = new_tlab_size - free;
+
+  if (new_tlab_size < compute_min_size(obj_size)) {
+    // If there isn't enough room for the allocation, return failure.
+    log_trace(gc, tlab)("ThreadLocalAllocBuffer::compute_extend_size(%zu) returns failure",
+                        obj_size);
+    return 0;
+  }
+  log_trace(gc, tlab)("ThreadLocalAllocBuffer::compute_extend_size(%zu) returns %zu",
+                      obj_size, new_tlab_size);
+  return extended_size;
+}
+
 inline size_t ThreadLocalAllocBuffer::compute_min_size(size_t obj_size) {
   const size_t aligned_obj_size = align_object_size(obj_size);
   const size_t size_with_reserve = aligned_obj_size + alignment_reserve();
   return MAX2(size_with_reserve, heap_word_size(MinTLABSize));
+}
+
+inline size_t ThreadLocalAllocBuffer::compute_min_extend_size(size_t obj_size) const {
+  const size_t aligned_obj_size = align_object_size(obj_size);
+  const size_t size_with_reserve = aligned_obj_size + alignment_reserve();
+  const size_t required_min_size =  MAX2(size_with_reserve, heap_word_size(MinTLABSize));
+  const size_t free = this->free();
+  if (free > required_min_size) {
+    // Enough in free
+    return 0;
+  }
+  return required_min_size - free;
+}
+
+inline void ThreadLocalAllocBuffer::get_extened_tlab(size_t extended_size, HeapWord** mem, size_t* size) {
+  *size = remaining() + extended_size;
+  *mem = top();
 }
 
 void ThreadLocalAllocBuffer::record_slow_allocation(size_t obj_size) {

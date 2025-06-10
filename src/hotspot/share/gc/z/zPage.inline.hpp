@@ -478,6 +478,30 @@ inline zaddress ZPage::alloc_object_atomic(size_t size) {
   }
 }
 
+inline size_t ZPage::extend_tlab(zoffset_end tlab_end, size_t min_extend_size, size_t max_extend_size) {
+  if (top() == tlab_end) {
+    zoffset_end new_top;
+
+    if (end() - tlab_end < min_extend_size) {
+      // Cannot min extend
+      return 0;
+    }
+
+    if (!to_zoffset_end(&new_top, tlab_end, max_extend_size)) {
+      // Cannot max extend, extend as far as possible
+      new_top = end();
+    } else {
+      new_top = MIN2(new_top, end());
+    }
+
+    if (Atomic::cmpxchg(&_top, tlab_end, new_top) == tlab_end) {
+      return new_top - tlab_end;
+    }
+  }
+
+  return 0;
+}
+
 inline bool ZPage::undo_alloc_object(zaddress addr, size_t size) {
   assert(is_allocating(), "Invalid state");
 

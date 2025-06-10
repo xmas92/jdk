@@ -28,6 +28,7 @@
 #include "gc/shared/gcUtil.hpp"
 #include "runtime/perfDataTypes.hpp"
 #include "utilities/align.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/sizes.hpp"
 
 class ThreadLocalAllocStats;
@@ -96,7 +97,7 @@ private:
 
   void print_stats(const char* tag);
 
-  Thread* thread();
+  Thread* thread() const;
 
   // statistics
 
@@ -139,10 +140,14 @@ public:
   // Return tlab size or remaining space in eden such that the
   // space is large enough to hold obj_size and necessary fill space.
   // Otherwise return 0;
-  inline size_t compute_size(size_t obj_size);
+  inline size_t compute_size(size_t obj_size) const;
+  inline size_t compute_extend_size(size_t obj_size) const;
 
   // Compute the minimal needed tlab size for the given object size.
   static inline size_t compute_min_size(size_t obj_size);
+  inline size_t compute_min_extend_size(size_t obj_size) const;
+
+  inline void get_extened_tlab(size_t extended_size, HeapWord** mem, size_t* size);
 
   // Record slow allocation
   inline void record_slow_allocation(size_t obj_size);
@@ -155,6 +160,7 @@ public:
 
   // Retire an in-use tlab and optionally collect statistics.
   void retire(ThreadLocalAllocStats* stats = nullptr);
+  void retire_for_extend(ThreadLocalAllocStats* stats = nullptr);
 
   // Record refill waste before allocating (refilling) with a new TLAB.
   void record_refill_waste();

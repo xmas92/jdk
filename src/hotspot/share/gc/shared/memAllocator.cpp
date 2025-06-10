@@ -275,6 +275,33 @@ HeapWord* MemAllocator::mem_allocate_inside_tlab_slow(Allocation& allocation) co
     }
   }
 
+  size_t requested_extended_size = tlab.compute_extend_size(_word_size);
+  size_t min_extended_size = tlab.compute_min_extend_size(_word_size);
+
+  if (requested_extended_size > 0 && tlab.used() > tlab.alignment_reserve() &&
+      Universe::heap()->extend_tlab(tlab.hard_end(), min_extended_size,
+                                    requested_extended_size,
+                                    &allocation._allocated_tlab_size)) {
+    size_t size;
+    tlab.get_extened_tlab(allocation._allocated_tlab_size, &mem, &size);
+
+    _thread->retire_tlab_for_extend();
+
+    // ...and clear or zap just allocated TLAB, if needed.
+    if (ZeroTLAB) {
+      Copy::zero_to_words(mem, size);
+    } else if (ZapTLAB) {
+      // Skip mangling the space corresponding to the object header to
+      // ensure that the returned space is not considered parsable by
+      // any concurrent GC thread.
+      size_t hdr_size = oopDesc::header_size();
+      Copy::fill_to_words(mem + hdr_size, size - hdr_size, badHeapWordVal);
+    }
+
+    _thread->fill_tlab(mem, _word_size, size);
+    return mem;
+  }
+
   // Retain tlab and allocate object in shared space if
   // the amount free in the tlab is too large to discard.
   if (tlab.free() > tlab.refill_waste_limit()) {

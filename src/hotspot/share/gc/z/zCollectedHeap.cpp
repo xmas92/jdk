@@ -376,3 +376,19 @@ bool ZCollectedHeap::is_oop(oop object) const {
 bool ZCollectedHeap::supports_concurrent_gc_breakpoints() const {
   return true;
 }
+
+bool ZCollectedHeap::extend_tlab(HeapWord* prev_end,
+                                 size_t min_extended_size,
+                                 size_t requested_extended_size,
+                                 size_t* extended_size) {
+  if (prev_end == nullptr) {
+    return false;
+  }
+
+  ZUtils::words_to_bytes(min_extended_size);
+  const zoffset_end end = to_zoffset_end(
+      ZAddress::offset(to_zaddress(uintptr_t(prev_end - 1))), sizeof(HeapWord));
+  return _heap.extend_tlab(end, ZUtils::words_to_bytes(min_extended_size),
+                           ZUtils::words_to_bytes(requested_extended_size),
+                           extended_size);
+}

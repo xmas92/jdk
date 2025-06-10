@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZHEAP_HPP
 #define SHARE_GC_Z_ZHEAP_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zAllocationFlags.hpp"
 #include "gc/z/zAllocator.hpp"
 #include "gc/z/zArray.hpp"
@@ -148,6 +149,9 @@ public:
 
   // Verification
   bool is_oop(uintptr_t addr) const;
+
+  bool extend_tlab(zoffset_end tlab_end, size_t min_extended_size,
+                   size_t max_extended_size, size_t *extended_size);
 };
 
 #endif // SHARE_GC_Z_ZHEAP_HPP

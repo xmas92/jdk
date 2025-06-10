@@ -140,6 +140,17 @@ void ThreadLocalAllocBuffer::retire(ThreadLocalAllocStats* stats) {
   }
 }
 
+void ThreadLocalAllocBuffer::retire_for_extend(ThreadLocalAllocStats* stats) {
+  if (stats != nullptr) {
+    accumulate_and_reset_statistics(stats);
+  }
+
+  if (end() != nullptr) {
+    invariants();
+    initialize(nullptr, nullptr, nullptr);
+  }
+}
+
 void ThreadLocalAllocBuffer::record_refill_waste() {
   _refill_waste += (unsigned int)remaining();
 }
@@ -305,7 +316,7 @@ void ThreadLocalAllocBuffer::print_stats(const char* tag) {
             _refill_waste * HeapWordSize);
 }
 
-Thread* ThreadLocalAllocBuffer::thread() {
+Thread* ThreadLocalAllocBuffer::thread() const {
   return (Thread*)(((char*)this) + in_bytes(start_offset()) - in_bytes(Thread::tlab_start_offset()));
 }
 

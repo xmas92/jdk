@@ -123,6 +123,11 @@ public:
   void verify(VerifyOption option /* ignored */) override;
   bool is_oop(oop object) const override;
   bool supports_concurrent_gc_breakpoints() const override;
+
+  bool extend_tlab(HeapWord* prev_end,
+                   size_t min_extended_size,
+                   size_t requested_extended_size,
+                   size_t* extended_size) override;
 };
 
 #endif // SHARE_GC_Z_ZCOLLECTEDHEAP_HPP

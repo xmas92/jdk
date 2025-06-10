@@ -543,6 +543,13 @@ void CollectedHeap::ensure_parsability(bool retire_tlabs) {
   stats.publish();
 }
 
+bool CollectedHeap::extend_tlab(HeapWord* prev_end,
+                                size_t min_extended_size,
+                                size_t requested_extended_size,
+                                size_t* actual_size) {
+  return false;
+}
+
 void CollectedHeap::resize_all_tlabs() {
   assert(SafepointSynchronize::is_at_safepoint() || !is_init_completed(),
          "Should only resize tlabs at safepoint");

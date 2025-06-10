@@ -501,3 +501,13 @@ bool ZHeap::print_location(outputStream* st, zpointer ptr) const {
   st->print_cr("invalid object " PTR_FORMAT,  untype(addr));
   return false;
 }
+
+bool ZHeap::extend_tlab(zoffset_end tlab_end, size_t min_extended_size,
+                        size_t max_extended_size, size_t *extended_word_size) {
+  const zaddress lookup_addr = ZOffset::address(to_zoffset(tlab_end - sizeof(HeapWord)));
+  ZPage* const page = _page_table.get(lookup_addr);
+
+  *extended_word_size = ZUtils::bytes_to_words(page->extend_tlab(tlab_end, min_extended_size, max_extended_size));
+
+  return *extended_word_size != 0;
+}

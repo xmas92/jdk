@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZPAGE_HPP
 #define SHARE_GC_Z_ZPAGE_HPP
 
+#include "gc/z/zAddress.hpp"
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zLiveMap.hpp"
 #include "gc/z/zPageAge.hpp"
@@ -175,6 +176,8 @@ public:
 
   zaddress alloc_object(size_t size);
   zaddress alloc_object_atomic(size_t size);
+
+  size_t extend_tlab(zoffset_end tlab_end, size_t min_extend_size, size_t max_extend_size);
 
   bool undo_alloc_object(zaddress addr, size_t size);
   bool undo_alloc_object_atomic(zaddress addr, size_t size);

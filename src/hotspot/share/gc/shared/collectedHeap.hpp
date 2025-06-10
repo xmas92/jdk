@@ -150,6 +150,10 @@ class CollectedHeap : public CHeapObj<mtGC> {
   virtual HeapWord* allocate_new_tlab(size_t min_size,
                                       size_t requested_size,
                                       size_t* actual_size) = 0;
+  virtual bool extend_tlab(HeapWord* prev_end,
+                           size_t min_extended_size,
+                           size_t requested_extended_size,
+                           size_t* extended_size);
 
   // Reinitialize tlabs before resuming mutators.
   virtual void resize_all_tlabs();

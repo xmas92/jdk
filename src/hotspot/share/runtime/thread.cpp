@@ -154,6 +154,17 @@ void Thread::initialize_tlab() {
   }
 }
 
+void Thread::retire_tlab_for_extend(ThreadLocalAllocStats* stats) {
+  // Sampling and serviceability support
+  if (tlab().end() != nullptr) {
+    incr_allocated_bytes(tlab().used_bytes());
+    heap_sampler().retire_tlab(tlab().top());
+  }
+
+  // Retire the TLAB
+  tlab().retire_for_extend(stats);
+}
+
 void Thread::retire_tlab(ThreadLocalAllocStats* stats) {
   // Sampling and serviceability support
   if (tlab().end() != nullptr) {

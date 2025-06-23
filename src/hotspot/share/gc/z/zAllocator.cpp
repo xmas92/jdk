@@ -40,7 +40,7 @@ ZAllocatorEden::ZAllocatorEden()
   ZAllocator::_eden = this;
 }
 
-size_t ZAllocatorEden::remaining() const {
+zbytes ZAllocatorEden::remaining() const {
   return _object_allocator.remaining();
 }
 
@@ -59,14 +59,14 @@ ZPageAge ZAllocatorForRelocation::install() {
 ZAllocatorForRelocation::ZAllocatorForRelocation()
   : ZAllocator(install()) {}
 
-zaddress ZAllocatorForRelocation::alloc_object(size_t size) {
+zaddress ZAllocatorForRelocation::alloc_object(zbytes size) {
   return _object_allocator.alloc_object_for_relocation(size);
 }
 
-void ZAllocatorForRelocation::undo_alloc_object(zaddress addr, size_t size) {
+void ZAllocatorForRelocation::undo_alloc_object(zaddress addr, zbytes size) {
   _object_allocator.undo_alloc_object_for_relocation(addr, size);
 }
 
-ZPage* ZAllocatorForRelocation::alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags) {
+ZPage* ZAllocatorForRelocation::alloc_page_for_relocation(ZPageType type, zbytes size, ZAllocationFlags flags) {
   return _object_allocator.alloc_page_for_relocation(type, size, flags);
 }

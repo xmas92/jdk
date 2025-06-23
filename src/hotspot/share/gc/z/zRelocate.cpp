@@ -38,6 +38,7 @@
 #include "gc/z/zRelocate.hpp"
 #include "gc/z/zRelocationSet.inline.hpp"
 #include "gc/z/zRootsIterator.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStackWatermark.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zStringDedup.inline.hpp"
@@ -324,7 +325,7 @@ static zaddress relocate_object_inner(ZForwarding* forwarding, zaddress from_add
   assert(ZHeap::heap()->is_object_live(from_addr), "Should be live");
 
   // Allocate object
-  const size_t size = ZUtils::object_size(from_addr);
+  const zbytes size = ZUtils::object_size(from_addr);
 
   ZAllocatorForRelocation* allocator = ZAllocator::relocation(forwarding->to_age());
 
@@ -385,7 +386,7 @@ zaddress ZRelocate::forward_object(ZForwarding* forwarding, zaddress_unsafe from
   return to_addr;
 }
 
-static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, size_t size) {
+static ZPage* alloc_page(ZAllocatorForRelocation* allocator, ZPageType type, zbytes size) {
   if (ZStressRelocateInPlace) {
     // Simulate failure to allocate a new page. This will
     // cause the page being relocated to be relocated in-place.
@@ -410,7 +411,7 @@ static void retire_target_page(ZGeneration* generation, ZPage* page) {
   // page if we allocated a new target page, and then lost the race to
   // relocate the remaining objects, leaving the target page empty when
   // relocation completed.
-  if (page->used() == 0) {
+  if (page->used() == 0_zb) {
     ZHeap::heap()->free_page(page);
   }
 }
@@ -450,11 +451,11 @@ public:
     }
   }
 
-  zaddress alloc_object(ZPage* page, size_t size) const {
+  zaddress alloc_object(ZPage* page, zbytes size) const {
     return (page != nullptr) ? page->alloc_object(size) : zaddress::null;
   }
 
-  void undo_alloc_object(ZPage* page, zaddress addr, size_t size) const {
+  void undo_alloc_object(ZPage* page, zaddress addr, zbytes size) const {
     page->undo_alloc_object(addr, size);
   }
 
@@ -544,11 +545,11 @@ public:
     // Does nothing
   }
 
-  zaddress alloc_object(ZPage* page, size_t size) const {
+  zaddress alloc_object(ZPage* page, zbytes size) const {
     return (page != nullptr) ? page->alloc_object_atomic(size) : zaddress::null;
   }
 
-  void undo_alloc_object(ZPage* page, zaddress addr, size_t size) const {
+  void undo_alloc_object(ZPage* page, zaddress addr, zbytes size) const {
     page->undo_alloc_object_atomic(addr, size);
   }
 
@@ -564,8 +565,8 @@ private:
   ZForwarding*        _forwarding;
   ZPage*              _target[ZAllocator::_relocation_allocators];
   ZGeneration* const  _generation;
-  size_t              _other_promoted;
-  size_t              _other_compacted;
+  zbytes              _other_promoted;
+  zbytes              _other_compacted;
   ZStringDedupContext _string_dedup_context;
 
 
@@ -577,12 +578,12 @@ private:
     _target[untype(age - 1)] = page;
   }
 
-  size_t object_alignment() const {
-    return (size_t)1 << _forwarding->object_alignment_shift();
+  zbytes object_alignment() const {
+    return 1_zb << _forwarding->object_alignment_shift();
   }
 
-  void increase_other_forwarded(size_t unaligned_object_size) {
-    const size_t aligned_size = align_up(unaligned_object_size, object_alignment());
+  void increase_other_forwarded(zbytes unaligned_object_size) {
+    const zbytes aligned_size = ZBytes::align_up(unaligned_object_size, object_alignment());
     if (_forwarding->is_promotion()) {
       _other_promoted += aligned_size;
     } else {
@@ -593,7 +594,7 @@ private:
   zaddress try_relocate_object_inner(zaddress from_addr) {
     ZForwardingCursor cursor;
 
-    const size_t size = ZUtils::object_size(from_addr);
+    const zbytes size = ZUtils::object_size(from_addr);
     ZPage* const to_page = target(_forwarding->to_age());
 
     // Lookup forwarding
@@ -657,7 +658,7 @@ private:
 
     // Read the size from the to-object, since the from-object
     // could have been overwritten during in-place relocation.
-    const size_t size = ZUtils::object_size(to_addr);
+    const zbytes size = ZUtils::object_size(to_addr);
 
     // If a young generation collection started while the old generation
     // relocated  objects, the remember set bits were flipped from "current"
@@ -695,9 +696,9 @@ private:
 
       // Add remset entry in the to-page
       const uintptr_t offset = field_local_offset - from_local_offset;
-      const zaddress to_field = to_addr + offset;
+      const zaddress to_field = to_addr + to_zbytes(offset);
       log_trace(gc, reloc)("Remember: from: " PTR_FORMAT " to: " PTR_FORMAT " current: %d marking: %d page: " PTR_FORMAT " remset: " PTR_FORMAT,
-          untype(from_page->start() + field_local_offset), untype(to_field), active_remset_is_current, ZGeneration::young()->is_phase_mark(), p2i(to_page), p2i(to_page->remset_current()));
+          untype(from_page->start() + to_zbytes(field_local_offset)), untype(to_field), active_remset_is_current, ZGeneration::young()->is_phase_mark(), p2i(to_page), p2i(to_page->remset_current()));
 
       volatile zpointer* const p = (volatile zpointer*)to_field;
 
@@ -912,8 +913,8 @@ public:
       _forwarding(nullptr),
       _target(),
       _generation(generation),
-      _other_promoted(0),
-      _other_compacted(0) {}
+      _other_promoted(0_zb),
+      _other_compacted(0_zb) {}
 
   ~ZRelocateWork() {
     for (uint i = 0; i < ZAllocator::_relocation_allocators; ++i) {

@@ -22,6 +22,7 @@
  */
 
 #include "gc/z/zForwardingAllocator.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "memory/allocation.inline.hpp"
 
 ZForwardingAllocator::ZForwardingAllocator()
@@ -33,7 +34,7 @@ ZForwardingAllocator::~ZForwardingAllocator() {
   FREE_C_HEAP_ARRAY(char, _start);
 }
 
-void ZForwardingAllocator::reset(size_t size) {
-  _start = _top = REALLOC_C_HEAP_ARRAY(char, _start, size, mtGC);
+void ZForwardingAllocator::reset(zbytes size) {
+  _start = _top = REALLOC_C_HEAP_ARRAY(char, _start, untype(size), mtGC);
   _end = _start + size;
 }

@@ -31,6 +31,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zGranuleMap.inline.hpp"
 #include "gc/z/zIndexDistributor.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "utilities/debug.hpp"
 
 inline ZForwardingTable::ZForwardingTable()
@@ -47,7 +48,7 @@ inline ZForwarding* ZForwardingTable::get(zaddress_unsafe addr) const {
 
 inline void ZForwardingTable::insert(ZForwarding* forwarding) {
   const zoffset offset = forwarding->start();
-  const size_t size = forwarding->size();
+  const zbytes size = forwarding->size();
 
   assert(_map.get(offset) == nullptr, "Invalid entry");
   _map.put(offset, size, forwarding);
@@ -55,7 +56,7 @@ inline void ZForwardingTable::insert(ZForwarding* forwarding) {
 
 inline void ZForwardingTable::remove(ZForwarding* forwarding) {
   const zoffset offset = forwarding->start();
-  const size_t size = forwarding->size();
+  const zbytes size = forwarding->size();
 
   assert(_map.get(offset) == forwarding, "Invalid entry");
   _map.put(offset, size, nullptr);

@@ -26,8 +26,9 @@
 #ifndef CPU_RISCV_GC_Z_ZGLOBALS_RISCV_HPP
 #define CPU_RISCV_GC_Z_ZGLOBALS_RISCV_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-const size_t ZPlatformCacheLineSize    = 64;
+const zbytes ZPlatformCacheLineSize    = 64_zb;
 
 #endif // CPU_RISCV_GC_Z_ZGLOBALS_RISCV_HPP

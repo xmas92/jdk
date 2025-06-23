@@ -24,11 +24,11 @@
 #include "gc/z/zGlobals.hpp"
 
 int        ZPageSizeMediumMaxShift;
-size_t     ZPageSizeMediumMax;
-size_t     ZPageSizeMediumMin;
+zbytes     ZPageSizeMediumMax;
+zbytes     ZPageSizeMediumMin;
 bool       ZPageSizeMediumEnabled;
 
-size_t     ZObjectSizeLimitMedium;
+zbytes     ZObjectSizeLimitMedium;
 
 const int& ZObjectAlignmentSmallShift  = LogMinObjAlignmentInBytes;
 int        ZObjectAlignmentMediumShift;

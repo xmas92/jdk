@@ -26,6 +26,7 @@
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "logging/log.hpp"
@@ -372,7 +373,7 @@ void ZForwarding::verify() const {
   guarantee(_page != nullptr, "Invalid page");
 
   uint32_t live_objects = 0;
-  size_t live_bytes = 0;
+  zbytes live_bytes = 0_zb;
 
   for (ZForwardingCursor i = 0; i < _entries.length(); i++) {
     const ZForwardingEntry entry = at(&i);
@@ -397,8 +398,8 @@ void ZForwarding::verify() const {
     }
 
     const zaddress to_addr = ZOffset::address(to_zoffset(entry.to_offset()));
-    const size_t size = ZUtils::object_size(to_addr);
-    const size_t aligned_size = align_up(size, _page->object_alignment());
+    const zbytes size = ZUtils::object_size(to_addr);
+    const zbytes aligned_size = ZBytes::align_up(size, _page->object_alignment());
     live_bytes += aligned_size;
     live_objects++;
   }

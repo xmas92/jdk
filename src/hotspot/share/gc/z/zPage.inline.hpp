@@ -31,6 +31,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zLiveMap.inline.hpp"
 #include "gc/z/zRememberedSet.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "logging/logStream.hpp"
 #include "runtime/atomic.hpp"
@@ -66,16 +67,16 @@ inline uint32_t ZPage::object_max_count() const {
   }
 }
 
-inline size_t ZPage::object_alignment_shift() const {
+inline int ZPage::object_alignment_shift() const {
   switch (type()) {
   case ZPageType::small:
-    return (size_t)ZObjectAlignmentSmallShift;
+    return ZObjectAlignmentSmallShift;
 
   case ZPageType::medium:
-    return (size_t)ZObjectAlignmentMediumShift;
+    return ZObjectAlignmentMediumShift;
 
   case ZPageType::large:
-    return (size_t)ZObjectAlignmentLargeShift;
+    return ZObjectAlignmentLargeShift;
 
   default:
     fatal("Unexpected page type");
@@ -83,20 +84,20 @@ inline size_t ZPage::object_alignment_shift() const {
   }
 }
 
-inline size_t ZPage::object_alignment() const {
+inline zbytes ZPage::object_alignment() const {
   switch (type()) {
   case ZPageType::small:
-    return (size_t)ZObjectAlignmentSmall;
+    return to_zbytes(ZObjectAlignmentSmall);
 
   case ZPageType::medium:
-    return (size_t)ZObjectAlignmentMedium;
+    return to_zbytes(ZObjectAlignmentMedium);
 
   case ZPageType::large:
-    return (size_t)ZObjectAlignmentLarge;
+    return to_zbytes(ZObjectAlignmentLarge);
 
   default:
     fatal("Unexpected page type");
-    return 0;
+    return 0_zb;
   }
 }
 
@@ -136,7 +137,7 @@ inline zoffset_end ZPage::end() const {
   return _virtual.end();
 }
 
-inline size_t ZPage::size() const {
+inline zbytes ZPage::size() const {
   return _virtual.size();
 }
 
@@ -144,11 +145,11 @@ inline zoffset_end ZPage::top() const {
   return _top;
 }
 
-inline size_t ZPage::remaining() const {
+inline zbytes ZPage::remaining() const {
   return end() - top();
 }
 
-inline size_t ZPage::used() const {
+inline zbytes ZPage::used() const {
   return top() - start();
 }
 
@@ -197,12 +198,12 @@ inline uintptr_t ZPage::local_offset(zoffset offset) const {
   assert(ZHeap::heap()->is_in_page_relaxed(this, ZOffset::address(offset)),
          "Invalid offset " PTR_FORMAT " page [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
          untype(offset), untype(start()), untype(top()), untype(end()));
-  return offset - start();
+  return untype(offset - start());
 }
 
 inline uintptr_t ZPage::local_offset(zoffset_end offset) const {
   assert(offset <= end(), "Wrong offset");
-  return offset - start();
+  return untype(offset - start());
 }
 
 inline uintptr_t ZPage::local_offset(zaddress addr) const {
@@ -216,7 +217,7 @@ inline uintptr_t ZPage::local_offset(zaddress_unsafe addr) const {
 }
 
 inline zoffset ZPage::global_offset(uintptr_t local_offset) const {
-  return start() + local_offset;
+  return start() + to_zbytes(local_offset);
 }
 
 inline bool ZPage::is_marked() const {
@@ -230,7 +231,7 @@ inline BitMap::idx_t ZPage::bit_index(zaddress addr) const {
 
 inline zoffset ZPage::offset_from_bit_index(BitMap::idx_t index) const {
   const uintptr_t l_offset = ((index / 2) << object_alignment_shift());
-  return start() + l_offset;
+  return start() + to_zbytes(l_offset);
 }
 
 inline oop ZPage::object_from_bit_index(BitMap::idx_t index) const {
@@ -292,7 +293,7 @@ inline bool ZPage::mark_object(zaddress addr, bool finalizable, bool& inc_live) 
   return _livemap.set(_generation_id, index, finalizable, inc_live);
 }
 
-inline void ZPage::inc_live(uint32_t objects, size_t bytes) {
+inline void ZPage::inc_live(uint32_t objects, zbytes bytes) {
   _livemap.inc_live(objects, bytes);
 }
 
@@ -309,7 +310,7 @@ inline uint32_t ZPage::live_objects() const {
   return _livemap.live_objects();
 }
 
-inline size_t ZPage::live_bytes() const {
+inline zbytes ZPage::live_bytes() const {
   assert_zpage_mark_state();
 
   return _livemap.live_bytes();
@@ -339,7 +340,7 @@ inline void ZPage::clear_remset_bit_non_par_current(uintptr_t l_offset) {
   _remembered_set.unset_non_par_current(l_offset);
 }
 
-inline void ZPage::clear_remset_range_non_par_current(uintptr_t l_offset, size_t size) {
+inline void ZPage::clear_remset_range_non_par_current(uintptr_t l_offset, zbytes size) {
   _remembered_set.unset_range_non_par_current(l_offset, size);
 }
 
@@ -347,11 +348,11 @@ inline ZBitMap::ReverseIterator ZPage::remset_reverse_iterator_previous() {
   return _remembered_set.iterator_reverse_previous();
 }
 
-inline BitMap::Iterator ZPage::remset_iterator_limited_current(uintptr_t l_offset, size_t size) {
+inline BitMap::Iterator ZPage::remset_iterator_limited_current(uintptr_t l_offset, zbytes size) {
   return _remembered_set.iterator_limited_current(l_offset, size);
 }
 
-inline BitMap::Iterator ZPage::remset_iterator_limited_previous(uintptr_t l_offset, size_t size) {
+inline BitMap::Iterator ZPage::remset_iterator_limited_previous(uintptr_t l_offset, zbytes size) {
   return _remembered_set.iterator_limited_previous(l_offset, size);
 }
 
@@ -394,7 +395,7 @@ inline zaddress_unsafe ZPage::find_base(volatile zpointer* p) {
 template <typename Function>
 inline void ZPage::oops_do_remembered(Function function) {
   _remembered_set.iterate_previous([&](uintptr_t local_offset) {
-    const zoffset offset = start() + local_offset;
+    const zoffset offset = start() + to_zbytes(local_offset);
     const zaddress addr = ZOffset::address(offset);
 
     function((volatile zpointer*)addr);
@@ -418,17 +419,17 @@ inline void ZPage::oops_do_remembered_in_live(Function function) {
 template <typename Function>
 inline void ZPage::oops_do_current_remembered(Function function) {
   _remembered_set.iterate_current([&](uintptr_t local_offset) {
-    const zoffset offset = start() + local_offset;
+    const zoffset offset = start() + to_zbytes(local_offset);
     const zaddress addr = ZOffset::address(offset);
 
     function((volatile zpointer*)addr);
   });
 }
 
-inline zaddress ZPage::alloc_object(size_t size) {
+inline zaddress ZPage::alloc_object(zbytes size) {
   assert(is_allocating(), "Invalid state");
 
-  const size_t aligned_size = align_up(size, object_alignment());
+  const zbytes aligned_size = ZBytes::align_up(size, object_alignment());
   const zoffset_end addr = top();
 
   zoffset_end new_top;
@@ -448,10 +449,10 @@ inline zaddress ZPage::alloc_object(size_t size) {
   return ZOffset::address(to_zoffset(addr));
 }
 
-inline zaddress ZPage::alloc_object_atomic(size_t size) {
+inline zaddress ZPage::alloc_object_atomic(zbytes size) {
   assert(is_allocating(), "Invalid state");
 
-  const size_t aligned_size = align_up(size, object_alignment());
+  const zbytes aligned_size = ZBytes::align_up(size, object_alignment());
   zoffset_end addr = top();
 
   for (;;) {
@@ -478,11 +479,11 @@ inline zaddress ZPage::alloc_object_atomic(size_t size) {
   }
 }
 
-inline bool ZPage::undo_alloc_object(zaddress addr, size_t size) {
+inline bool ZPage::undo_alloc_object(zaddress addr, zbytes size) {
   assert(is_allocating(), "Invalid state");
 
   const zoffset offset = ZAddress::offset(addr);
-  const size_t aligned_size = align_up(size, object_alignment());
+  const zbytes aligned_size = ZBytes::align_up(size, object_alignment());
   const zoffset_end old_top = top();
   const zoffset_end new_top = old_top - aligned_size;
 
@@ -497,11 +498,11 @@ inline bool ZPage::undo_alloc_object(zaddress addr, size_t size) {
   return true;
 }
 
-inline bool ZPage::undo_alloc_object_atomic(zaddress addr, size_t size) {
+inline bool ZPage::undo_alloc_object_atomic(zaddress addr, zbytes size) {
   assert(is_allocating(), "Invalid state");
 
   const zoffset offset = ZAddress::offset(addr);
-  const size_t aligned_size = align_up(size, object_alignment());
+  const zbytes aligned_size = ZBytes::align_up(size, object_alignment());
   zoffset_end old_top = top();
 
   for (;;) {

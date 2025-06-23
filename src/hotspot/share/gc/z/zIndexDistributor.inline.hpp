@@ -28,6 +28,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/os.hpp"
 #include "runtime/thread.hpp"
@@ -35,14 +36,14 @@
 #include "utilities/powerOfTwo.hpp"
 
 class ZIndexDistributorStriped : public CHeapObj<mtGC> {
-  static const int MemSize = 4096;
+  static const zbytes MemSize = 4096_zb;
   static const int StripeCount = MemSize / ZCacheLineSize;
 
   const int _count;
   // For claiming a stripe
   volatile int _claim_stripe;
   // For claiming inside a stripe
-  char _mem[MemSize + ZCacheLineSize];
+  char _mem[untype(MemSize + ZCacheLineSize)];
 
   int claim_stripe() {
     return Atomic::fetch_then_add(&_claim_stripe, 1, memory_order_relaxed);
@@ -57,7 +58,7 @@ public:
     : _count(count),
       _claim_stripe(0),
       _mem() {
-    memset(_mem, 0, MemSize + ZCacheLineSize);
+    memset(_mem, 0, untype(MemSize + ZCacheLineSize));
   }
 
   template <typename Function>
@@ -130,7 +131,7 @@ private:
     if (level == 0) {
 
       // First level uses padding
-      return ZCacheLineSize / sizeof(int);
+      return ZCacheLineSize / to_zbytes(sizeof(int));
     }
 
     return claim_level_size(level) + claim_level_end_index(level - 1);

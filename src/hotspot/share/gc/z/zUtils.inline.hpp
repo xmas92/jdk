@@ -27,6 +27,7 @@
 #include "gc/z/zUtils.hpp"
 
 #include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
@@ -34,38 +35,33 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-inline uintptr_t ZUtils::alloc_aligned_unfreeable(size_t alignment, size_t size) {
-  const size_t padded_size = size + (alignment - 1);
-  void* const addr = os::malloc(padded_size, mtGC);
+inline uintptr_t ZUtils::alloc_aligned_unfreeable(zbytes alignment, zbytes size) {
+  const zbytes padded_size = size + (alignment - 1_zb);
+  void* const addr = os::malloc(untype(padded_size), mtGC);
   void* const aligned_addr = align_up(addr, alignment);
 
-  memset(aligned_addr, 0, size);
+  memset(aligned_addr, 0, untype(size));
 
   // Since free expects pointers returned by malloc, aligned_addr cannot be
   // freed since it is most likely not the same as addr after alignment.
   return (uintptr_t)aligned_addr;
 }
 
-inline size_t ZUtils::bytes_to_words(size_t size_in_bytes) {
-  assert(is_aligned(size_in_bytes, BytesPerWord), "Size not word aligned");
-  return size_in_bytes >> LogBytesPerWord;
+inline zbytes ZUtils::object_size(oop obj) {
+  return ZBytes::from_words(obj->size());
 }
 
-inline size_t ZUtils::words_to_bytes(size_t size_in_words) {
-  return size_in_words << LogBytesPerWord;
+inline zbytes ZUtils::object_size(zaddress addr) {
+  return object_size(to_oop(addr));
 }
 
-inline size_t ZUtils::object_size(zaddress addr) {
-  return words_to_bytes(to_oop(addr)->size());
+inline void ZUtils::object_copy_disjoint(zaddress from, zaddress to, zbytes size) {
+  Copy::aligned_disjoint_words((HeapWord*)untype(from), (HeapWord*)untype(to), untype(ZBytes::to_words(size)));
 }
 
-inline void ZUtils::object_copy_disjoint(zaddress from, zaddress to, size_t size) {
-  Copy::aligned_disjoint_words((HeapWord*)untype(from), (HeapWord*)untype(to), bytes_to_words(size));
-}
-
-inline void ZUtils::object_copy_conjoint(zaddress from, zaddress to, size_t size) {
+inline void ZUtils::object_copy_conjoint(zaddress from, zaddress to, zbytes size) {
   if (from != to) {
-    Copy::aligned_conjoint_words((HeapWord*)untype(from), (HeapWord*)untype(to), bytes_to_words(size));
+    Copy::aligned_conjoint_words((HeapWord*)untype(from), (HeapWord*)untype(to), untype(ZBytes::to_words(size)));
   }
 }
 

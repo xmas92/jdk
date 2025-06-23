@@ -22,6 +22,7 @@
  */
 
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "zunittest.hpp"
 
@@ -55,11 +56,11 @@ TEST(ZVirtualMemory, accessors) {
 
   {
     // Max area - check end boundary
-    ZVirtualMemory mem(zoffset(0), ZAddressOffsetMax);
+    ZVirtualMemory mem(zoffset(0), to_zbytes(ZAddressOffsetMax));
 
     EXPECT_EQ(mem.start(), zoffset(0));
     EXPECT_EQ(mem.end(), zoffset_end(ZAddressOffsetMax));
-    EXPECT_EQ(mem.size(), ZAddressOffsetMax);
+    EXPECT_EQ(mem.size(), to_zbytes(ZAddressOffsetMax));
     EXPECT_EQ(mem.granule_count(), (int)(ZAddressOffsetMax >> ZGranuleSizeShift));
   }
 }
@@ -99,8 +100,8 @@ TEST(ZVirtualMemory, shrink_from_front) {
 
   ZVirtualMemory mem(zoffset(0), ZGranuleSize * 10);
 
-  ZVirtualMemory mem0 = mem.shrink_from_front(0);
-  EXPECT_EQ(mem0.size(), 0u);
+  ZVirtualMemory mem0 = mem.shrink_from_front(0_zb);
+  EXPECT_EQ(mem0.size(), 0_zb);
   EXPECT_EQ(mem.size(), ZGranuleSize * 10);
 
   ZVirtualMemory mem1 = mem.shrink_from_front(ZGranuleSize * 5);
@@ -109,10 +110,10 @@ TEST(ZVirtualMemory, shrink_from_front) {
 
   ZVirtualMemory mem2 = mem.shrink_from_front(ZGranuleSize * 5);
   EXPECT_EQ(mem2.size(), ZGranuleSize * 5);
-  EXPECT_EQ(mem.size(), 0u);
+  EXPECT_EQ(mem.size(), 0_zb);
 
-  ZVirtualMemory mem3 = mem.shrink_from_front(0);
-  EXPECT_EQ(mem3.size(), 0u);
+  ZVirtualMemory mem3 = mem.shrink_from_front(0_zb);
+  EXPECT_EQ(mem3.size(), 0_zb);
 }
 
 TEST(ZVirtualMemory, shrink_from_back) {
@@ -126,7 +127,7 @@ TEST(ZVirtualMemory, shrink_from_back) {
 
   ZVirtualMemory mem2 = mem.shrink_from_back(ZGranuleSize * 5);
   EXPECT_EQ(mem2.size(), ZGranuleSize * 5);
-  EXPECT_EQ(mem.size(), 0u);
+  EXPECT_EQ(mem.size(), 0_zb);
 }
 
 TEST(ZVirtualMemory, adjacent_to) {

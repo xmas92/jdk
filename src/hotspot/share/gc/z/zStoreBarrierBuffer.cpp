@@ -123,7 +123,7 @@ static volatile zpointer* make_load_good(volatile zpointer* p, zaddress_unsafe p
   assert(!is_null(p_base), "need base pointer");
 
   // Calculate field offset before p_base is remapped
-  const uintptr_t offset = (uintptr_t)p - untype(p_base);
+  const zbytes offset = to_zbytes((uintptr_t)p - untype(p_base));
 
   // Remap local-copy of base pointer
   ZUncoloredRoot::process_no_keepalive(&p_base, color);

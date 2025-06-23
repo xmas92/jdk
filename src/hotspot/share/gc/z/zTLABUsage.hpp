@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZTLABUSAGE_HPP
 #define SHARE_GC_Z_ZTLABUSAGE_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/numberSeq.hpp"
 
@@ -42,19 +43,19 @@
 class ZTLABUsage {
 private:
   // Accounting TLAB used until the next GC cycle
-  volatile size_t _used;
+  volatile zbytes _used;
   // Sequence of historic used values
   TruncatedSeq    _used_history;
 
 public:
   ZTLABUsage();
 
-  void increase_used(size_t size);
-  void decrease_used(size_t size);
+  void increase_used(zbytes size);
+  void decrease_used(zbytes size);
   void reset();
 
-  size_t tlab_used() const;
-  size_t tlab_capacity() const;
+  zbytes tlab_used() const;
+  zbytes tlab_capacity() const;
 };
 
 #endif // SHARE_GC_Z_ZTLABUSAGE_HPP

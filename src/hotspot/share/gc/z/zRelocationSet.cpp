@@ -30,6 +30,7 @@
 #include "gc/z/zPageAllocator.hpp"
 #include "gc/z/zRelocationSet.inline.hpp"
 #include "gc/z/zRelocationSetSelector.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zWorkers.hpp"
@@ -91,9 +92,9 @@ public:
 
     // Reset the allocator to have room for the relocation
     // set, all forwardings, and all forwarding entries.
-    const size_t relocation_set_size = _nforwardings * sizeof(ZForwarding*);
-    const size_t forwardings_size = _nforwardings * sizeof(ZForwarding);
-    const size_t forwarding_entries_size = selector->forwarding_entries() * sizeof(ZForwardingEntry);
+    const zbytes relocation_set_size = _nforwardings * to_zbytes(sizeof(ZForwarding*));
+    const zbytes forwardings_size = _nforwardings * to_zbytes(sizeof(ZForwarding));
+    const zbytes forwarding_entries_size = selector->forwarding_entries() * to_zbytes(sizeof(ZForwardingEntry));
     _allocator->reset(relocation_set_size + forwardings_size + forwarding_entries_size);
 
     // Allocate relocation set

@@ -47,6 +47,7 @@
 #include "gc/z/zRelocationSetSelector.inline.hpp"
 #include "gc/z/zRemembered.hpp"
 #include "gc/z/zRootsIterator.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
@@ -120,9 +121,9 @@ ZGeneration::ZGeneration(ZGenerationId id, ZPageTable* page_table, ZPageAllocato
     _mark(this, page_table),
     _relocate(this),
     _relocation_set(this),
-    _freed(0),
-    _promoted(0),
-    _compacted(0),
+    _freed(0_zb),
+    _promoted(0_zb),
+    _compacted(0_zb),
     _phase(Phase::Relocate),
     _seqnum(1),
     _stat_heap(),
@@ -161,7 +162,7 @@ void ZGeneration::free_empty_pages(ZRelocationSetSelector* selector, int bulk) {
   // the page allocator lock, and trying to satisfy stalled allocations
   // too frequently.
   if (selector->should_free_empty_pages(bulk)) {
-    const size_t freed = ZHeap::heap()->free_empty_pages(_id, selector->empty_pages());
+    const zbytes freed = ZHeap::heap()->free_empty_pages(_id, selector->empty_pages());
     increase_freed(freed);
     selector->clear_empty_pages();
   }
@@ -277,33 +278,33 @@ bool ZGeneration::is_relocate_queue_active() const {
 
 void ZGeneration::reset_statistics() {
   assert(SafepointSynchronize::is_at_safepoint(), "Should be at safepoint");
-  _freed = 0;
-  _promoted = 0;
-  _compacted = 0;
+  _freed = 0_zb;
+  _promoted = 0_zb;
+  _compacted = 0_zb;
 }
 
-size_t ZGeneration::freed() const {
+zbytes ZGeneration::freed() const {
   return _freed;
 }
 
-void ZGeneration::increase_freed(size_t size) {
-  Atomic::add(&_freed, size, memory_order_relaxed);
+void ZGeneration::increase_freed(zbytes size) {
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_freed), untype(size), memory_order_relaxed);
 }
 
-size_t ZGeneration::promoted() const {
+zbytes ZGeneration::promoted() const {
   return _promoted;
 }
 
-void ZGeneration::increase_promoted(size_t size) {
-  Atomic::add(&_promoted, size, memory_order_relaxed);
+void ZGeneration::increase_promoted(zbytes size) {
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_promoted), untype(size), memory_order_relaxed);
 }
 
-size_t ZGeneration::compacted() const {
+zbytes ZGeneration::compacted() const {
   return _compacted;
 }
 
-void ZGeneration::increase_compacted(size_t size) {
-  Atomic::add(&_compacted, size, memory_order_relaxed);
+void ZGeneration::increase_compacted(zbytes size) {
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_compacted), untype(size), memory_order_relaxed);
 }
 
 ConcurrentGCTimer* ZGeneration::gc_timer() const {
@@ -693,19 +694,19 @@ void ZGenerationYoung::select_tenuring_threshold(ZRelocationSetSelectorStats sta
 }
 
 uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats stats) {
-  size_t young_live_total = 0;
-  size_t young_live_last = 0;
+  zbytes young_live_total = 0_zb;
+  zbytes young_live_last = 0_zb;
   double young_life_expectancy_sum = 0.0;
   uint young_life_expectancy_samples = 0;
   uint last_populated_age = 0;
-  size_t last_populated_live = 0;
+  zbytes last_populated_live = 0_zb;
 
   for (ZPageAge age : ZPageAgeRange()) {
-    const size_t young_live = stats.small(age).live() + stats.medium(age).live() + stats.large(age).live();
-    if (young_live > 0) {
+    const zbytes young_live = stats.small(age).live() + stats.medium(age).live() + stats.large(age).live();
+    if (young_live > 0_zb) {
       last_populated_age = untype(age);
       last_populated_live = young_live;
-      if (young_live_last > 0) {
+      if (young_live_last > 0_zb) {
         young_life_expectancy_sum += double(young_live) / double(young_live_last);
         young_life_expectancy_samples++;
       }
@@ -714,14 +715,14 @@ uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats st
     young_live_last = young_live;
   }
 
-  if (young_live_total == 0) {
+  if (young_live_total == 0_zb) {
     return 0;
   }
 
-  const size_t young_used_at_mark_start = ZGeneration::young()->stat_heap()->used_generation_at_mark_start();
-  const size_t young_garbage = ZGeneration::young()->stat_heap()->garbage_at_mark_end();
-  const size_t young_allocated = ZGeneration::young()->stat_heap()->allocated_at_mark_end();
-  const size_t soft_max_capacity = ZHeap::heap()->soft_max_capacity();
+  const zbytes young_used_at_mark_start = ZGeneration::young()->stat_heap()->used_generation_at_mark_start();
+  const zbytes young_garbage = ZGeneration::young()->stat_heap()->garbage_at_mark_end();
+  const zbytes young_allocated = ZGeneration::young()->stat_heap()->allocated_at_mark_end();
+  const zbytes soft_max_capacity = ZHeap::heap()->soft_max_capacity();
 
   // The life expectancy shows by what factor on average one age changes between
   // two ages in the age table. Values below 1 indicate generational behaviour where
@@ -758,7 +759,7 @@ uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats st
   // The allocated to garbage ratio, compares the ratio of newly allocated
   // memory since GC started to how much garbage we are freeing up. The higher
   // the value, the harder it is for the YC to keep up with the allocation rate.
-  const double allocated_garbage_ratio = double(young_allocated) / double(young_garbage + 1);
+  const double allocated_garbage_ratio = double(young_allocated) / double(young_garbage + 1_zb);
 
   // We slow down the young residency factor with a log. A larger log slows
   // it down faster. We select a log between 2 - 16 scaled by the allocated
@@ -778,8 +779,8 @@ uint ZGenerationYoung::compute_tenuring_threshold(ZRelocationSetSelectorStats st
   // if the GC is finding it hard to keep up with the allocation rate.
   const double tenuring_threshold_raw = young_life_decay_factor * young_log_residency;
 
-  log_trace(gc, reloc)("Young Allocated: %zuM", young_allocated / M);
-  log_trace(gc, reloc)("Young Garbage: %zuM", young_garbage / M);
+  log_trace(gc, reloc)("Young Allocated: %zuM", young_allocated / M_zb);
+  log_trace(gc, reloc)("Young Garbage: %zuM", young_garbage / M_zb);
   log_debug(gc, reloc)("Allocated To Garbage: %.1f", allocated_garbage_ratio);
   log_trace(gc, reloc)("Young Log: %.1f", young_log);
   log_trace(gc, reloc)("Young Residency Reciprocal: %.1f", young_residency_reciprocal);

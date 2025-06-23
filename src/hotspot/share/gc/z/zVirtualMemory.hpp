@@ -28,11 +28,11 @@
 #include "gc/z/zRange.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-class ZVirtualMemory : public ZRange<zoffset, zoffset_end> {
+class ZVirtualMemory : public ZRange<zoffset, zoffset_end, zbytes> {
 public:
   ZVirtualMemory();
-  ZVirtualMemory(zoffset start, size_t size);
-  ZVirtualMemory(const ZRange<zoffset, zoffset_end>& range);
+  ZVirtualMemory(zoffset start, zbytes size);
+  ZVirtualMemory(const ZRange<zoffset, zoffset_end, zbytes>& range);
 
   int granule_count() const;
 };

@@ -30,6 +30,7 @@
 #include "gc/z/zLock.hpp"
 #include "gc/z/zMetronome.hpp"
 #include "gc/z/zRelocationSetSelector.hpp"
+#include "gc/z/zSize.hpp"
 #include "gc/z/zThread.hpp"
 #include "gc/z/zTracer.hpp"
 #include "logging/logHandle.hpp"
@@ -231,8 +232,8 @@ private:
 
   GCTracer* jfr_tracer() const;
 
-  void set_used_at_start(size_t used) const;
-  size_t used_at_start() const;
+  void set_used_at_start(zbytes used) const;
+  zbytes used_at_start() const;
 
 public:
   ZStatPhaseCollection(const char* name, bool minor);
@@ -362,8 +363,8 @@ class ZStatMutatorAllocRate : public AllStatic {
 private:
   static ZLock*          _stat_lock;
   static jlong           _last_sample_time;
-  static volatile size_t _sampling_granule;
-  static volatile size_t _allocated_since_sample;
+  static volatile zbytes _sampling_granule;
+  static volatile zbytes _allocated_since_sample;
   static TruncatedSeq    _samples_time;
   static TruncatedSeq    _samples_bytes;
   static TruncatedSeq    _rate;
@@ -372,7 +373,7 @@ private:
 
 public:
   static const ZStatUnsampledCounter& counter();
-  static void sample_allocation(size_t allocation_bytes);
+  static void sample_allocation(zbytes allocation_bytes);
 
   static void initialize();
 
@@ -496,7 +497,7 @@ private:
   size_t _nterminateflush;
   size_t _ntrycomplete;
   size_t _ncontinue;
-  size_t _mark_stack_usage;
+  zbytes _mark_stack_usage;
 
 public:
   ZStatMark();
@@ -512,11 +513,11 @@ public:
 
 struct ZStatRelocationSummary {
   size_t npages_candidates;
-  size_t total;
-  size_t live;
-  size_t empty;
+  zbytes total;
+  zbytes live;
+  zbytes empty;
   size_t npages_selected;
-  size_t relocate;
+  zbytes relocate;
 };
 
 //
@@ -525,7 +526,7 @@ struct ZStatRelocationSummary {
 class ZStatRelocation {
 private:
   ZRelocationSetSelectorStats _selector_stats;
-  size_t                      _forwarding_usage;
+  zbytes                      _forwarding_usage;
   size_t                      _small_selected;
   size_t                      _small_in_place_count;
   size_t                      _medium_selected;
@@ -539,7 +540,7 @@ public:
   ZStatRelocation();
 
   void at_select_relocation_set(const ZRelocationSetSelectorStats& selector_stats);
-  void at_install_relocation_set(size_t forwarding_usage);
+  void at_install_relocation_set(zbytes forwarding_usage);
   void at_relocate_end(size_t small_in_place_count, size_t medium_in_place_count);
 
   void print_page_summary();
@@ -585,8 +586,8 @@ public:
 };
 
 struct ZStatHeapStats {
-  size_t _live_at_mark_end;
-  size_t _used_at_relocate_end;
+  zbytes _live_at_mark_end;
+  zbytes _used_at_relocate_end;
   double _reclaimed_avg;
 };
 
@@ -598,85 +599,85 @@ private:
   ZLock _stat_lock;
 
   static struct ZAtInitialize {
-    size_t min_capacity;
-    size_t max_capacity;
+    zbytes min_capacity;
+    zbytes max_capacity;
   } _at_initialize;
 
   struct ZAtGenerationCollectionStart {
-    size_t soft_max_capacity;
-    size_t capacity;
-    size_t free;
-    size_t used;
-    size_t used_generation;
+    zbytes soft_max_capacity;
+    zbytes capacity;
+    zbytes free;
+    zbytes used;
+    zbytes used_generation;
   } _at_collection_start;
 
   struct ZAtMarkStart {
-    size_t soft_max_capacity;
-    size_t capacity;
-    size_t free;
-    size_t used;
-    size_t used_generation;
+    zbytes soft_max_capacity;
+    zbytes capacity;
+    zbytes free;
+    zbytes used;
+    zbytes used_generation;
     size_t allocation_stalls;
   } _at_mark_start;
 
   struct ZAtMarkEnd {
-    size_t capacity;
-    size_t free;
-    size_t used;
-    size_t used_generation;
-    size_t live;
-    size_t garbage;
-    size_t mutator_allocated;
+    zbytes capacity;
+    zbytes free;
+    zbytes used;
+    zbytes used_generation;
+    zbytes live;
+    zbytes garbage;
+    zbytes mutator_allocated;
     size_t allocation_stalls;
   } _at_mark_end;
 
   struct ZAtRelocateStart {
-    size_t capacity;
-    size_t free;
-    size_t used;
-    size_t used_generation;
-    size_t live;
-    size_t garbage;
-    size_t mutator_allocated;
-    size_t reclaimed;
-    size_t promoted;
-    size_t compacted;
+    zbytes capacity;
+    zbytes free;
+    zbytes used;
+    zbytes used_generation;
+    zbytes live;
+    zbytes garbage;
+    zbytes mutator_allocated;
+    zbytes reclaimed;
+    zbytes promoted;
+    zbytes compacted;
     size_t allocation_stalls;
   } _at_relocate_start;
 
   struct ZAtRelocateEnd {
-    size_t capacity;
-    size_t capacity_high;
-    size_t capacity_low;
-    size_t free;
-    size_t free_high;
-    size_t free_low;
-    size_t used;
-    size_t used_high;
-    size_t used_low;
-    size_t used_generation;
-    size_t live;
-    size_t garbage;
-    size_t mutator_allocated;
-    size_t reclaimed;
-    size_t promoted;
-    size_t compacted;
+    zbytes capacity;
+    zbytes capacity_high;
+    zbytes capacity_low;
+    zbytes free;
+    zbytes free_high;
+    zbytes free_low;
+    zbytes used;
+    zbytes used_high;
+    zbytes used_low;
+    zbytes used_generation;
+    zbytes live;
+    zbytes garbage;
+    zbytes mutator_allocated;
+    zbytes reclaimed;
+    zbytes promoted;
+    zbytes compacted;
     size_t allocation_stalls;
   } _at_relocate_end;
 
   NumberSeq _reclaimed_bytes;
 
-  size_t capacity_high() const;
-  size_t capacity_low() const;
-  size_t free(size_t used) const;
-  size_t mutator_allocated(size_t used, size_t freed, size_t relocated) const;
-  size_t garbage(size_t freed, size_t relocated, size_t promoted) const;
-  size_t reclaimed(size_t freed, size_t relocated, size_t promoted) const;
+  zbytes capacity_high() const;
+  zbytes capacity_low() const;
+  zbytes free(zbytes used) const;
+  zbytes mutator_allocated(zbytes used, zbytes freed, zbytes relocated) const;
+  zbytes garbage(zbytes freed, zbytes relocated, zbytes promoted) const;
+  zbytes reclaimed(zbytes freed, zbytes relocated, zbytes promoted) const;
 
 public:
   ZStatHeap();
 
-  void at_initialize(size_t min_capacity, size_t max_capacity);
+  void at_initialize(zbytes min_capacity, zbytes max_capacity);
   void at_collection_start(const ZPageAllocatorStats& stats);
   void at_mark_start(const ZPageAllocatorStats& stats);
   void at_mark_end(const ZPageAllocatorStats& stats);
@@ -684,15 +685,15 @@ public:
   void at_relocate_start(const ZPageAllocatorStats& stats);
   void at_relocate_end(const ZPageAllocatorStats& stats, bool record_stats);
 
-  static size_t max_capacity();
-  size_t used_at_collection_start() const;
-  size_t used_at_mark_start() const;
-  size_t used_generation_at_mark_start() const;
-  size_t live_at_mark_end() const;
-  size_t allocated_at_mark_end() const;
-  size_t garbage_at_mark_end() const;
-  size_t used_at_relocate_end() const;
-  size_t used_at_collection_end() const;
+  static zbytes max_capacity();
+  zbytes used_at_collection_start() const;
+  zbytes used_at_mark_start() const;
+  zbytes used_generation_at_mark_start() const;
+  zbytes live_at_mark_end() const;
+  zbytes allocated_at_mark_end() const;
+  zbytes garbage_at_mark_end() const;
+  zbytes used_at_relocate_end() const;
+  zbytes used_at_collection_end() const;
   size_t stalls_at_mark_start() const;
   size_t stalls_at_mark_end() const;
   size_t stalls_at_relocate_start() const;

@@ -32,7 +32,7 @@ static size_t shift_for_stripes(size_t nstripes) {
 ZMarkCacheEntry::ZMarkCacheEntry()
   : _page(nullptr),
     _objects(0),
-    _bytes(0) {}
+    _bytes(0_zb) {}
 
 ZMarkCache::ZMarkCache(size_t nstripes)
   : _shift(shift_for_stripes(nstripes)) {}

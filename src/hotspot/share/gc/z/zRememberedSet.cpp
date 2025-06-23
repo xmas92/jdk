@@ -47,7 +47,7 @@ bool ZRememberedSet::is_initialized() const {
   return _bitmap[0].size() > 0;
 }
 
-void ZRememberedSet::initialize(size_t page_size) {
+void ZRememberedSet::initialize(zbytes page_size) {
   assert(!is_initialized(), "precondition");
   const BitMap::idx_t size_in_bits = to_bit_size(page_size);
   _bitmap[0].initialize(size_in_bits, true /* clear */);
@@ -79,14 +79,14 @@ ZBitMap::ReverseIterator ZRememberedSet::iterator_reverse_previous() {
   return ZBitMap::ReverseIterator(previous());
 }
 
-BitMap::Iterator ZRememberedSet::iterator_limited_current(uintptr_t offset, size_t size) {
+BitMap::Iterator ZRememberedSet::iterator_limited_current(uintptr_t offset, zbytes size) {
   const size_t index = to_index(offset);;
   const size_t bit_size = to_bit_size(size);
 
   return BitMap::Iterator(*current(), index, index + bit_size);
 }
 
-ZBitMap::Iterator ZRememberedSet::iterator_limited_previous(uintptr_t offset, size_t size) {
+ZBitMap::Iterator ZRememberedSet::iterator_limited_previous(uintptr_t offset, zbytes size) {
   const size_t index = to_index(offset);;
   const size_t bit_size = to_bit_size(size);
 
@@ -169,7 +169,7 @@ bool ZRememberedSetContainingIterator::next(ZRememberedSetContaining* containing
 ZRememberedSetContainingInLiveIterator::ZRememberedSetContainingInLiveIterator(ZPage* page)
   : _iter(page),
     _addr(zaddress::null),
-    _addr_size(0),
+    _addr_size(0_zb),
     _count(0),
     _count_skipped(0),
     _page(page) {}
@@ -183,7 +183,7 @@ bool ZRememberedSetContainingInLiveIterator::next(ZRememberedSetContaining* cont
       _addr_size = ZUtils::object_size(_addr);
     }
 
-    const size_t field_offset = safe(local._field_addr) - _addr;
+    const zbytes field_offset = safe(local._field_addr) - _addr;
     if (field_offset < _addr_size) {
       *containing = local;
       _count++;

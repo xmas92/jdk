@@ -36,15 +36,15 @@ inline size_t ZRelocationSetSelectorGroupStats::npages_candidates() const {
   return _npages_candidates;
 }
 
-inline size_t ZRelocationSetSelectorGroupStats::total() const {
+inline zbytes ZRelocationSetSelectorGroupStats::total() const {
   return _total;
 }
 
-inline size_t ZRelocationSetSelectorGroupStats::live() const {
+inline zbytes ZRelocationSetSelectorGroupStats::live() const {
   return _live;
 }
 
-inline size_t ZRelocationSetSelectorGroupStats::empty() const {
+inline zbytes ZRelocationSetSelectorGroupStats::empty() const {
   return _empty;
 }
 
@@ -52,7 +52,7 @@ inline size_t ZRelocationSetSelectorGroupStats::npages_selected() const {
   return _npages_selected;
 }
 
-inline size_t ZRelocationSetSelectorGroupStats::relocate() const {
+inline zbytes ZRelocationSetSelectorGroupStats::relocate() const {
   return _relocate;
 }
 
@@ -72,13 +72,13 @@ inline const ZRelocationSetSelectorGroupStats& ZRelocationSetSelectorStats::larg
   return _large[untype(age)];
 }
 
-inline bool ZRelocationSetSelectorGroup::pre_filter_page(const ZPage* page, size_t live_bytes) const {
+inline bool ZRelocationSetSelectorGroup::pre_filter_page(const ZPage* page, zbytes live_bytes) const {
   if (page->is_small()) {
     // Small pages are always the same size, so we can simply compare the
     // garbage pre-calculated _page_fragmentation_limit.
-    assert(page->size() == ZPageSizeSmall, "Unexpected small page size %zu", page->size());
+    assert(page->size() == ZPageSizeSmall, "Unexpected small page size %zu", untype(page->size()));
 
-    const size_t garbage = ZPageSizeSmall - live_bytes;
+    const zbytes garbage = ZPageSizeSmall - live_bytes;
 
     return garbage > _page_fragmentation_limit;
   }
@@ -90,11 +90,11 @@ inline bool ZRelocationSetSelectorGroup::pre_filter_page(const ZPage* page, size
     // fraction the specific page size is of the max page size.
     // Because the page sizes are always a power of two we can rewrite this
     // using log2 and bit-shift.
-    const size_t size = page->size();
-    const int shift = ZPageSizeMediumMaxShift - log2i_exact(size);
-    const size_t page_fragmentation_limit = _page_fragmentation_limit >> shift;
+    const zbytes size = page->size();
+    const int shift = ZPageSizeMediumMaxShift - ZBytes::log2i_exact(size);
+    const zbytes page_fragmentation_limit = _page_fragmentation_limit >> shift;
 
-    const size_t garbage = size - live_bytes;
+    const zbytes garbage = size - live_bytes;
 
     return garbage > page_fragmentation_limit;
   }
@@ -104,7 +104,7 @@ inline bool ZRelocationSetSelectorGroup::pre_filter_page(const ZPage* page, size
 }
 
 inline void ZRelocationSetSelectorGroup::register_live_page(ZPage* page) {
-  const size_t live = page->live_bytes();
+  const zbytes live = page->live_bytes();
 
   // Pre-filter out pages that are guaranteed to not be selected
   if (pre_filter_page(page, live)) {
@@ -113,7 +113,7 @@ inline void ZRelocationSetSelectorGroup::register_live_page(ZPage* page) {
     _not_selected_pages.append(page);
   }
 
-  const size_t size = page->size();
+  const zbytes size = page->size();
   const uint age = untype(page->age());
   _stats[age]._npages_candidates++;
   _stats[age]._total += size;
@@ -121,7 +121,7 @@ inline void ZRelocationSetSelectorGroup::register_live_page(ZPage* page) {
 }
 
 inline void ZRelocationSetSelectorGroup::register_empty_page(ZPage* page) {
-  const size_t size = page->size();
+  const zbytes size = page->size();
 
   const uint age = untype(page->age());
   _stats[age]._npages_candidates++;
@@ -187,24 +187,24 @@ inline void ZRelocationSetSelector::clear_empty_pages() {
   return _empty_pages.clear();
 }
 
-inline size_t ZRelocationSetSelector::total() const {
-  size_t sum = 0;
+inline zbytes ZRelocationSetSelector::total() const {
+  zbytes sum = 0_zb;
   for (ZPageAge age : ZPageAgeRange()) {
     sum += _small.stats(age).total() + _medium.stats(age).total() + _large.stats(age).total();
   }
   return sum;
 }
 
-inline size_t ZRelocationSetSelector::empty() const {
-  size_t sum = 0;
+inline zbytes ZRelocationSetSelector::empty() const {
+  zbytes sum = 0_zb;
   for (ZPageAge age : ZPageAgeRange()) {
     sum += _small.stats(age).empty() + _medium.stats(age).empty() + _large.stats(age).empty();
   }
   return sum;
 }
 
-inline size_t ZRelocationSetSelector::relocate() const {
-  size_t sum = 0;
+inline zbytes ZRelocationSetSelector::relocate() const {
+  zbytes sum = 0_zb;
   for (ZPageAge age : ZPageAgeRange()) {
     sum += _small.stats(age).relocate() + _medium.stats(age).relocate() + _large.stats(age).relocate();
   }

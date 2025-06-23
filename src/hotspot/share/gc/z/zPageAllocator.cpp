@@ -41,6 +41,7 @@
 #include "gc/z/zPageType.hpp"
 #include "gc/z/zPhysicalMemoryManager.hpp"
 #include "gc/z/zSafeDelete.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zUncommitter.hpp"
@@ -84,14 +85,14 @@ static void check_numa_mismatch(const ZVirtualMemory& vmem, uint32_t desired_id)
 
 class ZMemoryAllocation : public CHeapObj<mtGC> {
 private:
-  const size_t           _size;
+  const zbytes           _size;
   ZPartition*            _partition;
   ZVirtualMemory         _satisfied_from_cache_vmem;
   ZArray<ZVirtualMemory> _partial_vmems;
   int                    _num_harvested;
-  size_t                 _harvested;
-  size_t                 _increased_capacity;
-  size_t                 _committed_capacity;
+  zbytes                 _harvested;
+  zbytes                 _increased_capacity;
+  zbytes                 _committed_capacity;
   bool                   _commit_failed;
 
   explicit ZMemoryAllocation(const ZMemoryAllocation& other)
@@ -123,7 +124,7 @@ private:
   }
 
   void transfer_claimed_capacity(const ZMemoryAllocation& from) {
-    assert(from._committed_capacity == 0, "Unexpected value %zu", from._committed_capacity);
+    assert(from._committed_capacity == 0_zb, "Unexpected value %zu", untype(from._committed_capacity));
     assert(!from._commit_failed, "Unexpected value");
 
     // Transfer increased capacity
@@ -144,15 +145,15 @@ private:
   }
 
 public:
-  explicit ZMemoryAllocation(size_t size)
+  explicit ZMemoryAllocation(zbytes size)
     : _size(size),
       _partition(nullptr),
       _satisfied_from_cache_vmem(),
       _partial_vmems(0),
       _num_harvested(0),
-      _harvested(0),
-      _increased_capacity(0),
-      _committed_capacity(0),
+      _harvested(0_zb),
+      _increased_capacity(0_zb),
+      _committed_capacity(0_zb),
       _commit_failed(false) {}
 
   void reset_for_retry() {
@@ -161,13 +162,13 @@ public:
     _partition = nullptr;
     _partial_vmems.clear();
     _num_harvested = 0;
-    _harvested = 0;
-    _increased_capacity = 0;
-    _committed_capacity = 0;
+    _harvested = 0_zb;
+    _increased_capacity = 0_zb;
+    _committed_capacity = 0_zb;
     _commit_failed = false;
   }
 
-  size_t size() const {
+  zbytes size() const {
     return _size;
   }
 
@@ -191,7 +192,7 @@ public:
     precond(ZPageSizeMediumEnabled);
     precond(vmem.size() >= ZPageSizeMediumMin);
     precond(vmem.size() <= ZPageSizeMediumMax);
-    precond(is_power_of_2(vmem.size()));
+    precond(ZBytes::is_power_of_2(vmem.size()));
 
     _satisfied_from_cache_vmem = vmem;
   }
@@ -216,29 +217,29 @@ public:
     return _num_harvested;
   }
 
-  size_t harvested() const {
+  zbytes harvested() const {
     return _harvested;
   }
 
-  void set_harvested(int num_harvested, size_t harvested) {
+  void set_harvested(int num_harvested, zbytes harvested) {
     _num_harvested = num_harvested;
     _harvested = harvested;
   }
 
-  size_t increased_capacity() const {
+  zbytes increased_capacity() const {
     return _increased_capacity;
   }
 
-  void set_increased_capacity(size_t increased_capacity) {
+  void set_increased_capacity(zbytes increased_capacity) {
     _increased_capacity = increased_capacity;
   }
 
-  size_t committed_capacity() const {
+  zbytes committed_capacity() const {
     return _committed_capacity;
   }
 
-  void set_committed_capacity(size_t committed_capacity) {
-    assert(_committed_capacity == 0, "Should only commit once");
+  void set_committed_capacity(zbytes committed_capacity) {
+    assert(_committed_capacity == 0_zb, "Should only commit once");
     _committed_capacity = committed_capacity;
     _commit_failed = committed_capacity != _increased_capacity;
   }
@@ -271,10 +272,10 @@ private:
   ZMemoryAllocation _allocation;
 
 public:
-  ZSinglePartitionAllocation(size_t size)
+  ZSinglePartitionAllocation(zbytes size)
     : _allocation(size) {}
 
-  size_t size() const {
+  zbytes size() const {
     return _allocation.size();
   }
 
@@ -293,11 +294,11 @@ public:
 
 class ZMultiPartitionAllocation : public StackObj {
 private:
-  const size_t               _size;
+  const zbytes               _size;
   ZArray<ZMemoryAllocation*> _allocations;
 
 public:
-  ZMultiPartitionAllocation(size_t size)
+  ZMultiPartitionAllocation(zbytes size)
     : _size(size),
       _allocations(0) {}
 
@@ -323,7 +324,7 @@ public:
     _allocations.clear();
   }
 
-  size_t size() const {
+  zbytes size() const {
     return _size;
   }
 
@@ -369,8 +370,8 @@ public:
     return total;
   }
 
-  size_t sum_harvested() const {
-    size_t total = 0;
+  zbytes sum_harvested() const {
+    zbytes total = 0_zb;
 
     for (const ZMemoryAllocation* allocation : _allocations) {
       total += allocation->harvested();
@@ -379,8 +380,8 @@ public:
     return total;
   }
 
-  size_t sum_committed_increased_capacity() const {
-    size_t total = 0;
+  zbytes sum_committed_increased_capacity() const {
+    zbytes total = 0_zb;
 
     for (const ZMemoryAllocation* allocation : _allocations) {
       total += allocation->committed_capacity();
@@ -392,10 +393,10 @@ public:
 
 struct ZPageAllocationStats {
   int    _num_harvested_vmems;
-  size_t _total_harvested;
-  size_t _total_committed_capacity;
+  zbytes _total_harvested;
+  zbytes _total_committed_capacity;
 
-  ZPageAllocationStats(int num_harvested_vmems, size_t total_harvested, size_t total_committed_capacity)
+  ZPageAllocationStats(int num_harvested_vmems, zbytes total_harvested, zbytes total_committed_capacity)
     : _num_harvested_vmems(num_harvested_vmems),
       _total_harvested(total_harvested),
       _total_committed_capacity(total_committed_capacity) {}
@@ -406,7 +407,7 @@ class ZPageAllocation : public StackObj {
 
 private:
   const ZPageType            _type;
-  const size_t               _requested_size;
+  const zbytes               _requested_size;
   const ZAllocationFlags     _flags;
   const ZPageAge             _age;
   const Ticks                _start_timestamp;
@@ -420,7 +421,7 @@ private:
   ZFuture<bool>              _stall_result;
 
 public:
-  ZPageAllocation(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age)
+  ZPageAllocation(ZPageType type, zbytes size, ZAllocationFlags flags, ZPageAge age)
     : _type(type),
       _requested_size(size),
       _flags(flags),
@@ -445,7 +446,7 @@ public:
     return _type;
   }
 
-  size_t size() const {
+  zbytes size() const {
     if (_flags.fast_medium()) {
       // A fast medium allocation may have allocated less than the _size field
       const ZVirtualMemory vmem = _single_partition_allocation.allocation()->satisfied_from_cache_vmem();
@@ -555,9 +556,9 @@ public:
     event.commit(_start_timestamp,
                  end_timestamp,
                  (u8)_type,
-                 size(),
-                 st._total_harvested,
-                 st._total_committed_capacity,
+                 untype(size()),
+                 untype(st._total_harvested),
+                 untype(st._total_committed_capacity),
                  (unsigned)st._num_harvested_vmems,
                  _is_multi_partition,
                  successful,
@@ -627,25 +628,25 @@ ZPartition::ZPartition(uint32_t numa_id, ZPageAllocator* page_allocator)
     _min_capacity(ZNUMA::calculate_share(numa_id, page_allocator->min_capacity())),
     _max_capacity(ZNUMA::calculate_share(numa_id, page_allocator->max_capacity())),
     _current_max_capacity(_max_capacity),
-    _capacity(0),
-    _claimed(0),
-    _used(0),
+    _capacity(0_zb),
+    _claimed(0_zb),
+    _used(0_zb),
     _numa_id(numa_id) {}
 
 uint32_t ZPartition::numa_id() const {
   return _numa_id;
 }
 
-size_t ZPartition::available() const {
-  return _current_max_capacity - _used - _claimed;
+zbytes ZPartition::available() const {
+  return Atomic::load(&_current_max_capacity) - _used - Atomic::load(&_claimed);
 }
 
-size_t ZPartition::increase_capacity(size_t size) {
-  const size_t increased = MIN2(size, _current_max_capacity - _capacity);
+zbytes ZPartition::increase_capacity(zbytes size) {
+  const zbytes increased = MIN2(size, Atomic::load(&_current_max_capacity) - Atomic::load(&_capacity));
 
-  if (increased > 0) {
+  if (increased > 0_zb) {
     // Update atomically since we have concurrent readers
-    Atomic::add(&_capacity, increased);
+    Atomic::add(reinterpret_cast<volatile size_t*>(&_capacity), untype(increased));
 
     _uncommitter.cancel_uncommit_cycle();
   }
@@ -653,31 +654,31 @@ size_t ZPartition::increase_capacity(size_t size) {
   return increased;
 }
 
-void ZPartition::decrease_capacity(size_t size, bool set_max_capacity) {
+void ZPartition::decrease_capacity(zbytes size, bool set_max_capacity) {
   // Update capacity atomically since we have concurrent readers
-  Atomic::sub(&_capacity, size);
+  Atomic::sub(reinterpret_cast<volatile size_t*>(&_capacity), untype(size));
 
   // Adjust current max capacity to avoid further attempts to increase capacity
   if (set_max_capacity) {
-    const size_t current_max_capacity_before = _current_max_capacity;
+    const zbytes current_max_capacity_before = _current_max_capacity;
     Atomic::store(&_current_max_capacity, _capacity);
 
     log_debug_p(gc)("Forced to lower max partition (%u) capacity from "
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
                     _numa_id,
-                    current_max_capacity_before / M, percent_of(current_max_capacity_before, _max_capacity),
-                    _current_max_capacity / M, percent_of(_current_max_capacity, _max_capacity));
+                    current_max_capacity_before / M_zb, ZBytes::percent_of(current_max_capacity_before, _max_capacity),
+                    Atomic::load(&_current_max_capacity) / M_zb, ZBytes::percent_of(_current_max_capacity, _max_capacity));
   }
 }
 
-void ZPartition::increase_used(size_t size) {
+void ZPartition::increase_used(zbytes size) {
   // The partition usage tracking is only read and updated under the page
   // allocator lock. Usage statistics for generations and GC cycles are
   // collected on the ZPageAllocator level.
   _used += size;
 }
 
-void ZPartition::decrease_used(size_t size) {
+void ZPartition::decrease_used(zbytes size) {
   // The partition usage tracking is only read and updated under the page
   // allocator lock. Usage statistics for generations and GC cycles are
   // collected on the ZPageAllocator level.
@@ -685,7 +686,7 @@ void ZPartition::decrease_used(size_t size) {
 }
 
 void ZPartition::free_memory(const ZVirtualMemory& vmem) {
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
   // Cache the vmem
   _cache.insert(vmem);
@@ -695,7 +696,7 @@ void ZPartition::free_memory(const ZVirtualMemory& vmem) {
 }
 
 void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* allocation) {
-  const size_t size = allocation->size();
+  const zbytes size = allocation->size();
   ZArray<ZVirtualMemory>* const out = allocation->partial_vmems();
 
   // We are guaranteed to succeed the claiming of capacity here
@@ -715,7 +716,7 @@ void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* alloca
   }
 
   // Try increase capacity
-  const size_t increased_capacity = increase_capacity(size);
+  const zbytes increased_capacity = increase_capacity(size);
 
   allocation->set_increased_capacity(increased_capacity);
 
@@ -726,21 +727,21 @@ void ZPartition::claim_from_cache_or_increase_capacity(ZMemoryAllocation* alloca
 
   // Could not increase capacity enough to satisfy the allocation completely.
   // Try removing multiple vmems from the mapped cache.
-  const size_t remaining = size - increased_capacity;
-  const size_t harvested = _cache.remove_discontiguous(remaining, out);
+  const zbytes remaining = size - increased_capacity;
+  const zbytes harvested = _cache.remove_discontiguous(remaining, out);
   const int num_harvested = out->length();
 
   allocation->set_harvested(num_harvested, harvested);
 
   assert(harvested + increased_capacity == size,
          "Mismatch harvested: %zu increased_capacity: %zu size: %zu",
-         harvested, increased_capacity, size);
+         untype(harvested), untype(increased_capacity), untype(size));
 
   return;
 }
 
 bool ZPartition::claim_capacity(ZMemoryAllocation* allocation) {
-  const size_t size = allocation->size();
+  const zbytes size = allocation->size();
 
   if (available() < size) {
     // Out of memory
@@ -760,8 +761,8 @@ bool ZPartition::claim_capacity_fast_medium(ZMemoryAllocation* allocation) {
   precond(ZPageSizeMediumEnabled);
 
   // Try to allocate a medium page sized contiguous vmem
-  const size_t min_size = ZPageSizeMediumMin;
-  const size_t max_size = ZStressFastMediumPageAllocation ? min_size : ZPageSizeMediumMax;
+  const zbytes min_size = ZPageSizeMediumMin;
+  const zbytes max_size = ZStressFastMediumPageAllocation ? min_size : ZPageSizeMediumMax;
   ZVirtualMemory vmem = _cache.remove_contiguous_power_of_2(min_size, max_size);
 
   if (vmem.is_null()) {
@@ -809,7 +810,7 @@ void ZPartition::free_physical(const ZVirtualMemory& vmem) {
   manager.free(vmem, _numa_id);
 }
 
-size_t ZPartition::commit_physical(const ZVirtualMemory& vmem) {
+zbytes ZPartition::commit_physical(const ZVirtualMemory& vmem) {
   verify_virtual_memory_association(vmem, true /* check_multi_partition */);
 
   ZPhysicalMemoryManager& manager = physical_memory_manager();
@@ -818,7 +819,7 @@ size_t ZPartition::commit_physical(const ZVirtualMemory& vmem) {
   return manager.commit(vmem, _numa_id);
 }
 
-size_t ZPartition::uncommit_physical(const ZVirtualMemory& vmem) {
+zbytes ZPartition::uncommit_physical(const ZVirtualMemory& vmem) {
   assert(ZUncommit, "should not uncommit when uncommit is disabled");
   verify_virtual_memory_association(vmem);
 
@@ -867,13 +868,13 @@ void ZPartition::unmap_virtual_from_multi_partition(const ZVirtualMemory& vmem) 
   manager.unmap(vmem);
 }
 
-ZVirtualMemory ZPartition::claim_virtual(size_t size) {
+ZVirtualMemory ZPartition::claim_virtual(zbytes size) {
   ZVirtualMemoryManager& manager = virtual_memory_manager();
 
   return manager.remove_from_low(size, _numa_id);
 }
 
-size_t ZPartition::claim_virtual(size_t size, ZArray<ZVirtualMemory>* vmems_out) {
+zbytes ZPartition::claim_virtual(zbytes size, ZArray<ZVirtualMemory>* vmems_out) {
   ZVirtualMemoryManager& manager = virtual_memory_manager();
 
   return manager.remove_from_low_many_at_most(size, _numa_id, vmems_out);
@@ -897,7 +898,7 @@ void ZPartition::free_and_claim_virtual_from_low_many(const ZVirtualMemory& vmem
   manager.insert_and_remove_from_low_many(vmem, _numa_id, vmems_out);
 }
 
-ZVirtualMemory ZPartition::free_and_claim_virtual_from_low_exact_or_many(size_t size, ZArray<ZVirtualMemory>* vmems_in_out) {
+ZVirtualMemory ZPartition::free_and_claim_virtual_from_low_exact_or_many(zbytes size, ZArray<ZVirtualMemory>* vmems_in_out) {
   verify_virtual_memory_association(vmems_in_out);
 
   ZVirtualMemoryManager& manager = virtual_memory_manager();
@@ -906,12 +907,12 @@ ZVirtualMemory ZPartition::free_and_claim_virtual_from_low_exact_or_many(size_t 
   return manager.insert_and_remove_from_low_exact_or_many(size, _numa_id, vmems_in_out);
 }
 
-static void pretouch_memory(zoffset start, size_t size) {
+static void pretouch_memory(zoffset start, zbytes size) {
   // At this point we know that we have a valid zoffset / zaddress.
   const zaddress zaddr = ZOffset::address(start);
   const uintptr_t addr = untype(zaddr);
-  const size_t page_size = ZLargePages::is_explicit() ? ZGranuleSize : os::vm_page_size();
-  os::pretouch_memory((void*)addr, (void*)(addr + size), page_size);
+  const zbytes page_size = ZLargePages::is_explicit() ? ZGranuleSize : to_zbytes(os::vm_page_size());
+  os::pretouch_memory((void*)addr, (void*)(addr + size), untype(page_size));
 }
 
 class ZPreTouchTask : public ZTask {
@@ -926,11 +927,11 @@ public:
       _end(untype(end)) {}
 
   virtual void work() {
-    const size_t size = ZGranuleSize;
+    const zbytes size = ZGranuleSize;
 
     for (;;) {
       // Claim an offset for this thread
-      const uintptr_t claimed = Atomic::fetch_then_add(&_current, size);
+      const uintptr_t claimed = Atomic::fetch_then_add(reinterpret_cast<volatile size_t*>(&_current), untype(size));
       if (claimed >= _end) {
         // Done
         break;
@@ -945,18 +946,18 @@ public:
   }
 };
 
-bool ZPartition::prime(ZWorkers* workers, size_t size) {
-  if (size == 0) {
+bool ZPartition::prime(ZWorkers* workers, zbytes size) {
+  if (size == 0_zb) {
     return true;
   }
 
   ZArray<ZVirtualMemory> vmems;
 
   // Claim virtual memory
-  const size_t claimed_size = claim_virtual(size, &vmems);
+  const zbytes claimed_size = claim_virtual(size, &vmems);
 
   // The partition must have size available in virtual memory when priming.
-  assert(claimed_size == size, "must succeed %zx == %zx", claimed_size, size);
+  assert(claimed_size == size, "must succeed %zx == %zx", untype(claimed_size), untype(size));
 
   // Increase capacity
   increase_capacity(claimed_size);
@@ -966,7 +967,7 @@ bool ZPartition::prime(ZWorkers* workers, size_t size) {
     claim_physical(vmem);
 
     // Commit the claimed physical memory
-    const size_t committed = commit_physical(vmem);
+    const zbytes committed = commit_physical(vmem);
 
     if (committed != vmem.size()) {
       // This is a failure state. We do not cleanup the maybe partially committed memory.
@@ -999,7 +1000,7 @@ ZVirtualMemory ZPartition::prepare_harvested_and_claim_virtual(ZMemoryAllocation
     unmap_virtual(vmem);
   }
 
-  const size_t harvested = allocation->harvested();
+  const zbytes harvested = allocation->harvested();
   const int granule_count = (int)(harvested >> ZGranuleSizeShift);
   ZPhysicalMemoryManager& manager = physical_memory_manager();
 
@@ -1052,15 +1053,15 @@ void ZPartition::copy_physical_segments_from_partition(const ZVirtualMemory& at,
 }
 
 void ZPartition::commit_increased_capacity(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
-  assert(allocation->increased_capacity() > 0, "Nothing to commit");
+  assert(allocation->increased_capacity() > 0_zb, "Nothing to commit");
 
-  const size_t already_committed = allocation->harvested();
+  const zbytes already_committed = allocation->harvested();
 
   const ZVirtualMemory already_committed_vmem = vmem.first_part(already_committed);
   const ZVirtualMemory to_be_committed_vmem = vmem.last_part(already_committed);
 
   // Try to commit the uncommitted physical memory
-  const size_t committed = commit_physical(to_be_committed_vmem);
+  const zbytes committed = commit_physical(to_be_committed_vmem);
 
   // Keep track of the committed amount
   allocation->set_committed_capacity(committed);
@@ -1080,7 +1081,7 @@ void ZPartition::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
   // since the allocation failed and generation used wasn't bumped.
   decrease_used(allocation->size());
 
-  size_t freed = 0;
+  zbytes freed = 0_zb;
 
   // Free mapped memory
   for (const ZVirtualMemory vmem : *allocation->partial_vmems()) {
@@ -1090,8 +1091,8 @@ void ZPartition::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
   assert(allocation->harvested() + allocation->committed_capacity() == freed, "must have freed all");
 
   // Adjust capacity to reflect the failed capacity increase
-  const size_t remaining = allocation->size() - freed;
-  if (remaining > 0) {
+  const zbytes remaining = allocation->size() - freed;
+  if (remaining > 0_zb) {
     const bool set_max_capacity = allocation->commit_failed();
     decrease_capacity(remaining, set_max_capacity);
   }
@@ -1105,7 +1106,7 @@ void ZPartition::print_on(outputStream* st) const {
   st->print("Partition %u ", _numa_id);
   st->fill_to(17);
   st->print_cr("used %zuM, capacity %zuM, max capacity %zuM",
-               _used / M, _capacity / M, _max_capacity / M);
+               _used / M_zb, Atomic::load(&_capacity) / M_zb, _max_capacity / M_zb);
 
   StreamIndentor si(st, 1);
   print_cache_on(st);
@@ -1149,11 +1150,11 @@ public:
       ZVirtualMemory remaining_vmem = partial_allocation._vmem;
       ZPartition& partition = *partial_allocation._partition;
 
-      const size_t size = remaining_vmem.size();
+      const zbytes size = remaining_vmem.size();
 
       // Allocate new virtual address ranges
       const int start_index = vmems_out->length();
-      const size_t claimed_virtual = partition.claim_virtual(remaining_vmem.size(), vmems_out);
+      const zbytes claimed_virtual = partition.claim_virtual(remaining_vmem.size(), vmems_out);
 
       // We are holding memory associated with this partition, and we do not
       // overcommit virtual memory claiming. So virtual memory must always
@@ -1173,7 +1174,7 @@ public:
         // Map to_vmem
         partition.map_virtual(to_vmem);
       }
-      assert(remaining_vmem.size() == 0, "must have mapped all claimed virtual memory");
+      assert(remaining_vmem.size() == 0_zb, "must have mapped all claimed virtual memory");
     }
   }
 
@@ -1200,18 +1201,18 @@ public:
   }
 };
 
-ZPageAllocator::ZPageAllocator(size_t min_capacity,
-                               size_t initial_capacity,
-                               size_t soft_max_capacity,
-                               size_t max_capacity)
+ZPageAllocator::ZPageAllocator(zbytes min_capacity,
+                               zbytes initial_capacity,
+                               zbytes soft_max_capacity,
+                               zbytes max_capacity)
   : _lock(),
     _virtual(max_capacity),
     _physical(max_capacity),
     _min_capacity(min_capacity),
     _max_capacity(max_capacity),
-    _used(0),
-    _used_generations{0,0},
-    _collection_stats{{0, 0},{0, 0}},
+    _used(0_zb),
+    _used_generations{0_zb, 0_zb},
+    _collection_stats{{0_zb, 0_zb},{0_zb, 0_zb}},
     _partitions(ZValueIdTagType{}, this),
     _stalled(),
     _safe_destroy(),
@@ -1221,15 +1222,15 @@ ZPageAllocator::ZPageAllocator(size_t min_capacity,
     return;
   }
 
-  log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M);
-  log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M);
-  log_info_p(gc, init)("Max Capacity: %zuM", max_capacity / M);
-  log_info_p(gc, init)("Soft Max Capacity: %zuM", soft_max_capacity / M);
+  log_info_p(gc, init)("Min Capacity: %zuM", min_capacity / M_zb);
+  log_info_p(gc, init)("Initial Capacity: %zuM", initial_capacity / M_zb);
+  log_info_p(gc, init)("Max Capacity: %zuM", max_capacity / M_zb);
+  log_info_p(gc, init)("Soft Max Capacity: %zuM", soft_max_capacity / M_zb);
   if (ZPageSizeMediumEnabled) {
     if (ZPageSizeMediumMin == ZPageSizeMediumMax) {
-      log_info_p(gc, init)("Page Size Medium: %zuM", ZPageSizeMediumMax / M);
+      log_info_p(gc, init)("Page Size Medium: %zuM", ZPageSizeMediumMax / M_zb);
     } else {
-      log_info_p(gc, init)("Page Size Medium: Range [%zuM, %zuM]", ZPageSizeMediumMin / M, ZPageSizeMediumMax / M);
+      log_info_p(gc, init)("Page Size Medium: Range [%zuM, %zuM]", ZPageSizeMediumMin / M_zb, ZPageSizeMediumMax / M_zb);
     }
   } else {
     log_info_p(gc, init)("Medium Page Size: N/A");
@@ -1250,11 +1251,11 @@ bool ZPageAllocator::is_initialized() const {
   return _initialized;
 }
 
-bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
+bool ZPageAllocator::prime_cache(ZWorkers* workers, zbytes size) {
   ZPartitionIterator iter = partition_iterator();
   for (ZPartition* partition; iter.next(&partition);) {
     const uint32_t numa_id = partition->numa_id();
-    const size_t to_prime = ZNUMA::calculate_share(numa_id, size);
+    const zbytes to_prime = ZNUMA::calculate_share(numa_id, size);
 
     if (!partition->prime(workers, to_prime)) {
       return false;
@@ -1264,22 +1265,22 @@ bool ZPageAllocator::prime_cache(ZWorkers* workers, size_t size) {
   return true;
 }
 
-size_t ZPageAllocator::min_capacity() const {
+zbytes ZPageAllocator::min_capacity() const {
   return _min_capacity;
 }
 
-size_t ZPageAllocator::max_capacity() const {
+zbytes ZPageAllocator::max_capacity() const {
   return _max_capacity;
 }
 
-size_t ZPageAllocator::soft_max_capacity() const {
-  const size_t current_max_capacity = ZPageAllocator::current_max_capacity();
-  const size_t soft_max_heapsize = Atomic::load(&SoftMaxHeapSize);
+zbytes ZPageAllocator::soft_max_capacity() const {
+  const zbytes current_max_capacity = ZPageAllocator::current_max_capacity();
+  const zbytes soft_max_heapsize = to_zbytes(Atomic::load(&SoftMaxHeapSize));
   return MIN2(soft_max_heapsize, current_max_capacity);
 }
 
-size_t ZPageAllocator::current_max_capacity() const {
-  size_t current_max_capacity = 0;
+zbytes ZPageAllocator::current_max_capacity() const {
+  zbytes current_max_capacity = 0_zb;
 
   ZPartitionConstIterator iter = partition_iterator();
   for (const ZPartition* partition; iter.next(&partition);) {
@@ -1289,8 +1290,8 @@ size_t ZPageAllocator::current_max_capacity() const {
   return current_max_capacity;
 }
 
-size_t ZPageAllocator::capacity() const {
-  size_t capacity = 0;
+zbytes ZPageAllocator::capacity() const {
+  zbytes capacity = 0_zb;
 
   ZPartitionConstIterator iter = partition_iterator();
   for (const ZPartition* partition; iter.next(&partition);) {
@@ -1300,15 +1301,15 @@ size_t ZPageAllocator::capacity() const {
   return capacity;
 }
 
-size_t ZPageAllocator::used() const {
+zbytes ZPageAllocator::used() const {
   return Atomic::load(&_used);
 }
 
-size_t ZPageAllocator::used_generation(ZGenerationId id) const {
+zbytes ZPageAllocator::used_generation(ZGenerationId id) const {
   return Atomic::load(&_used_generations[(int)id]);
 }
 
-size_t ZPageAllocator::unused() const {
+zbytes ZPageAllocator::unused() const {
   const ssize_t used = (ssize_t)ZPageAllocator::used();
   ssize_t capacity = 0;
   ssize_t claimed = 0;
@@ -1320,21 +1321,21 @@ size_t ZPageAllocator::unused() const {
   }
 
   const ssize_t unused = capacity - used - claimed;
-  return unused > 0 ? (size_t)unused : 0;
+  return unused > 0 ? to_zbytes(unused) : 0_zb;
 }
 
 void ZPageAllocator::update_collection_stats(ZGenerationId id) {
   assert(SafepointSynchronize::is_at_safepoint(), "Should be at safepoint");
 
 #ifdef ASSERT
-  size_t total_used = 0;
+  zbytes total_used = 0_zb;
 
   ZPartitionIterator iter(&_partitions);
   for (ZPartition* partition; iter.next(&partition);) {
     total_used += partition->_used;
   }
 
-  assert(total_used == _used, "Must be consistent %zu == %zu", total_used, _used);
+  assert(total_used == _used, "Must be consistent %zu == %zu", untype(total_used), untype(_used));
 #endif
 
   _collection_stats[(int)id]._used_high = _used;
@@ -1368,14 +1369,14 @@ ZPageAllocatorStats ZPageAllocator::update_and_stats(ZGeneration* generation) {
   return stats_inner(generation);
 }
 
-void ZPageAllocator::increase_used_generation(ZGenerationId id, size_t size) {
+void ZPageAllocator::increase_used_generation(ZGenerationId id, zbytes size) {
   // Update atomically since we have concurrent readers and writers
-  Atomic::add(&_used_generations[(int)id], size, memory_order_relaxed);
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_used_generations[(int)id]), untype(size), memory_order_relaxed);
 }
 
-void ZPageAllocator::decrease_used_generation(ZGenerationId id, size_t size) {
+void ZPageAllocator::decrease_used_generation(ZGenerationId id, zbytes size) {
   // Update atomically since we have concurrent readers and writers
-  Atomic::sub(&_used_generations[(int)id], size, memory_order_relaxed);
+  Atomic::sub(reinterpret_cast<volatile size_t*>(&_used_generations[(int)id]), untype(size), memory_order_relaxed);
 }
 
 void ZPageAllocator::promote_used(const ZPage* from, const ZPage* to) {
@@ -1394,7 +1395,7 @@ static void check_out_of_memory_during_initialization() {
   }
 }
 
-ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
+ZPage* ZPageAllocator::alloc_page(ZPageType type, zbytes size, ZAllocationFlags flags, ZPageAge age) {
   EventZPageAllocation event;
 
   ZPageAllocation allocation(type, size, flags, age);
@@ -1410,18 +1411,18 @@ ZPage* ZPageAllocator::alloc_page(ZPageType type, size_t size, ZAllocationFlags 
   if (!flags.gc_relocation() && is_init_completed()) {
     // Note that there are two allocation rate counters, which have
     // different purposes and are sampled at different frequencies.
-    ZStatInc(ZCounterMutatorAllocationRate, page->size());
+    ZStatInc(ZCounterMutatorAllocationRate, untype(page->size()));
     ZStatMutatorAllocRate::sample_allocation(page->size());
   }
 
   const ZPageAllocationStats stats = allocation.stats();
   const int num_harvested_vmems = stats._num_harvested_vmems;
-  const size_t harvested = stats._total_harvested;
-  const size_t committed = stats._total_committed_capacity;
+  const zbytes harvested = stats._total_harvested;
+  const zbytes committed = stats._total_committed_capacity;
 
-  if (harvested > 0) {
-    ZStatInc(ZCounterMappedCacheHarvest, harvested);
-    log_debug(gc, heap)("Mapped Cache Harvested: %zuM (%d)", harvested / M, num_harvested_vmems);
+  if (harvested > 0_zb) {
+    ZStatInc(ZCounterMappedCacheHarvest, untype(harvested));
+    log_debug(gc, heap)("Mapped Cache Harvested: %zuM (%d)", harvested / M_zb, num_harvested_vmems);
   }
 
   // Send event for successful allocation
@@ -1456,7 +1457,7 @@ bool ZPageAllocator::alloc_page_stall(ZPageAllocation* allocation) {
   }
 
   // Send event
-  event.commit((u8)allocation->type(), allocation->size());
+  event.commit((u8)allocation->type(), untype(allocation->size()));
 
   return result;
 }
@@ -1598,25 +1599,25 @@ bool ZPageAllocator::claim_capacity_single_partition(ZSinglePartitionAllocation*
 }
 
 void ZPageAllocator::claim_capacity_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation, uint32_t start_partition) {
-  const size_t size = multi_partition_allocation->size();
+  const zbytes size = multi_partition_allocation->size();
   const uint32_t num_partitions = _partitions.count();
-  const size_t split_size = align_up(size / num_partitions, ZGranuleSize);
+  const zbytes split_size = ZBytes::align_up(size / num_partitions, ZGranuleSize);
 
-  size_t remaining = size;
+  zbytes remaining = size;
 
   const auto do_claim_one_partition = [&](ZPartition& partition, bool claim_evenly) {
-    if (remaining == 0) {
+    if (remaining == 0_zb) {
       // All memory claimed
       return false;
     }
 
-    const size_t max_alloc_size = claim_evenly ? MIN2(split_size, remaining) : remaining;
+    const zbytes max_alloc_size = claim_evenly ? MIN2(split_size, remaining) : remaining;
 
     // This guarantees that claim_physical below will succeed
-    const size_t alloc_size = MIN2(max_alloc_size, partition.available());
+    const zbytes alloc_size = MIN2(max_alloc_size, partition.available());
 
     // Skip over empty allocations
-    if (alloc_size == 0) {
+    if (alloc_size == 0_zb) {
       // Continue
       return true;
     }
@@ -1658,7 +1659,7 @@ void ZPageAllocator::claim_capacity_multi_partition(ZMultiPartitionAllocation* m
   // Try claim the remaining
   do_claim_each_partition(false /* claim_evenly */);
 
-  assert(remaining == 0, "Must have claimed capacity for the whole allocation");
+  assert(remaining == 0_zb, "Must have claimed capacity for the whole allocation");
 }
 
 ZVirtualMemory ZPageAllocator::satisfied_from_cache_vmem(const ZPageAllocation* allocation) const {
@@ -1687,7 +1688,7 @@ ZVirtualMemory ZPageAllocator::claim_virtual_memory_single_partition(ZSinglePart
   ZMemoryAllocation* const allocation = single_partition_allocation->allocation();
   ZPartition& partition = allocation->partition();
 
-  if (allocation->harvested() > 0) {
+  if (allocation->harvested() > 0_zb) {
     // We claim virtual memory from the harvested vmems and perhaps also
     // allocate more to match the allocation request.
     return partition.prepare_harvested_and_claim_virtual(allocation);
@@ -1698,7 +1699,7 @@ ZVirtualMemory ZPageAllocator::claim_virtual_memory_single_partition(ZSinglePart
 }
 
 ZVirtualMemory ZPageAllocator::claim_virtual_memory_multi_partition(ZMultiPartitionAllocation* multi_partition_allocation) {
-  const size_t size = multi_partition_allocation->size();
+  const zbytes size = multi_partition_allocation->size();
 
   const ZVirtualMemory vmem = _virtual.remove_from_low_multi_partition(size);
   if (!vmem.is_null()) {
@@ -1761,15 +1762,15 @@ void ZPageAllocator::claim_physical_for_increased_capacity(ZMemoryAllocation* al
   // and mapped. The rest of the vmem gets physical memory assigned here and
   // will be committed in a subsequent function.
 
-  const size_t already_committed = allocation->harvested();
-  const size_t non_committed = allocation->size() - already_committed;
-  const size_t increased_capacity = allocation->increased_capacity();
+  const zbytes already_committed = allocation->harvested();
+  const zbytes non_committed = allocation->size() - already_committed;
+  const zbytes increased_capacity = allocation->increased_capacity();
 
   assert(non_committed == increased_capacity,
          "Mismatch non_committed: " PTR_FORMAT " increased_capacity: " PTR_FORMAT,
-         non_committed, increased_capacity);
+         untype(non_committed), untype(increased_capacity));
 
-  if (non_committed > 0) {
+  if (non_committed > 0_zb) {
     ZPartition& partition = allocation->partition();
     ZVirtualMemory non_committed_vmem = vmem.last_part(already_committed);
     partition.claim_physical(non_committed_vmem);
@@ -1824,7 +1825,7 @@ bool ZPageAllocator::commit_and_map_multi_partition(ZMultiPartitionAllocation* m
 void ZPageAllocator::commit(ZMemoryAllocation* allocation, const ZVirtualMemory& vmem) {
   ZPartition& partition = allocation->partition();
 
-  if (allocation->increased_capacity() > 0) {
+  if (allocation->increased_capacity() > 0_zb) {
     // Commit memory
     partition.commit_increased_capacity(allocation, vmem);
   }
@@ -1851,7 +1852,7 @@ bool ZPageAllocator::commit_multi_partition(ZMultiPartitionAllocation* multi_par
     commit_failed |= allocation->commit_failed();
   }
 
-  assert(remaining.size() == 0, "all memory must be accounted for");
+  assert(remaining.size() == 0_zb, "all memory must be accounted for");
 
   return !commit_failed;
 }
@@ -1874,10 +1875,10 @@ void ZPageAllocator::map_committed_single_partition(ZSinglePartitionAllocation* 
   ZMemoryAllocation* const allocation = single_partition_allocation->allocation();
   ZPartition& partition = allocation->partition();
 
-  const size_t total_committed = allocation->harvested() + allocation->committed_capacity();
+  const zbytes total_committed = allocation->harvested() + allocation->committed_capacity();
   const ZVirtualMemory total_committed_vmem = vmem.first_part(total_committed);
 
-  if (total_committed_vmem.size() > 0)  {
+  if (total_committed_vmem.size() > 0_zb)  {
     // Map all the committed memory
     partition.map_memory(allocation, total_committed_vmem);
   }
@@ -1897,7 +1898,7 @@ void ZPageAllocator::map_committed_multi_partition(ZMultiPartitionAllocation* mu
     partition.map_virtual_from_multi_partition(to_vmem);
   }
 
-  assert(remaining.size() == 0, "all memory must be accounted for");
+  assert(remaining.size() == 0_zb, "all memory must be accounted for");
 }
 
 void ZPageAllocator::cleanup_failed_commit_single_partition(ZSinglePartitionAllocation* single_partition_allocation, const ZVirtualMemory& vmem) {
@@ -1905,12 +1906,12 @@ void ZPageAllocator::cleanup_failed_commit_single_partition(ZSinglePartitionAllo
 
   assert(allocation->commit_failed(), "Must have failed to commit");
 
-  const size_t committed = allocation->committed_capacity();
+  const zbytes committed = allocation->committed_capacity();
   const ZVirtualMemory non_harvested_vmem = vmem.last_part(allocation->harvested());
   const ZVirtualMemory committed_vmem = non_harvested_vmem.first_part(committed);
   const ZVirtualMemory non_committed_vmem = non_harvested_vmem.last_part(committed);
 
-  if (committed_vmem.size() > 0) {
+  if (committed_vmem.size() > 0_zb) {
     // Register the committed and mapped memory. We insert the committed
     // memory into partial_vmems so that it will be inserted into the cache
     // in a subsequent step.
@@ -1935,7 +1936,7 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
       continue;
     }
 
-    const size_t committed = allocation->committed_capacity();
+    const zbytes committed = allocation->committed_capacity();
     const ZVirtualMemory non_harvested_vmem = vmem.last_part(allocation->harvested());
     const ZVirtualMemory committed_vmem = non_harvested_vmem.first_part(committed);
     const ZVirtualMemory non_committed_vmem = non_harvested_vmem.last_part(committed);
@@ -1949,7 +1950,7 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
       partition.free_physical(non_committed_vmem);
     }
 
-    if (committed_vmem.size() == 0) {
+    if (committed_vmem.size() == 0_zb) {
       // Nothing committed, nothing more to cleanup
       continue;
     }
@@ -1963,7 +1964,7 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
     const int start_index = partial_vmems->length();
 
     // Claim virtual memory for the committed part
-    const size_t claimed_virtual = partition.claim_virtual(committed, partial_vmems);
+    const zbytes claimed_virtual = partition.claim_virtual(committed, partial_vmems);
 
     // We are holding memory associated with this partition, and we do not
     // overcommit virtual memory claiming. So virtual memory must always be
@@ -1983,10 +1984,10 @@ void ZPageAllocator::cleanup_failed_commit_multi_partition(ZMultiPartitionAlloca
       partition.map_virtual(to_vmem);
     }
 
-    assert(remaining_committed_vmem.size() == 0, "all memory must be accounted for");
+    assert(remaining_committed_vmem.size() == 0_zb, "all memory must be accounted for");
   }
 
-  assert(remaining.size() == 0, "all memory must be accounted for");
+  assert(remaining.size() == 0_zb, "all memory must be accounted for");
 
   // Free the unused virtual memory
   _virtual.insert_multi_partition(vmem);
@@ -2013,7 +2014,7 @@ void ZPageAllocator::free_after_alloc_page_failed(ZPageAllocation* allocation) {
 
 void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
   // The current max capacity may be decreased, store the value before freeing memory
-  const size_t current_max_capacity_before = current_max_capacity();
+  const zbytes current_max_capacity_before = current_max_capacity();
 
   if (allocation->is_multi_partition()) {
     free_memory_alloc_failed_multi_partition(allocation->multi_partition_allocation());
@@ -2021,13 +2022,13 @@ void ZPageAllocator::free_memory_alloc_failed(ZPageAllocation* allocation) {
     free_memory_alloc_failed_single_partition(allocation->single_partition_allocation());
   }
 
-  const size_t current_max_capacity_after = current_max_capacity();
+  const zbytes current_max_capacity_after = current_max_capacity();
 
   if (current_max_capacity_before != current_max_capacity_after) {
     log_error_p(gc)("Forced to lower max Java heap size from "
                     "%zuM(%.0f%%) to %zuM(%.0f%%)",
-                    current_max_capacity_before / M, percent_of(current_max_capacity_before, _max_capacity),
-                    current_max_capacity_after / M, percent_of(current_max_capacity_after, _max_capacity));
+                    current_max_capacity_before / M_zb, ZBytes::percent_of(current_max_capacity_before, _max_capacity),
+                    current_max_capacity_after / M_zb, ZBytes::percent_of(current_max_capacity_after, _max_capacity));
   }
 }
 
@@ -2048,7 +2049,7 @@ void ZPageAllocator::free_memory_alloc_failed(ZMemoryAllocation* allocation) {
 }
 
 ZPage* ZPageAllocator::create_page(ZPageAllocation* allocation, const ZVirtualMemory& vmem) {
-  assert(allocation->size() == vmem.size(), "Must be %zu == %zu", allocation->size(), vmem.size());
+  assert(allocation->size() == vmem.size(), "Must be %zu == %zu", untype(allocation->size()), untype(vmem.size()));
 
   // We don't track generation usage when claiming capacity, because this page
   // could have been allocated by a thread that satisfies a stalling allocation.
@@ -2200,8 +2201,8 @@ ZPartition& ZPageAllocator::partition_from_vmem(const ZVirtualMemory& vmem) {
   return partition_from_partition_id(_virtual.lookup_partition_id(vmem));
 }
 
-size_t ZPageAllocator::sum_available() const {
-  size_t total = 0;
+zbytes ZPageAllocator::sum_available() const {
+  zbytes total = 0_zb;
 
   ZPartitionConstIterator iter = partition_iterator();
   for (const ZPartition* partition; iter.next(&partition);) {
@@ -2211,9 +2212,9 @@ size_t ZPageAllocator::sum_available() const {
   return total;
 }
 
-void ZPageAllocator::increase_used(size_t size) {
+void ZPageAllocator::increase_used(zbytes size) {
   // Update atomically since we have concurrent readers
-  const size_t used = Atomic::add(&_used, size);
+  const zbytes used = to_zbytes(Atomic::add(reinterpret_cast<volatile size_t*>(&_used), untype(size)));
 
   // Update used high
   for (auto& stats : _collection_stats) {
@@ -2223,9 +2224,9 @@ void ZPageAllocator::increase_used(size_t size) {
   }
 }
 
-void ZPageAllocator::decrease_used(size_t size) {
+void ZPageAllocator::decrease_used(zbytes size) {
   // Update atomically since we have concurrent readers
-  const size_t used = Atomic::sub(&_used, size);
+  const zbytes used = to_zbytes(Atomic::sub(reinterpret_cast<volatile size_t*>(&_used), untype(size)));
 
   // Update used low
   for (auto& stats : _collection_stats) {
@@ -2243,7 +2244,7 @@ void ZPageAllocator::safe_destroy_page(ZPage* page) {
 void ZPageAllocator::free_page(ZPage* page) {
   // Extract the id from the page
   const ZGenerationId id = page->generation_id();
-  const size_t size = page->size();
+  const zbytes size = page->size();
 
   // Extract vmems and destroy the page
   ZArray<ZVirtualMemory> vmems;
@@ -2261,7 +2262,7 @@ void ZPageAllocator::free_pages(ZGenerationId id, const ZArray<ZPage*>* pages) {
   ZArray<ZVirtualMemory> vmems;
   for (ZPage* page : *pages) {
     assert(page->generation_id() == id, "All pages must be from the same generation");
-    const size_t size = page->size();
+    const zbytes size = page->size();
 
     // Extract vmems and destroy the page
     prepare_memory_for_free(page, &vmems);
@@ -2401,7 +2402,7 @@ void ZPageAllocator::print_total_usage_on(outputStream* st) const {
   st->print("ZHeap ");
   st->fill_to(17);
   st->print_cr("used %zuM, capacity %zuM, max capacity %zuM",
-               used() / M, capacity() / M, max_capacity() / M);
+               used() / M_zb, capacity() / M_zb, max_capacity() / M_zb);
 }
 
 void ZPageAllocator::print_partition_usage_on(outputStream* st) const {

@@ -42,12 +42,12 @@ inline ZAllocatorForRelocation* ZAllocator::old() {
   return relocation(ZPageAge::old);
 }
 
-inline zaddress ZAllocatorEden::alloc_tlab(size_t size) {
+inline zaddress ZAllocatorEden::alloc_tlab(zbytes size) {
   guarantee(size <= ZHeap::heap()->max_tlab_size(), "TLAB too large");
   return _object_allocator.alloc_object(size);
 }
 
-inline zaddress ZAllocatorEden::alloc_object(size_t size) {
+inline zaddress ZAllocatorEden::alloc_object(zbytes size) {
   const zaddress addr = _object_allocator.alloc_object(size);
 
   if (is_null(addr)) {

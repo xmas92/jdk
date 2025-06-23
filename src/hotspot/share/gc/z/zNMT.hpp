@@ -38,14 +38,14 @@ private:
 public:
   static void initialize();
 
-  static void reserve(zaddress_unsafe start, size_t size);
-  static void unreserve(zaddress_unsafe start, size_t size);
+  static void reserve(zaddress_unsafe start, zbytes size);
+  static void unreserve(zaddress_unsafe start, zbytes size);
 
-  static void commit(zbacking_offset offset, size_t size);
-  static void uncommit(zbacking_offset offset, size_t size);
+  static void commit(zbacking_offset offset, zbytes size);
+  static void uncommit(zbacking_offset offset, zbytes size);
 
-  static void map(zaddress_unsafe addr, size_t size, zbacking_offset offset);
-  static void unmap(zaddress_unsafe addr, size_t size);
+  static void map(zaddress_unsafe addr, zbytes size, zbacking_offset offset);
+  static void unmap(zaddress_unsafe addr, zbytes size);
 };
 
 #endif // SHARE_GC_Z_ZNMT_HPP

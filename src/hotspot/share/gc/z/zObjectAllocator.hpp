@@ -29,6 +29,7 @@
 #include "gc/z/zLock.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "gc/z/zSize.hpp"
 #include "gc/z/zValue.hpp"
 
 class ZPage;
@@ -45,40 +46,40 @@ private:
   ZPage** shared_small_page_addr();
   ZPage* const* shared_small_page_addr() const;
 
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page(ZPageType type, zbytes zbytes, ZAllocationFlags flags);
   void undo_alloc_page(ZPage* page);
 
   // Allocate an object in a shared page. Allocate and
   // atomically install a new page if necessary.
   zaddress alloc_object_in_shared_page(ZPage** shared_page,
                                        ZPageType page_type,
-                                       size_t page_size,
-                                       size_t size,
+                                       zbytes page_size,
+                                       zbytes size,
                                        ZAllocationFlags flags);
 
-  zaddress alloc_object_in_medium_page(size_t size,
+  zaddress alloc_object_in_medium_page(zbytes size,
                                        ZAllocationFlags flags);
 
-  zaddress alloc_large_object(size_t size, ZAllocationFlags flags);
-  zaddress alloc_medium_object(size_t size, ZAllocationFlags flags);
-  zaddress alloc_small_object(size_t size, ZAllocationFlags flags);
-  zaddress alloc_object(size_t size, ZAllocationFlags flags);
+  zaddress alloc_large_object(zbytes size, ZAllocationFlags flags);
+  zaddress alloc_medium_object(zbytes size, ZAllocationFlags flags);
+  zaddress alloc_small_object(zbytes size, ZAllocationFlags flags);
+  zaddress alloc_object(zbytes size, ZAllocationFlags flags);
 
 public:
   ZObjectAllocator(ZPageAge age);
 
   // Mutator allocation
-  zaddress alloc_object(size_t size);
+  zaddress alloc_object(zbytes size);
 
   // Relocation
-  zaddress alloc_object_for_relocation(size_t size);
-  void undo_alloc_object_for_relocation(zaddress addr, size_t size);
+  zaddress alloc_object_for_relocation(zbytes size);
+  void undo_alloc_object_for_relocation(zaddress addr, zbytes size);
 
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page_for_relocation(ZPageType type, zbytes size, ZAllocationFlags flags);
 
   ZPageAge age() const;
 
-  size_t remaining() const;
+  zbytes remaining() const;
 
   void retire_pages();
 };

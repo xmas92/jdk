@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZVALUE_HPP
 #define SHARE_GC_Z_ZVALUE_HPP
 
+#include "gc/z/zSize.hpp"
 #include "memory/allocation.hpp"
 #include "memory/allStatic.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -39,35 +40,35 @@ private:
   static uintptr_t _end;
 
 public:
-  static const size_t Offset = 4 * K;
+  static const zbytes Offset = 4 * K_zb;
 
-  static uintptr_t alloc(size_t size);
+  static uintptr_t alloc(zbytes size);
 };
 
 class ZContendedStorage : public ZValueStorage<ZContendedStorage> {
 public:
-  static size_t alignment();
+  static zbytes alignment();
   static uint32_t count();
   static uint32_t id();
 };
 
 class ZPerCPUStorage : public ZValueStorage<ZPerCPUStorage> {
 public:
-  static size_t alignment();
+  static zbytes alignment();
   static uint32_t count();
   static uint32_t id();
 };
 
 class ZPerNUMAStorage : public ZValueStorage<ZPerNUMAStorage> {
 public:
-  static size_t alignment();
+  static zbytes alignment();
   static uint32_t count();
   static uint32_t id();
 };
 
 class ZPerWorkerStorage : public ZValueStorage<ZPerWorkerStorage> {
 public:
-  static size_t alignment();
+  static zbytes alignment();
   static uint32_t count();
   static uint32_t id();
 };

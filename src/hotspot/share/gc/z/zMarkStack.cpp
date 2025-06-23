@@ -24,6 +24,7 @@
 #include "gc/z/zMarkingSMR.hpp"
 #include "gc/z/zMarkStack.inline.hpp"
 #include "gc/z/zMarkTerminate.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/orderAccess.hpp"

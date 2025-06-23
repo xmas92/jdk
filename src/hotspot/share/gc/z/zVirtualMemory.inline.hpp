@@ -29,24 +29,25 @@
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zRange.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
 inline ZVirtualMemory::ZVirtualMemory()
   : ZRange() {}
 
-inline ZVirtualMemory::ZVirtualMemory(zoffset start, size_t size)
+inline ZVirtualMemory::ZVirtualMemory(zoffset start, zbytes size)
   : ZRange(start, size) {
   // ZVirtualMemory is only used for ZGranuleSize multiple ranges
   assert(is_aligned(untype(start), ZGranuleSize), "must be multiple of ZGranuleSize");
-  assert(is_aligned(size, ZGranuleSize), "must be multiple of ZGranuleSize");
+  assert(ZBytes::is_aligned(size, ZGranuleSize), "must be multiple of ZGranuleSize");
 }
 
-inline ZVirtualMemory::ZVirtualMemory(const ZRange<zoffset, zoffset_end>& range)
+inline ZVirtualMemory::ZVirtualMemory(const ZRange<zoffset, zoffset_end, zbytes>& range)
   : ZVirtualMemory(range.start(), range.size()) {}
 
 inline int ZVirtualMemory::granule_count() const {
-  const size_t granule_count = size() >> ZGranuleSizeShift;
+  const size_t granule_count = size() / ZGranuleSize;
 
   assert(granule_count <= static_cast<size_t>(std::numeric_limits<int>::max()),
          "must not overflow an int %zu", granule_count);

@@ -31,16 +31,16 @@
 #include "runtime/perfData.hpp"
 
 struct ZMemoryUsageInfo {
-  size_t _young_used;
-  size_t _young_capacity;
-  size_t _old_used;
-  size_t _old_capacity;
+  zbytes _young_used;
+  zbytes _young_capacity;
+  zbytes _old_used;
+  zbytes _old_capacity;
 };
 
 static ZMemoryUsageInfo compute_memory_usage_info() {
-  const size_t capacity = ZHeap::heap()->capacity();
-  const size_t old_used = ZHeap::heap()->used_old();
-  const size_t young_used = ZHeap::heap()->used_young();
+  const zbytes capacity = ZHeap::heap()->capacity();
+  const zbytes old_used = ZHeap::heap()->used_old();
+  const zbytes young_used = ZHeap::heap()->used_young();
 
   ZMemoryUsageInfo info;
   info._old_used = MIN2(old_used, capacity);
@@ -55,18 +55,18 @@ public:
   ZGenerationCounters(const char* name,
                       int ordinal,
                       int spaces,
-                      size_t min_capacity,
-                      size_t max_capacity,
-                      size_t curr_capacity)
+                      zbytes min_capacity,
+                      zbytes max_capacity,
+                      zbytes curr_capacity)
     : GenerationCounters(name,
                          ordinal,
                          spaces,
-                         min_capacity,
-                         max_capacity,
-                         curr_capacity) {}
+                         untype(min_capacity),
+                         untype(max_capacity),
+                         untype(curr_capacity)) {}
 
-  void update_capacity(size_t capacity) {
-    update_all(capacity);
+  void update_capacity(zbytes capacity) {
+    update_all(untype(capacity));
   }
 };
 
@@ -81,14 +81,14 @@ private:
   CollectorCounters   _major_collection_counters;
 
 public:
-  ZServiceabilityCounters(size_t initial_capacity, size_t min_capacity, size_t max_capacity);
+  ZServiceabilityCounters(zbytes initial_capacity, zbytes min_capacity, zbytes max_capacity);
 
   CollectorCounters* collector_counters(bool minor);
 
   void update_sizes();
 };
 
-ZServiceabilityCounters::ZServiceabilityCounters(size_t initial_capacity, size_t min_capacity, size_t max_capacity)
+ZServiceabilityCounters::ZServiceabilityCounters(zbytes initial_capacity, zbytes min_capacity, zbytes max_capacity)
   : // generation.0
     _generation_young_counters(
         "young"          /* name */,
@@ -102,23 +102,23 @@ ZServiceabilityCounters::ZServiceabilityCounters(size_t initial_capacity, size_t
         "old"        /* name */,
         1            /* ordinal */,
         1            /* spaces */,
-        0            /* min_capacity */,
+        0_zb         /* min_capacity */,
         max_capacity /* max_capacity */,
-        0            /* curr_capacity */),
+        0_zb         /* curr_capacity */),
     // generation.0.space.0
     _space_young_counters(
         _generation_young_counters.name_space(),
-        "space"          /* name */,
-        0                /* ordinal */,
-        max_capacity     /* max_capacity */,
-        initial_capacity /* init_capacity */),
+        "space"                  /* name */,
+        0                        /* ordinal */,
+        untype(max_capacity)     /* max_capacity */,
+        untype(initial_capacity) /* init_capacity */),
     // generation.1.space.0
     _space_old_counters(
         _generation_old_counters.name_space(),
-        "space"      /* name */,
-        0            /* ordinal */,
-        max_capacity /* max_capacity */,
-        0            /* init_capacity */),
+        "space"              /* name */,
+        0                    /* ordinal */,
+        untype(max_capacity) /* max_capacity */,
+        0                    /* init_capacity */),
     // gc.collector.0
     _minor_collection_counters(
         "ZGC minor collection pauses" /* name */,
@@ -139,33 +139,33 @@ void ZServiceabilityCounters::update_sizes() {
     const ZMemoryUsageInfo info = compute_memory_usage_info();
     _generation_young_counters.update_capacity(info._young_capacity);
     _generation_old_counters.update_capacity(info._old_capacity);
-    _space_young_counters.update_capacity(info._young_capacity);
-    _space_young_counters.update_used(info._young_used);
-    _space_old_counters.update_capacity(info._old_capacity);
-    _space_old_counters.update_used(info._old_used);
+    _space_young_counters.update_capacity(untype(info._young_capacity));
+    _space_young_counters.update_used(untype(info._young_used));
+    _space_old_counters.update_capacity(untype(info._old_capacity));
+    _space_old_counters.update_used(untype(info._old_used));
 
     MetaspaceCounters::update_performance_counters();
   }
 }
 
-ZServiceabilityMemoryPool::ZServiceabilityMemoryPool(const char* name, ZGenerationId id, size_t min_capacity, size_t max_capacity)
+ZServiceabilityMemoryPool::ZServiceabilityMemoryPool(const char* name, ZGenerationId id, zbytes min_capacity, zbytes max_capacity)
   : CollectedMemoryPool(name,
-                        min_capacity,
-                        max_capacity,
+                        untype(min_capacity),
+                        untype(max_capacity),
                         id == ZGenerationId::old /* support_usage_threshold */),
     _generation_id(id) {}
 
 size_t ZServiceabilityMemoryPool::used_in_bytes() {
-  return ZHeap::heap()->used_generation(_generation_id);
+  return untype(ZHeap::heap()->used_generation(_generation_id));
 }
 
 MemoryUsage ZServiceabilityMemoryPool::get_memory_usage() {
   const ZMemoryUsageInfo info = compute_memory_usage_info();
 
   if (_generation_id == ZGenerationId::young) {
-    return MemoryUsage(initial_size(), info._young_used, info._young_capacity, max_size());
+    return MemoryUsage(initial_size(), untype(info._young_used), untype(info._young_capacity), max_size());
   } else {
-    return MemoryUsage(initial_size(), info._old_used, info._old_capacity, max_size());
+    return MemoryUsage(initial_size(), untype(info._old_used), untype(info._old_capacity), max_size());
   }
 }
 
@@ -177,14 +177,14 @@ ZServiceabilityMemoryManager::ZServiceabilityMemoryManager(const char* name,
   add_pool(old_memory_pool);
 }
 
-ZServiceability::ZServiceability(size_t initial_capacity,
-                                 size_t min_capacity,
-                                 size_t max_capacity)
+ZServiceability::ZServiceability(zbytes initial_capacity,
+                                 zbytes min_capacity,
+                                 zbytes max_capacity)
   : _initial_capacity(initial_capacity),
     _min_capacity(min_capacity),
     _max_capacity(max_capacity),
     _young_memory_pool("ZGC Young Generation", ZGenerationId::young, _min_capacity, _max_capacity),
-    _old_memory_pool("ZGC Old Generation", ZGenerationId::old, 0, _max_capacity),
+    _old_memory_pool("ZGC Old Generation", ZGenerationId::old, 0_zb, _max_capacity),
     _minor_cycle_memory_manager("ZGC Minor Cycles", &_young_memory_pool, &_old_memory_pool),
     _major_cycle_memory_manager("ZGC Major Cycles", &_young_memory_pool, &_old_memory_pool),
     _minor_pause_memory_manager("ZGC Minor Pauses", &_young_memory_pool, &_old_memory_pool),

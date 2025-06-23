@@ -76,8 +76,8 @@ public:
   ZPage* clone_for_promotion() const;
 
   uint32_t object_max_count() const;
-  size_t object_alignment_shift() const;
-  size_t object_alignment() const;
+  int object_alignment_shift() const;
+  zbytes object_alignment() const;
 
   ZPageType type() const;
 
@@ -90,10 +90,10 @@ public:
   bool is_old() const;
   zoffset start() const;
   zoffset_end end() const;
-  size_t size() const;
+  zbytes size() const;
   zoffset_end top() const;
-  size_t remaining() const;
-  size_t used() const;
+  zbytes remaining() const;
+  zbytes used() const;
 
   const ZVirtualMemory& virtual_memory() const;
 
@@ -130,9 +130,9 @@ public:
   bool is_object_marked(zaddress addr, bool finalizable) const;
   bool mark_object(zaddress addr, bool finalizable, bool& inc_live);
 
-  void inc_live(uint32_t objects, size_t bytes);
+  void inc_live(uint32_t objects, zbytes bytes);
   uint32_t live_objects() const;
-  size_t live_bytes() const;
+  zbytes live_bytes() const;
 
   template <typename Function>
   void object_iterate(Function function);
@@ -141,14 +141,14 @@ public:
 
   // In-place relocation support
   void clear_remset_bit_non_par_current(uintptr_t l_offset);
-  void clear_remset_range_non_par_current(uintptr_t l_offset, size_t size);
+  void clear_remset_range_non_par_current(uintptr_t l_offset, zbytes size);
   void swap_remset_bitmaps();
 
   void remset_alloc();
 
   ZBitMap::ReverseIterator remset_reverse_iterator_previous();
-  BitMap::Iterator remset_iterator_limited_current(uintptr_t l_offset, size_t size);
-  BitMap::Iterator remset_iterator_limited_previous(uintptr_t l_offset, size_t size);
+  BitMap::Iterator remset_iterator_limited_current(uintptr_t l_offset, zbytes size);
+  BitMap::Iterator remset_iterator_limited_previous(uintptr_t l_offset, zbytes size);
 
   zaddress_unsafe find_base_unsafe(volatile zpointer* p);
   zaddress_unsafe find_base(volatile zpointer* p);
@@ -173,11 +173,11 @@ public:
 
   void* remset_current();
 
-  zaddress alloc_object(size_t size);
-  zaddress alloc_object_atomic(size_t size);
+  zaddress alloc_object(zbytes size);
+  zaddress alloc_object_atomic(zbytes size);
 
-  bool undo_alloc_object(zaddress addr, size_t size);
-  bool undo_alloc_object_atomic(zaddress addr, size_t size);
+  bool undo_alloc_object(zaddress addr, zbytes size);
+  bool undo_alloc_object_atomic(zaddress addr, zbytes size);
 
   void log_msg(const char* msg_format, ...) const ATTRIBUTE_PRINTF(2, 3);
 
@@ -188,7 +188,7 @@ public:
   // Verification
   bool was_remembered(volatile zpointer* p);
   bool is_remembered(volatile zpointer* p);
-  void verify_live(uint32_t live_objects, size_t live_bytes, bool in_place) const;
+  void verify_live(uint32_t live_objects, zbytes live_bytes, bool in_place) const;
 
   void fatal_msg(const char* msg) const;
 };

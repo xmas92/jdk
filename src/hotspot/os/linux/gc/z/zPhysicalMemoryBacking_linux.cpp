@@ -31,6 +31,7 @@
 #include "gc/z/zMountPoint_linux.hpp"
 #include "gc/z/zNUMA.inline.hpp"
 #include "gc/z/zPhysicalMemoryBacking_linux.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zSyscall_linux.hpp"
 #include "hugepages.hpp"
 #include "logging/log.hpp"
@@ -119,11 +120,11 @@ static const char* ZPreferredHugetlbfsMountpoints[] = {
 static int z_fallocate_hugetlbfs_attempts = 3;
 static bool z_fallocate_supported = true;
 
-ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
+ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(zbytes max_capacity)
   : _fd(-1),
     _filesystem(0),
-    _block_size(0),
-    _available(0),
+    _block_size(0_zb),
+    _available(0_zb),
     _initialized(false) {
 
   // Create backing file
@@ -134,7 +135,7 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
   }
 
   // Truncate backing file
-  while (ftruncate(_fd, max_capacity) == -1) {
+  while (ftruncate(_fd, untype(max_capacity)) == -1) {
     if (errno != EINTR) {
       ZErrno err;
       ZInitialize::error("Failed to truncate backing file (%s)", err.to_string());
@@ -151,7 +152,7 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
   }
 
   _filesystem = buf.f_type;
-  _block_size = buf.f_bsize;
+  _block_size = to_zbytes(buf.f_bsize);
   _available = buf.f_bavail * _block_size;
 
   log_info_p(gc, init)("Heap Backing Filesystem: %s (" UINT64_FORMAT_X ")",
@@ -183,15 +184,15 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
   }
 
   // Make sure the filesystem block size is compatible
-  if (ZGranuleSize % _block_size != 0) {
+  if (ZGranuleSize % _block_size != 0_zb) {
     ZInitialize::error("Filesystem backing the heap has incompatible block size (%zu)",
-                       _block_size);
+                       untype(_block_size));
     return;
   }
 
   if (is_hugetlbfs() && _block_size != ZGranuleSize) {
     ZInitialize::error("%s filesystem has unexpected block size %zu (expected %zu)",
-                       ZFILESYSTEM_HUGETLBFS, _block_size, ZGranuleSize);
+                       ZFILESYSTEM_HUGETLBFS, untype(_block_size), untype(ZGranuleSize));
     return;
   }
 
@@ -200,7 +201,7 @@ ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
 }
 
 int ZPhysicalMemoryBacking::create_mem_fd(const char* name) const {
-  assert(ZGranuleSize == 2 * M, "Granule size must match MFD_HUGE_2MB");
+  assert(ZGranuleSize == 2 * M_zb, "Granule size must match MFD_HUGE_2MB");
 
   // Create file name
   char filename[PATH_MAX];
@@ -306,16 +307,16 @@ bool ZPhysicalMemoryBacking::is_initialized() const {
   return _initialized;
 }
 
-void ZPhysicalMemoryBacking::warn_available_space(size_t max_capacity) const {
+void ZPhysicalMemoryBacking::warn_available_space(zbytes max_capacity) const {
   // Note that the available space on a tmpfs or a hugetlbfs filesystem
   // will be zero if no size limit was specified when it was mounted.
-  if (_available == 0) {
+  if (_available == 0_zb) {
     // No size limit set, skip check
     log_info_p(gc, init)("Available space on backing filesystem: N/A");
     return;
   }
 
-  log_info_p(gc, init)("Available space on backing filesystem: %zuM", _available / M);
+  log_info_p(gc, init)("Available space on backing filesystem: %zuM", _available / M_zb);
 
   // Warn if the filesystem doesn't currently have enough space available to hold
   // the max heap size. The max heap size will be capped if we later hit this limit
@@ -324,14 +325,14 @@ void ZPhysicalMemoryBacking::warn_available_space(size_t max_capacity) const {
     log_warning_p(gc)("***** WARNING! INCORRECT SYSTEM CONFIGURATION DETECTED! *****");
     log_warning_p(gc)("Not enough space available on the backing filesystem to hold the current max Java heap");
     log_warning_p(gc)("size (%zuM). Please adjust the size of the backing filesystem accordingly "
-                      "(available", max_capacity / M);
+                      "(available", max_capacity / M_zb);
     log_warning_p(gc)("space is currently %zuM). Continuing execution with the current filesystem "
-                      "size could", _available / M);
+                      "size could", _available / M_zb);
     log_warning_p(gc)("lead to a premature OutOfMemoryError being thrown, due to failure to commit memory.");
   }
 }
 
-void ZPhysicalMemoryBacking::warn_max_map_count(size_t max_capacity) const {
+void ZPhysicalMemoryBacking::warn_max_map_count(zbytes max_capacity) const {
   const char* const filename = ZFILENAME_PROC_MAX_MAP_COUNT;
   FILE* const file = os::fopen(filename, "r");
   if (file == nullptr) {
@@ -359,14 +360,14 @@ void ZPhysicalMemoryBacking::warn_max_map_count(size_t max_capacity) const {
     log_warning_p(gc)("***** WARNING! INCORRECT SYSTEM CONFIGURATION DETECTED! *****");
     log_warning_p(gc)("The system limit on number of memory mappings per process might be too low for the given");
     log_warning_p(gc)("max Java heap size (%zuM). Please adjust %s to allow for at",
-                      max_capacity / M, filename);
+                      max_capacity / M_zb, filename);
     log_warning_p(gc)("least %zu mappings (current limit is %zu). Continuing execution "
                       "with the current", required_max_map_count, actual_max_map_count);
     log_warning_p(gc)("limit could lead to a premature OutOfMemoryError being thrown, due to failure to map memory.");
   }
 }
 
-void ZPhysicalMemoryBacking::warn_commit_limits(size_t max_capacity) const {
+void ZPhysicalMemoryBacking::warn_commit_limits(zbytes max_capacity) const {
   // Warn if available space is too low
   warn_available_space(max_capacity);
 
@@ -388,11 +389,11 @@ bool ZPhysicalMemoryBacking::tmpfs_supports_transparent_huge_pages() const {
   return access(ZFILENAME_SHMEM_ENABLED, R_OK) == 0;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_hugetlbfs(zbacking_offset offset, size_t length, bool touch) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_hugetlbfs(zbacking_offset offset, zbytes size, bool touch) const {
   // On hugetlbfs, mapping a file segment will fail immediately, without
   // the need to touch the mapped pages first, if there aren't enough huge
   // pages available to back the mapping.
-  void* const addr = mmap(nullptr, length, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, untype(offset));
+  void* const addr = mmap(nullptr, untype(size), PROT_READ|PROT_WRITE, MAP_SHARED, _fd, untype(offset));
   if (addr == MAP_FAILED) {
     // Failed
     return errno;
@@ -403,14 +404,14 @@ ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_hugetlbfs(zbacking_offset o
   // hole in file segments which only have reserved pages.
   if (touch) {
     char* const start = (char*)addr;
-    char* const end = start + length;
-    os::pretouch_memory(start, end, _block_size);
+    char* const end = start + size;
+    os::pretouch_memory(start, end, untype(_block_size));
   }
 
   // Unmap again. From now on, the huge pages that were mapped are allocated
   // to this file. There's no risk of getting a SIGBUS when mapping and
   // touching these pages again.
-  if (munmap(addr, length) == -1) {
+  if (munmap(addr, untype(size)) == -1) {
     // Failed
     return errno;
   }
@@ -419,9 +420,9 @@ ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_hugetlbfs(zbacking_offset o
   return 0;
 }
 
-static bool safe_touch_mapping(void* addr, size_t length, size_t page_size) {
+static bool safe_touch_mapping(void* addr, zbytes size, zbytes page_size) {
   char* const start = (char*)addr;
-  char* const end = start + length;
+  char* const end = start + size;
 
   // Touching a mapping that can't be backed by memory will generate a
   // SIGBUS. By using SafeFetch32 any SIGBUS will be safely caught and
@@ -439,10 +440,10 @@ static bool safe_touch_mapping(void* addr, size_t length, size_t page_size) {
   return true;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_tmpfs(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_tmpfs(zbacking_offset offset, zbytes size) const {
   // On tmpfs, we need to touch the mapped pages to figure out
   // if there are enough pages available to back the mapping.
-  void* const addr = mmap(nullptr, length, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, untype(offset));
+  void* const addr = mmap(nullptr, untype(size), PROT_READ|PROT_WRITE, MAP_SHARED, _fd, untype(offset));
   if (addr == MAP_FAILED) {
     // Failed
     return errno;
@@ -450,16 +451,16 @@ ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_tmpfs(zbacking_offset offse
 
   // Maybe madvise the mapping to use transparent huge pages
   if (os::Linux::should_madvise_shmem_thps()) {
-    os::Linux::madvise_transparent_huge_pages(addr, length);
+    os::Linux::madvise_transparent_huge_pages(addr, untype(size));
   }
 
   // Touch the mapping (safely) to make sure it's backed by memory
-  const bool backed = safe_touch_mapping(addr, length, _block_size);
+  const bool backed = safe_touch_mapping(addr, size, _block_size);
 
   // Unmap again. If successfully touched, the backing memory will
   // be allocated to this file. There's no risk of getting a SIGBUS
   // when mapping and touching these pages again.
-  if (munmap(addr, length) == -1) {
+  if (munmap(addr, untype(size)) == -1) {
     // Failed
     return errno;
   }
@@ -468,11 +469,11 @@ ZErrno ZPhysicalMemoryBacking::fallocate_compat_mmap_tmpfs(zbacking_offset offse
   return backed ? 0 : ENOMEM;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_compat_pwrite(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_compat_pwrite(zbacking_offset offset, zbytes size) const {
   uint8_t data = 0;
 
   // Allocate backing memory by writing to each block
-  for (zbacking_offset pos = offset; pos < offset + length; pos += _block_size) {
+  for (zbacking_offset pos = offset; pos < offset + size; pos += _block_size) {
     if (pwrite(_fd, &data, sizeof(data), untype(pos)) == -1) {
       // Failed
       return errno;
@@ -483,23 +484,23 @@ ZErrno ZPhysicalMemoryBacking::fallocate_compat_pwrite(zbacking_offset offset, s
   return 0;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole_compat(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole_compat(zbacking_offset offset, zbytes size) const {
   // fallocate(2) is only supported by tmpfs since Linux 3.5, and by hugetlbfs
   // since Linux 4.3. When fallocate(2) is not supported we emulate it using
   // mmap/munmap (for hugetlbfs and tmpfs with transparent huge pages) or pwrite
   // (for tmpfs without transparent huge pages and other filesystem types).
   if (ZLargePages::is_explicit()) {
-    return fallocate_compat_mmap_hugetlbfs(offset, length, false /* touch */);
+    return fallocate_compat_mmap_hugetlbfs(offset, size, false /* touch */);
   } else if (ZLargePages::is_transparent()) {
-    return fallocate_compat_mmap_tmpfs(offset, length);
+    return fallocate_compat_mmap_tmpfs(offset, size);
   } else {
-    return fallocate_compat_pwrite(offset, length);
+    return fallocate_compat_pwrite(offset, size);
   }
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole_syscall(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole_syscall(zbacking_offset offset, zbytes size) const {
   const int mode = 0; // Allocate
-  const int res = ZSyscall::fallocate(_fd, mode, untype(offset), length);
+  const int res = ZSyscall::fallocate(_fd, mode, untype(offset), untype(size));
   if (res == -1) {
     // Failed
     return errno;
@@ -509,7 +510,7 @@ ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole_syscall(zbacking_offset offse
   return 0;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zbacking_offset offset, zbytes size) const {
   // Using compat mode is more efficient when allocating space on hugetlbfs.
   // Note that allocating huge pages this way will only reserve them, and not
   // associate them with segments of the file. We must guarantee that we at
@@ -517,7 +518,7 @@ ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zbacking_offset offset, size_
   // Also note that we need to use compat mode when using transparent huge pages,
   // since we need to use madvise(2) on the mapping before the page is allocated.
   if (z_fallocate_supported && !ZLargePages::is_enabled()) {
-     const ZErrno err = fallocate_fill_hole_syscall(offset, length);
+     const ZErrno err = fallocate_fill_hole_syscall(offset, size);
      if (!err) {
        // Success
        return 0;
@@ -533,16 +534,16 @@ ZErrno ZPhysicalMemoryBacking::fallocate_fill_hole(zbacking_offset offset, size_
      z_fallocate_supported = false;
   }
 
-  return fallocate_fill_hole_compat(offset, length);
+  return fallocate_fill_hole_compat(offset, size);
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate_punch_hole(zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate_punch_hole(zbacking_offset offset, zbytes size) const {
   if (ZLargePages::is_explicit()) {
     // We can only punch hole in pages that have been touched. Non-touched
     // pages are only reserved, and not associated with any specific file
     // segment. We don't know which pages have been previously touched, so
     // we always touch them here to guarantee that we can punch hole.
-    const ZErrno err = fallocate_compat_mmap_hugetlbfs(offset, length, true /* touch */);
+    const ZErrno err = fallocate_compat_mmap_hugetlbfs(offset, size, true /* touch */);
     if (err) {
       // Failed
       return err;
@@ -550,7 +551,7 @@ ZErrno ZPhysicalMemoryBacking::fallocate_punch_hole(zbacking_offset offset, size
   }
 
   const int mode = FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE;
-  if (ZSyscall::fallocate(_fd, mode, untype(offset), length) == -1) {
+  if (ZSyscall::fallocate(_fd, mode, untype(offset), untype(size)) == -1) {
     // Failed
     return errno;
   }
@@ -559,19 +560,19 @@ ZErrno ZPhysicalMemoryBacking::fallocate_punch_hole(zbacking_offset offset, size
   return 0;
 }
 
-ZErrno ZPhysicalMemoryBacking::split_and_fallocate(bool punch_hole, zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::split_and_fallocate(bool punch_hole, zbacking_offset offset, zbytes size) const {
   // Try first half
   const zbacking_offset offset0 = offset;
-  const size_t length0 = align_up(length / 2, _block_size);
-  const ZErrno err0 = fallocate(punch_hole, offset0, length0);
+  const zbytes size0 = ZBytes::align_up(size / 2, _block_size);
+  const ZErrno err0 = fallocate(punch_hole, offset0, size0);
   if (err0) {
     return err0;
   }
 
   // Try second half
-  const zbacking_offset offset1 = offset0 + length0;
-  const size_t length1 = length - length0;
-  const ZErrno err1 = fallocate(punch_hole, offset1, length1);
+  const zbacking_offset offset1 = offset0 + size0;
+  const zbytes size1 = size - size0;
+  const ZErrno err1 = fallocate(punch_hole, offset1, size1);
   if (err1) {
     return err1;
   }
@@ -580,28 +581,28 @@ ZErrno ZPhysicalMemoryBacking::split_and_fallocate(bool punch_hole, zbacking_off
   return 0;
 }
 
-ZErrno ZPhysicalMemoryBacking::fallocate(bool punch_hole, zbacking_offset offset, size_t length) const {
+ZErrno ZPhysicalMemoryBacking::fallocate(bool punch_hole, zbacking_offset offset, zbytes size) const {
   assert(is_aligned(untype(offset), _block_size), "Invalid offset");
-  assert(is_aligned(length, _block_size), "Invalid length");
+  assert(ZBytes::is_aligned(size, _block_size), "Invalid size");
 
-  const ZErrno err = punch_hole ? fallocate_punch_hole(offset, length) : fallocate_fill_hole(offset, length);
-  if (err == EINTR && length > _block_size) {
-    // Calling fallocate(2) with a large length can take a long time to
+  const ZErrno err = punch_hole ? fallocate_punch_hole(offset, size) : fallocate_fill_hole(offset, size);
+  if (err == EINTR && size > _block_size) {
+    // Calling fallocate(2) with a large size can take a long time to
     // complete. When running profilers, such as VTune, this syscall will
     // be constantly interrupted by signals. Expanding the file in smaller
     // steps avoids this problem.
-    return split_and_fallocate(punch_hole, offset, length);
+    return split_and_fallocate(punch_hole, offset, size);
   }
 
   return err;
 }
 
-bool ZPhysicalMemoryBacking::commit_inner(zbacking_offset offset, size_t length) const {
+bool ZPhysicalMemoryBacking::commit_inner(zbacking_offset offset, zbytes size) const {
   log_trace(gc, heap)("Committing memory: %zuM-%zuM (%zuM)",
-                      untype(offset) / M, untype(to_zbacking_offset_end(offset, length)) / M, length / M);
+                      untype(offset) / M, untype(to_zbacking_offset_end(offset, size)) / M, size / M_zb);
 
 retry:
-  const ZErrno err = fallocate(false /* punch_hole */, offset, length);
+  const ZErrno err = fallocate(false /* punch_hole */, offset, size);
   if (err) {
     if (err == ENOSPC && !is_init_completed() && ZLargePages::is_explicit() && z_fallocate_hugetlbfs_attempts-- > 0) {
       // If we fail to allocate during initialization, due to lack of space on
@@ -627,11 +628,11 @@ retry:
   return true;
 }
 
-size_t ZPhysicalMemoryBacking::commit_numa_preferred(zbacking_offset offset, size_t length, uint32_t numa_id) const {
+zbytes ZPhysicalMemoryBacking::commit_numa_preferred(zbacking_offset offset, zbytes size, uint32_t numa_id) const {
   // Setup NUMA policy to allocate memory from a preferred node
   os::Linux::numa_set_preferred((int)numa_id);
 
-  const size_t committed = commit_default(offset, length);
+  const zbytes committed = commit_default(offset, size);
 
   // Restore NUMA policy
   os::Linux::numa_set_preferred(-1);
@@ -639,70 +640,70 @@ size_t ZPhysicalMemoryBacking::commit_numa_preferred(zbacking_offset offset, siz
   return committed;
 }
 
-size_t ZPhysicalMemoryBacking::commit_default(zbacking_offset offset, size_t length) const {
+zbytes ZPhysicalMemoryBacking::commit_default(zbacking_offset offset, zbytes size) const {
   // Try to commit the whole region
-  if (commit_inner(offset, length)) {
+  if (commit_inner(offset, size)) {
     // Success
-    return length;
+    return size;
   }
 
   // Failed, try to commit as much as possible
   zbacking_offset start = offset;
-  zbacking_offset_end end = to_zbacking_offset_end(offset, length);
+  zbacking_offset_end end = to_zbacking_offset_end(offset, size);
 
   for (;;) {
-    length = align_down((end - start) / 2, ZGranuleSize);
-    if (length < ZGranuleSize) {
+    size = ZBytes::align_down((end - start) / 2, ZGranuleSize);
+    if (size < ZGranuleSize) {
       // Done, don't commit more
       return start - offset;
     }
 
-    if (commit_inner(start, length)) {
+    if (commit_inner(start, size)) {
       // Success, try commit more
-      start += length;
+      start += size;
     } else {
       // Failed, try commit less
-      end -= length;
+      end -= size;
     }
   }
 }
 
-size_t ZPhysicalMemoryBacking::commit(zbacking_offset offset, size_t length, uint32_t numa_id) const {
+zbytes ZPhysicalMemoryBacking::commit(zbacking_offset offset, zbytes size, uint32_t numa_id) const {
   if (ZNUMA::is_enabled() && !ZLargePages::is_explicit()) {
     // The memory is required to be preferred at the time it is paged in. As a
     // consequence we must prefer the memory when committing non-large pages.
-    return commit_numa_preferred(offset, length, numa_id);
+    return commit_numa_preferred(offset, size, numa_id);
   }
 
-  return commit_default(offset, length);
+  return commit_default(offset, size);
 }
 
-size_t ZPhysicalMemoryBacking::uncommit(zbacking_offset offset, size_t length) const {
+zbytes ZPhysicalMemoryBacking::uncommit(zbacking_offset offset, zbytes size) const {
   log_trace(gc, heap)("Uncommitting memory: %zuM-%zuM (%zuM)",
-                      untype(offset) / M, untype(to_zbacking_offset_end(offset, length)) / M, length / M);
+                      untype(offset) / M, untype(to_zbacking_offset_end(offset, size)) / M, size / M_zb);
 
-  const ZErrno err = fallocate(true /* punch_hole */, offset, length);
+  const ZErrno err = fallocate(true /* punch_hole */, offset, size);
   if (err) {
     log_error(gc)("Failed to uncommit memory (%s)", err.to_string());
-    return 0;
+    return 0_zb;
   }
 
-  return length;
+  return size;
 }
 
-void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zbacking_offset offset) const {
-  const void* const res = mmap((void*)untype(addr), size, PROT_READ|PROT_WRITE, MAP_FIXED|MAP_SHARED, _fd, untype(offset));
+void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, zbytes size, zbacking_offset offset) const {
+  const void* const res = mmap((void*)untype(addr), untype(size), PROT_READ|PROT_WRITE, MAP_FIXED|MAP_SHARED, _fd, untype(offset));
   if (res == MAP_FAILED) {
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
 }
 
-void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
+void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, zbytes size) const {
   // Note that we must keep the address space reservation intact and just detach
   // the backing memory. For this reason we map a new anonymous, non-accessible
   // and non-reserved page over the mapping instead of actually unmapping.
-  const void* const res = mmap((void*)untype(addr), size, PROT_NONE, MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, -1, 0);
+  const void* const res = mmap((void*)untype(addr), untype(size), PROT_NONE, MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, -1, 0);
   if (res == MAP_FAILED) {
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());

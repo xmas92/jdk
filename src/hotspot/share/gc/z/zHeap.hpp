@@ -74,20 +74,20 @@ public:
   void out_of_memory();
 
   // Heap metrics
-  size_t min_capacity() const;
-  size_t max_capacity() const;
-  size_t soft_max_capacity() const;
-  size_t capacity() const;
-  size_t used() const;
-  size_t used_generation(ZGenerationId id) const;
-  size_t used_young() const;
-  size_t used_old() const;
-  size_t unused() const;
+  zbytes min_capacity() const;
+  zbytes max_capacity() const;
+  zbytes soft_max_capacity() const;
+  zbytes capacity() const;
+  zbytes used() const;
+  zbytes used_generation(ZGenerationId id) const;
+  zbytes used_young() const;
+  zbytes used_old() const;
+  zbytes unused() const;
 
-  size_t tlab_capacity() const;
-  size_t tlab_used() const;
-  size_t max_tlab_size() const;
-  size_t unsafe_max_tlab_alloc() const;
+  zbytes tlab_capacity() const;
+  zbytes tlab_used() const;
+  zbytes max_tlab_size() const;
+  zbytes unsafe_max_tlab_alloc() const;
   void reset_tlab_used();
 
   bool is_in(uintptr_t addr) const;
@@ -109,10 +109,10 @@ public:
   void mark_flush(Thread* thread);
 
   // Page allocation
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
+  ZPage* alloc_page(ZPageType type, zbytes size, ZAllocationFlags flags, ZPageAge age);
   void undo_alloc_page(ZPage* page);
   void free_page(ZPage* page);
-  size_t free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages);
+  zbytes free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages);
 
   // Object allocation
   bool is_alloc_stalling() const;

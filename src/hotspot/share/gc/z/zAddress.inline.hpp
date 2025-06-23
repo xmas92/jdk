@@ -28,6 +28,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "oops/oop.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "runtime/atomic.hpp"
@@ -43,31 +44,31 @@
 // Offset Operator Macro
 // Creates operators for the offset, offset_end style types
 
-#define CREATE_ZOFFSET_OPERATORS(offset_type)                                             \
+#define CREATE_ZOFFSET_OPERATORS(offset_type, size_type)                                  \
                                                                                           \
   /* Arithmetic operators for offset_type */                                              \
                                                                                           \
-inline offset_type operator+(offset_type offset, size_t size) {                           \
+inline offset_type operator+(offset_type offset, size_type size) {                        \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type>>(size);        \
   return to_##offset_type(untype(offset) + size_value);                                   \
 }                                                                                         \
                                                                                           \
-inline offset_type& operator+=(offset_type& offset, size_t size) {                        \
+inline offset_type& operator+=(offset_type& offset, size_type size) {                     \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type>>(size);        \
   offset = to_##offset_type(untype(offset) + size_value);                                 \
   return offset;                                                                          \
 }                                                                                         \
                                                                                           \
-inline offset_type operator-(offset_type offset, size_t size) {                           \
+inline offset_type operator-(offset_type offset, size_type size) {                        \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type>>(size);        \
   return to_##offset_type(untype(offset) - size_value);                                   \
 }                                                                                         \
                                                                                           \
-inline size_t operator-(offset_type first, offset_type second) {                          \
-  return untype(first - untype(second));                                                  \
+inline size_type operator-(offset_type first, offset_type second) {                       \
+  return static_cast<size_type>(untype(first - static_cast<size_type>(untype(second))));  \
 }                                                                                         \
                                                                                           \
-inline offset_type& operator-=(offset_type& offset, size_t size) {                        \
+inline offset_type& operator-=(offset_type& offset, size_type size) {                     \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type>>(size);        \
   offset = to_##offset_type(untype(offset) - size_value);                                 \
   return offset;                                                                          \
@@ -75,27 +76,27 @@ inline offset_type& operator-=(offset_type& offset, size_t size) {              
                                                                                           \
   /* Arithmetic operators for offset_type##_end */                                        \
                                                                                           \
-inline offset_type##_end operator+(offset_type##_end offset, size_t size) {               \
+inline offset_type##_end operator+(offset_type##_end offset, size_type size) {            \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type##_end>>(size);  \
   return to_##offset_type##_end(untype(offset) + size_value);                             \
 }                                                                                         \
                                                                                           \
-inline offset_type##_end& operator+=(offset_type##_end& offset, size_t size) {            \
+inline offset_type##_end& operator+=(offset_type##_end& offset, size_type size) {         \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type##_end>>(size);  \
   offset = to_##offset_type##_end(untype(offset) + size_value);                           \
   return offset;                                                                          \
 }                                                                                         \
                                                                                           \
-inline offset_type##_end operator-(offset_type##_end first, size_t size) {                \
+inline offset_type##_end operator-(offset_type##_end first, size_type size) {             \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type##_end>>(size);  \
   return to_##offset_type##_end(untype(first) - size_value);                              \
 }                                                                                         \
                                                                                           \
-inline size_t operator-(offset_type##_end first, offset_type##_end second) {              \
-  return untype(first - untype(second));                                                  \
+inline size_type operator-(offset_type##_end first, offset_type##_end second) {           \
+  return static_cast<size_type>(untype(first - static_cast<size_type>(untype(second))));  \
 }                                                                                         \
                                                                                           \
-inline offset_type##_end& operator-=(offset_type##_end& offset, size_t size) {            \
+inline offset_type##_end& operator-=(offset_type##_end& offset, size_type size) {         \
   const auto size_value = checked_cast<std::underlying_type_t<offset_type##_end>>(size);  \
   offset = to_##offset_type##_end(untype(offset) - size_value);                           \
   return offset;                                                                          \
@@ -103,8 +104,8 @@ inline offset_type##_end& operator-=(offset_type##_end& offset, size_t size) {  
                                                                                           \
   /* Arithmetic operators for offset_type cross offset_type##_end */                      \
                                                                                           \
-inline size_t operator-(offset_type##_end first, offset_type second) {                    \
-  return untype(first - untype(second));                                                  \
+inline size_type operator-(offset_type##_end first, offset_type second) {                 \
+  return static_cast<size_type>(untype(first - static_cast<size_type>(untype(second))));  \
 }                                                                                         \
                                                                                           \
   /* Logical operators for offset_type cross offset_type##_end */                         \
@@ -169,7 +170,7 @@ inline zoffset to_zoffset(zoffset_end offset) {
   return to_zoffset(value);
 }
 
-inline bool to_zoffset_end(zoffset_end* result, zoffset_end start, size_t size) {
+inline bool to_zoffset_end(zoffset_end* result, zoffset_end start, zbytes size) {
   const uintptr_t value = untype(start) + size;
   if (value <= ZAddressOffsetMax) {
     *result = zoffset_end(value);
@@ -178,10 +179,10 @@ inline bool to_zoffset_end(zoffset_end* result, zoffset_end start, size_t size) 
   return false;
 }
 
-inline zoffset_end to_zoffset_end(zoffset start, size_t size) {
+inline zoffset_end to_zoffset_end(zoffset start, zbytes size) {
   const uintptr_t value = untype(start) + size;
   assert(value <= ZAddressOffsetMax, "Overflow start: " PTR_FORMAT " size: " PTR_FORMAT " value: " PTR_FORMAT,
-                                     untype(start), size, value);
+                                     untype(start), untype(size), value);
   return zoffset_end(value);
 }
 
@@ -194,7 +195,7 @@ inline zoffset_end to_zoffset_end(zoffset offset) {
   return zoffset_end(untype(offset));
 }
 
-CREATE_ZOFFSET_OPERATORS(zoffset)
+CREATE_ZOFFSET_OPERATORS(zoffset, zbytes)
 
 // zbacking_offset functions
 
@@ -220,10 +221,10 @@ inline zbacking_offset to_zbacking_offset(zbacking_offset_end offset) {
   return to_zbacking_offset(value);
 }
 
-inline zbacking_offset_end to_zbacking_offset_end(zbacking_offset start, size_t size) {
+inline zbacking_offset_end to_zbacking_offset_end(zbacking_offset start, zbytes size) {
   const uintptr_t value = untype(start) + size;
   assert(value <= ZBackingOffsetMax, "Overflow start: " PTR_FORMAT " size: " PTR_FORMAT " value: " PTR_FORMAT,
-                                     untype(start), size, value);
+                                     untype(start), untype(size), value);
   return zbacking_offset_end(value);
 }
 
@@ -236,7 +237,7 @@ inline zbacking_offset_end to_zbacking_offset_end(zbacking_offset offset) {
   return zbacking_offset_end(untype(offset));
 }
 
-CREATE_ZOFFSET_OPERATORS(zbacking_offset)
+CREATE_ZOFFSET_OPERATORS(zbacking_offset, zbytes)
 
 // zbacking_index functions
 
@@ -262,11 +263,11 @@ inline zbacking_index to_zbacking_index(zbacking_index_end index) {
   return to_zbacking_index(value);
 }
 
-inline zbacking_index_end to_zbacking_index_end(zbacking_index start, size_t size) {
+inline zbacking_index_end to_zbacking_index_end(zbacking_index start, uint32_t size) {
   const uint32_t start_value = untype(start);
   const uint32_t value = start_value + checked_cast<uint32_t>(size);
   assert(value <= ZBackingIndexMax && start_value <= value,
-         "Overflow start: %x size: %zu value: %x", start_value, size, value);
+         "Overflow start: %x size: %u value: %x", start_value, size, value);
   return zbacking_index_end(value);
 }
 
@@ -279,7 +280,7 @@ inline zbacking_index_end to_zbacking_index_end(zbacking_index index) {
   return zbacking_index_end(untype(index));
 }
 
-CREATE_ZOFFSET_OPERATORS(zbacking_index)
+CREATE_ZOFFSET_OPERATORS(zbacking_index, uint32_t)
 
 #undef CREATE_ZOFFSET_OPERATORS
 
@@ -306,11 +307,11 @@ inline zbacking_index to_start_type(zbacking_index_end offset) {
   return to_zbacking_index(offset);
 }
 
-inline zoffset_end to_end_type(zoffset start, size_t size) {
+inline zoffset_end to_end_type(zoffset start, zbytes size) {
   return to_zoffset_end(start, size);
 }
 
-inline zbacking_index_end to_end_type(zbacking_index start, size_t size) {
+inline zbacking_index_end to_end_type(zbacking_index start, uint32_t size) {
   return to_zbacking_index_end(start, size);
 }
 
@@ -523,13 +524,13 @@ inline oop to_oop(zaddress addr) {
   return cast_to_oop(addr);
 }
 
-inline zaddress operator+(zaddress addr, size_t size) {
+inline zaddress operator+(zaddress addr, zbytes size) {
   return to_zaddress(untype(addr) + size);
 }
 
-inline size_t operator-(zaddress left, zaddress right) {
+inline zbytes operator-(zaddress left, zaddress right) {
   assert(left >= right, "Unexpected order - left: " PTR_FORMAT " right: " PTR_FORMAT, untype(left), untype(right));
-  return untype(left) - untype(right);
+  return to_zbytes(untype(left) - untype(right));
 }
 
 // zaddress_unsafe functions
@@ -587,12 +588,12 @@ inline zaddress_unsafe to_zaddress_unsafe(oop o) {
   return to_zaddress_unsafe(cast_from_oop<uintptr_t>(o));
 }
 
-inline zaddress_unsafe operator+(zaddress_unsafe offset, size_t size) {
+inline zaddress_unsafe operator+(zaddress_unsafe offset, zbytes size) {
   return to_zaddress_unsafe(untype(offset) + size);
 }
 
-inline size_t operator-(zaddress_unsafe left, zaddress_unsafe right) {
-  return untype(left) - untype(right);
+inline zbytes operator-(zaddress_unsafe left, zaddress_unsafe right) {
+  return to_zbytes(untype(left) - untype(right));
 }
 
 // ZOffset functions

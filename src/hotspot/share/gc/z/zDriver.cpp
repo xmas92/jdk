@@ -156,11 +156,11 @@ GCTracer* ZDriverMinor::jfr_tracer() {
   return &_jfr_tracer;
 }
 
-void ZDriverMinor::set_used_at_start(size_t used) {
+void ZDriverMinor::set_used_at_start(zbytes used) {
   _used_at_start = used;
 }
 
-size_t ZDriverMinor::used_at_start() const {
+zbytes ZDriverMinor::used_at_start() const {
   return _used_at_start;
 }
 
@@ -372,11 +372,11 @@ GCTracer* ZDriverMajor::jfr_tracer() {
   return &_jfr_tracer;
 }
 
-void ZDriverMajor::set_used_at_start(size_t used) {
+void ZDriverMajor::set_used_at_start(zbytes used) {
   _used_at_start = used;
 }
 
-size_t ZDriverMajor::used_at_start() const {
+zbytes ZDriverMajor::used_at_start() const {
   return _used_at_start;
 }
 

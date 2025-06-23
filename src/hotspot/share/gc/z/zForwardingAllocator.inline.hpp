@@ -26,19 +26,20 @@
 
 #include "gc/z/zForwardingAllocator.hpp"
 
+#include "gc/z/zSize.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/debug.hpp"
 
-inline size_t ZForwardingAllocator::size() const {
-  return (size_t)(_end - _start);
+inline zbytes ZForwardingAllocator::size() const {
+  return to_zbytes(_end - _start);
 }
 
 inline bool ZForwardingAllocator::is_full() const {
   return _top == _end;
 }
 
-inline void* ZForwardingAllocator::alloc(size_t size) {
-  char* const addr = Atomic::fetch_then_add(&_top, size);
+inline void* ZForwardingAllocator::alloc(zbytes size) {
+  char* const addr = Atomic::fetch_then_add(&_top, untype(size));
   assert(addr + size <= _end, "Allocation should never fail");
   return addr;
 }

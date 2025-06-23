@@ -28,6 +28,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "runtime/os.hpp"
 #include "unittest.hpp"
@@ -52,11 +53,11 @@ public:
   char* reserve_page_memory() {
     // Probe for a free 2MB region inside the usable address range.
     // Inspired by ZVirtualMemoryManager::reserve_contiguous.
-    const size_t unused = ZAddressOffsetMax - ZGranuleSize;
-    const size_t increment = MAX2(align_up(unused / 100, ZGranuleSize), ZGranuleSize);
+    const zbytes unused = to_zbytes(ZAddressOffsetMax) - ZGranuleSize;
+    const zbytes increment = MAX2(ZBytes::align_up(unused / 100, ZGranuleSize), ZGranuleSize);
 
-    for (uintptr_t start = 0; start + ZGranuleSize <= ZAddressOffsetMax; start += increment) {
-      char* const reserved = os::attempt_reserve_memory_at((char*)ZAddressHeapBase + start, ZGranuleSize, mtTest);
+    for (zbytes start = 0_zb; start + ZGranuleSize <= to_zbytes(ZAddressOffsetMax); start += increment) {
+      char* const reserved = os::attempt_reserve_memory_at((char*)ZAddressHeapBase + start, untype(ZGranuleSize), mtTest);
       if (reserved != nullptr) {
         // Success
         return reserved;
@@ -87,7 +88,7 @@ public:
     // Preconditions for reserve_free_granule()
     ASSERT_NE(ZAddressHeapBase, 0u);
     ASSERT_NE(ZAddressOffsetMax, 0u);
-    ASSERT_NE(ZGranuleSize, 0u);
+    ASSERT_NE(ZGranuleSize, 0_zb);
 
     _reserved = nullptr;
 
@@ -100,7 +101,7 @@ public:
 
     _reserved = reserved;
 
-    os::commit_memory((char*)_reserved, ZGranuleSize, false /* executable */);
+    os::commit_memory((char*)_reserved, untype(ZGranuleSize), false /* executable */);
 
     _page_offset = uintptr_t(_reserved) - ZAddressHeapBase;
   }
@@ -111,8 +112,8 @@ public:
     ZGeneration::_old = _old_old;
     ZGeneration::_young = _old_young;
     if (_reserved != nullptr) {
-      os::uncommit_memory((char*)_reserved, ZGranuleSize, false /* executable */);
-      os::release_memory((char*)_reserved, ZGranuleSize);
+      os::uncommit_memory((char*)_reserved, untype(ZGranuleSize), false /* executable */);
+      os::release_memory((char*)_reserved, untype(ZGranuleSize));
     }
   }
 
@@ -224,7 +225,7 @@ public:
     const ZVirtualMemory vmem(zoffset(_page_offset), ZPageSizeSmall);
     ZPage page(ZPageType::small, ZPageAge::eden, vmem, 0u);
 
-    const size_t object_size = 16;
+    const zbytes object_size = 16_zb;
     const zaddress object = page.alloc_object(object_size);
 
     ZGeneration::young()->_seqnum++;
@@ -241,13 +242,13 @@ public:
     }
 
     const uint32_t live_objects = size;
-    const size_t live_bytes = live_objects * object_size;
+    const zbytes live_bytes = live_objects * object_size;
     page.inc_live(live_objects, live_bytes);
 
     // Setup allocator
     ZForwardingAllocator allocator;
     const uint32_t nentries = ZForwarding::nentries(&page);
-    allocator.reset((sizeof(ZForwarding)) + (nentries * sizeof(ZForwardingEntry)));
+    allocator.reset(to_zbytes(sizeof(ZForwarding)) + (nentries * to_zbytes(sizeof(ZForwardingEntry))));
 
     // Setup forwarding
     ZForwarding* const forwarding = ZForwarding::alloc(&allocator, &page, ZPageAge::survivor1);

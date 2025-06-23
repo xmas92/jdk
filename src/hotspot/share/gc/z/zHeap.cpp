@@ -37,6 +37,7 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
 #include "gc/z/zResurrection.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUncoloredRoot.inline.hpp"
 #include "gc/z/zUtils.hpp"
@@ -55,11 +56,11 @@ static const ZStatCounter ZCounterOutOfMemory("Memory", "Out Of Memory", ZStatUn
 ZHeap* ZHeap::_heap = nullptr;
 
 ZHeap::ZHeap()
-  : _page_allocator(MinHeapSize, InitialHeapSize, SoftMaxHeapSize, MaxHeapSize),
+  : _page_allocator(to_zbytes(MinHeapSize), to_zbytes(InitialHeapSize), to_zbytes(SoftMaxHeapSize), to_zbytes(MaxHeapSize)),
     _page_table(),
     _allocator_eden(),
     _allocator_relocation(),
-    _serviceability(InitialHeapSize, min_capacity(), max_capacity()),
+    _serviceability(to_zbytes(InitialHeapSize), min_capacity(), max_capacity()),
     _old(&_page_table, &_page_allocator),
     _young(&_page_table, _old.forwarding_table(), &_page_allocator),
     _tlab_usage(),
@@ -74,7 +75,7 @@ ZHeap::ZHeap()
   }
 
   // Prime cache
-  if (!_page_allocator.prime_cache(_old.workers(), InitialHeapSize)) {
+  if (!_page_allocator.prime_cache(_old.workers(), to_zbytes(InitialHeapSize))) {
     ZInitialize::error("Failed to allocate initial Java heap (%zuM)", InitialHeapSize / M);
     return;
   }
@@ -95,58 +96,58 @@ bool ZHeap::is_initialized() const {
   return _initialized;
 }
 
-size_t ZHeap::min_capacity() const {
+zbytes ZHeap::min_capacity() const {
   return _page_allocator.min_capacity();
 }
 
-size_t ZHeap::max_capacity() const {
+zbytes ZHeap::max_capacity() const {
   return _page_allocator.max_capacity();
 }
 
-size_t ZHeap::soft_max_capacity() const {
+zbytes ZHeap::soft_max_capacity() const {
   return _page_allocator.soft_max_capacity();
 }
 
-size_t ZHeap::capacity() const {
+zbytes ZHeap::capacity() const {
   return _page_allocator.capacity();
 }
 
-size_t ZHeap::used() const {
+zbytes ZHeap::used() const {
   return _page_allocator.used();
 }
 
-size_t ZHeap::used_generation(ZGenerationId id) const {
+zbytes ZHeap::used_generation(ZGenerationId id) const {
   return _page_allocator.used_generation(id);
 }
 
-size_t ZHeap::used_young() const {
+zbytes ZHeap::used_young() const {
   return _page_allocator.used_generation(ZGenerationId::young);
 }
 
-size_t ZHeap::used_old() const {
+zbytes ZHeap::used_old() const {
   return _page_allocator.used_generation(ZGenerationId::old);
 }
 
-size_t ZHeap::unused() const {
+zbytes ZHeap::unused() const {
   return _page_allocator.unused();
 }
 
-size_t ZHeap::tlab_capacity() const {
+zbytes ZHeap::tlab_capacity() const {
   return _tlab_usage.tlab_capacity();
 }
 
-size_t ZHeap::tlab_used() const {
+zbytes ZHeap::tlab_used() const {
   return _tlab_usage.tlab_used();
 }
 
-size_t ZHeap::max_tlab_size() const {
+zbytes ZHeap::max_tlab_size() const {
   return ZObjectSizeLimitSmall;
 }
 
-size_t ZHeap::unsafe_max_tlab_alloc() const {
-  size_t size = _allocator_eden.remaining();
+zbytes ZHeap::unsafe_max_tlab_alloc() const {
+  zbytes size = _allocator_eden.remaining();
 
-  if (size < MinTLABSize) {
+  if (size < to_zbytes(MinTLABSize)) {
     // The remaining space in the allocator is not enough to
     // fit the smallest possible TLAB. This means that the next
     // TLAB allocation will force the allocator to get a new
@@ -244,10 +245,10 @@ void ZHeap::account_undo_alloc_page(ZPage* page) {
   }
 
   log_trace(gc)("Undo page allocation, thread: " PTR_FORMAT " (%s), page: " PTR_FORMAT ", size: %zu",
-                p2i(Thread::current()), ZUtils::thread_name(), p2i(page), page->size());
+                p2i(Thread::current()), ZUtils::thread_name(), p2i(page), untype(page->size()));
 }
 
-ZPage* ZHeap::alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age) {
+ZPage* ZHeap::alloc_page(ZPageType type, zbytes size, ZAllocationFlags flags, ZPageAge age) {
   ZPage* const page = _page_allocator.alloc_page(type, size, flags, age);
   if (page != nullptr) {
     // Insert page table entry
@@ -277,8 +278,8 @@ void ZHeap::free_page(ZPage* page) {
   _page_allocator.free_page(page);
 }
 
-size_t ZHeap::free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages) {
-  size_t freed = 0;
+zbytes ZHeap::free_empty_pages(ZGenerationId id, const ZArray<ZPage*>* pages) {
+  zbytes freed = 0_zb;
   // Remove page table entries
   ZArrayIterator<ZPage*> iter(pages);
   for (ZPage* page; iter.next(&page);) {
@@ -363,12 +364,12 @@ void ZHeap::print_globals_on(outputStream* st) const {
   st->print_cr(" Young Collection:   %s/%u", ZGeneration::young()->phase_to_string(), ZGeneration::young()->seqnum());
   st->print_cr(" Old Collection:     %s/%u", ZGeneration::old()->phase_to_string(), ZGeneration::old()->seqnum());
   st->print_cr(" Offset Max:         " EXACTFMT " (" PTR_FORMAT ")", EXACTFMTARGS(ZAddressOffsetMax), ZAddressOffsetMax);
-  st->print_cr(" Page Size Small:    %zuM", ZPageSizeSmall / M);
+  st->print_cr(" Page Size Small:    %zuM", ZPageSizeSmall / M_zb);
   if (ZPageSizeMediumEnabled) {
     if (ZPageSizeMediumMin == ZPageSizeMediumMax) {
-      st->print_cr(" Page Size Medium: %zuM", ZPageSizeMediumMax / M);
+      st->print_cr(" Page Size Medium: %zuM", ZPageSizeMediumMax / M_zb);
     } else {
-      st->print_cr(" Page Size Medium: Range [%zuM, %zuM]", ZPageSizeMediumMin / M, ZPageSizeMediumMax / M);
+      st->print_cr(" Page Size Medium: Range [%zuM, %zuM]", ZPageSizeMediumMin / M_zb, ZPageSizeMediumMax / M_zb);
     }
   } else {
     st->print_cr(" Page Size Medium: N/A");

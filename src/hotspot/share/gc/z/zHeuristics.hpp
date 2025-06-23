@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZHEURISTICS_HPP
 #define SHARE_GC_Z_ZHEURISTICS_HPP
 
+#include "gc/z/zSize.hpp"
 #include "memory/allStatic.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -31,15 +32,15 @@ class ZHeuristics : public AllStatic {
 public:
   static void set_medium_page_size();
 
-  static size_t relocation_headroom();
+  static zbytes relocation_headroom();
 
   static bool use_per_cpu_shared_small_pages();
 
   static uint nparallel_workers();
   static uint nconcurrent_workers();
 
-  static size_t significant_heap_overhead();
-  static size_t significant_young_overhead();
+  static zbytes significant_heap_overhead();
+  static zbytes significant_young_overhead();
 };
 
 #endif // SHARE_GC_Z_ZHEURISTICS_HPP

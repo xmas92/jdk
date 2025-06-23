@@ -25,32 +25,33 @@
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/z/zAddressSpaceLimit.hpp"
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
 #include "utilities/ostream.hpp"
 
-static size_t address_space_limit() {
+static zbytes address_space_limit() {
   size_t limit = 0;
 
   if (os::has_allocatable_memory_limit(&limit)) {
-    return limit;
+    return to_zbytes(limit);
   }
 
   // No limit
-  return SIZE_MAX;
+  return MAX_zb;
 }
 
-size_t ZAddressSpaceLimit::heap() {
+zbytes ZAddressSpaceLimit::heap() {
   // Allow the heap to occupy 50% of the address space
-  const size_t limit = address_space_limit() / MaxVirtMemFraction;
-  return align_up(limit, ZGranuleSize);
+  const zbytes limit = address_space_limit() / MaxVirtMemFraction;
+  return ZBytes::align_up(limit, ZGranuleSize);
 }
 
 void ZAddressSpaceLimit::print_limits() {
-  const size_t limit = address_space_limit();
+  const zbytes limit = address_space_limit();
 
-  if (limit == SIZE_MAX) {
+  if (limit == MAX_zb) {
     log_info_p(gc, init)("Address Space Size: unlimited");
   } else {
     log_info_p(gc, init)("Address Space Size: limited (" EXACTFMT ")", EXACTFMTARGS(limit));

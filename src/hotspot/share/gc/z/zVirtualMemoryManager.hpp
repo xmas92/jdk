@@ -39,36 +39,36 @@ class ZVirtualMemoryReserver {
 private:
 
   ZVirtualMemoryRegistry _registry;
-  const size_t           _reserved;
+  const zbytes           _reserved;
 
-  static size_t calculate_min_range(size_t size);
+  static zbytes calculate_min_range(zbytes size);
 
   // Platform specific implementation
   void pd_register_callbacks(ZVirtualMemoryRegistry* registry);
-  bool pd_reserve(zaddress_unsafe addr, size_t size);
-  void pd_unreserve(zaddress_unsafe addr, size_t size);
+  bool pd_reserve(zaddress_unsafe addr, zbytes size);
+  void pd_unreserve(zaddress_unsafe addr, zbytes size);
 
-  bool reserve_contiguous(zoffset start, size_t size);
-  bool reserve_contiguous(size_t size);
-  size_t reserve_discontiguous(zoffset start, size_t size, size_t min_range);
-  size_t reserve_discontiguous(size_t size);
+  bool reserve_contiguous(zoffset start, zbytes size);
+  bool reserve_contiguous(zbytes size);
+  zbytes reserve_discontiguous(zoffset start, zbytes size, zbytes min_range);
+  zbytes reserve_discontiguous(zbytes size);
 
-  size_t reserve(size_t size);
+  zbytes reserve(zbytes size);
   void unreserve(const ZVirtualMemory& vmem);
 
-  DEBUG_ONLY(size_t force_reserve_discontiguous(size_t size);)
+  DEBUG_ONLY(zbytes force_reserve_discontiguous(zbytes size);)
 
 public:
-  ZVirtualMemoryReserver(size_t size);
+  ZVirtualMemoryReserver(zbytes size);
 
-  void initialize_partition_registry(ZVirtualMemoryRegistry* partition_registry, size_t size);
+  void initialize_partition_registry(ZVirtualMemoryRegistry* partition_registry, zbytes size);
 
   void unreserve_all();
 
   bool is_empty() const;
   bool is_contiguous() const;
 
-  size_t reserved() const;
+  zbytes reserved() const;
 
   zoffset_end highest_available_address_end() const;
 };
@@ -84,9 +84,9 @@ private:
   const ZVirtualMemoryRegistry& registry(uint32_t partition_id) const;
 
 public:
-  ZVirtualMemoryManager(size_t max_capacity);
+  ZVirtualMemoryManager(zbytes max_capacity);
 
-  void initialize_partitions(ZVirtualMemoryReserver* reserver, size_t size_for_partitions);
+  void initialize_partitions(ZVirtualMemoryReserver* reserver, zbytes size_for_partitions);
 
   bool is_initialized() const;
   bool is_multi_partition_enabled() const;
@@ -98,12 +98,12 @@ public:
   void insert(const ZVirtualMemory& vmem, uint32_t partition_id);
   void insert_multi_partition(const ZVirtualMemory& vmem);
 
-  size_t remove_from_low_many_at_most(size_t size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_out);
-  ZVirtualMemory remove_from_low(size_t size, uint32_t partition_id);
-  ZVirtualMemory remove_from_low_multi_partition(size_t size);
+  zbytes remove_from_low_many_at_most(zbytes size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_out);
+  ZVirtualMemory remove_from_low(zbytes size, uint32_t partition_id);
+  ZVirtualMemory remove_from_low_multi_partition(zbytes size);
 
   void insert_and_remove_from_low_many(const ZVirtualMemory& vmem, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_out);
-  ZVirtualMemory insert_and_remove_from_low_exact_or_many(size_t size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_in_out);
+  ZVirtualMemory insert_and_remove_from_low_exact_or_many(zbytes size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_in_out);
 };
 
 #endif // SHARE_GC_Z_ZVIRTUALMEMORYMANAGER_HPP

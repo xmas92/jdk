@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZGLOBALS_HPP
 #define SHARE_GC_Z_ZGLOBALS_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #include CPU_HEADER(gc/z/zGlobals)
@@ -32,8 +33,8 @@
 const char* const ZName                         = "The Z Garbage Collector";
 
 // Granule shift/size
-const size_t      ZGranuleSizeShift             = 21; // 2MB
-const size_t      ZGranuleSize                  = (size_t)1 << ZGranuleSizeShift;
+const int         ZGranuleSizeShift             = 21; // 2MB
+const zbytes      ZGranuleSize                  = 1_zb << ZGranuleSizeShift;
 
 // Virtual memory to physical memory ratio
 const size_t      ZVirtualToPhysicalRatio       = 16; // 16:1
@@ -46,14 +47,14 @@ const int         ZPageSizeSmallShift           = (int)ZGranuleSizeShift;
 extern int        ZPageSizeMediumMaxShift;
 
 // Page sizes
-const size_t      ZPageSizeSmall                = (size_t)1 << ZPageSizeSmallShift;
-extern size_t     ZPageSizeMediumMax;
-extern size_t     ZPageSizeMediumMin;
+const zbytes      ZPageSizeSmall                = 1_zb << ZPageSizeSmallShift;
+extern zbytes     ZPageSizeMediumMax;
+extern zbytes     ZPageSizeMediumMin;
 extern bool       ZPageSizeMediumEnabled;
 
 // Object size limits
-const size_t      ZObjectSizeLimitSmall         = ZPageSizeSmall / 8; // 12.5% max waste
-extern size_t     ZObjectSizeLimitMedium;
+const zbytes      ZObjectSizeLimitSmall         = ZPageSizeSmall / 8; // 12.5% max waste
+extern zbytes     ZObjectSizeLimitMedium;
 
 // Object alignment shifts
 extern const int& ZObjectAlignmentSmallShift;
@@ -66,11 +67,11 @@ extern int        ZObjectAlignmentMedium;
 const int         ZObjectAlignmentLarge         = 1 << ZObjectAlignmentLargeShift;
 
 // Cache line size
-const size_t      ZCacheLineSize                = ZPlatformCacheLineSize;
-#define           ZCACHE_ALIGNED                ATTRIBUTE_ALIGNED(ZCacheLineSize)
+const zbytes      ZCacheLineSize                = ZPlatformCacheLineSize;
+#define           ZCACHE_ALIGNED                ATTRIBUTE_ALIGNED(untype(ZCacheLineSize))
 
 // Mark stripe size
-const size_t      ZMarkStripeShift              = ZGranuleSizeShift;
+const int         ZMarkStripeShift              = ZGranuleSizeShift;
 
 // Max number of mark stripes
 const size_t      ZMarkStripesMax               = 16; // Must be a power of two
@@ -79,9 +80,9 @@ const size_t      ZMarkStripesMax               = 16; // Must be a power of two
 const size_t      ZMarkCacheSize                = 1024; // Must be a power of two
 
 // Partial array minimum size
-const size_t      ZMarkPartialArrayMinSizeShift = 12; // 4K
-const size_t      ZMarkPartialArrayMinSize      = (size_t)1 << ZMarkPartialArrayMinSizeShift;
-const size_t      ZMarkPartialArrayMinLength    = ZMarkPartialArrayMinSize / oopSize;
+const int         ZMarkPartialArrayMinSizeShift = 12; // 4K
+const zbytes      ZMarkPartialArrayMinSize      = 1_zb << ZMarkPartialArrayMinSizeShift;
+const size_t      ZMarkPartialArrayMinLength    = ZMarkPartialArrayMinSize / to_zbytes(oopSize);
 
 // Max number of proactive/terminate flush attempts
 const size_t      ZMarkProactiveFlushMax        = 10;

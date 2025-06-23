@@ -23,6 +23,7 @@
 
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "zunittest.hpp"
 
 using namespace testing;
@@ -55,7 +56,7 @@ public:
 TEST_F(ZNUMATest, calculate_share) {
   {
     // Test even spread
-    const size_t total = nodes * ZGranuleSize;
+    const zbytes total = nodes * ZGranuleSize;
 
     for (uint32_t numa_id = 0; numa_id < nodes; ++numa_id) {
       EXPECT_EQ(ZNUMA::calculate_share(numa_id, total), ZGranuleSize);
@@ -64,18 +65,18 @@ TEST_F(ZNUMATest, calculate_share) {
 
   {
     // Test not enough for every node (WITHOUT ignore_count)
-    const size_t total = (nodes - 1) * ZGranuleSize;
+    const zbytes total = (nodes - 1) * ZGranuleSize;
 
     for (uint32_t numa_id = 0; numa_id < (nodes - 1); ++numa_id) {
       EXPECT_EQ(ZNUMA::calculate_share(numa_id, total), ZGranuleSize);
     }
-    EXPECT_EQ(ZNUMA::calculate_share(nodes - 1, total), (size_t)0);
+    EXPECT_EQ(ZNUMA::calculate_share(nodes - 1, total), 0_zb);
   }
 
   {
     // Test not enough for every node (WITH ignore_count)
     const size_t ignore_count = 2;
-    const size_t total = nodes * ZGranuleSize;
+    const zbytes total = nodes * ZGranuleSize;
 
     for (uint32_t numa_id = 0; numa_id < (nodes - ignore_count); ++numa_id) {
       EXPECT_EQ(ZNUMA::calculate_share(numa_id, total, ZGranuleSize, ignore_count), nodes * ZGranuleSize / (nodes - ignore_count));
@@ -84,16 +85,16 @@ TEST_F(ZNUMATest, calculate_share) {
 
   {
     // Test no size
-    const size_t total = 0;
+    const zbytes total = 0_zb;
 
     for (uint32_t numa_id = 0; numa_id < (nodes - 1); ++numa_id) {
-      EXPECT_EQ(ZNUMA::calculate_share(numa_id, total), (size_t)0);
+      EXPECT_EQ(ZNUMA::calculate_share(numa_id, total), 0_zb);
     }
   }
 
   {
     // Test one more than even
-    const size_t total = (nodes + 1) * ZGranuleSize;
+    const zbytes total = (nodes + 1) * ZGranuleSize;
 
     EXPECT_EQ(ZNUMA::calculate_share(0, total), ZGranuleSize * 2);
     for (uint32_t numa_id = 1; numa_id < nodes; ++numa_id) {
@@ -103,7 +104,7 @@ TEST_F(ZNUMATest, calculate_share) {
 
   {
     // Test one less than even
-    const size_t total = (nodes * 2 - 1) * ZGranuleSize;
+    const zbytes total = (nodes * 2 - 1) * ZGranuleSize;
 
     for (uint32_t numa_id = 0; numa_id < (nodes - 1); ++numa_id) {
       EXPECT_EQ(ZNUMA::calculate_share(numa_id, total), 2 * ZGranuleSize);

@@ -25,20 +25,21 @@
 #define OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zSize.hpp"
 
 class ZErrno;
 
 class ZPhysicalMemoryBacking {
 private:
   int      _fd;
-  size_t   _size;
+  zbytes   _size;
   uint64_t _filesystem;
-  size_t   _block_size;
-  size_t   _available;
+  zbytes   _block_size;
+  zbytes   _available;
   bool     _initialized;
 
-  void warn_available_space(size_t max_capacity) const;
-  void warn_max_map_count(size_t max_capacity) const;
+  void warn_available_space(zbytes max_capacity) const;
+  void warn_max_map_count(zbytes max_capacity) const;
 
   int create_mem_fd(const char* name) const;
   int create_file_fd(const char* name) const;
@@ -48,32 +49,32 @@ private:
   bool is_hugetlbfs() const;
   bool tmpfs_supports_transparent_huge_pages() const;
 
-  ZErrno fallocate_compat_mmap_hugetlbfs(zbacking_offset offset, size_t length, bool touch) const;
-  ZErrno fallocate_compat_mmap_tmpfs(zbacking_offset offset, size_t length) const;
-  ZErrno fallocate_compat_pwrite(zbacking_offset offset, size_t length) const;
-  ZErrno fallocate_fill_hole_compat(zbacking_offset offset, size_t length) const;
-  ZErrno fallocate_fill_hole_syscall(zbacking_offset offset, size_t length) const;
-  ZErrno fallocate_fill_hole(zbacking_offset offset, size_t length) const;
-  ZErrno fallocate_punch_hole(zbacking_offset offset, size_t length) const;
-  ZErrno split_and_fallocate(bool punch_hole, zbacking_offset offset, size_t length) const;
-  ZErrno fallocate(bool punch_hole, zbacking_offset offset, size_t length) const;
+  ZErrno fallocate_compat_mmap_hugetlbfs(zbacking_offset offset, zbytes size, bool touch) const;
+  ZErrno fallocate_compat_mmap_tmpfs(zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate_compat_pwrite(zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate_fill_hole_compat(zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate_fill_hole_syscall(zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate_fill_hole(zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate_punch_hole(zbacking_offset offset, zbytes size) const;
+  ZErrno split_and_fallocate(bool punch_hole, zbacking_offset offset, zbytes size) const;
+  ZErrno fallocate(bool punch_hole, zbacking_offset offset, zbytes size) const;
 
-  bool commit_inner(zbacking_offset offset, size_t length) const;
-  size_t commit_numa_preferred(zbacking_offset offset, size_t length, uint32_t numa_id) const;
-  size_t commit_default(zbacking_offset offset, size_t length) const;
+  bool commit_inner(zbacking_offset offset, zbytes size) const;
+  zbytes commit_numa_preferred(zbacking_offset offset, zbytes size, uint32_t numa_id) const;
+  zbytes commit_default(zbacking_offset offset, zbytes size) const;
 
 public:
-  ZPhysicalMemoryBacking(size_t max_capacity);
+  ZPhysicalMemoryBacking(zbytes max_capacity);
 
   bool is_initialized() const;
 
-  void warn_commit_limits(size_t max_capacity) const;
+  void warn_commit_limits(zbytes max_capacity) const;
 
-  size_t commit(zbacking_offset offset, size_t length, uint32_t numa_id) const;
-  size_t uncommit(zbacking_offset offset, size_t length) const;
+  zbytes commit(zbacking_offset offset, zbytes size, uint32_t numa_id) const;
+  zbytes uncommit(zbacking_offset offset, zbytes size) const;
 
-  void map(zaddress_unsafe addr, size_t size, zbacking_offset offset) const;
-  void unmap(zaddress_unsafe addr, size_t size) const;
+  void map(zaddress_unsafe addr, zbytes size, zbacking_offset offset) const;
+  void unmap(zaddress_unsafe addr, zbytes size) const;
 };
 
 #endif // OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP

@@ -56,9 +56,9 @@ private:
   typedef ZArray<volatile zpointer*> PointerArray;
 
   const ZVirtualMemory   _virtual;
-  const size_t           _object_alignment_shift;
   const AttachedArray    _entries;
   ZPage* const           _page;
+  const int              _object_alignment_shift;
   const ZPageAge         _from_age;
   const ZPageAge         _to_age;
   volatile bool          _claimed;
@@ -105,8 +105,8 @@ public:
   ZPageAge to_age() const;
   zoffset start() const;
   zoffset_end end() const;
-  size_t size() const;
-  size_t object_alignment_shift() const;
+  zbytes size() const;
+  int object_alignment_shift() const;
 
   bool is_promotion() const;
 

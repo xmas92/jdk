@@ -44,22 +44,22 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
 
-ZPhysicalMemoryManager::ZPhysicalMemoryManager(size_t max_capacity)
+ZPhysicalMemoryManager::ZPhysicalMemoryManager(zbytes max_capacity)
   : _backing(max_capacity),
     _physical_mappings(ZAddressOffsetMax) {
-  assert(is_aligned(max_capacity, ZGranuleSize), "must be granule aligned");
+  assert(ZBytes::is_aligned(max_capacity, ZGranuleSize), "must be granule aligned");
 
   // Setup backing storage limits
-  ZBackingOffsetMax = max_capacity;
+  ZBackingOffsetMax = untype(max_capacity);
   ZBackingIndexMax = checked_cast<uint32_t>(max_capacity >> ZGranuleSizeShift);
 
   // Install capacity into the registry
-  const size_t num_segments_total = max_capacity >> ZGranuleSizeShift;
+  const uint32_t num_segments_total = max_capacity / ZGranuleSize;
   zbacking_index_end next_index = zbacking_index_end::zero;
   uint32_t numa_id;
   ZPerNUMAIterator<ZBackingIndexRegistry> iter(&_partition_registries);
   for (ZBackingIndexRegistry* registry; iter.next(&registry, &numa_id);) {
-    const size_t num_segments = ZNUMA::calculate_share(numa_id, num_segments_total, 1 /* granule */);
+    const uint32_t num_segments = ZNUMA::calculate_share(numa_id, num_segments_total, 1u /* granule */);
 
     if (num_segments == 0) {
       // If the capacity consist of less granules than the number of partitions,
@@ -83,11 +83,11 @@ bool ZPhysicalMemoryManager::is_initialized() const {
   return _backing.is_initialized();
 }
 
-void ZPhysicalMemoryManager::warn_commit_limits(size_t max_capacity) const {
+void ZPhysicalMemoryManager::warn_commit_limits(zbytes max_capacity) const {
   _backing.warn_commit_limits(max_capacity);
 }
 
-void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max_capacity) {
+void ZPhysicalMemoryManager::try_enable_uncommit(zbytes min_capacity, zbytes max_capacity) {
   assert(!is_init_completed(), "Invalid state");
 
   // If uncommit is not explicitly disabled, max capacity is greater than
@@ -107,7 +107,7 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
   // Test if uncommit is supported by the operating system by committing
   // and then uncommitting a granule.
   const ZVirtualMemory vmem(zoffset(0), ZGranuleSize);
-  if (!commit(vmem, (uint32_t)-1) || !uncommit(vmem)) {
+  if (commit(vmem, (uint32_t)-1) == 0_zb || uncommit(vmem) == 0_zb) {
     log_info_p(gc, init)("Uncommit: Implicitly Disabled (Not supported by operating system)");
     FLAG_SET_ERGO(ZUncommit, false);
     return;
@@ -124,12 +124,12 @@ void ZPhysicalMemoryManager::try_enable_uncommit(size_t min_capacity, size_t max
 
 void ZPhysicalMemoryManager::alloc(const ZVirtualMemory& vmem, uint32_t numa_id) {
   zbacking_index* const pmem = _physical_mappings.addr(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
-  assert(is_aligned(size, ZGranuleSize), "Invalid size");
+  assert(ZBytes::is_aligned(size, ZGranuleSize), "Invalid size");
 
-  size_t current_segment = 0;
-  size_t remaining_segments = size >> ZGranuleSizeShift;
+  uint32_t current_segment = 0;
+  uint32_t remaining_segments = size / ZGranuleSize;
 
   while (remaining_segments != 0) {
     // Allocate a range of backing segment indices
@@ -137,11 +137,11 @@ void ZPhysicalMemoryManager::alloc(const ZVirtualMemory& vmem, uint32_t numa_id)
     const ZBackingIndexRange range = registry.remove_from_low_at_most(remaining_segments);
     assert(!range.is_null(), "Allocation should never fail");
 
-    const size_t num_allocated_segments = range.size();
+    const uint32_t num_allocated_segments = range.size();
 
     // Insert backing segment indices in pmem
     const zbacking_index start_i = range.start();
-    for (size_t i = 0; i < num_allocated_segments; i++) {
+    for (uint32_t i = 0; i < num_allocated_segments; i++) {
       pmem[current_segment + i] = start_i + i;
     }
 
@@ -154,7 +154,7 @@ void ZPhysicalMemoryManager::alloc(const ZVirtualMemory& vmem, uint32_t numa_id)
 template <typename ReturnType>
 struct IterateInvoker {
   template<typename Function>
-  bool operator()(Function function, zbacking_offset segment_start, size_t segment_size) const {
+  bool operator()(Function function, zbacking_offset segment_start, zbytes segment_size) const {
     return function(segment_start, segment_size);
   }
 };
@@ -162,34 +162,34 @@ struct IterateInvoker {
 template<>
 struct IterateInvoker<void> {
   template<typename Function>
-  bool operator()(Function function, zbacking_offset segment_start, size_t segment_size) const {
+  bool operator()(Function function, zbacking_offset segment_start, zbytes segment_size) const {
     function(segment_start, segment_size);
     return true;
   }
 };
 
 template<typename Function>
-bool for_each_segment_apply(const zbacking_index* pmem, size_t size, Function function) {
-  IterateInvoker<decltype(function(zbacking_offset{}, size_t{}))> invoker;
+bool for_each_segment_apply(const zbacking_index* pmem, zbytes size, Function function) {
+  IterateInvoker<decltype(function(zbacking_offset{}, zbytes{}))> invoker;
 
   // Total number of segment indices
-  const size_t num_segments = size >> ZGranuleSizeShift;
+  const uint32_t num_segments = size / ZGranuleSize;
 
   // Apply the function over all zbacking_offset ranges consisting of consecutive indices
-  for (size_t i = 0; i < num_segments; i++) {
-    const size_t start_i = i;
+  for (uint32_t i = 0; i < num_segments; i++) {
+    const uint32_t start_i = i;
 
     // Find index corresponding to the last index in the consecutive range starting at start_i
     while (i + 1 < num_segments && to_zbacking_index_end(pmem[i], 1) == pmem[i + 1]) {
       i++;
     }
 
-    const size_t last_i = i;
+    const uint32_t last_i = i;
 
     // [start_i, last_i] now forms a consecutive range of indicies in pmem
-    const size_t num_indicies = last_i - start_i + 1;
+    const uint32_t num_indicies = last_i - start_i + 1;
     const zbacking_offset start = to_zbacking_offset(pmem[start_i]);
-    const size_t size = num_indicies * ZGranuleSize;
+    const zbytes size = num_indicies * ZGranuleSize;
 
     // Invoke function on zbacking_offset Range [start, start + size[
     if (!invoker(function, start, size)) {
@@ -202,11 +202,11 @@ bool for_each_segment_apply(const zbacking_index* pmem, size_t size, Function fu
 
 void ZPhysicalMemoryManager::free(const ZVirtualMemory& vmem, uint32_t numa_id) {
   zbacking_index* const pmem = _physical_mappings.addr(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
   // Free segments
-  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, size_t segment_size) {
-    const size_t num_segments = segment_size >> ZGranuleSizeShift;
+  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, zbytes segment_size) {
+    const uint32_t num_segments = segment_size / ZGranuleSize;
     const zbacking_index index = to_zbacking_index(segment_start);
 
     // Insert the free segment indices
@@ -214,21 +214,21 @@ void ZPhysicalMemoryManager::free(const ZVirtualMemory& vmem, uint32_t numa_id) 
   });
 }
 
-size_t ZPhysicalMemoryManager::commit(const ZVirtualMemory& vmem, uint32_t numa_id) {
+zbytes ZPhysicalMemoryManager::commit(const ZVirtualMemory& vmem, uint32_t numa_id) {
   zbacking_index* const pmem = _physical_mappings.addr(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
-  size_t total_committed = 0;
+  zbytes total_committed = 0_zb;
 
   // Commit segments
-  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, zbytes segment_size) {
     // Commit segment
-    const size_t committed = _backing.commit(segment_start, segment_size, numa_id);
+    const zbytes committed = _backing.commit(segment_start, segment_size, numa_id);
 
     total_committed += committed;
 
     // Register with NMT
-    if (committed > 0) {
+    if (committed > 0_zb) {
       ZNMT::commit(segment_start, committed);
     }
 
@@ -239,21 +239,21 @@ size_t ZPhysicalMemoryManager::commit(const ZVirtualMemory& vmem, uint32_t numa_
   return total_committed;
 }
 
-size_t ZPhysicalMemoryManager::uncommit(const ZVirtualMemory& vmem) {
+zbytes ZPhysicalMemoryManager::uncommit(const ZVirtualMemory& vmem) {
   zbacking_index* const pmem = _physical_mappings.addr(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
-  size_t total_uncommitted = 0;
+  zbytes total_uncommitted = 0_zb;
 
   // Uncommit segments
-  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, zbytes segment_size) {
     // Uncommit segment
-    const size_t uncommitted = _backing.uncommit(segment_start, segment_size);
+    const zbytes uncommitted = _backing.uncommit(segment_start, segment_size);
 
     total_uncommitted += uncommitted;
 
     // Unregister with NMT
-    if (uncommitted > 0) {
+    if (uncommitted > 0_zb) {
       ZNMT::uncommit(segment_start, uncommitted);
     }
 
@@ -268,11 +268,11 @@ size_t ZPhysicalMemoryManager::uncommit(const ZVirtualMemory& vmem) {
 void ZPhysicalMemoryManager::map(const ZVirtualMemory& vmem, uint32_t numa_id) const {
   const zbacking_index* const pmem = _physical_mappings.addr(vmem.start());
   const zaddress_unsafe addr = ZOffset::address_unsafe(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
-  size_t mapped = 0;
+  zbytes mapped = 0_zb;
 
-  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, size_t segment_size) {
+  for_each_segment_apply(pmem, size, [&](zbacking_offset segment_start, zbytes segment_size) {
     _backing.map(addr + mapped, segment_size, segment_start);
     mapped += segment_size;
   });
@@ -281,14 +281,14 @@ void ZPhysicalMemoryManager::map(const ZVirtualMemory& vmem, uint32_t numa_id) c
 
   // Setup NUMA preferred for large pages
   if (ZNUMA::is_enabled() && ZLargePages::is_explicit()) {
-    os::numa_make_local((char*)addr, size, (int)numa_id);
+    os::numa_make_local((char*)addr, untype(size), (int)numa_id);
   }
 }
 
 // Unmap virtual memory from physical memory
 void ZPhysicalMemoryManager::unmap(const ZVirtualMemory& vmem) const {
   const zaddress_unsafe addr = ZOffset::address_unsafe(vmem.start());
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
   _backing.unmap(addr, size);
 }
 

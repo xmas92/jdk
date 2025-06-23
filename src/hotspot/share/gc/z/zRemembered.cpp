@@ -31,6 +31,7 @@
 #include "gc/z/zPageTable.hpp"
 #include "gc/z/zRemembered.inline.hpp"
 #include "gc/z/zRememberedSet.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zTask.hpp"
 #include "gc/z/zVerify.hpp"
 #include "memory/iterator.hpp"
@@ -51,7 +52,7 @@ void ZRemembered::oops_do_forwarded_via_containing(GrowableArrayView<ZRemembered
   // The array contains duplicated from_addr values. Cache expensive operations.
   zaddress_unsafe from_addr = zaddress_unsafe::null;
   zaddress to_addr = zaddress::null;
-  size_t object_size = 0;
+  zbytes object_size = 0_zb;
 
   for (const ZRememberedSetContaining containing: *array) {
     if (from_addr != containing._addr) {
@@ -65,7 +66,7 @@ void ZRemembered::oops_do_forwarded_via_containing(GrowableArrayView<ZRemembered
     }
 
     // Calculate how far into the from-object the remset entry is
-    const uintptr_t field_offset = containing._field_addr - from_addr;
+    const zbytes field_offset = containing._field_addr - from_addr;
 
     // The 'containing' could contain mismatched (addr, addr_field).
     // Need to check if the field was within the reported object.

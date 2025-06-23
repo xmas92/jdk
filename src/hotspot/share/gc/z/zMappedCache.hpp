@@ -91,11 +91,11 @@ private:
 
   Tree          _tree;
   SizeClassList _size_class_lists[NumSizeClasses];
-  size_t        _size;
-  size_t        _min_size_watermark;
+  zbytes        _size;
+  zbytes        _min_size_watermark;
 
-  static int size_class_index(size_t size);
-  static int guaranteed_size_class_index(size_t size);
+  static int size_class_index(zbytes size);
+  static int guaranteed_size_class_index(zbytes size);
 
   void cache_insert(const TreeCursor& cursor, const ZVirtualMemory& vmem);
   void cache_remove(const TreeCursor& cursor, const ZVirtualMemory& vmem);
@@ -109,33 +109,33 @@ private:
   };
 
   template <RemovalStrategy strategy, typename SelectFunction>
-  ZVirtualMemory remove_vmem(ZMappedCacheEntry* const entry, size_t min_size, SelectFunction select);
+  ZVirtualMemory remove_vmem(ZMappedCacheEntry* const entry, zbytes min_size, SelectFunction select);
 
   template <typename SelectFunction, typename ConsumeFunction>
-  bool try_remove_vmem_size_class(size_t min_size, SelectFunction select, ConsumeFunction consume);
+  bool try_remove_vmem_size_class(zbytes min_size, SelectFunction select, ConsumeFunction consume);
 
   template <RemovalStrategy strategy, typename SelectFunction, typename ConsumeFunction>
-  void scan_remove_vmem(size_t min_size, SelectFunction select, ConsumeFunction consume);
+  void scan_remove_vmem(zbytes min_size, SelectFunction select, ConsumeFunction consume);
 
   template <RemovalStrategy strategy, typename SelectFunction, typename ConsumeFunction>
   void scan_remove_vmem(SelectFunction select, ConsumeFunction consume);
 
   template <RemovalStrategy strategy>
-  size_t remove_discontiguous_with_strategy(size_t size, ZArray<ZVirtualMemory>* out);
+  zbytes remove_discontiguous_with_strategy(zbytes size, ZArray<ZVirtualMemory>* out);
 
 public:
   ZMappedCache();
 
   void insert(const ZVirtualMemory& vmem);
 
-  ZVirtualMemory remove_contiguous(size_t size);
-  ZVirtualMemory remove_contiguous_power_of_2(size_t min_size, size_t max_size);
-  size_t remove_discontiguous(size_t size, ZArray<ZVirtualMemory>* out);
+  ZVirtualMemory remove_contiguous(zbytes size);
+  ZVirtualMemory remove_contiguous_power_of_2(zbytes min_size, zbytes max_size);
+  zbytes remove_discontiguous(zbytes size, ZArray<ZVirtualMemory>* out);
 
   // ZUncommitter support
   void reset_min_size_watermark();
-  size_t min_size_watermark();
-  size_t remove_for_uncommit(size_t size, ZArray<ZVirtualMemory>* out);
+  zbytes min_size_watermark();
+  zbytes remove_for_uncommit(zbytes size, ZArray<ZVirtualMemory>* out);
 
   void print_on(outputStream* st) const;
   void print_extended_on(outputStream* st) const;

@@ -36,7 +36,7 @@
 #include <ostream>
 
 inline std::ostream& operator<<(std::ostream& str, const ZVirtualMemory& vmem) {
-  return str << "ZVirtualMemory{start=" << (void*)untype(vmem.start()) << ", size=" << vmem.size() << "}";
+  return str << "ZVirtualMemory{start=" << (void*)untype(vmem.start()) << ", size=" << untype(vmem.size()) << "}";
 }
 
 class ZAddressOffsetMaxSetter {

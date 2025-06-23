@@ -46,6 +46,7 @@
 #include "gc/z/zPage.hpp"
 #include "gc/z/zPageTable.inline.hpp"
 #include "gc/z/zRootsIterator.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStackWatermark.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zTask.hpp"
@@ -419,8 +420,8 @@ void ZMark::mark_and_follow(ZMarkContext* context, ZMarkStackEntry entry) {
     // Update live objects/bytes for page. We use the aligned object
     // size since that is the actual number of bytes used on the page
     // and alignment paddings can never be reclaimed.
-    const size_t size = ZUtils::object_size(addr);
-    const size_t aligned_size = align_up(size, page->object_alignment());
+    const zbytes size = ZUtils::object_size(addr);
+    const zbytes aligned_size = ZBytes::align_up(size, page->object_alignment());
     context->cache()->inc_live(page, aligned_size);
   }
 

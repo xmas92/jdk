@@ -30,6 +30,7 @@
 #include "gc/z/zBitMap.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zMark.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/bitMap.inline.hpp"
@@ -47,7 +48,7 @@ inline uint32_t ZLiveMap::live_objects() const {
   return _live_objects;
 }
 
-inline size_t ZLiveMap::live_bytes() const {
+inline zbytes ZLiveMap::live_bytes() const {
   return _live_bytes;
 }
 
@@ -115,9 +116,9 @@ inline bool ZLiveMap::set(ZGenerationId id, BitMap::idx_t index, bool finalizabl
   return _bitmap.par_set_bit_pair(index, finalizable, inc_live);
 }
 
-inline void ZLiveMap::inc_live(uint32_t objects, size_t bytes) {
+inline void ZLiveMap::inc_live(uint32_t objects, zbytes bytes) {
   Atomic::add(&_live_objects, objects);
-  Atomic::add(&_live_bytes, bytes);
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_live_bytes), untype(bytes));
 }
 
 inline BitMap::idx_t ZLiveMap::segment_start(BitMap::idx_t segment) const {
@@ -126,17 +127,6 @@ inline BitMap::idx_t ZLiveMap::segment_start(BitMap::idx_t segment) const {
 
 inline BitMap::idx_t ZLiveMap::segment_end(BitMap::idx_t segment) const {
   return segment_start(segment) + _segment_size;
-}
-
-inline size_t ZLiveMap::do_object(ObjectClosure* cl, zaddress addr) const {
-  // Get the size of the object before calling the closure, which
-  // might overwrite the object in case we are relocating in-place.
-  const size_t size = ZUtils::object_size(addr);
-
-  // Apply closure
-  cl->do_object(to_oop(addr));
-
-  return size;
 }
 
 template <typename Function>

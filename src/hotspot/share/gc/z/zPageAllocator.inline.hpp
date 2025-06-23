@@ -26,17 +26,17 @@
 
 #include "gc/z/zPageAllocator.hpp"
 
-inline ZPageAllocatorStats::ZPageAllocatorStats(size_t min_capacity,
-                                                size_t max_capacity,
-                                                size_t soft_max_capacity,
-                                                size_t capacity,
-                                                size_t used,
-                                                size_t used_high,
-                                                size_t used_low,
-                                                size_t used_generation,
-                                                size_t freed,
-                                                size_t promoted,
-                                                size_t compacted,
+inline ZPageAllocatorStats::ZPageAllocatorStats(zbytes min_capacity,
+                                                zbytes max_capacity,
+                                                zbytes soft_max_capacity,
+                                                zbytes capacity,
+                                                zbytes used,
+                                                zbytes used_high,
+                                                zbytes used_low,
+                                                zbytes used_generation,
+                                                zbytes freed,
+                                                zbytes promoted,
+                                                zbytes compacted,
                                                 size_t allocation_stalls)
   : _min_capacity(min_capacity),
     _max_capacity(max_capacity),
@@ -51,47 +51,47 @@ inline ZPageAllocatorStats::ZPageAllocatorStats(size_t min_capacity,
     _compacted(compacted),
     _allocation_stalls(allocation_stalls) {}
 
-inline size_t ZPageAllocatorStats::min_capacity() const {
+inline zbytes ZPageAllocatorStats::min_capacity() const {
   return _min_capacity;
 }
 
-inline size_t ZPageAllocatorStats::max_capacity() const {
+inline zbytes ZPageAllocatorStats::max_capacity() const {
   return _max_capacity;
 }
 
-inline size_t ZPageAllocatorStats::soft_max_capacity() const {
+inline zbytes ZPageAllocatorStats::soft_max_capacity() const {
   return _soft_max_capacity;
 }
 
-inline size_t ZPageAllocatorStats::capacity() const {
+inline zbytes ZPageAllocatorStats::capacity() const {
   return _capacity;
 }
 
-inline size_t ZPageAllocatorStats::used() const {
+inline zbytes ZPageAllocatorStats::used() const {
   return _used;
 }
 
-inline size_t ZPageAllocatorStats::used_high() const {
+inline zbytes ZPageAllocatorStats::used_high() const {
   return _used_high;
 }
 
-inline size_t ZPageAllocatorStats::used_low() const {
+inline zbytes ZPageAllocatorStats::used_low() const {
   return _used_low;
 }
 
-inline size_t ZPageAllocatorStats::used_generation() const {
+inline zbytes ZPageAllocatorStats::used_generation() const {
   return _used_generation;
 }
 
-inline size_t ZPageAllocatorStats::freed() const {
+inline zbytes ZPageAllocatorStats::freed() const {
   return _freed;
 }
 
-inline size_t ZPageAllocatorStats::promoted() const {
+inline zbytes ZPageAllocatorStats::promoted() const {
   return _promoted;
 }
 
-inline size_t ZPageAllocatorStats::compacted() const {
+inline zbytes ZPageAllocatorStats::compacted() const {
   return _compacted;
 }
 

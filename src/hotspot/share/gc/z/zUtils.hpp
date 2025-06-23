@@ -25,7 +25,9 @@
 #define SHARE_GC_Z_ZUTILS_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allStatic.hpp"
+#include "oops/oopsHierarchy.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 class ZUtils : public AllStatic {
@@ -34,19 +36,16 @@ public:
   static const char* thread_name();
 
   // Allocation
-  static uintptr_t alloc_aligned_unfreeable(size_t alignment, size_t size);
-
-  // Size conversion
-  static size_t bytes_to_words(size_t size_in_words);
-  static size_t words_to_bytes(size_t size_in_words);
+  static uintptr_t alloc_aligned_unfreeable(zbytes alignment, zbytes size);
 
   // Object
-  static size_t object_size(zaddress addr);
-  static void object_copy_disjoint(zaddress from, zaddress to, size_t size);
-  static void object_copy_conjoint(zaddress from, zaddress to, size_t size);
+  static zbytes object_size(oop obj);
+  static zbytes object_size(zaddress addr);
+  static void object_copy_disjoint(zaddress from, zaddress to, zbytes size);
+  static void object_copy_conjoint(zaddress from, zaddress to, zbytes size);
 
   // Memory
-  static void fill(uintptr_t* addr, size_t count, uintptr_t value);
+  static void fill(uintptr_t* addr, zwords count, uintptr_t value);
   template <typename T>
   static void copy_disjoint(T* dest, const T* src, size_t count);
   template <typename T>

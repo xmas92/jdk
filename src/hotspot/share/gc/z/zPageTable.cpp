@@ -26,6 +26,7 @@
 #include "gc/z/zIndexDistributor.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageTable.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "runtime/orderAccess.hpp"
 #include "utilities/debug.hpp"
 
@@ -42,7 +43,7 @@ ZPageTable::ZPageTable()
 
 void ZPageTable::insert(ZPage* page) {
   const zoffset offset = page->start();
-  const size_t size = page->size();
+  const zbytes size = page->size();
 
   // Make sure a newly created page is
   // visible before updating the page table.
@@ -58,7 +59,7 @@ void ZPageTable::insert(ZPage* page) {
 
 void ZPageTable::remove(ZPage* page) {
   const zoffset offset = page->start();
-  const size_t size = page->size();
+  const zbytes size = page->size();
 
   assert(_map.get(offset) == page, "Invalid entry");
   _map.put(offset, size, nullptr);
@@ -66,7 +67,7 @@ void ZPageTable::remove(ZPage* page) {
 
 void ZPageTable::replace(ZPage* old_page, ZPage* new_page) {
   const zoffset offset = old_page->start();
-  const size_t size = old_page->size();
+  const zbytes size = old_page->size();
 
   assert(_map.get(offset) == old_page, "Invalid entry");
   _map.release_put(offset, size, new_page);

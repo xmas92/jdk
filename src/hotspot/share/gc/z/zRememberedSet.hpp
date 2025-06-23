@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zBitMap.hpp"
+#include "gc/z/zSize.hpp"
 
 class OopClosure;
 class ZPage;
@@ -66,7 +67,7 @@ class ZRememberedSetContainingInLiveIterator {
 private:
   ZRememberedSetContainingIterator _iter;
   zaddress                         _addr;
-  size_t                           _addr_size;
+  zbytes                           _addr_size;
   size_t                           _count;
   size_t                           _count_skipped;
   ZPage* const                     _page;
@@ -105,7 +106,7 @@ public:
 
   static uintptr_t to_offset(BitMap::idx_t index);
   static BitMap::idx_t to_index(uintptr_t offset);
-  static BitMap::idx_t to_bit_size(size_t size);
+  static BitMap::idx_t to_bit_size(zbytes size);
 
 public:
   static void flip();
@@ -113,13 +114,13 @@ public:
   ZRememberedSet();
 
   bool is_initialized() const;
-  void initialize(size_t page_size);
+  void initialize(zbytes page_size);
 
   bool at_current(uintptr_t offset) const;
   bool at_previous(uintptr_t offset) const;
   bool set_current(uintptr_t offset);
   void unset_non_par_current(uintptr_t offset);
-  void unset_range_non_par_current(uintptr_t offset, size_t size);
+  void unset_range_non_par_current(uintptr_t offset, zbytes size);
 
   // Visit all set offsets.
   template <typename Function /* void(uintptr_t offset) */>
@@ -135,8 +136,8 @@ public:
   void swap_remset_bitmaps();
 
   ZBitMap::ReverseIterator iterator_reverse_previous();
-  BitMap::Iterator iterator_limited_current(uintptr_t offset, size_t size);
-  BitMap::Iterator iterator_limited_previous(uintptr_t offset, size_t size);
+  BitMap::Iterator iterator_limited_current(uintptr_t offset, zbytes size);
+  BitMap::Iterator iterator_limited_previous(uintptr_t offset, zbytes size);
 };
 
 #endif // SHARE_GC_Z_ZREMEMBEREDSET_HPP

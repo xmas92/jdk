@@ -24,6 +24,8 @@
 #ifndef CPU_X86_GC_Z_ZGLOBALS_X86_HPP
 #define CPU_X86_GC_Z_ZGLOBALS_X86_HPP
 
-const size_t ZPlatformCacheLineSize    = 64;
+#include "gc/z/zSize.hpp"
+
+const zbytes ZPlatformCacheLineSize    = 64_zb;
 
 #endif // CPU_X86_GC_Z_ZGLOBALS_X86_HPP

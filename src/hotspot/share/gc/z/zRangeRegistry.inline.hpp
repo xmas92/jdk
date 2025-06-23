@@ -26,6 +26,7 @@
 
 #include "gc/z/zRangeRegistry.hpp"
 
+#include "gc/z/zArray.inline.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
@@ -37,7 +38,7 @@ void ZRangeRegistry<Range>::move_into(const Range& range) {
 
   const offset start = range.start();
   const offset_end end = range.end();
-  const size_t size = range.size();
+  const size_type size = range.size();
 
   ZListIterator<Node> iter(&_list);
   for (Node* node; iter.next(&node);) {
@@ -97,7 +98,7 @@ void ZRangeRegistry<Range>::register_inner(const Range& range) {
 }
 
 template <typename Range>
-void ZRangeRegistry<Range>::grow_from_front(Range* range, size_t size) {
+void ZRangeRegistry<Range>::grow_from_front(Range* range, size_type size) {
   if (_callbacks._grow != nullptr) {
     const Range from = *range;
     const Range to = Range(from.start() - size, from.size() + size);
@@ -107,7 +108,7 @@ void ZRangeRegistry<Range>::grow_from_front(Range* range, size_t size) {
 }
 
 template <typename Range>
-void ZRangeRegistry<Range>::grow_from_back(Range* range, size_t size) {
+void ZRangeRegistry<Range>::grow_from_back(Range* range, size_type size) {
   if (_callbacks._grow != nullptr) {
     const Range from = *range;
     const Range to = Range(from.start(), from.size() + size);
@@ -117,7 +118,7 @@ void ZRangeRegistry<Range>::grow_from_back(Range* range, size_t size) {
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::shrink_from_front(Range* range, size_t size) {
+Range ZRangeRegistry<Range>::shrink_from_front(Range* range, size_type size) {
   if (_callbacks._shrink != nullptr) {
     const Range from = *range;
     const Range to = from.last_part(size);
@@ -127,7 +128,7 @@ Range ZRangeRegistry<Range>::shrink_from_front(Range* range, size_t size) {
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::shrink_from_back(Range* range, size_t size) {
+Range ZRangeRegistry<Range>::shrink_from_back(Range* range, size_type size) {
   if (_callbacks._shrink != nullptr) {
     const Range from = *range;
     const Range to = from.first_part(from.size() - size);
@@ -137,7 +138,7 @@ Range ZRangeRegistry<Range>::shrink_from_back(Range* range, size_t size) {
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::remove_from_low_inner(size_t size) {
+Range ZRangeRegistry<Range>::remove_from_low_inner(size_type size) {
   ZListIterator<Node> iter(&_list);
   for (Node* node; iter.next(&node);) {
     if (node->size() >= size) {
@@ -166,7 +167,7 @@ Range ZRangeRegistry<Range>::remove_from_low_inner(size_t size) {
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::remove_from_low_at_most_inner(size_t size) {
+Range ZRangeRegistry<Range>::remove_from_low_at_most_inner(size_type size) {
   Node* const node = _list.first();
   if (node == nullptr) {
     // List is empty
@@ -193,10 +194,10 @@ Range ZRangeRegistry<Range>::remove_from_low_at_most_inner(size_t size) {
 }
 
 template <typename Range>
-size_t ZRangeRegistry<Range>::remove_from_low_many_at_most_inner(size_t size, ZArray<Range>* out) {
-  size_t to_remove = size;
+typename ZRangeRegistry<Range>::size_type ZRangeRegistry<Range>::remove_from_low_many_at_most_inner(size_type size, ZArray<Range>* out) {
+  size_type to_remove = size;
 
-  while (to_remove > 0) {
+  while (to_remove > size_type{}) {
     const Range range = remove_from_low_at_most_inner(to_remove);
 
     if (range.is_null()) {
@@ -277,7 +278,7 @@ void ZRangeRegistry<Range>::anchor_limits() {
   }
 
   const offset start = _list.first()->start();
-  const size_t size = _list.last()->end() - start;
+  const size_type size = _list.last()->end() - start;
 
   _limits = Range(start, size);
 }
@@ -338,23 +339,23 @@ template <typename Range>
 void ZRangeRegistry<Range>::insert_and_remove_from_low_many(const Range& range, ZArray<Range>* out) {
   ZLocker<ZLock> locker(&_lock);
 
-  const size_t size = range.size();
+  const size_type size = range.size();
 
   // Insert the range
   insert_inner(range);
 
   // Remove (hopefully) at a lower address
-  const size_t removed = remove_from_low_many_at_most_inner(size, out);
+  const size_type removed = remove_from_low_many_at_most_inner(size, out);
 
   // This should always succeed since we freed the same amount.
   assert(removed == size, "must succeed");
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::insert_and_remove_from_low_exact_or_many(size_t size, ZArray<Range>* in_out) {
+Range ZRangeRegistry<Range>::insert_and_remove_from_low_exact_or_many(size_type size, ZArray<Range>* in_out) {
   ZLocker<ZLock> locker(&_lock);
 
-  size_t inserted = 0;
+  size_type inserted = {};
 
   // Insert everything
   ZArrayIterator<Range> iter(in_out);
@@ -374,33 +375,33 @@ Range ZRangeRegistry<Range>::insert_and_remove_from_low_exact_or_many(size_t siz
 
   // Failed to find a contiguous chunk, split it up into smaller chunks and
   // only remove up to as much that has been inserted.
-  size_t removed = remove_from_low_many_at_most_inner(inserted, in_out);
+  size_type removed = remove_from_low_many_at_most_inner(inserted, in_out);
   assert(removed == inserted, "Should be able to get back as much as we previously inserted");
   return Range();
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::remove_from_low(size_t size) {
+Range ZRangeRegistry<Range>::remove_from_low(size_type size) {
   ZLocker<ZLock> locker(&_lock);
   Range range = remove_from_low_inner(size);
   return range;
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::remove_from_low_at_most(size_t size) {
+Range ZRangeRegistry<Range>::remove_from_low_at_most(size_type size) {
   ZLocker<ZLock> lock(&_lock);
   Range range = remove_from_low_at_most_inner(size);
   return range;
 }
 
 template <typename Range>
-size_t ZRangeRegistry<Range>::remove_from_low_many_at_most(size_t size, ZArray<Range>* out) {
+typename ZRangeRegistry<Range>::size_type ZRangeRegistry<Range>::remove_from_low_many_at_most(size_type size, ZArray<Range>* out) {
   ZLocker<ZLock> lock(&_lock);
   return remove_from_low_many_at_most_inner(size, out);
 }
 
 template <typename Range>
-Range ZRangeRegistry<Range>::remove_from_high(size_t size) {
+Range ZRangeRegistry<Range>::remove_from_high(size_type size) {
   ZLocker<ZLock> locker(&_lock);
 
   ZListReverseIterator<Node> iter(&_list);
@@ -431,11 +432,11 @@ Range ZRangeRegistry<Range>::remove_from_high(size_t size) {
 }
 
 template <typename Range>
-void ZRangeRegistry<Range>::transfer_from_low(ZRangeRegistry* other, size_t size) {
+void ZRangeRegistry<Range>::transfer_from_low(ZRangeRegistry* other, size_type size) {
   assert(other->_list.is_empty(), "Should only be used for initialization");
 
   ZLocker<ZLock> locker(&_lock);
-  size_t to_move = size;
+  size_type to_move = size;
 
   ZListIterator<Node> iter(&_list);
   for (Node* node; iter.next(&node);) {
@@ -458,12 +459,12 @@ void ZRangeRegistry<Range>::transfer_from_low(ZRangeRegistry* other, size_t size
     other->_list.insert_last(to_transfer);
 
     to_move -= to_transfer->size();
-    if (to_move == 0) {
+    if (to_move == size_type{}) {
       break;
     }
   }
 
-  assert(to_move == 0, "Should have transferred requested size");
+  assert(to_move == size_type{}, "Should have transferred requested size");
 }
 
 #endif // SHARE_GC_Z_ZRANGEREGISTRY_INLINE_HPP

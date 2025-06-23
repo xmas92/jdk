@@ -24,8 +24,8 @@
 #ifndef CPU_AARCH64_GC_Z_ZGLOBALS_AARCH64_HPP
 #define CPU_AARCH64_GC_Z_ZGLOBALS_AARCH64_HPP
 
-#include "utilities/globalDefinitions.hpp"
+#include "gc/z/zSize.hpp"
 
-const size_t ZPlatformCacheLineSize    = 64;
+const zbytes ZPlatformCacheLineSize    = 64_zb;
 
 #endif // CPU_AARCH64_GC_Z_ZGLOBALS_AARCH64_HPP

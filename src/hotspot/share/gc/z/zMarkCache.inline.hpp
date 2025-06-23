@@ -27,8 +27,9 @@
 #include "gc/z/zMarkCache.hpp"
 
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 
-inline void ZMarkCacheEntry::inc_live(ZPage* page, size_t bytes) {
+inline void ZMarkCacheEntry::inc_live(ZPage* page, zbytes bytes) {
   if (_page == page) {
     // Cache hit
     _objects++;
@@ -50,7 +51,7 @@ inline void ZMarkCacheEntry::evict() {
   }
 }
 
-inline void ZMarkCache::inc_live(ZPage* page, size_t bytes) {
+inline void ZMarkCache::inc_live(ZPage* page, zbytes bytes) {
   const size_t mask = ZMarkCacheSize - 1;
   const size_t index = (untype(page->start()) >> _shift) & mask;
   _cache[index].inc_live(page, bytes);

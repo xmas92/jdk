@@ -28,6 +28,7 @@
 #include "gc/z/zObjectAllocator.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "gc/z/zSize.hpp"
 
 class ZAllocatorEden;
 class ZAllocatorForRelocation;
@@ -58,11 +59,11 @@ public:
   ZAllocatorEden();
 
   // Mutator allocation
-  zaddress alloc_tlab(size_t size);
-  zaddress alloc_object(size_t size);
+  zaddress alloc_tlab(zbytes size);
+  zaddress alloc_object(zbytes size);
 
   // Statistics
-  size_t remaining() const;
+  zbytes remaining() const;
 };
 
 class ZAllocatorForRelocation : public ZAllocator {
@@ -73,10 +74,10 @@ public:
   ZAllocatorForRelocation();
 
   // Relocation
-  zaddress alloc_object(size_t size);
-  void undo_alloc_object(zaddress addr, size_t size);
+  zaddress alloc_object(zbytes size);
+  void undo_alloc_object(zaddress addr, zbytes size);
 
-  ZPage* alloc_page_for_relocation(ZPageType type, size_t size, ZAllocationFlags flags);
+  ZPage* alloc_page_for_relocation(ZPageType type, zbytes size, ZAllocationFlags flags);
 };
 
 #endif // SHARE_GC_Z_ZALLOCATOR_HPP

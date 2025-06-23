@@ -35,7 +35,7 @@
 
 class ZVirtualMemory;
 
-using ZBackingIndexRange = ZRange<zbacking_index, zbacking_index_end>;
+using ZBackingIndexRange = ZRange<zbacking_index, zbacking_index_end, uint32_t>;
 
 class ZPhysicalMemoryManager {
 private:
@@ -49,18 +49,18 @@ private:
   void copy_from_stash(const ZArraySlice<const zbacking_index> stash, const ZVirtualMemory& vmem);
 
 public:
-  ZPhysicalMemoryManager(size_t max_capacity);
+  ZPhysicalMemoryManager(zbytes max_capacity);
 
   bool is_initialized() const;
 
-  void warn_commit_limits(size_t max_capacity) const;
-  void try_enable_uncommit(size_t min_capacity, size_t max_capacity);
+  void warn_commit_limits(zbytes max_capacity) const;
+  void try_enable_uncommit(zbytes min_capacity, zbytes max_capacity);
 
   void alloc(const ZVirtualMemory& vmem, uint32_t numa_id);
   void free(const ZVirtualMemory& vmem, uint32_t numa_id);
 
-  size_t commit(const ZVirtualMemory& vmem, uint32_t numa_id);
-  size_t uncommit(const ZVirtualMemory& vmem);
+  zbytes commit(const ZVirtualMemory& vmem, uint32_t numa_id);
+  zbytes uncommit(const ZVirtualMemory& vmem);
 
   void map(const ZVirtualMemory& vmem, uint32_t numa_id) const;
   void unmap(const ZVirtualMemory& vmem) const;

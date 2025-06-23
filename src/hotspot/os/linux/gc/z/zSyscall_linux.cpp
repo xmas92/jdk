@@ -30,8 +30,8 @@ int ZSyscall::memfd_create(const char *name, unsigned int flags) {
   return syscall(SYS_memfd_create, name, flags);
 }
 
-int ZSyscall::fallocate(int fd, int mode, size_t offset, size_t length) {
-  return syscall(SYS_fallocate, fd, mode, offset, length);
+int ZSyscall::fallocate(int fd, int mode, size_t offset, size_t size) {
+  return syscall(SYS_fallocate, fd, mode, offset, size);
 }
 
 long ZSyscall::get_mempolicy(int* mode, unsigned long* nodemask, unsigned long maxnode, void* addr, unsigned long flags) {

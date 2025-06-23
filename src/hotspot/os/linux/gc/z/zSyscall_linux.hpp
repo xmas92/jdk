@@ -42,7 +42,7 @@
 class ZSyscall : public AllStatic {
 public:
   static int memfd_create(const char* name, unsigned int flags);
-  static int fallocate(int fd, int mode, size_t offset, size_t length);
+  static int fallocate(int fd, int mode, size_t offset, size_t size);
   static long get_mempolicy(int* mode, unsigned long* nodemask, unsigned long maxnode, void* addr, unsigned long flags);
 };
 

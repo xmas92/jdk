@@ -25,228 +25,183 @@
 #define SHARE_GC_Z_ZSIZE_INLINE_HPP
 
 #include "gc/z/zSize.hpp"
+
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
-
-// Construction
-
-constexpr zbytes to_zbytes(size_t byte_size) {
-  return static_cast<zbytes>(byte_size);
-}
-
-constexpr zwords to_zwords(size_t word_size) {
-  return static_cast<zwords>(word_size);
-}
-
-constexpr zbytes operator""_zb(unsigned long long int word_size) {
-  return to_zbytes(word_size);
-}
-
-constexpr zwords operator""_zw(unsigned long long int word_size) {
-  return to_zwords(word_size);
-}
-
-// Deconstruction
-
-constexpr size_t untype(zbytes bytes) { return static_cast<size_t>(bytes); }
-
-constexpr size_t untype(zwords words) { return static_cast<size_t>(words); }
-
-// Arithmetic operators (ptr)
-
-template <typename T, ENABLE_IF(sizeof(T) == 1)>
-constexpr T *operator+(T *const& a, const zbytes& bytes) {
-  return a + untype(bytes);
-}
-
-template <typename T, ENABLE_IF(sizeof(T) == wordSize)>
-constexpr T *operator+(T *const& a, const zwords& bytes) {
-  return a + untype(bytes);
-}
-
-// Arithmetic operators
-
-#define ZSIZE_BINARY_ARITH_OPERATOR(type, op)                                  \
-  constexpr type operator op(const type& a, const type& b) {                   \
-    return to_##type(untype(a) op untype(b));                                  \
-  }
-
-ZSIZE_BINARY_ARITH_OPERATOR(zbytes, +)
-ZSIZE_BINARY_ARITH_OPERATOR(zbytes, -)
-ZSIZE_BINARY_ARITH_OPERATOR(zbytes, %)
-
-ZSIZE_BINARY_ARITH_OPERATOR(zwords, +)
-ZSIZE_BINARY_ARITH_OPERATOR(zwords, -)
-ZSIZE_BINARY_ARITH_OPERATOR(zwords, %)
-
-#undef ZSIZE_BINARY_ARITH_OPERATOR
-
-constexpr zbytes operator*(const zbytes& a, size_t b) {
-  return to_zbytes(untype(a) * b);
-}
-
-constexpr zbytes operator*(const zbytes& a, double b) {
-  return to_zbytes(size_t(double(untype(a)) * b));
-}
-
-constexpr zwords operator*(const zwords& a, const size_t& b) {
-  return to_zwords(untype(a) * b);
-}
-
-constexpr zwords operator*(const zwords& a, const double& b) {
-  return to_zwords(size_t(double(untype(a)) * b));
-}
-
-constexpr size_t operator/(const zbytes& a, const zbytes& b) {
-  return untype(a) / untype(b);
-}
-
-constexpr zbytes operator/(const zbytes& a, const size_t& b) {
-  return to_zbytes(untype(a) / b);
-}
-
-constexpr size_t operator/(const zwords& a, const zwords& b) {
-  return untype(a) / untype(b);
-}
-
-constexpr zwords operator/(const zwords& a, const size_t& b) {
-  return to_zwords(untype(a) / b);
-}
-
-constexpr zbytes operator%(const zbytes& a, const size_t& b) {
-  return to_zbytes(untype(a) % b);
-}
-
-constexpr zwords operator%(const zwords& a, const size_t& b) {
-  return to_zwords(untype(a) % b);
-}
-
-// Increment / Decrement operator
-
-#define ZSIZE_INC_DEC_OPERATOR(type, op)                                       \
-  constexpr type operator op##op(type& a) {                                    \
-    a = a op to_##type(1);                                                     \
-    return a;                                                                  \
-  }                                                                            \
-                                                                               \
-  constexpr type operator op##op(type& a, int) {                               \
-    const type b = a;                                                          \
-    op##op a;                                                                  \
-    return b;                                                                  \
-  }
-
-ZSIZE_INC_DEC_OPERATOR(zbytes, +);
-ZSIZE_INC_DEC_OPERATOR(zbytes, -);
-
-ZSIZE_INC_DEC_OPERATOR(zwords, +);
-ZSIZE_INC_DEC_OPERATOR(zwords, -);
-
-#undef ZSIZE_INC_DEC_OPERATOR
-
-// Assignment operator
-
-#define ZSIZE_ASSIGNMENT_OPERATOR(type, op)                                    \
-  constexpr type operator op##=(type& a, const type& b) {                      \
-    a = (a op b);                                                              \
-    return a;                                                                  \
-  }
-
-ZSIZE_ASSIGNMENT_OPERATOR(zbytes, +);
-ZSIZE_ASSIGNMENT_OPERATOR(zbytes, -);
-
-ZSIZE_ASSIGNMENT_OPERATOR(zwords, +);
-ZSIZE_ASSIGNMENT_OPERATOR(zwords, -);
-
-#undef ZSIZE_ASSIGNMENT_OPERATOR
-
-#define ZSIZE_ASSIGNMENT_OPERATOR(type, op)                                    \
-  constexpr type operator op##=(type& a, const size_t& b) {                    \
-    a = to_##type(untype(a) op b);                                             \
-    return a;                                                                  \
-  }
-
-// ZSIZE_ASSIGNMENT_OPERATOR(zbytes, &)
-// ZSIZE_ASSIGNMENT_OPERATOR(zbytes, |)
-// ZSIZE_ASSIGNMENT_OPERATOR(zbytes, ^)
-
-ZSIZE_ASSIGNMENT_OPERATOR(zbytes, >>)
-ZSIZE_ASSIGNMENT_OPERATOR(zbytes, <<)
-
-// ZSIZE_ASSIGNMENT_OPERATOR(zwords, &)
-// ZSIZE_ASSIGNMENT_OPERATOR(zwords, |)
-// ZSIZE_ASSIGNMENT_OPERATOR(zwords, ^)
-
-ZSIZE_ASSIGNMENT_OPERATOR(zwords, >>)
-ZSIZE_ASSIGNMENT_OPERATOR(zwords, <<)
-
-#undef ZSIZE_ASSIGNMENT_OPERATOR
+#include "utilities/powerOfTwo.hpp"
 
 // Alignment
 
-template <typename A>
-constexpr bool ZBytes::is_aligned(zbytes bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return ::is_aligned(value, alignment);
-}
+#define ZSIZE_FIRST_(a, ...) a
+#define ZSIZE_SECOND_(a, b, ...) b
 
-template <typename A>
-constexpr zbytes ZBytes::align_up(zbytes bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return to_zbytes(::align_up(value, alignment));
-}
+#define ZSIZE_FIRST(...) ZSIZE_FIRST_(__VA_ARGS__, )
+#define ZSIZE_SECOND(...) ZSIZE_SECOND_(__VA_ARGS__, )
 
-template <typename A>
-constexpr zbytes ZBytes::align_down(zbytes bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return to_zbytes(::align_down(value, alignment));
-}
+#define ZSIZE_EMPTY()
 
-template <typename A>
-constexpr bool ZWords::is_aligned(zwords bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return ::is_aligned(value, alignment);
-}
+#define ZSIZE_EVAL1(...) __VA_ARGS__
+#define ZSIZE_EVAL2(...) ZSIZE_EVAL1(ZSIZE_EVAL1(__VA_ARGS__))
+#define ZSIZE_EVAL(...) ZSIZE_EVAL2(__VA_ARGS__)
 
-template <typename A>
-constexpr zwords ZWords::align_up(zwords bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return to_zwords(::align_up(value, alignment));
-}
+#define ZSIZE_DEFER2(deferred_macro) deferred_macro ZSIZE_EMPTY ZSIZE_EMPTY()()
 
-template <typename A>
-constexpr zwords ZWords::align_down(zwords bytes, A alignment) {
-  const size_t value = untype(bytes);
-  return to_zwords(::align_down(value, alignment));
-}
+#define ZSIZE_IS_PROBE(...) ZSIZE_SECOND(__VA_ARGS__, 0)
+#define ZSIZE_PROBE() ~, 1
+
+#define ZSIZE_CAT(a, b) a##b
+
+#define ZSIZE_NOT(x) ZSIZE_IS_PROBE(ZSIZE_CAT(ZSIZE_NOT_, x))
+#define ZSIZE_NOT_0 ZSIZE_PROBE()
+
+#define ZSIZE_BOOL(x) ZSIZE_NOT(ZSIZE_NOT(x))
+
+#define ZSIZE_IF_ELSE(condition) ZSIZE_IF_ELSE_(ZSIZE_BOOL(condition))
+#define ZSIZE_IF_ELSE_(condition) ZSIZE_CAT(ZSIZE_IF_, condition)
+
+#define ZSIZE_IF_1(...) __VA_ARGS__ ZSIZE_IF_1_ELSE
+#define ZSIZE_IF_0(...) ZSIZE_IF_0_ELSE
+
+#define ZSIZE_IF_1_ELSE(...)
+#define ZSIZE_IF_0_ELSE(...) __VA_ARGS__
+
+#define ZSIZE_HAS_ARGS(...)                                                    \
+  ZSIZE_BOOL(ZSIZE_FIRST(ZSIZE_END_OF_ARGUMENTS __VA_ARGS__)())
+#define ZSIZE_END_OF_ARGUMENTS() 0
+
+#define ZSIZE_MAP2(m, sep, first, ...)                                         \
+  sep(m(first)) ZSIZE_IF_ELSE(ZSIZE_HAS_ARGS(__VA_ARGS__))(                    \
+      ZSIZE_DEFER2(ZSIZE_MAP_)()(m, sep, __VA_ARGS__))()
+
+#define ZSIZE_MAP1(m, sep, first, ...)                                         \
+  m(first) ZSIZE_IF_ELSE(ZSIZE_HAS_ARGS(__VA_ARGS__))(                         \
+      ZSIZE_DEFER2(ZSIZE_MAP_)()(m, sep, __VA_ARGS__))()
+#define ZSIZE_MAP_() ZSIZE_MAP2
+
+#define ZSIZE_MAP_SEP(f, sep, ...) ZSIZE_EVAL(ZSIZE_MAP1(f, sep, __VA_ARGS__))
+#define ZSIZE_SEP(x) , x
+#define ZSIZE_UNTYPE(x) untype(x)
+#define ZSIZE_ZBYTES(x) zbytes x
+#define ZSIZE_ZWORDS(x) zwords x
+
+#define MAP_UNTYPE_COMMA_LIST(...)                                             \
+  ZSIZE_MAP_SEP(ZSIZE_UNTYPE, ZSIZE_SEP, __VA_ARGS__)
+#define MAP_ZBYTES_COMMA_LIST(...)                                             \
+  ZSIZE_MAP_SEP(ZSIZE_ZBYTES, ZSIZE_SEP, __VA_ARGS__)
+#define MAP_ZWORDS_COMMA_LIST(...)                                             \
+  ZSIZE_MAP_SEP(ZSIZE_ZWORDS, ZSIZE_SEP, __VA_ARGS__)
+
+#define ZBYTES_DISPATCH_TO_GLOBAL_SHARED(name, cexpr, ret, ...)             \
+  inline cexpr ret ZBytes::name(MAP_ZBYTES_COMMA_LIST(__VA_ARGS__)) {      \
+    return static_cast<ret>(::name(MAP_UNTYPE_COMMA_LIST(__VA_ARGS__)));       \
+  }
+#define ZBYTES_DISPATCH_TO_GLOBAL(name, ret, ...)                              \
+  ZBYTES_DISPATCH_TO_GLOBAL_SHARED(name, , ret, __VA_ARGS__)
+#define ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR(name, ret, ...)                              \
+  ZBYTES_DISPATCH_TO_GLOBAL_SHARED(name, constexpr , ret, __VA_ARGS__)
+
+#define ZWORDS_DISPATCH_TO_GLOBAL_SHARED(name, cexpr, ret, ...)             \
+  inline cexpr ret ZWords::name(MAP_ZWORDS_COMMA_LIST(__VA_ARGS__)) {      \
+    return static_cast<ret>(::name(MAP_UNTYPE_COMMA_LIST(__VA_ARGS__)));       \
+  }
+#define ZWORDS_DISPATCH_TO_GLOBAL(name, ret, ...)                              \
+  ZWORDS_DISPATCH_TO_GLOBAL_SHARED(name, , ret __VA_ARGS__)
+#define ZWORDS_DISPATCH_TO_GLOBAL_CONSTEXPR(name, ret, ...)                              \
+  ZWORDS_DISPATCH_TO_GLOBAL_SHARED(name, constexpr , ret, __VA_ARGS__)
+
+ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR(is_aligned, bool, bytes, alignment)
+
+ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR(align_up, zbytes, bytes, alignment)
+ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR(align_down, zbytes, bytes, alignment)
+
+ZWORDS_DISPATCH_TO_GLOBAL_CONSTEXPR(is_aligned, bool, bytes, alignment)
+
+ZWORDS_DISPATCH_TO_GLOBAL_CONSTEXPR(align_up, zwords, bytes, alignment)
+ZWORDS_DISPATCH_TO_GLOBAL_CONSTEXPR(align_down, zwords, bytes, alignment)
+
+// Power of two
+
+ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR(is_power_of_2, bool, bytes)
+
+ZBYTES_DISPATCH_TO_GLOBAL(log2i_graceful, int, bytes)
+ZBYTES_DISPATCH_TO_GLOBAL(log2i_exact, int, bytes)
+ZBYTES_DISPATCH_TO_GLOBAL(log2i_ceil, int, bytes)
+
+ZBYTES_DISPATCH_TO_GLOBAL(round_down_power_of_2, zbytes, bytes)
+
+// Miscellaneous
+
+ZBYTES_DISPATCH_TO_GLOBAL(percent_of, double, numerator, denominator)
+
+#undef ZSIZE_FIRST_
+#undef ZSIZE_SECOND_
+#undef ZSIZE_FIRST
+#undef ZSIZE_SECOND
+#undef ZSIZE_EMPTY
+#undef ZSIZE_EVAL1
+#undef ZSIZE_EVAL2
+#undef ZSIZE_EVAL
+#undef ZSIZE_DEFER2
+#undef ZSIZE_IS_PROBE
+#undef ZSIZE_PROBE
+#undef ZSIZE_CAT
+#undef ZSIZE_NOT
+#undef ZSIZE_NOT_0
+#undef ZSIZE_BOOL
+#undef ZSIZE_IF_ELSE
+#undef ZSIZE_IF_ELSE_
+#undef ZSIZE_IF_1
+#undef ZSIZE_IF_0
+#undef ZSIZE_IF_1_ELSE
+#undef ZSIZE_IF_0_ELSE
+#undef ZSIZE_HAS_ARGS
+#undef ZSIZE_END_OF_ARGUMENTS
+#undef ZSIZE_MAP2
+#undef ZSIZE_MAP1
+#undef ZSIZE_MAP_
+#undef ZSIZE_MAP_SEP
+#undef ZSIZE_SEP
+#undef ZSIZE_UNTYPE
+#undef ZSIZE_ZBYTES
+#undef ZSIZE_ZWORDS
+#undef MAP_UNTYPE_COMMA_LIST
+#undef MAP_ZBYTES_COMMA_LIST
+#undef MAP_ZWORDS_COMMA_LIST
+#undef ZBYTES_DISPATCH_TO_GLOBAL_CONSTEXPR
+#undef ZBYTES_DISPATCH_TO_GLOBAL
+#undef ZBYTES_DISPATCH_TO_GLOBAL_SHARED
+#undef ZWORDS_DISPATCH_TO_GLOBAL_CONSTEXPR
+#undef ZWORDS_DISPATCH_TO_GLOBAL
+#undef ZWORDS_DISPATCH_TO_GLOBAL_SHARED
 
 // Conversion
 
-constexpr zwords ZBytes::to_words(zbytes bytes) {
+inline constexpr zwords ZBytes::to_words(zbytes bytes) {
   const size_t value = untype(bytes);
   assert(::is_aligned(value, BytesPerWord), "Must be aligned: %zu", value);
   return to_zwords(value >> LogBytesPerWord);
 }
 
-constexpr zwords ZBytes::to_words_round_up(zbytes bytes) {
-  return to_words(align_up(bytes, BytesPerWord));
+inline constexpr zwords ZBytes::to_words_round_up(zbytes bytes) {
+  return to_words(align_up(bytes, to_zbytes(BytesPerWord)));
 }
 
-constexpr zwords ZBytes::to_words_round_down(zbytes bytes) {
-  return to_words(align_down(bytes, BytesPerWord));
+inline constexpr zwords ZBytes::to_words_round_down(zbytes bytes) {
+  return to_words(align_down(bytes, to_zbytes(BytesPerWord)));
 }
 
-constexpr zbytes ZBytes::from_words(size_t size_in_words) {
+inline constexpr zbytes ZBytes::from_words(size_t size_in_words) {
   const zwords words = to_zwords(size_in_words);
   return ZWords::to_bytes(words);
 }
 
-constexpr zbytes ZWords::to_bytes(zwords words) {
+inline constexpr zbytes ZWords::to_bytes(zwords words) {
   const size_t value = untype(words);
   assert(value <= (value << LogBytesPerWord), "Value overflow: %zu", value);
   return to_zbytes(value << LogBytesPerWord);
 }
 
-constexpr zwords ZWords::from_bytes(size_t size_in_bytes) {
+inline constexpr zwords ZWords::from_bytes(size_t size_in_bytes) {
   const zbytes bytes = to_zbytes(size_in_bytes);
   return ZBytes::to_words(bytes);
 }

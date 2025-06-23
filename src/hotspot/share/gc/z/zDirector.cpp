@@ -29,6 +29,7 @@
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zHeuristics.hpp"
 #include "gc/z/zLock.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "logging/log.hpp"
 
@@ -46,13 +47,13 @@ struct ZWorkerResizeStats {
 };
 
 struct ZDirectorHeapStats {
-  size_t _soft_max_heap_size;
-  size_t _used;
+  zbytes _soft_max_heap_size;
+  zbytes _used;
   uint   _total_collections;
 };
 
 struct ZDirectorGenerationGeneralStats {
-  size_t _used;
+  zbytes _used;
   uint   _total_collections_at_start;
 };
 
@@ -148,7 +149,7 @@ static ZDriverRequest rule_minor_allocation_rate_dynamic(const ZDirectorStats& s
                                                          double serial_gc_time_passed,
                                                          double parallel_gc_time_passed,
                                                          bool conservative_alloc_rate,
-                                                         size_t capacity) {
+                                                         zbytes capacity) {
   if (!stats._old_stats._cycle._is_time_trustable) {
     // Rule disabled
     return ZDriverRequest(GCCause::_no_gc, ZYoungGCThreads, 0);
@@ -156,9 +157,9 @@ static ZDriverRequest rule_minor_allocation_rate_dynamic(const ZDirectorStats& s
 
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = capacity - MIN2(capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
+  const zbytes used = stats._heap._used;
+  const zbytes free_including_headroom = capacity - MIN2(capacity, used);
+  const zbytes free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
 
   // Calculate time until OOM given the max allocation rate and the amount
   // of free memory. The allocation rate is a moving average and we multiply
@@ -173,7 +174,7 @@ static ZDriverRequest rule_minor_allocation_rate_dynamic(const ZDirectorStats& s
   const double alloc_rate_sd_percent = alloc_rate_sd / (alloc_rate_avg + 1.0);
   const double alloc_rate_conservative = (MAX2(alloc_rate_predict, alloc_rate_avg) * ZAllocationSpikeTolerance) + (alloc_rate_sd * one_in_1000) + 1.0;
   const double alloc_rate = conservative_alloc_rate ? alloc_rate_conservative : alloc_rate_stats._avg;
-  const double time_until_oom = (free / alloc_rate) / (1.0 + alloc_rate_sd_percent);
+  const double time_until_oom = (untype(free) / alloc_rate) / (1.0 + alloc_rate_sd_percent);
 
   // Calculate max serial/parallel times of a GC cycle. The times are
   // moving averages, we add ~3.3 sigma to account for the variance.
@@ -197,7 +198,7 @@ static ZDriverRequest rule_minor_allocation_rate_dynamic(const ZDirectorStats& s
                           "GCDuration: %.3fs, TimeUntilOOM: %.3fs, TimeUntilGC: %.3fs, GCWorkers: %u",
                           alloc_rate / M,
                           alloc_rate_sd_percent * 100,
-                          free / M,
+                          free / M_zb,
                           serial_gc_time + parallelizable_gc_time,
                           serial_gc_time + (parallelizable_gc_time / actual_gc_workers),
                           time_until_oom,
@@ -259,10 +260,10 @@ static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
 
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
+  const zbytes soft_max_capacity = stats._heap._soft_max_heap_size;
+  const zbytes used = stats._heap._used;
+  const zbytes free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
+  const zbytes free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
 
   // Calculate time until OOM given the max allocation rate and the amount
   // of free memory. The allocation rate is a moving average and we multiply
@@ -272,7 +273,7 @@ static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
   // that a sample is outside of the confidence interval.
   const ZStatMutatorAllocRateStats alloc_rate_stats = stats._mutator_alloc_rate;
   const double max_alloc_rate = (alloc_rate_stats._avg * ZAllocationSpikeTolerance) + (alloc_rate_stats._sd * one_in_1000);
-  const double time_until_oom = free / (max_alloc_rate + 1.0); // Plus 1.0B/s to avoid division by zero
+  const double time_until_oom = untype(free) / (max_alloc_rate + 1.0); // Plus 1.0B/s to avoid division by zero
 
   // Calculate max serial/parallel times of a GC cycle. The times are
   // moving averages, we add ~3.3 sigma to account for the variance.
@@ -288,17 +289,17 @@ static bool rule_minor_allocation_rate_static(const ZDirectorStats& stats) {
   const double time_until_gc = time_until_oom - gc_duration;
 
   log_debug(gc, director)("Rule Minor: Allocation Rate (Static GC Workers), MaxAllocRate: %.1fMB/s, Free: %zuMB, GCDuration: %.3fs, TimeUntilGC: %.3fs",
-                          max_alloc_rate / M, free / M, gc_duration, time_until_gc);
+                          max_alloc_rate / M, free / M_zb, gc_duration, time_until_gc);
 
   return time_until_gc <= 0;
 }
 
 static bool is_young_small(const ZDirectorStats& stats) {
   // Calculate amount of freeable memory available.
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t young_used = stats._young_stats._general._used;
+  const zbytes soft_max_capacity = stats._heap._soft_max_heap_size;
+  const zbytes young_used = stats._young_stats._general._used;
 
-  const double young_used_percent = percent_of(young_used, soft_max_capacity);
+  const double young_used_percent = ZBytes::percent_of(young_used, soft_max_capacity);
 
   // If the freeable memory isn't even 5% of the heap, we can't expect to free up
   // all that much memory, so let's not even try - it will likely be a wasted effort
@@ -306,15 +307,15 @@ static bool is_young_small(const ZDirectorStats& stats) {
   return young_used_percent <= 5.0;
 }
 
-template <typename PrintFn = void(*)(size_t, double)>
+template <typename PrintFn = void(*)(zbytes, double)>
 static bool is_high_usage(const ZDirectorStats& stats, PrintFn* print_function = nullptr) {
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, soft_max_capacity);
+  const zbytes soft_max_capacity = stats._heap._soft_max_heap_size;
+  const zbytes used = stats._heap._used;
+  const zbytes free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
+  const zbytes free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
+  const double free_percent = ZBytes::percent_of(free, soft_max_capacity);
 
   if (print_function != nullptr) {
     (*print_function)(free, free_percent);
@@ -378,15 +379,15 @@ static bool rule_minor_high_usage(const ZDirectorStats& stats) {
   // memory is still slowly but surely heading towards zero. In this situation,
   // we start a GC cycle to avoid a potential allocation stall later.
 
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t used = stats._heap._used;
-  const size_t free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
-  const size_t free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
-  const double free_percent = percent_of(free, soft_max_capacity);
+  const zbytes soft_max_capacity = stats._heap._soft_max_heap_size;
+  const zbytes used = stats._heap._used;
+  const zbytes free_including_headroom = soft_max_capacity - MIN2(soft_max_capacity, used);
+  const zbytes free = free_including_headroom - MIN2(free_including_headroom, ZHeuristics::relocation_headroom());
+  const double free_percent = ZBytes::percent_of(free, soft_max_capacity);
 
-  auto print_function = [&](size_t free, double free_percent) {
+  auto print_function = [&](zbytes free, double free_percent) {
     log_debug(gc, director)("Rule Minor: High Usage, Free: %zuMB(%.1f%%)",
-                            free / M, free_percent);
+                            free / M_zb, free_percent);
   };
 
   return is_high_usage(stats, &print_function);
@@ -424,13 +425,13 @@ static bool rule_major_warmup(const ZDirectorStats& stats) {
   // Perform GC if heap usage passes 10/20/30% and no other GC has been
   // performed yet. This allows us to get some early samples of the GC
   // duration, which is needed by the other rules.
-  const size_t soft_max_capacity = stats._heap._soft_max_heap_size;
-  const size_t used = stats._heap._used;
+  const zbytes soft_max_capacity = stats._heap._soft_max_heap_size;
+  const zbytes used = stats._heap._used;
   const double used_threshold_percent = (stats._old_stats._cycle._nwarmup_cycles + 1) * 0.1;
-  const size_t used_threshold = (size_t)(soft_max_capacity * used_threshold_percent);
+  const zbytes used_threshold = soft_max_capacity * used_threshold_percent;
 
   log_debug(gc, director)("Rule Major: Warmup %.0f%%, Used: %zuMB, UsedThreshold: %zuMB",
-                          used_threshold_percent * 100, used / M, used_threshold / M);
+                          used_threshold_percent * 100, used / M_zb, used_threshold / M_zb);
 
   return used >= used_threshold;
 }
@@ -452,8 +453,8 @@ static double calculate_extra_young_gc_time(const ZDirectorStats& stats) {
 
   // Calculate amount of free memory available. Note that we take the
   // relocation headroom into account to avoid in-place relocation.
-  const size_t old_used = stats._old_stats._general._used;
-  const size_t old_live = stats._old_stats._stat_heap._live_at_mark_end;
+  const zbytes old_used = stats._old_stats._general._used;
+  const zbytes old_live = stats._old_stats._stat_heap._live_at_mark_end;
   const double old_garbage = double(old_used - old_live);
 
   const double young_gc_time = gc_time(stats._young_stats);
@@ -584,16 +585,16 @@ static bool rule_major_proactive(const ZDirectorStats& stats) {
   // 10% of the max capacity since the previous GC, or more than 5 minutes has
   // passed since the previous GC. This helps avoid superfluous GCs when running
   // applications with very low allocation rate.
-  const size_t used_after_last_gc = stats._old_stats._stat_heap._used_at_relocate_end;
-  const size_t used_increase_threshold = (size_t)(stats._heap._soft_max_heap_size * 0.10); // 10%
-  const size_t used_threshold = used_after_last_gc + used_increase_threshold;
-  const size_t used = stats._heap._used;
+  const zbytes used_after_last_gc = stats._old_stats._stat_heap._used_at_relocate_end;
+  const zbytes used_increase_threshold = stats._heap._soft_max_heap_size * 0.10; // 10%
+  const zbytes used_threshold = used_after_last_gc + used_increase_threshold;
+  const zbytes used = stats._heap._used;
   const double time_since_last_gc = stats._old_stats._cycle._time_since_last;
   const double time_since_last_gc_threshold = 5 * 60; // 5 minutes
   if (used < used_threshold && time_since_last_gc < time_since_last_gc_threshold) {
     // Don't even consider doing a proactive GC
     log_debug(gc, director)("Rule Major: Proactive, UsedUntilEnabled: %zuMB, TimeUntilEnabled: %.3fs",
-                            (used_threshold - used) / M,
+                            (used_threshold - used) / M_zb,
                             time_since_last_gc_threshold - time_since_last_gc);
     return false;
   }

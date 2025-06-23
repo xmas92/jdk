@@ -22,6 +22,7 @@
  */
 
 #include "gc/z/zAddress.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zVirtualMemoryManager.hpp"
 #include "logging/log.hpp"
 #ifdef LINUX
@@ -34,10 +35,10 @@ void ZVirtualMemoryReserver::pd_register_callbacks(ZVirtualMemoryRegistry* regis
   // Does nothing
 }
 
-bool ZVirtualMemoryReserver::pd_reserve(zaddress_unsafe addr, size_t size) {
+bool ZVirtualMemoryReserver::pd_reserve(zaddress_unsafe addr, zbytes size) {
   const int flags = MAP_ANONYMOUS|MAP_PRIVATE|MAP_NORESERVE LINUX_ONLY(|MAP_FIXED_NOREPLACE);
 
-  void* const res = mmap((void*)untype(addr), size, PROT_NONE, flags, -1, 0);
+  void* const res = mmap((void*)untype(addr), untype(size), PROT_NONE, flags, -1, 0);
   if (res == MAP_FAILED) {
     // Failed to reserve memory
     return false;
@@ -45,7 +46,7 @@ bool ZVirtualMemoryReserver::pd_reserve(zaddress_unsafe addr, size_t size) {
 
   if (res != (void*)untype(addr)) {
     // Failed to reserve memory at the requested address
-    munmap(res, size);
+    munmap(res, untype(size));
     return false;
   }
 
@@ -53,7 +54,7 @@ bool ZVirtualMemoryReserver::pd_reserve(zaddress_unsafe addr, size_t size) {
   return true;
 }
 
-void ZVirtualMemoryReserver::pd_unreserve(zaddress_unsafe addr, size_t size) {
-  const int res = munmap((void*)untype(addr), size);
+void ZVirtualMemoryReserver::pd_unreserve(zaddress_unsafe addr, zbytes size) {
+  const int res = munmap((void*)untype(addr), untype(size));
   assert(res == 0, "Failed to unmap memory");
 }

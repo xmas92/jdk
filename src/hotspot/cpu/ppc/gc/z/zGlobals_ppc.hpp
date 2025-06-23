@@ -25,8 +25,9 @@
 #ifndef CPU_PPC_GC_Z_ZGLOBALS_PPC_HPP
 #define CPU_PPC_GC_Z_ZGLOBALS_PPC_HPP
 
+#include "gc/z/zSize.hpp"
 #include "globalDefinitions_ppc.hpp"
 
-const size_t ZPlatformCacheLineSize    = DEFAULT_CACHE_LINE_SIZE;
+const zbytes ZPlatformCacheLineSize    = to_zbytes(DEFAULT_CACHE_LINE_SIZE);
 
 #endif // CPU_PPC_GC_Z_ZGLOBALS_PPC_HPP

@@ -21,7 +21,7 @@
  * questions.
  */
 
-#include "gc/z/zUtils.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "runtime/nonJavaThread.hpp"
 
 const char* ZUtils::thread_name() {
@@ -34,8 +34,8 @@ const char* ZUtils::thread_name() {
   return thread->type_name();
 }
 
-void ZUtils::fill(uintptr_t* addr, size_t count, uintptr_t value) {
-  for (size_t i = 0; i < count; ++i) {
-    addr[i] = value;
+void ZUtils::fill(uintptr_t* addr, zwords count, uintptr_t value) {
+  for (zwords i = 0_zw; i < count; ++i) {
+    *(addr + i) = value;
   }
 }

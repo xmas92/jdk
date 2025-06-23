@@ -25,6 +25,7 @@
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
@@ -90,12 +91,12 @@ ZMappedCacheEntry* ZMappedCacheEntry::cast_to_entry(ZMappedCache::SizeClassListN
 }
 
 static void* entry_address_for_zoffset_end(zoffset_end offset) {
-  STATIC_ASSERT(is_aligned(ZCacheLineSize, alignof(ZMappedCacheEntry)));;
+  STATIC_ASSERT(ZBytes::is_aligned(ZCacheLineSize, to_zbytes(alignof(ZMappedCacheEntry))));
 
   // This spreads out the location of the entries in an effort to combat hyper alignment.
   // Verify if this is an efficient and worthwhile optimization.
 
-  constexpr size_t aligned_entry_size = align_up(sizeof(ZMappedCacheEntry), ZCacheLineSize);
+  constexpr zbytes aligned_entry_size = ZBytes::align_up(to_zbytes(sizeof(ZMappedCacheEntry)), ZCacheLineSize);
 
   // Do not use the last location
   constexpr size_t number_of_locations = ZGranuleSize / aligned_entry_size - 1;
@@ -242,9 +243,9 @@ ZMappedCache::TreeNode* ZMappedCache::Tree::right_most() {
   return _right_most;
 }
 
-int ZMappedCache::size_class_index(size_t size) {
+int ZMappedCache::size_class_index(zbytes size) {
   // Returns the size class index of for size, or -1 if smaller than the smallest size class.
-  const int size_class_power = log2i_graceful(size) - (int)ZGranuleSizeShift;
+  const int size_class_power = ZBytes::log2i_graceful(size) - (int)ZGranuleSizeShift;
 
   if (size_class_power < MinSizeClassShift) {
     // Allocation is smaller than the smallest size class minimum size.
@@ -254,10 +255,10 @@ int ZMappedCache::size_class_index(size_t size) {
   return MIN2(size_class_power, MaxSizeClassShift) - MinSizeClassShift;
 }
 
-int ZMappedCache::guaranteed_size_class_index(size_t size) {
+int ZMappedCache::guaranteed_size_class_index(zbytes size) {
   // Returns the size class index of the smallest size class which can always
   // accommodate a size allocation, or -1 otherwise.
-  const int size_class_power = log2i_ceil(size) - (int)ZGranuleSizeShift;
+  const int size_class_power = ZBytes::log2i_ceil(size) - (int)ZGranuleSizeShift;
 
   if (size_class_power > MaxSizeClassShift) {
     // Allocation is larger than the largest size class minimum size.
@@ -275,7 +276,7 @@ void ZMappedCache::cache_insert(const TreeCursor& cursor, const ZVirtualMemory& 
   _tree.insert(node, cursor);
 
   // Insert in size-class lists
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
   const int index = size_class_index(size);
   if (index != -1) {
     _size_class_lists[index].insert_first(entry->size_class_node());
@@ -290,7 +291,7 @@ void ZMappedCache::cache_remove(const TreeCursor& cursor, const ZVirtualMemory& 
   _tree.remove(node);
 
   // Remove from size-class lists
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
   const int index = size_class_index(size);
   if (index != -1) {
     _size_class_lists[index].remove(entry->size_class_node());
@@ -314,14 +315,14 @@ void ZMappedCache::cache_replace(const TreeCursor& cursor, const ZVirtualMemory&
   // Replace in size-class lists
 
   // Remove old
-  const size_t old_size = old_entry->vmem().size();
+  const zbytes old_size = old_entry->vmem().size();
   const int old_index = size_class_index(old_size);
   if (old_index != -1) {
     _size_class_lists[old_index].remove(old_entry->size_class_node());
   }
 
   // Insert new
-  const size_t new_size = vmem.size();
+  const zbytes new_size = vmem.size();
   const int new_index = size_class_index(new_size);
   if (new_index != -1) {
     _size_class_lists[new_index].insert_first(entry->size_class_node());
@@ -336,8 +337,8 @@ void ZMappedCache::cache_update(ZMappedCacheEntry* entry, const ZVirtualMemory& 
 
   // Remove or add to size-class lists if required
 
-  const size_t old_size = entry->vmem().size();
-  const size_t new_size = vmem.size();
+  const zbytes old_size = entry->vmem().size();
+  const zbytes new_size = vmem.size();
   const int old_index = size_class_index(old_size);
   const int new_index = size_class_index(new_size);
 
@@ -360,9 +361,9 @@ void ZMappedCache::cache_update(ZMappedCacheEntry* entry, const ZVirtualMemory& 
 }
 
 template <ZMappedCache::RemovalStrategy strategy, typename SelectFunction>
-ZVirtualMemory ZMappedCache::remove_vmem(ZMappedCacheEntry* const entry, size_t min_size, SelectFunction select) {
+ZVirtualMemory ZMappedCache::remove_vmem(ZMappedCacheEntry* const entry, zbytes min_size, SelectFunction select) {
   ZVirtualMemory vmem = entry->vmem();
-  const size_t size = vmem.size();
+  const zbytes size = vmem.size();
 
   if (size < min_size) {
     // Do not select this, smaller than min_size
@@ -370,10 +371,10 @@ ZVirtualMemory ZMappedCache::remove_vmem(ZMappedCacheEntry* const entry, size_t 
   }
 
   // Query how much to remove
-  const size_t to_remove = select(size);
+  const zbytes to_remove = select(size);
   assert(to_remove <= size, "must not remove more than size");
 
-  if (to_remove == 0) {
+  if (to_remove == 0_zb) {
     // Nothing to remove
     return ZVirtualMemory();
   }
@@ -381,14 +382,14 @@ ZVirtualMemory ZMappedCache::remove_vmem(ZMappedCacheEntry* const entry, size_t 
   if (to_remove != size) {
     // Partial removal
     if (strategy == RemovalStrategy::LowestAddress) {
-      const size_t unused_size = size - to_remove;
+      const zbytes unused_size = size - to_remove;
       const ZVirtualMemory unused_vmem = vmem.shrink_from_back(unused_size);
       cache_update(entry, unused_vmem);
 
     } else {
       assert(strategy == RemovalStrategy::HighestAddress, "must be LowestAddress or HighestAddress");
 
-      const size_t unused_size = size - to_remove;
+      const zbytes unused_size = size - to_remove;
       const ZVirtualMemory unused_vmem = vmem.shrink_from_front(unused_size);
 
       TreeCursor cursor = _tree.cursor(entry->node_addr());
@@ -412,7 +413,7 @@ ZVirtualMemory ZMappedCache::remove_vmem(ZMappedCacheEntry* const entry, size_t 
 }
 
 template <typename SelectFunction, typename ConsumeFunction>
-bool ZMappedCache::try_remove_vmem_size_class(size_t min_size, SelectFunction select, ConsumeFunction consume) {
+bool ZMappedCache::try_remove_vmem_size_class(zbytes min_size, SelectFunction select, ConsumeFunction consume) {
 new_max_size:
   if (_size < min_size) {
     // Not enough left in cache to satisfy the min_size
@@ -420,7 +421,7 @@ new_max_size:
   }
 
   // Query the max select size possible given the size of the cache
-  const size_t max_size = select(_size);
+  const zbytes max_size = select(_size);
 
   if (max_size < min_size) {
     // Never select less than min_size
@@ -473,7 +474,7 @@ new_max_size:
 }
 
 template <ZMappedCache::RemovalStrategy strategy, typename SelectFunction, typename ConsumeFunction>
-void ZMappedCache::scan_remove_vmem(size_t min_size, SelectFunction select, ConsumeFunction consume) {
+void ZMappedCache::scan_remove_vmem(zbytes min_size, SelectFunction select, ConsumeFunction consume) {
   if (strategy == RemovalStrategy::SizeClasses) {
     if (try_remove_vmem_size_class(min_size, select, consume)) {
       // Satisfied using size classes
@@ -522,23 +523,23 @@ void ZMappedCache::scan_remove_vmem(size_t min_size, SelectFunction select, Cons
 template <ZMappedCache::RemovalStrategy strategy, typename SelectFunction, typename ConsumeFunction>
 void ZMappedCache::scan_remove_vmem(SelectFunction select, ConsumeFunction consume) {
   // Scan without a min_size
-  scan_remove_vmem<strategy>(0, select, consume);
+  scan_remove_vmem<strategy>(0_zb, select, consume);
 }
 
 template <ZMappedCache::RemovalStrategy strategy>
-size_t ZMappedCache::remove_discontiguous_with_strategy(size_t size, ZArray<ZVirtualMemory>* out) {
-  precond(size > 0);
-  precond(is_aligned(size, ZGranuleSize));
+zbytes ZMappedCache::remove_discontiguous_with_strategy(zbytes size, ZArray<ZVirtualMemory>* out) {
+  precond(size > 0_zb);
+  precond(ZBytes::is_aligned(size, ZGranuleSize));
 
-  size_t remaining = size;
+  zbytes remaining = size;
 
-  const auto select_size_fn = [&](size_t vmem_size) {
+  const auto select_size_fn = [&](zbytes vmem_size) {
     // Select at most remaining
     return MIN2(remaining, vmem_size);
   };
 
   const auto consume_vmem_fn = [&](ZVirtualMemory vmem) {
-    const size_t vmem_size = vmem.size();
+    const zbytes vmem_size = vmem.size();
     out->append(vmem);
 
     assert(vmem_size <= remaining, "consumed to much");
@@ -546,7 +547,7 @@ size_t ZMappedCache::remove_discontiguous_with_strategy(size_t size, ZArray<ZVir
     // Track remaining, and stop when it reaches zero
     remaining -= vmem_size;
 
-    return remaining == 0;
+    return remaining == 0_zb;
   };
 
   scan_remove_vmem<strategy>(select_size_fn, consume_vmem_fn);
@@ -557,7 +558,7 @@ size_t ZMappedCache::remove_discontiguous_with_strategy(size_t size, ZArray<ZVir
 ZMappedCache::ZMappedCache()
   : _tree(),
     _size_class_lists(),
-    _size(0),
+    _size(0_zb),
     _min_size_watermark(_size) {}
 
 void ZMappedCache::insert(const ZVirtualMemory& vmem) {
@@ -621,13 +622,13 @@ void ZMappedCache::insert(const ZVirtualMemory& vmem) {
   cache_insert(current_cursor, vmem);
 }
 
-ZVirtualMemory ZMappedCache::remove_contiguous(size_t size) {
-  precond(size > 0);
-  precond(is_aligned(size, ZGranuleSize));
+ZVirtualMemory ZMappedCache::remove_contiguous(zbytes size) {
+  precond(size > 0_zb);
+  precond(ZBytes::is_aligned(size, ZGranuleSize));
 
   ZVirtualMemory result;
 
-  const auto select_size_fn = [&](size_t) {
+  const auto select_size_fn = [&](zbytes) {
     // We always select the size
     return size;
   };
@@ -653,25 +654,25 @@ ZVirtualMemory ZMappedCache::remove_contiguous(size_t size) {
   return result;
 }
 
-ZVirtualMemory ZMappedCache::remove_contiguous_power_of_2(size_t min_size, size_t max_size) {
-  precond(is_aligned(min_size, ZGranuleSize));
-  precond(is_power_of_2(min_size));
-  precond(is_aligned(max_size, ZGranuleSize));
-  precond(is_power_of_2(max_size));
+ZVirtualMemory ZMappedCache::remove_contiguous_power_of_2(zbytes min_size, zbytes max_size) {
+  precond(ZBytes::is_aligned(min_size, ZGranuleSize));
+  precond(ZBytes::is_power_of_2(min_size));
+  precond(ZBytes::is_aligned(max_size, ZGranuleSize));
+  precond(ZBytes::is_power_of_2(max_size));
   precond(min_size <= max_size);
 
   ZVirtualMemory result;
 
-  const auto select_size_fn = [&](size_t size) {
+  const auto select_size_fn = [&](zbytes size) {
     // Always select a power of 2 within the [min_size, max_size] interval.
-    return clamp(round_down_power_of_2(size), min_size, max_size);
+    return clamp(ZBytes::round_down_power_of_2(size), min_size, max_size);
   };
 
   const auto consume_vmem_fn = [&](ZVirtualMemory vmem) {
     assert(result.is_null(), "only consume once");
     assert(min_size <= vmem.size() && vmem.size() <= max_size,
-      "Must be %zu <= %zu <= %zu", min_size, vmem.size(), max_size);
-    assert(is_power_of_2(vmem.size()), "Must be power_of_2(%zu)", vmem.size());
+      "Must be %zu <= %zu <= %zu", untype(min_size), untype(vmem.size()), untype(max_size));
+    assert(ZBytes::is_power_of_2(vmem.size()), "Must be power_of_2(%zu)", untype(vmem.size()));
 
     result = vmem;
 
@@ -684,7 +685,7 @@ ZVirtualMemory ZMappedCache::remove_contiguous_power_of_2(size_t min_size, size_
   return result;
 }
 
-size_t ZMappedCache::remove_discontiguous(size_t size, ZArray<ZVirtualMemory>* out) {
+zbytes ZMappedCache::remove_discontiguous(zbytes size, ZArray<ZVirtualMemory>* out) {
   return remove_discontiguous_with_strategy<RemovalStrategy::SizeClasses>(size, out);
 }
 
@@ -692,13 +693,13 @@ void ZMappedCache::reset_min_size_watermark() {
   _min_size_watermark = _size;
 }
 
-size_t ZMappedCache::min_size_watermark() {
+zbytes ZMappedCache::min_size_watermark() {
   return _min_size_watermark;
 }
 
-size_t ZMappedCache::remove_for_uncommit(size_t size, ZArray<ZVirtualMemory>* out) {
-  if (size == 0) {
-    return 0;
+zbytes ZMappedCache::remove_for_uncommit(zbytes size, ZArray<ZVirtualMemory>* out) {
+  if (size == 0_zb) {
+    return 0_zb;
   }
 
   return remove_discontiguous_with_strategy<RemovalStrategy::HighestAddress>(size, out);
@@ -713,7 +714,7 @@ void ZMappedCache::print_on(outputStream* st) const {
 
   st->print("Cache ");
   st->fill_to(17);
-  st->print_cr("%zuM (%zu)", _size / M, entry_count);
+  st->print_cr("%zuM (%zu)", _size / M_zb, entry_count);
 
   if (entry_count == 0) {
     // Empty cache, skip printing size classes

@@ -35,13 +35,13 @@ void ZNMT::initialize() {
   _device = MemTracker::register_file("ZGC heap backing file");
 }
 
-void ZNMT::reserve(zaddress_unsafe start, size_t size) {
-  MemTracker::record_virtual_memory_reserve((address)untype(start), size, CALLER_PC, mtJavaHeap);
+void ZNMT::reserve(zaddress_unsafe start, zbytes size) {
+  MemTracker::record_virtual_memory_reserve((address)untype(start), untype(size), CALLER_PC, mtJavaHeap);
 }
 
-void ZNMT::unreserve(zaddress_unsafe start, size_t size) {
+void ZNMT::unreserve(zaddress_unsafe start, zbytes size) {
   precond(is_aligned(untype(start), ZGranuleSize));
-  precond(is_aligned(size, ZGranuleSize));
+  precond(ZBytes::is_aligned(size, ZGranuleSize));
 
   if (MemTracker::enabled()) {
     // We are the owner of the reserved memory, and any failure to unreserve
@@ -53,24 +53,24 @@ void ZNMT::unreserve(zaddress_unsafe start, size_t size) {
     // region that was built up from smaller memory reservations. Workaround
     // this problem by splitting the work up into granule-sized chunks, which
     // is the smallest unit we ever reserve.
-    for (size_t i = 0; i < size; i += ZGranuleSize) {
-      MemTracker::record_virtual_memory_release((address)untype(start + i), ZGranuleSize);
+    for (zbytes i = 0_zb; i < size; i += ZGranuleSize) {
+      MemTracker::record_virtual_memory_release((address)untype(start + i), untype(ZGranuleSize));
     }
   }
 }
 
-void ZNMT::commit(zbacking_offset offset, size_t size) {
-  MemTracker::allocate_memory_in(ZNMT::_device, untype(offset), size, CALLER_PC, mtJavaHeap);
+void ZNMT::commit(zbacking_offset offset, zbytes size) {
+  MemTracker::allocate_memory_in(ZNMT::_device, untype(offset), untype(size), CALLER_PC, mtJavaHeap);
 }
 
-void ZNMT::uncommit(zbacking_offset offset, size_t size) {
-  MemTracker::free_memory_in(ZNMT::_device, untype(offset), size);
+void ZNMT::uncommit(zbacking_offset offset, zbytes size) {
+  MemTracker::free_memory_in(ZNMT::_device, untype(offset), untype(size));
 }
 
-void ZNMT::map(zaddress_unsafe addr, size_t size, zbacking_offset offset) {
+void ZNMT::map(zaddress_unsafe addr, zbytes size, zbacking_offset offset) {
   // NMT doesn't track mappings at the moment.
 }
 
-void ZNMT::unmap(zaddress_unsafe addr, size_t size) {
+void ZNMT::unmap(zaddress_unsafe addr, zbytes size) {
   // NMT doesn't track mappings at the moment.
 }

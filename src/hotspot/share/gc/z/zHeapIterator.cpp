@@ -300,13 +300,13 @@ ZHeapIterator::~ZHeapIterator() {
 }
 
 static size_t object_index_max() {
-  return ZGranuleSize >> ZObjectAlignmentSmallShift;
+  return untype(ZGranuleSize >> ZObjectAlignmentSmallShift);
 }
 
 static size_t object_index(oop obj) {
   const zaddress addr = to_zaddress(obj);
   const zoffset offset = ZAddress::offset(addr);
-  const uintptr_t mask = ZGranuleSize - 1;
+  const uintptr_t mask = untype(ZGranuleSize) - 1;
   return (untype(offset) & mask) >> ZObjectAlignmentSmallShift;
 }
 

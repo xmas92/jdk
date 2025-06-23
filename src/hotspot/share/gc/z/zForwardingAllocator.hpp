@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZFORWARDINGALLOCATOR_HPP
 #define SHARE_GC_Z_ZFORWARDINGALLOCATOR_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 class ZForwardingAllocator {
@@ -36,11 +37,11 @@ public:
   ZForwardingAllocator();
   ~ZForwardingAllocator();
 
-  void reset(size_t size);
-  size_t size() const;
+  void reset(zbytes size);
+  zbytes size() const;
   bool is_full() const;
 
-  void* alloc(size_t size);
+  void* alloc(zbytes size);
 };
 
 #endif // SHARE_GC_Z_ZFORWARDINGALLOCATOR_HPP

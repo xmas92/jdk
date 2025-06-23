@@ -70,9 +70,9 @@ protected:
   ZRelocate             _relocate;
   ZRelocationSet        _relocation_set;
 
-  volatile size_t       _freed;
-  volatile size_t       _promoted;
-  volatile size_t       _compacted;
+  volatile zbytes       _freed;
+  volatile zbytes       _promoted;
+  volatile zbytes       _compacted;
 
   Phase                 _phase;
   uint32_t              _seqnum;
@@ -120,12 +120,12 @@ public:
   // Statistics
   void reset_statistics();
   virtual bool should_record_stats() = 0;
-  size_t freed() const;
-  void increase_freed(size_t size);
-  size_t promoted() const;
-  void increase_promoted(size_t size);
-  size_t compacted() const;
-  void increase_compacted(size_t size);
+  zbytes freed() const;
+  void increase_freed(zbytes size);
+  zbytes promoted() const;
+  void increase_promoted(zbytes size);
+  zbytes compacted() const;
+  void increase_compacted(zbytes size);
 
   ConcurrentGCTimer* gc_timer() const;
   void set_gc_timer(ConcurrentGCTimer* gc_timer);

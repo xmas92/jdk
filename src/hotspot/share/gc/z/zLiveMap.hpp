@@ -27,6 +27,7 @@
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zBitMap.hpp"
 #include "gc/z/zGenerationId.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allocation.hpp"
 
 class ObjectClosure;
@@ -43,7 +44,7 @@ private:
 
   volatile uint32_t _seqnum;
   volatile uint32_t _live_objects;
-  volatile size_t   _live_bytes;
+  volatile zbytes   _live_bytes;
   BitMap::bm_word_t _segment_live_bits;
   BitMap::bm_word_t _segment_claim_bits;
   ZBitMap           _bitmap;
@@ -71,8 +72,6 @@ private:
   void reset(ZGenerationId id);
   void reset_segment(BitMap::idx_t segment);
 
-  size_t do_object(ObjectClosure* cl, zaddress addr) const;
-
   template <typename Function>
   void iterate_segment(BitMap::idx_t segment, Function function);
 
@@ -85,12 +84,12 @@ public:
   bool is_marked(ZGenerationId id) const;
 
   uint32_t live_objects() const;
-  size_t live_bytes() const;
+  zbytes live_bytes() const;
 
   bool get(ZGenerationId id, BitMap::idx_t index) const;
   bool set(ZGenerationId id, BitMap::idx_t index, bool finalizable, bool& inc_live);
 
-  void inc_live(uint32_t objects, size_t bytes);
+  void inc_live(uint32_t objects, zbytes bytes);
 
   template <typename Function>
   void iterate(ZGenerationId id, Function function);

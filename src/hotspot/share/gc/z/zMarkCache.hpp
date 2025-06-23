@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZMARKCACHE_HPP
 
 #include "gc/z/zGlobals.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allocation.hpp"
 
 class ZPage;
@@ -33,12 +34,12 @@ class ZMarkCacheEntry {
 private:
   ZPage*   _page;
   uint32_t _objects;
-  size_t   _bytes;
+  zbytes   _bytes;
 
 public:
   ZMarkCacheEntry();
 
-  void inc_live(ZPage* page, size_t bytes);
+  void inc_live(ZPage* page, zbytes bytes);
   void evict();
 };
 
@@ -53,7 +54,7 @@ public:
 
   void set_nstripes(size_t nstripes);
 
-  void inc_live(ZPage* page, size_t bytes);
+  void inc_live(ZPage* page, zbytes bytes);
 };
 
 #endif // SHARE_GC_Z_ZMARKCACHE_HPP

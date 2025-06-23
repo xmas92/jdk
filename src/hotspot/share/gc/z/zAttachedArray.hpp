@@ -24,6 +24,7 @@
 #ifndef SHARE_GC_Z_ZATTACHEDARRAY_HPP
 #define SHARE_GC_Z_ZATTACHEDARRAY_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 template <typename ObjectT, typename ArrayT>
@@ -33,8 +34,8 @@ class ZAttachedArray {
 private:
   const size_t _length;
 
-  static size_t object_size();
-  static size_t array_size(size_t length);
+  static zbytes object_size();
+  static zbytes array_size(size_t length);
 
 public:
   template <typename Allocator>

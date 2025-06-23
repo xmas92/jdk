@@ -24,51 +24,53 @@
 #ifndef SHARE_GC_Z_ZRANGE_HPP
 #define SHARE_GC_Z_ZRANGE_HPP
 
+#include "gc/z/zSize.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-template <typename Start, typename End>
+template <typename Start, typename End, typename Size>
 class ZRange {
   friend class VMStructs;
 
 public:
   using offset     = Start;
   using offset_end = End;
+  using size_type  = Size;
 
 private:
-  End    _start;
-  size_t _size;
+  End  _start;
+  Size _size;
 
   // Used internally to create a ZRange.
   //
   // The end parameter is only used for verification and to distinguish
   // the constructors if End == Start.
-  ZRange(End start, size_t size, End end);
+  ZRange(End start, Size size, End end);
 
 public:
   ZRange();
-  ZRange(Start start, size_t size);
+  ZRange(Start start, Size size);
 
   bool is_null() const;
 
   Start start() const;
   End end() const;
 
-  size_t size() const;
+  Size size() const;
 
   bool operator==(const ZRange& other) const;
   bool operator!=(const ZRange& other) const;
 
   bool contains(const ZRange& other) const;
 
-  void grow_from_front(size_t size);
-  void grow_from_back(size_t size);
+  void grow_from_front(Size size);
+  void grow_from_back(Size size);
 
-  ZRange shrink_from_front(size_t size);
-  ZRange shrink_from_back(size_t size);
+  ZRange shrink_from_front(Size size);
+  ZRange shrink_from_back(Size size);
 
-  ZRange partition(size_t offset, size_t partition_size) const;
-  ZRange first_part(size_t split_offset) const;
-  ZRange last_part(size_t split_offset) const;
+  ZRange partition(Size offset, Size partition_size) const;
+  ZRange first_part(Size split_offset) const;
+  ZRange last_part(Size split_offset) const;
 
   bool adjacent_to(const ZRange& other) const;
 };

@@ -30,17 +30,18 @@
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zNMT.hpp"
 #include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "gc/z/zVirtualMemoryManager.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
-ZVirtualMemoryReserver::ZVirtualMemoryReserver(size_t size)
+ZVirtualMemoryReserver::ZVirtualMemoryReserver(zbytes size)
   : _registry(),
     _reserved(reserve(size)) {}
 
-void ZVirtualMemoryReserver::initialize_partition_registry(ZVirtualMemoryRegistry* partition_registry, size_t size) {
+void ZVirtualMemoryReserver::initialize_partition_registry(ZVirtualMemoryRegistry* partition_registry, zbytes size) {
   assert(partition_registry->is_empty(), "Should be empty when initializing");
 
   // Registers the Windows callbacks
@@ -76,7 +77,7 @@ bool ZVirtualMemoryReserver::is_contiguous() const {
   return _registry.is_contiguous();
 }
 
-size_t ZVirtualMemoryReserver::reserved() const {
+zbytes ZVirtualMemoryReserver::reserved() const {
   return _reserved;
 }
 
@@ -85,20 +86,20 @@ zoffset_end ZVirtualMemoryReserver::highest_available_address_end() const {
 }
 
 #ifdef ASSERT
-size_t ZVirtualMemoryReserver::force_reserve_discontiguous(size_t size) {
-  const size_t min_range = calculate_min_range(size);
-  const size_t max_range = MAX2(align_down(size / ZForceDiscontiguousHeapReservations, ZGranuleSize), min_range);
-  size_t reserved = 0;
+zbytes ZVirtualMemoryReserver::force_reserve_discontiguous(zbytes size) {
+  const zbytes min_range = calculate_min_range(size);
+  const zbytes max_range = MAX2(ZBytes::align_down(size / ZForceDiscontiguousHeapReservations, ZGranuleSize), min_range);
+  zbytes reserved = 0_zb;
 
   // Try to reserve ZForceDiscontiguousHeapReservations number of virtual memory
   // ranges. Starting with higher addresses.
-  uintptr_t end = ZAddressOffsetMax;
+  zbytes end = to_zbytes(ZAddressOffsetMax);
   while (reserved < size && end >= max_range) {
-    const size_t remaining = size - reserved;
-    const size_t reserve_size = MIN2(max_range, remaining);
-    const uintptr_t reserve_start = end - reserve_size;
+    const zbytes remaining = size - reserved;
+    const zbytes reserve_size = MIN2(max_range, remaining);
+    const zbytes reserve_start = end - reserve_size;
 
-    if (reserve_contiguous(to_zoffset(reserve_start), reserve_size)) {
+    if (reserve_contiguous(to_zoffset(untype(reserve_start)), reserve_size)) {
       reserved += reserve_size;
     }
 
@@ -106,10 +107,10 @@ size_t ZVirtualMemoryReserver::force_reserve_discontiguous(size_t size) {
   }
 
   // If (reserved < size) attempt to reserve the rest via normal divide and conquer
-  uintptr_t start = 0;
-  while (reserved < size && start < ZAddressOffsetMax) {
-    const size_t remaining = MIN2(size - reserved, ZAddressOffsetMax - start);
-    reserved += reserve_discontiguous(to_zoffset(start), remaining, min_range);
+  zbytes start = 0_zb;
+  while (reserved < size && start < to_zbytes(ZAddressOffsetMax)) {
+    const zbytes remaining = MIN2(size - reserved, to_zbytes(ZAddressOffsetMax) - start);
+    reserved += reserve_discontiguous(to_zoffset(untype(start)), remaining, min_range);
     start += remaining;
   }
 
@@ -117,56 +118,56 @@ size_t ZVirtualMemoryReserver::force_reserve_discontiguous(size_t size) {
 }
 #endif
 
-size_t ZVirtualMemoryReserver::reserve_discontiguous(zoffset start, size_t size, size_t min_range) {
+zbytes ZVirtualMemoryReserver::reserve_discontiguous(zoffset start, zbytes size, zbytes min_range) {
   if (size < min_range) {
     // Too small
-    return 0;
+    return 0_zb;
   }
 
-  assert(is_aligned(size, ZGranuleSize), "Misaligned");
+  assert(ZBytes::is_aligned(size, ZGranuleSize), "Misaligned");
 
   if (reserve_contiguous(start, size)) {
     return size;
   }
 
-  const size_t half = size / 2;
+  const zbytes half = size / 2;
   if (half < min_range) {
     // Too small
-    return 0;
+    return 0_zb;
   }
 
   // Divide and conquer
-  const size_t first_part = align_down(half, ZGranuleSize);
-  const size_t second_part = size - first_part;
-  const size_t first_size = reserve_discontiguous(start, first_part, min_range);
-  const size_t second_size = reserve_discontiguous(start + first_part, second_part, min_range);
+  const zbytes first_part = ZBytes::align_down(half, ZGranuleSize);
+  const zbytes second_part = size - first_part;
+  const zbytes first_size = reserve_discontiguous(start, first_part, min_range);
+  const zbytes second_size = reserve_discontiguous(start + first_part, second_part, min_range);
   return first_size + second_size;
 }
 
-size_t ZVirtualMemoryReserver::calculate_min_range(size_t size) {
+zbytes ZVirtualMemoryReserver::calculate_min_range(zbytes size) {
   // Don't try to reserve address ranges smaller than 1% of the requested size.
   // This avoids an explosion of reservation attempts in case large parts of the
   // address space is already occupied.
-  return align_up(size / ZMaxVirtualReservations, ZGranuleSize);
+  return ZBytes::align_up(size / ZMaxVirtualReservations, ZGranuleSize);
 }
 
-size_t ZVirtualMemoryReserver::reserve_discontiguous(size_t size) {
-  const size_t min_range = calculate_min_range(size);
-  uintptr_t start = 0;
-  size_t reserved = 0;
+zbytes ZVirtualMemoryReserver::reserve_discontiguous(zbytes size) {
+  const zbytes min_range = calculate_min_range(size);
+  zbytes start = 0_zb;
+  zbytes reserved = 0_zb;
 
   // Reserve size somewhere between [0, ZAddressOffsetMax)
-  while (reserved < size && start < ZAddressOffsetMax) {
-    const size_t remaining = MIN2(size - reserved, ZAddressOffsetMax - start);
-    reserved += reserve_discontiguous(to_zoffset(start), remaining, min_range);
+  while (reserved < size && start < to_zbytes(ZAddressOffsetMax)) {
+    const zbytes remaining = MIN2(size - reserved, to_zbytes(ZAddressOffsetMax) - start);
+    reserved += reserve_discontiguous(to_zoffset(untype(start)), remaining, min_range);
     start += remaining;
   }
 
   return reserved;
 }
 
-bool ZVirtualMemoryReserver::reserve_contiguous(zoffset start, size_t size) {
-  assert(is_aligned(size, ZGranuleSize), "Must be granule aligned 0x%zx", size);
+bool ZVirtualMemoryReserver::reserve_contiguous(zoffset start, zbytes size) {
+  assert(ZBytes::is_aligned(size, ZGranuleSize), "Must be granule aligned 0x%zx", untype(size));
 
   // Reserve address views
   const zaddress_unsafe addr = ZOffset::address_unsafe(start);
@@ -185,13 +186,13 @@ bool ZVirtualMemoryReserver::reserve_contiguous(zoffset start, size_t size) {
   return true;
 }
 
-bool ZVirtualMemoryReserver::reserve_contiguous(size_t size) {
+bool ZVirtualMemoryReserver::reserve_contiguous(zbytes size) {
   // Allow at most 8192 attempts spread evenly across [0, ZAddressOffsetMax)
-  const size_t unused = ZAddressOffsetMax - size;
-  const size_t increment = MAX2(align_up(unused / 8192, ZGranuleSize), ZGranuleSize);
+  const zbytes unused = to_zbytes(ZAddressOffsetMax) - size;
+  const zbytes increment = MAX2(ZBytes::align_up(unused / 8192, ZGranuleSize), ZGranuleSize);
 
-  for (uintptr_t start = 0; start + size <= ZAddressOffsetMax; start += increment) {
-    if (reserve_contiguous(to_zoffset(start), size)) {
+  for (zbytes start = 0_zb; start + size <= to_zbytes(ZAddressOffsetMax); start += increment) {
+    if (reserve_contiguous(to_zoffset(untype(start)), size)) {
       // Success
       return true;
     }
@@ -201,7 +202,7 @@ bool ZVirtualMemoryReserver::reserve_contiguous(size_t size) {
   return false;
 }
 
-size_t ZVirtualMemoryReserver::reserve(size_t size) {
+zbytes ZVirtualMemoryReserver::reserve(zbytes size) {
   // Register Windows callbacks
   pd_register_callbacks(&_registry);
 
@@ -222,30 +223,30 @@ size_t ZVirtualMemoryReserver::reserve(size_t size) {
   return reserve_discontiguous(size);
 }
 
-ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
+ZVirtualMemoryManager::ZVirtualMemoryManager(zbytes max_capacity)
   : _partition_registries(),
     _multi_partition_registry(),
     _is_multi_partition_enabled(false),
     _initialized(false) {
 
-  assert(max_capacity <= ZAddressOffsetMax, "Too large max_capacity");
+  assert(max_capacity <= to_zbytes(ZAddressOffsetMax), "Too large max_capacity");
 
   ZAddressSpaceLimit::print_limits();
 
-  const size_t limit = MIN2(ZAddressOffsetMax, ZAddressSpaceLimit::heap());
+  const zbytes limit = MIN2(to_zbytes(ZAddressOffsetMax), ZAddressSpaceLimit::heap());
 
-  const size_t desired_for_partitions = max_capacity * ZVirtualToPhysicalRatio;
-  const size_t desired_for_multi_partition = ZNUMA::count() > 1 ? desired_for_partitions : 0;
+  const zbytes desired_for_partitions = max_capacity * ZVirtualToPhysicalRatio;
+  const zbytes desired_for_multi_partition = ZNUMA::count() > 1 ? desired_for_partitions : 0_zb;
 
-  const size_t desired = desired_for_partitions + desired_for_multi_partition;
-  const size_t requested = desired <= limit
+  const zbytes desired = desired_for_partitions + desired_for_multi_partition;
+  const zbytes requested = desired <= limit
       ? desired
       : MIN2(desired_for_partitions, limit);
 
   // Reserve virtual memory for the heap
   ZVirtualMemoryReserver reserver(requested);
 
-  const size_t reserved = reserver.reserved();
+  const zbytes reserved = reserver.reserved();
   const bool is_contiguous = reserver.is_contiguous();
 
   log_debug_p(gc, init)("Reserved Space: limit " EXACTFMT ", desired " EXACTFMT ", requested " EXACTFMT,
@@ -259,13 +260,13 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   // Set ZAddressOffsetMax to the highest address end available after reservation
   ZAddressOffsetMax = untype(reserver.highest_available_address_end());
 
-  const size_t size_for_partitions = MIN2(reserved, desired_for_partitions);
+  const zbytes size_for_partitions = MIN2(reserved, desired_for_partitions);
 
   // Divide size_for_partitions virtual memory over the NUMA nodes
   initialize_partitions(&reserver, size_for_partitions);
 
   // Set up multi-partition or unreserve the surplus memory
-  if (desired_for_multi_partition > 0 && reserved == desired) {
+  if (desired_for_multi_partition > 0_zb && reserved == desired) {
     // Enough left to setup the multi-partition memory reservation
     reserver.initialize_partition_registry(&_multi_partition_registry, desired_for_multi_partition);
     _is_multi_partition_enabled = true;
@@ -286,8 +287,8 @@ ZVirtualMemoryManager::ZVirtualMemoryManager(size_t max_capacity)
   _initialized = true;
 }
 
-void ZVirtualMemoryManager::initialize_partitions(ZVirtualMemoryReserver* reserver, size_t size_for_partitions) {
-  precond(is_aligned(size_for_partitions, ZGranuleSize));
+void ZVirtualMemoryManager::initialize_partitions(ZVirtualMemoryReserver* reserver, zbytes size_for_partitions) {
+  precond(ZBytes::is_aligned(size_for_partitions, ZGranuleSize));
 
   // If the capacity consist of less granules than the number of partitions
   // some partitions will be empty. Distribute these shares on the none empty
@@ -304,7 +305,7 @@ void ZVirtualMemoryManager::initialize_partitions(ZVirtualMemoryReserver* reserv
     }
 
     // Calculate how much reserved memory this partition gets
-    const size_t reserved_for_partition = ZNUMA::calculate_share(numa_id, size_for_partitions, ZGranuleSize, ignore_count);
+    const zbytes reserved_for_partition = ZNUMA::calculate_share(numa_id, size_for_partitions, ZGranuleSize, ignore_count);
 
     // Transfer reserved memory
     reserver->initialize_partition_registry(registry, reserved_for_partition);
@@ -336,15 +337,15 @@ void ZVirtualMemoryManager::insert_multi_partition(const ZVirtualMemory& vmem) {
   _multi_partition_registry.insert(vmem);
 }
 
-size_t ZVirtualMemoryManager::remove_from_low_many_at_most(size_t size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_out) {
+zbytes ZVirtualMemoryManager::remove_from_low_many_at_most(zbytes size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_out) {
   return registry(partition_id).remove_from_low_many_at_most(size, vmems_out);
 }
 
-ZVirtualMemory ZVirtualMemoryManager::remove_from_low(size_t size, uint32_t partition_id) {
+ZVirtualMemory ZVirtualMemoryManager::remove_from_low(zbytes size, uint32_t partition_id) {
   return registry(partition_id).remove_from_low(size);
 }
 
-ZVirtualMemory ZVirtualMemoryManager::remove_from_low_multi_partition(size_t size) {
+ZVirtualMemory ZVirtualMemoryManager::remove_from_low_multi_partition(zbytes size) {
   return _multi_partition_registry.remove_from_low(size);
 }
 
@@ -352,6 +353,6 @@ void ZVirtualMemoryManager::insert_and_remove_from_low_many(const ZVirtualMemory
   registry(partition_id).insert_and_remove_from_low_many(vmem, vmems_out);
 }
 
-ZVirtualMemory ZVirtualMemoryManager::insert_and_remove_from_low_exact_or_many(size_t size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_in_out) {
+ZVirtualMemory ZVirtualMemoryManager::insert_and_remove_from_low_exact_or_many(zbytes size, uint32_t partition_id, ZArray<ZVirtualMemory>* vmems_in_out) {
   return registry(partition_id).insert_and_remove_from_low_exact_or_many(size, vmems_in_out);
 }

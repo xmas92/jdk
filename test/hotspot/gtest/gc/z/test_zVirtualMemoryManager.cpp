@@ -27,6 +27,7 @@
 #include "gc/z/zInitialize.hpp"
 #include "gc/z/zList.inline.hpp"
 #include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zValue.inline.hpp"
 #include "gc/z/zVirtualMemoryManager.inline.hpp"
 #include "runtime/os.hpp"
@@ -54,7 +55,7 @@ public:
 
 class ZVirtualMemoryManagerTest : public ZTest {
 private:
-  static constexpr size_t ReservationSize = 32 * M;
+  static constexpr zbytes ReservationSize = 32 * M_zb;
 
   ZVirtualMemoryReserver* _reserver;
   ZVirtualMemoryRegistry* _registry;
@@ -114,7 +115,7 @@ public:
 
     if (_reserver->reserved() < 4 * ZGranuleSize || !_registry->is_contiguous()) {
       GTEST_SKIP() << "Fixture failed to reserve adequate memory, reserved "
-          << (_reserver->reserved() >> ZGranuleSizeShift) << " * ZGranuleSize";
+          << (_reserver->reserved() / ZGranuleSize) << " * ZGranuleSize";
     }
 
     // Start at the offset we reserved.
@@ -128,7 +129,7 @@ public:
 
     // Reserve the memory that is acting as a blocking reservation.
     {
-      char* const result = os::attempt_reserve_memory_at((char*)untype(blocked), ZGranuleSize, mtTest);
+      char* const result = os::attempt_reserve_memory_at((char*)untype(blocked), untype(ZGranuleSize), mtTest);
       if (uintptr_t(result) != untype(blocked)) {
         GTEST_SKIP() << "Failed to reserve requested memory at " << untype(blocked);
       }
@@ -152,11 +153,11 @@ public:
       // After the fix, we always have the callbacks turned on, so we don't
       // need this to mimic the initializing memory reservation.
 
-      const size_t reserved = _reserver->reserve_discontiguous(base_offset, 4 * ZGranuleSize, ZGranuleSize);
+      const zbytes reserved = _reserver->reserve_discontiguous(base_offset, 4 * ZGranuleSize, ZGranuleSize);
       ASSERT_LE(reserved, 3 * ZGranuleSize);
       if (reserved < 3 * ZGranuleSize) {
         GTEST_SKIP() << "Failed reserve_discontiguous"
-            ", expected 3 * ZGranuleSize, got " << (reserved >> ZGranuleSizeShift)
+            ", expected 3 * ZGranuleSize, got " << (reserved / ZGranuleSize)
             << " * ZGranuleSize";
       }
     }
@@ -178,7 +179,7 @@ public:
     ASSERT_EQ(vmem, ZVirtualMemory(base_offset + 2 * ZGranuleSize, ZGranuleSize));
     _reserver->unreserve(vmem);
 
-    const bool released = os::release_memory((char*)untype(blocked), ZGranuleSize);
+    const bool released = os::release_memory((char*)untype(blocked), untype(ZGranuleSize));
     ASSERT_TRUE(released);
   }
 
@@ -236,7 +237,7 @@ public:
 
   void test_remove_whole() {
     // Need a local variable to appease gtest
-    const size_t reservation_size = ReservationSize;
+    const zbytes reservation_size = ReservationSize;
 
     // Remove the whole reservation
     const ZVirtualMemory reserved = _registry->remove_from_low(reservation_size);

@@ -24,12 +24,13 @@
 #ifndef SHARE_GC_Z_ZADDRESSSPACELIMIT_HPP
 #define SHARE_GC_Z_ZADDRESSSPACELIMIT_HPP
 
+#include "gc/z/zSize.hpp"
 #include "memory/allStatic.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 class ZAddressSpaceLimit : public AllStatic {
 public:
-  static size_t heap();
+  static zbytes heap();
 
   static void print_limits();
 };

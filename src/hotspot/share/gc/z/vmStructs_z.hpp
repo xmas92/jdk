@@ -90,14 +90,14 @@ typedef ZValue<ZPerNUMAStorage, ZPartition> ZPerNUMAZPartition;
   nonstatic_field(ZPage,                        _virtual,             const ZVirtualMemory)          \
   volatile_nonstatic_field(ZPage,               _top,                 zoffset_end)                   \
                                                                                                      \
-  nonstatic_field(ZPageAllocator,               _max_capacity,        const size_t)                  \
+  nonstatic_field(ZPageAllocator,               _max_capacity,        const zbytes)                  \
   nonstatic_field(ZPageAllocator,               _partitions,          ZPerNUMAZPartition)            \
                                                                                                      \
   static_field(ZNUMA,                           _count,               uint32_t)                      \
   nonstatic_field(ZPerNUMAZPartition,           _addr,                const uintptr_t)               \
                                                                                                      \
-  volatile_nonstatic_field(ZPartition,          _capacity,            size_t)                        \
-  nonstatic_field(ZPartition,                   _used,                size_t)                        \
+  volatile_nonstatic_field(ZPartition,          _capacity,            zbytes)                        \
+  nonstatic_field(ZPartition,                   _used,                zbytes)                        \
                                                                                                      \
   nonstatic_field(ZPageTable,                   _map,                 ZGranuleMapForPageTable)       \
                                                                                                      \
@@ -107,16 +107,19 @@ typedef ZValue<ZPerNUMAStorage, ZPartition> ZPerNUMAZPartition;
   nonstatic_field(ZForwardingTable,             _map,                 ZGranuleMapForForwarding)      \
                                                                                                      \
   nonstatic_field(ZVirtualMemory,               _start,               const zoffset_end)             \
-  nonstatic_field(ZVirtualMemory,               _size,                const size_t)                  \
+  nonstatic_field(ZVirtualMemory,               _size,                const zbytes)                  \
                                                                                                      \
   nonstatic_field(ZForwarding,                  _virtual,             const ZVirtualMemory)          \
-  nonstatic_field(ZForwarding,                  _object_alignment_shift, const size_t)               \
+  nonstatic_field(ZForwarding,                  _object_alignment_shift, const int)                  \
   volatile_nonstatic_field(ZForwarding,         _ref_count,           int)                           \
   nonstatic_field(ZForwarding,                  _entries,             const ZAttachedArrayForForwarding) \
   nonstatic_field(ZForwardingEntry,             _entry,               uint64_t)                      \
   nonstatic_field(ZAttachedArrayForForwarding,  _length,              const size_t)
 
 #define VM_INT_CONSTANTS_Z(declare_constant, declare_constant_with_value)                            \
+  declare_constant(ZGranuleSizeShift)                                                                \
+  declare_constant(ZAddressOffsetShift)                                                              \
+  declare_constant(ZAddressOffsetBits)                                                               \
   declare_constant(ZPageType::small)                                                                 \
   declare_constant(ZPageType::medium)                                                                \
   declare_constant(ZPageType::large)                                                                 \
@@ -126,13 +129,11 @@ typedef ZValue<ZPerNUMAStorage, ZPartition> ZPerNUMAZPartition;
   declare_constant(ZObjectAlignmentLargeShift)
 
 #define VM_LONG_CONSTANTS_Z(declare_constant)                                                        \
-  declare_constant(ZGranuleSizeShift)                                                                \
-  declare_constant(ZAddressOffsetShift)                                                              \
-  declare_constant(ZAddressOffsetBits)                                                               \
   declare_constant(ZAddressOffsetMask)                                                               \
   declare_constant(ZAddressOffsetMax)
 
 #define VM_TYPES_Z(declare_type, declare_toplevel_type, declare_integer_type)                        \
+  declare_toplevel_type(zbytes)                                                                      \
   declare_toplevel_type(zoffset)                                                                     \
   declare_toplevel_type(zoffset_end)                                                                 \
   declare_toplevel_type(ZGlobalsForVMStructs)                                                        \

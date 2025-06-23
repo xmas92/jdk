@@ -22,11 +22,13 @@
  */
 
 #include "gc/shared/gc_globals.hpp"
+#include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zMappedCache.hpp"
 #include "gc/z/zNUMA.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zStat.hpp"
 #include "gc/z/zUncommitter.hpp"
 #include "jfr/jfrEvents.hpp"
@@ -37,6 +39,7 @@
 #include "utilities/ticks.hpp"
 
 #include <cmath>
+#include <cstddef>
 
 static const ZStatCounter ZCounterUncommit("Memory", "Uncommit", ZStatUnitBytesPerSecond);
 
@@ -49,8 +52,8 @@ ZUncommitter::ZUncommitter(uint32_t id, ZPartition* partition)
     _next_cycle_timeout(0),
     _next_uncommit_timeout(0),
     _cycle_start(0.0),
-    _to_uncommit(0),
-    _uncommitted(0) {
+    _to_uncommit(0_zb),
+    _uncommitted(0_zb) {
   set_name("ZUncommitter#%u", id);
   create_and_start();
 }
@@ -93,14 +96,14 @@ bool ZUncommitter::should_continue() const {
   return !_stop;
 }
 
-void ZUncommitter::update_statistics(size_t uncommitted, Ticks start, Tickspan* accumulated_time) const {
+void ZUncommitter::update_statistics(zbytes uncommitted, Ticks start, Tickspan* accumulated_time) const {
   // Update counter
-  ZStatInc(ZCounterUncommit, uncommitted);
+  ZStatInc(ZCounterUncommit, untype(uncommitted));
 
   Ticks end = Ticks::now();
 
   // Send event
-  EventZUncommit::commit(start, end, uncommitted);
+  EventZUncommit::commit(start, end, untype(uncommitted));
 
   // Track accumulated time
   *accumulated_time += end - start;
@@ -113,7 +116,7 @@ void ZUncommitter::run_thread() {
   while (wait(_next_cycle_timeout)) {
     // Counters for event and statistics
     Ticks start = Ticks::now();
-    size_t uncommitted_since_last_timeout = 0;
+    zbytes uncommitted_since_last_timeout = 0_zb;
     Tickspan accumulated_time;
 
     if (!activate_uncommit_cycle()) {
@@ -123,14 +126,14 @@ void ZUncommitter::run_thread() {
 
     while (should_continue()) {
       // Uncommit chunk
-      const size_t uncommitted = uncommit();
+      const zbytes uncommitted = uncommit();
 
       // Update uncommitted counter
       uncommitted_since_last_timeout += uncommitted;
 
       // 'uncommitted == 0' is a proxy for uncommit_cycle_is_canceled() without
       // having to take the page allocator lock
-      if (uncommitted == 0 || uncommit_cycle_is_finished()) {
+      if (uncommitted == 0_zb || uncommit_cycle_is_finished()) {
         // Done
         break;
       }
@@ -144,18 +147,18 @@ void ZUncommitter::run_thread() {
 
         // Reset event and statistics counters
         start = Ticks::now();
-        uncommitted_since_last_timeout = 0;
+        uncommitted_since_last_timeout = 0_zb;
       }
     }
 
-    if (_uncommitted > 0) {
-      if (uncommitted_since_last_timeout > 0) {
+    if (_uncommitted > 0_zb) {
+      if (uncommitted_since_last_timeout > 0_zb) {
         // Update statistics
         update_statistics(uncommitted_since_last_timeout, start, &accumulated_time);
       }
 
       log_info(gc, heap)("Uncommitter (%u) Uncommitted: %zuM(%.0f%%) in %.3fms",
-                         _id, _uncommitted / M, percent_of(_uncommitted, ZHeap::heap()->max_capacity()),
+                         _id, _uncommitted / M_zb, ZBytes::percent_of(_uncommitted, ZHeap::heap()->max_capacity()),
                          accumulated_time.seconds() * MILLIUNITS);
     }
 
@@ -175,8 +178,8 @@ void ZUncommitter::terminate() {
 }
 
 void ZUncommitter::reset_uncommit_cycle() {
-  _to_uncommit = 0;
-  _uncommitted = 0;
+  _to_uncommit = 0_zb;
+  _uncommitted = 0_zb;
   _cycle_start = 0.0;
   _cancel_time = 0.0;
 
@@ -224,21 +227,21 @@ bool ZUncommitter::activate_uncommit_cycle() {
   _cycle_start = os::elapsedTime();
 
   // Read watermark from cache
-  const size_t uncommit_watermark = cache->min_size_watermark();
+  const zbytes uncommit_watermark = cache->min_size_watermark();
 
   // Keep 10% as a headroom
-  const size_t to_uncommit = align_up(size_t(double(uncommit_watermark) * 0.9), ZGranuleSize);
+  const zbytes to_uncommit = ZBytes::align_up(uncommit_watermark * 0.9, ZGranuleSize);
 
   // Never uncommit below min capacity
-  const size_t uncommit_limit = _partition->_capacity - _partition->_min_capacity;
+  const zbytes uncommit_limit = Atomic::load(&_partition->_capacity) - _partition->_min_capacity;
 
   _to_uncommit = MIN2(uncommit_limit, to_uncommit);
-  _uncommitted = 0;
+  _uncommitted = 0_zb;
 
   // Reset watermark for next uncommit cycle
   cache->reset_min_size_watermark();
 
-  postcond(is_aligned(_to_uncommit, ZGranuleSize));
+  postcond(ZBytes::is_aligned(_to_uncommit, ZGranuleSize));
 
   return true;
 }
@@ -289,11 +292,11 @@ void ZUncommitter::cancel_uncommit_cycle() {
   _cancel_time = os::elapsedTime();
 }
 
-void ZUncommitter::register_uncommit(size_t size) {
+void ZUncommitter::register_uncommit(zbytes size) {
   precond(uncommit_cycle_is_active());
-  precond(size > 0);
+  precond(size > 0_zb);
   precond(size <= _to_uncommit);
-  precond(is_aligned(size, ZGranuleSize));
+  precond(ZBytes::is_aligned(size, ZGranuleSize));
 
   _to_uncommit -= size;
   _uncommitted += size;
@@ -344,7 +347,7 @@ void ZUncommitter::register_uncommit(size_t size) {
 }
 
 bool ZUncommitter::uncommit_cycle_is_finished() const {
-  return _to_uncommit == 0;
+  return _to_uncommit == 0_zb;
 }
 
 bool ZUncommitter::uncommit_cycle_is_active() const {
@@ -355,11 +358,11 @@ bool ZUncommitter::uncommit_cycle_is_canceled() const {
   return _cancel_time != 0.0;
 }
 
-size_t ZUncommitter::uncommit() {
+zbytes ZUncommitter::uncommit() {
   precond(uncommit_cycle_is_active());
 
   ZArray<ZVirtualMemory> flushed_vmems;
-  size_t flushed = 0;
+  zbytes flushed = 0_zb;
 
   {
     // We need to join the suspendible thread set while manipulating capacity
@@ -369,38 +372,38 @@ size_t ZUncommitter::uncommit() {
 
     if (uncommit_cycle_is_canceled()) {
       // We have committed within the delay, stop uncommitting.
-      return 0;
+      return 0_zb;
     }
 
     // We flush out and uncommit chunks at a time (~0.8% of the max capacity,
     // but at least one granule and at most 256M), in case demand for memory
     // increases while we are uncommitting.
-    const size_t current_max_capacity = _partition->_current_max_capacity;
-    const size_t limit_upper_bound = MAX2(ZGranuleSize, align_down(256 * M / ZNUMA::count(), ZGranuleSize));
-    const size_t limit = MIN2(align_up(current_max_capacity >> 7, ZGranuleSize), limit_upper_bound);
+    const zbytes current_max_capacity = _partition->_current_max_capacity;
+    const zbytes limit_upper_bound = MAX2(ZGranuleSize, ZBytes::align_down(256 * M_zb / ZNUMA::count(), ZGranuleSize));
+    const zbytes limit = MIN2(ZBytes::align_up(current_max_capacity >> 7, ZGranuleSize), limit_upper_bound);
 
     ZMappedCache& cache = _partition->_cache;
 
     // Never uncommit more than the current uncommit watermark,
     // (adjusted by what has already been uncommitted).
-    const size_t allowed_to_uncommit = MAX2(cache.min_size_watermark(), _uncommitted) - _uncommitted;
-    const size_t to_uncommit = MIN2(_to_uncommit, allowed_to_uncommit);
+    const zbytes allowed_to_uncommit = MAX2(cache.min_size_watermark(), _uncommitted) - _uncommitted;
+    const zbytes to_uncommit = MIN2(_to_uncommit, allowed_to_uncommit);
 
     // Never uncommit below min capacity.
-    const size_t retain = MAX2(_partition->_used, _partition->_min_capacity);
-    const size_t release = _partition->_capacity - retain;
-    const size_t flush = MIN3(release, limit, to_uncommit);
+    const zbytes retain = MAX2(_partition->_used, _partition->_min_capacity);
+    const zbytes release = Atomic::load(&_partition->_capacity) - retain;
+    const zbytes flush = MIN3(release, limit, to_uncommit);
 
     // Flush memory from the mapped cache for uncommit
     flushed = cache.remove_for_uncommit(flush, &flushed_vmems);
-    if (flushed == 0) {
+    if (flushed == 0_zb) {
       // Nothing flushed
       cancel_uncommit_cycle();
-      return 0;
+      return 0_zb;
     }
 
     // Record flushed memory as claimed and how much we've flushed for this partition
-    Atomic::add(&_partition->_claimed, flushed);
+    Atomic::add(reinterpret_cast<volatile size_t*>(&_partition->_claimed), untype(flushed));
   }
 
   // Unmap and uncommit flushed memory
@@ -416,7 +419,7 @@ size_t ZUncommitter::uncommit() {
     ZLocker<ZLock> locker(&_partition->_page_allocator->_lock);
 
     // Adjust claimed and capacity to reflect the uncommit
-    Atomic::sub(&_partition->_claimed, flushed);
+    Atomic::sub(reinterpret_cast<volatile size_t*>(&_partition->_claimed), untype(flushed));
     _partition->decrease_capacity(flushed, false /* set_max_capacity */);
     register_uncommit(flushed);
   }

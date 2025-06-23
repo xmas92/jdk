@@ -73,8 +73,8 @@ inline void ZGranuleMap<T>::put(zoffset offset, T value) {
 }
 
 template <typename T>
-inline void ZGranuleMap<T>::put(zoffset offset, size_t size, T value) {
-  assert(is_aligned(size, ZGranuleSize), "Misaligned");
+inline void ZGranuleMap<T>::put(zoffset offset, zbytes size, T value) {
+  assert(ZBytes::is_aligned(size, ZGranuleSize), "Misaligned");
 
   const size_t start_index = index_for_offset(offset);
   const size_t end_index = start_index + (size >> ZGranuleSizeShift);
@@ -96,7 +96,7 @@ inline void ZGranuleMap<T>::release_put(zoffset offset, T value) {
 }
 
 template <typename T>
-inline void ZGranuleMap<T>::release_put(zoffset offset, size_t size, T value) {
+inline void ZGranuleMap<T>::release_put(zoffset offset, zbytes size, T value) {
   OrderAccess::release();
   put(offset, size, value);
 }

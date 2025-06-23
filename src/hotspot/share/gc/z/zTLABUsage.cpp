@@ -22,49 +22,50 @@
  */
 
 #include "gc/z/zTLABUsage.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "logging/log.hpp"
 #include "runtime/atomic.hpp"
 
 ZTLABUsage::ZTLABUsage()
-  : _used(0),
+  : _used(0_zb),
     _used_history() {}
 
-void ZTLABUsage::increase_used(size_t size) {
-  Atomic::add(&_used, size, memory_order_relaxed);
+void ZTLABUsage::increase_used(zbytes size) {
+  Atomic::add(reinterpret_cast<volatile size_t*>(&_used), untype(size), memory_order_relaxed);
 }
 
-void ZTLABUsage::decrease_used(size_t size) {
+void ZTLABUsage::decrease_used(zbytes size) {
   precond(size <= _used);
 
-  Atomic::sub(&_used, size, memory_order_relaxed);
+  Atomic::sub(reinterpret_cast<volatile size_t*>(&_used), untype(size), memory_order_relaxed);
 }
 
 void ZTLABUsage::reset() {
-  const size_t used = Atomic::xchg(&_used, (size_t) 0);
+  const zbytes used = Atomic::xchg(&_used, 0_zb);
 
   // Avoid updates when nothing has been allocated since the last YC
-  if (used == 0) {
+  if (used == 0_zb) {
     return;
   }
 
   // Save the old values for logging
-  const size_t old_tlab_used = tlab_used();
-  const size_t old_tlab_capacity = tlab_capacity();
+  const zbytes old_tlab_used = tlab_used();
+  const zbytes old_tlab_capacity = tlab_capacity();
 
   // Update the usage history with the current value
-  _used_history.add(used);
+  _used_history.add(untype(used));
 
   log_debug(gc, tlab)("TLAB usage update: used %zuM -> %zuM, capacity: %zuM -> %zuM",
-                      old_tlab_used / M,
-                      tlab_used() / M,
-                      old_tlab_capacity / M,
-                      tlab_capacity() / M);
+                      old_tlab_used / M_zb,
+                      tlab_used() / M_zb,
+                      old_tlab_capacity / M_zb,
+                      tlab_capacity() / M_zb);
   }
 
-size_t ZTLABUsage::tlab_used() const {
-  return _used_history.last();
+zbytes ZTLABUsage::tlab_used() const {
+  return to_zbytes(_used_history.last());
 }
 
-size_t ZTLABUsage::tlab_capacity() const {
-  return _used_history.davg();
+zbytes ZTLABUsage::tlab_capacity() const {
+  return to_zbytes(_used_history.davg());
 }

@@ -25,6 +25,7 @@
 #include "gc/shared/gcHeapSummary.hpp"
 #include "gc/shared/gcLogPrecious.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zAbort.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zAllocator.inline.hpp"
@@ -111,19 +112,19 @@ void ZCollectedHeap::stop() {
 }
 
 size_t ZCollectedHeap::max_capacity() const {
-  return _heap.max_capacity();
+  return untype(_heap.max_capacity());
 }
 
 size_t ZCollectedHeap::capacity() const {
-  return _heap.capacity();
+  return untype(_heap.capacity());
 }
 
 size_t ZCollectedHeap::used() const {
-  return _heap.used();
+  return untype(_heap.used());
 }
 
 size_t ZCollectedHeap::unused() const {
-  return _heap.unused();
+  return untype(_heap.unused());
 }
 
 bool ZCollectedHeap::is_in(const void* p) const {
@@ -135,7 +136,7 @@ bool ZCollectedHeap::requires_barriers(stackChunkOop obj) const {
 }
 
 HeapWord* ZCollectedHeap::allocate_new_tlab(size_t min_size, size_t requested_size, size_t* actual_size) {
-  const size_t size_in_bytes = ZUtils::words_to_bytes(align_object_size(requested_size));
+  const zbytes size_in_bytes = ZBytes::from_words(align_object_size(requested_size));
   const zaddress addr = ZAllocator::eden()->alloc_tlab(size_in_bytes);
 
   if (!is_null(addr)) {
@@ -151,7 +152,7 @@ oop ZCollectedHeap::array_allocate(Klass* klass, size_t size, int length, bool d
 }
 
 HeapWord* ZCollectedHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
-  const size_t size_in_bytes = ZUtils::words_to_bytes(align_object_size(size));
+  const zbytes size_in_bytes = ZBytes::from_words(align_object_size(size));
   return (HeapWord*)ZAllocator::eden()->alloc_object(size_in_bytes);
 }
 
@@ -224,28 +225,28 @@ void ZCollectedHeap::do_full_collection(bool clear_all_soft_refs) {
 }
 
 size_t ZCollectedHeap::tlab_capacity(Thread* ignored) const {
-  return _heap.tlab_capacity();
+  return untype(_heap.tlab_capacity());
 }
 
 size_t ZCollectedHeap::tlab_used(Thread* ignored) const {
-  return _heap.tlab_used();
+  return untype(_heap.tlab_used());
 }
 
 size_t ZCollectedHeap::max_tlab_size() const {
-  return _heap.max_tlab_size() / HeapWordSize;
+  return untype(ZBytes::to_words(_heap.max_tlab_size()));
 }
 
 size_t ZCollectedHeap::unsafe_max_tlab_alloc(Thread* ignored) const {
-  return _heap.unsafe_max_tlab_alloc();
+  return untype(_heap.unsafe_max_tlab_alloc());
 }
 
 MemoryUsage ZCollectedHeap::memory_usage() {
   const size_t initial_size = InitialHeapSize;
-  const size_t committed    = ZHeap::heap()->capacity();
-  const size_t used         = MIN2(ZHeap::heap()->used(), committed);
-  const size_t max_size     = ZHeap::heap()->max_capacity();
+  const zbytes committed    = ZHeap::heap()->capacity();
+  const zbytes used         = MIN2(ZHeap::heap()->used(), committed);
+  const zbytes max_size     = ZHeap::heap()->max_capacity();
 
-  return MemoryUsage(initial_size, used, committed, max_size);
+  return MemoryUsage(initial_size, untype(used), untype(committed), untype(max_size));
 }
 
 GrowableArray<GCMemoryManager*> ZCollectedHeap::memory_managers() {

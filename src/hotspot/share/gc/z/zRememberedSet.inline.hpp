@@ -26,6 +26,7 @@
 
 #include "gc/z/zRememberedSet.hpp"
 
+#include "gc/z/zSize.inline.hpp"
 #include "utilities/bitMap.inline.hpp"
 
 inline CHeapBitMap* ZRememberedSet::current() {
@@ -54,8 +55,8 @@ inline BitMap::idx_t ZRememberedSet::to_index(uintptr_t offset) {
   return offset / oopSize;
 }
 
-inline BitMap::idx_t ZRememberedSet::to_bit_size(size_t size) {
-  return size / oopSize;
+inline BitMap::idx_t ZRememberedSet::to_bit_size(zbytes size) {
+  return untype(size / oopSize);
 }
 
 inline bool ZRememberedSet::at_current(uintptr_t offset) const {
@@ -78,7 +79,7 @@ inline void ZRememberedSet::unset_non_par_current(uintptr_t offset) {
   current()->clear_bit(index);
 }
 
-inline void ZRememberedSet::unset_range_non_par_current(uintptr_t offset, size_t size) {
+inline void ZRememberedSet::unset_range_non_par_current(uintptr_t offset, zbytes size) {
   const BitMap::idx_t start_index = to_index(offset);
   const BitMap::idx_t end_index = to_index(offset + size);
   current()->clear_range(start_index, end_index);

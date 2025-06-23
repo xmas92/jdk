@@ -31,11 +31,11 @@
 // One bit that denotes where the heap start. All uncolored
 // oops have this bit set, plus an offset within the heap.
 extern uintptr_t  ZAddressHeapBase;
-extern uintptr_t  ZAddressHeapBaseShift;
+extern int        ZAddressHeapBaseShift;
 
 // Describes the maximal offset inside the heap.
-extern size_t    ZAddressOffsetBits;
-const  size_t    ZAddressOffsetShift = 0;
+extern int       ZAddressOffsetBits;
+const  int       ZAddressOffsetShift = 0;
 extern uintptr_t ZAddressOffsetMask;
 extern size_t    ZAddressOffsetMax;
 
@@ -127,17 +127,17 @@ extern uint32_t  ZBackingIndexMax;
 //  RemappedOld1 & RemappedYoung0 = 0100 = Remapped10
 //  RemappedOld1 & RemappedYoung1 = 1000 = Remapped11
 
-constexpr uintptr_t z_pointer_mask(size_t shift, size_t bits) {
+constexpr uintptr_t z_pointer_mask(int shift, int bits) {
   return (((uintptr_t)1 << bits) - 1) << shift;
 }
 
-constexpr uintptr_t z_pointer_bit(size_t shift, size_t offset) {
+constexpr uintptr_t z_pointer_bit(int shift, int offset) {
   return (uintptr_t)1 << (shift + offset);
 }
 
 // Reserved bits
-const size_t      ZPointerReservedShift   = 0;
-const size_t      ZPointerReservedBits    = 4;
+const int         ZPointerReservedShift   = 0;
+const int         ZPointerReservedBits    = 4;
 const uintptr_t   ZPointerReservedMask    = z_pointer_mask(ZPointerReservedShift, ZPointerReservedBits);
 
 const uintptr_t   ZPointerReserved0       = z_pointer_bit(ZPointerReservedShift, 0);
@@ -146,16 +146,16 @@ const uintptr_t   ZPointerReserved2       = z_pointer_bit(ZPointerReservedShift,
 const uintptr_t   ZPointerReserved3       = z_pointer_bit(ZPointerReservedShift, 3);
 
 // Remembered set bits
-const size_t      ZPointerRememberedShift = ZPointerReservedShift + ZPointerReservedBits;
-const size_t      ZPointerRememberedBits  = 2;
+const int         ZPointerRememberedShift = ZPointerReservedShift + ZPointerReservedBits;
+const int         ZPointerRememberedBits  = 2;
 const uintptr_t   ZPointerRememberedMask  = z_pointer_mask(ZPointerRememberedShift, ZPointerRememberedBits);
 
 const uintptr_t   ZPointerRemembered0     = z_pointer_bit(ZPointerRememberedShift, 0);
 const uintptr_t   ZPointerRemembered1     = z_pointer_bit(ZPointerRememberedShift, 1);
 
 // Marked bits
-const size_t      ZPointerMarkedShift     = ZPointerRememberedShift + ZPointerRememberedBits;
-const size_t      ZPointerMarkedBits      = 6;
+const int         ZPointerMarkedShift     = ZPointerRememberedShift + ZPointerRememberedBits;
+const int         ZPointerMarkedBits      = 6;
 const uintptr_t   ZPointerMarkedMask      = z_pointer_mask(ZPointerMarkedShift, ZPointerMarkedBits);
 
 const uintptr_t   ZPointerFinalizable0    = z_pointer_bit(ZPointerMarkedShift, 0);
@@ -166,8 +166,8 @@ const uintptr_t   ZPointerMarkedOld0      = z_pointer_bit(ZPointerMarkedShift, 4
 const uintptr_t   ZPointerMarkedOld1      = z_pointer_bit(ZPointerMarkedShift, 5);
 
 // Remapped bits
-const size_t      ZPointerRemappedShift   = ZPointerMarkedShift + ZPointerMarkedBits;
-const size_t      ZPointerRemappedBits    = 4;
+const int         ZPointerRemappedShift   = ZPointerMarkedShift + ZPointerMarkedBits;
+const int         ZPointerRemappedBits    = 4;
 const uintptr_t   ZPointerRemappedMask    = z_pointer_mask(ZPointerRemappedShift, ZPointerRemappedBits);
 
 const uintptr_t   ZPointerRemapped00      = z_pointer_bit(ZPointerRemappedShift, 0);

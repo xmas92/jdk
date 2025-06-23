@@ -25,6 +25,7 @@
 #define SHARE_GC_Z_ZUNCOMMITTER_HPP
 
 #include "gc/z/zLock.hpp"
+#include "gc/z/zSize.hpp"
 #include "gc/z/zThread.hpp"
 #include "utilities/ticks.hpp"
 
@@ -40,8 +41,8 @@ private:
   uint64_t               _next_cycle_timeout;
   uint64_t               _next_uncommit_timeout;
   double                 _cycle_start;
-  size_t                 _to_uncommit;
-  size_t                 _uncommitted;
+  zbytes                 _to_uncommit;
+  zbytes                 _uncommitted;
 
   bool wait(uint64_t timeout) const;
   bool should_continue() const;
@@ -55,15 +56,15 @@ private:
   void reset_uncommit_cycle();
   void deactivate_uncommit_cycle();
   bool activate_uncommit_cycle();
-  void register_uncommit(size_t size);
+  void register_uncommit(zbytes size);
 
   bool uncommit_cycle_is_finished() const;
   bool uncommit_cycle_is_active() const;
   bool uncommit_cycle_is_canceled() const;
 
-  size_t uncommit();
+  zbytes uncommit();
 
-  void update_statistics(size_t uncommitted, Ticks start, Tickspan* accumulated_time) const;
+  void update_statistics(zbytes uncommitted, Ticks start, Tickspan* accumulated_time) const;
 
 protected:
   virtual void run_thread();

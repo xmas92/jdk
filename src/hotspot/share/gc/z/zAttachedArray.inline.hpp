@@ -26,24 +26,25 @@
 
 #include "gc/z/zAttachedArray.hpp"
 
+#include "gc/z/zSize.inline.hpp"
 #include "memory/allocation.hpp"
 #include "utilities/align.hpp"
 
 template <typename ObjectT, typename ArrayT>
-inline size_t ZAttachedArray<ObjectT, ArrayT>::object_size() {
-  return align_up(sizeof(ObjectT), sizeof(ArrayT));
+inline zbytes ZAttachedArray<ObjectT, ArrayT>::object_size() {
+  return ZBytes::align_up(to_zbytes(sizeof(ObjectT)), to_zbytes(sizeof(ArrayT)));
 }
 
 template <typename ObjectT, typename ArrayT>
-inline size_t ZAttachedArray<ObjectT, ArrayT>::array_size(size_t length) {
-  return sizeof(ArrayT) * length;
+inline zbytes ZAttachedArray<ObjectT, ArrayT>::array_size(size_t length) {
+  return to_zbytes(sizeof(ArrayT)) * length;
 }
 
 template <typename ObjectT, typename ArrayT>
 template <typename Allocator>
 inline void* ZAttachedArray<ObjectT, ArrayT>::alloc(Allocator* allocator, size_t length) {
   // Allocate memory for object and array
-  const size_t size = object_size() + array_size(length);
+  const zbytes size = object_size() + array_size(length);
   void* const addr = allocator->alloc(size);
 
   // Placement new array
@@ -57,8 +58,8 @@ inline void* ZAttachedArray<ObjectT, ArrayT>::alloc(Allocator* allocator, size_t
 template <typename ObjectT, typename ArrayT>
 inline void* ZAttachedArray<ObjectT, ArrayT>::alloc(size_t length) {
   struct Allocator {
-    void* alloc(size_t size) const {
-      return AllocateHeap(size, mtGC);
+    void* alloc(zbytes size) const {
+      return AllocateHeap(untype(size), mtGC);
     }
   } allocator;
   return alloc(&allocator, length);

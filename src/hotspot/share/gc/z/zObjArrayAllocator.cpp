@@ -22,6 +22,7 @@
  */
 
 #include "gc/z/zObjArrayAllocator.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zThreadLocalData.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "oops/arrayKlass.hpp"
@@ -47,9 +48,10 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
   // A max segment size of 64K was chosen because microbenchmarking
   // suggested that it offered a good trade-off between allocation
   // time and time-to-safepoint
-  const size_t segment_max = ZUtils::bytes_to_words(64 * K);
+  const zwords segment_max = ZWords::from_bytes(64 * K);
+  const zwords word_size = to_zwords(_word_size);
 
-  if (_word_size <= segment_max) {
+  if (word_size <= segment_max) {
     // To small to use segmented clearing
     return ObjArrayAllocator::initialize(mem);
   }
@@ -79,20 +81,20 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
   ZThreadLocalData::set_invisible_root(_thread, (zaddress_unsafe*)&mem);
 
   const BasicType element_type = ArrayKlass::cast(_klass)->element_type();
-  const size_t base_offset_in_bytes = (size_t)arrayOopDesc::base_offset_in_bytes(element_type);
-  const size_t process_start_offset_in_bytes = align_up(base_offset_in_bytes, (size_t)BytesPerWord);
+  const zbytes base_offset_in_bytes = to_zbytes(arrayOopDesc::base_offset_in_bytes(element_type));
+  const zbytes process_start_offset_in_bytes = ZBytes::align_up(base_offset_in_bytes, to_zbytes(BytesPerWord));
 
   if (process_start_offset_in_bytes != base_offset_in_bytes) {
     // initialize_memory can only fill word aligned memory,
     // fill the first 4 bytes here.
-    assert(process_start_offset_in_bytes - base_offset_in_bytes == 4, "Must be 4-byte aligned");
+    assert(process_start_offset_in_bytes - base_offset_in_bytes == 4_zb, "Must be 4-byte aligned");
     assert(!is_reference_type(element_type), "Only TypeArrays can be 4-byte aligned");
     *reinterpret_cast<int*>(reinterpret_cast<char*>(mem) + base_offset_in_bytes) = 0;
   }
 
   // Note: initialize_memory may clear padding bytes at the end
-  const size_t process_start_offset = ZUtils::bytes_to_words(process_start_offset_in_bytes);
-  const size_t process_size = _word_size - process_start_offset;
+  const zwords process_start_offset = ZBytes::to_words(process_start_offset_in_bytes);
+  const zwords process_size = word_size - process_start_offset;
 
   uint32_t old_seqnum_before = ZGeneration::old()->seqnum();
   uint32_t young_seqnum_before = ZGeneration::young()->seqnum();
@@ -106,11 +108,11 @@ oop ZObjArrayAllocator::initialize(HeapWord* mem) const {
   bool seen_gc_safepoint = false;
 
   auto initialize_memory = [&]() {
-    for (size_t processed = 0; processed < process_size; processed += segment_max) {
+    for (zwords processed = 0_zw; processed < process_size; processed += segment_max) {
       // Clear segment
       uintptr_t* const start = (uintptr_t*)(mem + process_start_offset + processed);
-      const size_t remaining = process_size - processed;
-      const size_t segment = MIN2(remaining, segment_max);
+      const zwords remaining = process_size - processed;
+      const zwords segment = MIN2(remaining, segment_max);
       // Usually, the young marking code has the responsibility to color
       // raw nulls, before they end up in the old generation. However, the
       // invisible roots are hidden from the marking code, and therefore

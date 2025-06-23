@@ -28,6 +28,7 @@
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zPageType.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allocation.hpp"
 
 class ZPage;
@@ -38,24 +39,24 @@ class ZRelocationSetSelectorGroupStats {
 private:
   // Candidate set
   size_t _npages_candidates;
-  size_t _total;
-  size_t _live;
-  size_t _empty;
+  zbytes _total;
+  zbytes _live;
+  zbytes _empty;
 
   // Selected set
   size_t _npages_selected;
-  size_t _relocate;
+  zbytes _relocate;
 
 public:
   ZRelocationSetSelectorGroupStats();
 
   size_t npages_candidates() const;
-  size_t total() const;
-  size_t live() const;
-  size_t empty() const;
+  zbytes total() const;
+  zbytes live() const;
+  zbytes empty() const;
 
   size_t npages_selected() const;
-  size_t relocate() const;
+  zbytes relocate() const;
 };
 
 class ZRelocationSetSelectorStats {
@@ -66,7 +67,7 @@ private:
   ZRelocationSetSelectorGroupStats _medium[ZPageAgeCount];
   ZRelocationSetSelectorGroupStats _large[ZPageAgeCount];
 
-  size_t _has_relocatable_pages;
+  bool _has_relocatable_pages;
 
 public:
   const ZRelocationSetSelectorGroupStats& small(ZPageAge age) const;
@@ -83,10 +84,10 @@ private:
 
   const char* const                _name;
   const ZPageType                  _page_type;
-  const size_t                     _max_page_size;
-  const size_t                     _object_size_limit;
+  const zbytes                     _max_page_size;
+  const zbytes                     _object_size_limit;
   const double                     _fragmentation_limit;
-  const size_t                     _page_fragmentation_limit;
+  const zbytes                     _page_fragmentation_limit;
   ZArray<ZPage*>                   _live_pages;
   ZArray<ZPage*>                   _not_selected_pages;
   size_t                           _forwarding_entries;
@@ -99,13 +100,13 @@ private:
   void semi_sort();
   void select_inner();
 
-  bool pre_filter_page(const ZPage* page, size_t live_bytes) const;
+  bool pre_filter_page(const ZPage* page, zbytes live_bytes) const;
 
 public:
   ZRelocationSetSelectorGroup(const char* name,
                               ZPageType page_type,
-                              size_t max_page_size,
-                              size_t object_size_limit,
+                              zbytes max_page_size,
+                              zbytes object_size_limit,
                               double fragmentation_limit);
 
   void register_live_page(ZPage* page);
@@ -127,9 +128,9 @@ private:
   ZRelocationSetSelectorGroup _large;
   ZArray<ZPage*>              _empty_pages;
 
-  size_t total() const;
-  size_t empty() const;
-  size_t relocate() const;
+  zbytes total() const;
+  zbytes empty() const;
+  zbytes relocate() const;
 
 public:
   ZRelocationSetSelector(double fragmentation_limit);

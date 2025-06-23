@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zArray.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allocation.hpp"
 
 template <typename T>
@@ -50,11 +51,11 @@ public:
 
   T get(zoffset offset) const;
   void put(zoffset offset, T value);
-  void put(zoffset offset, size_t size, T value);
+  void put(zoffset offset, zbytes size, T value);
 
   T get_acquire(zoffset offset) const;
   void release_put(zoffset offset, T value);
-  void release_put(zoffset offset, size_t size, T value);
+  void release_put(zoffset offset, zbytes size, T value);
 
   const T* addr(zoffset offset) const;
   T* addr(zoffset offset);

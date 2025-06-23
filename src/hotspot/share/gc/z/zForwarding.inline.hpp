@@ -34,6 +34,7 @@
 #include "gc/z/zIterator.inline.hpp"
 #include "gc/z/zLock.inline.hpp"
 #include "gc/z/zPage.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "runtime/atomic.hpp"
@@ -58,9 +59,9 @@ inline ZForwarding* ZForwarding::alloc(ZForwardingAllocator* allocator, ZPage* p
 
 inline ZForwarding::ZForwarding(ZPage* page, ZPageAge to_age, size_t nentries)
   : _virtual(page->virtual_memory()),
-    _object_alignment_shift(page->object_alignment_shift()),
     _entries(nentries),
     _page(page),
+    _object_alignment_shift(page->object_alignment_shift()),
     _from_age(page->age()),
     _to_age(to_age),
     _claimed(false),
@@ -94,11 +95,11 @@ inline zoffset_end ZForwarding::end() const {
   return _virtual.end();
 }
 
-inline size_t ZForwarding::size() const {
+inline zbytes ZForwarding::size() const {
   return _virtual.size();
 }
 
-inline size_t ZForwarding::object_alignment_shift() const {
+inline int ZForwarding::object_alignment_shift() const {
   return _object_alignment_shift;
 }
 
@@ -124,7 +125,7 @@ inline void ZForwarding::address_unsafe_iterate_via_table(Function function) {
 
     // Find to-object
 
-    const zoffset from_offset = start() + (entry.from_index() << object_alignment_shift());
+    const zoffset from_offset = start() + to_zbytes(entry.from_index() << object_alignment_shift());
     const zaddress_unsafe from_addr = ZOffset::address_unsafe(from_offset);
 
     // Apply function
@@ -219,7 +220,7 @@ inline ZForwardingEntry ZForwarding::next(ZForwardingCursor* cursor) const {
 }
 
 inline uintptr_t ZForwarding::index(zoffset from_offset) {
-  return (from_offset - start()) >> object_alignment_shift();
+  return untype(from_offset - start()) >> object_alignment_shift();
 }
 
 inline ZForwardingEntry ZForwarding::find(uintptr_t from_index, ZForwardingCursor* cursor) const {

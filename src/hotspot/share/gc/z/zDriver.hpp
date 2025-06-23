@@ -26,6 +26,7 @@
 
 #include "gc/shared/gcTimer.hpp"
 #include "gc/z/zDriverPort.hpp"
+#include "gc/z/zSize.hpp"
 #include "gc/z/zThread.hpp"
 #include "gc/z/zTracer.hpp"
 
@@ -79,7 +80,7 @@ private:
   ZDriverPort       _port;
   ConcurrentGCTimer _gc_timer;
   ZMinorTracer      _jfr_tracer;
-  size_t            _used_at_start;
+  zbytes            _used_at_start;
 
   void gc(const ZDriverRequest& request);
   void handle_alloc_stalls() const;
@@ -97,8 +98,8 @@ public:
 
   GCTracer* jfr_tracer();
 
-  void set_used_at_start(size_t used);
-  size_t used_at_start() const;
+  void set_used_at_start(zbytes used);
+  zbytes used_at_start() const;
 };
 
 class ZDriverMajor : public ZDriver {
@@ -106,7 +107,7 @@ private:
   ZDriverPort       _port;
   ConcurrentGCTimer _gc_timer;
   ZMajorTracer      _jfr_tracer;
-  size_t            _used_at_start;
+  zbytes            _used_at_start;
 
   void collect_young(const ZDriverRequest& request);
 
@@ -127,8 +128,8 @@ public:
 
   GCTracer* jfr_tracer();
 
-  void set_used_at_start(size_t used);
-  size_t used_at_start() const;
+  void set_used_at_start(zbytes used);
+  zbytes used_at_start() const;
 };
 
 class ZDriverLocker : public StackObj {

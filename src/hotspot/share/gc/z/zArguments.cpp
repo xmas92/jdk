@@ -27,13 +27,14 @@
 #include "gc/z/zCollectedHeap.hpp"
 #include "gc/z/zGlobals.hpp"
 #include "gc/z/zHeuristics.hpp"
+#include "gc/z/zSize.inline.hpp"
 #include "gc/z/zUtils.inline.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/java.hpp"
 
 void ZArguments::initialize_alignments() {
-  SpaceAlignment = ZGranuleSize;
+  SpaceAlignment = untype(ZGranuleSize);
   HeapAlignment = SpaceAlignment;
 }
 
@@ -162,7 +163,7 @@ void ZArguments::initialize() {
     uint tenuring_threshold;
     for (tenuring_threshold = 0; tenuring_threshold < MaxTenuringThreshold; ++tenuring_threshold) {
       // Reduce the number of object ages, if the resulting garbage is too high
-      const size_t per_age_overhead = ZHeuristics::relocation_headroom();
+      const zbytes per_age_overhead = ZHeuristics::relocation_headroom();
       if (per_age_overhead * tenuring_threshold >= ZHeuristics::significant_young_overhead()) {
         break;
       }
@@ -179,10 +180,10 @@ void ZArguments::initialize() {
   }
 
   // Large page size must match granule size
-  if (!FLAG_IS_DEFAULT(LargePageSizeInBytes) && LargePageSizeInBytes != ZGranuleSize) {
+  if (!FLAG_IS_DEFAULT(LargePageSizeInBytes) && to_zbytes(LargePageSizeInBytes) != ZGranuleSize) {
     vm_exit_during_initialization(err_msg("Incompatible -XX:LargePageSizeInBytes, only "
                                           "%zuM large pages are supported by ZGC",
-                                          ZGranuleSize / M));
+                                          ZGranuleSize / M_zb));
   }
 
   if (!FLAG_IS_DEFAULT(ZTenuringThreshold) && ZTenuringThreshold > static_cast<int>(MaxTenuringThreshold)) {
@@ -239,12 +240,12 @@ CollectedHeap* ZArguments::create_heap() {
   // align the storage manually and construct the ZCollectedHeap using operator
   // placement new.
 
-  static_assert(alignof(ZCollectedHeap) >= ZCacheLineSize,
+  static_assert(to_zbytes(alignof(ZCollectedHeap)) >= ZCacheLineSize,
                 "ZCollectedHeap is no longer ZCacheLineSize aligned");
 
   // Allocate aligned storage for ZCollectedHeap
-  const size_t alignment = alignof(ZCollectedHeap);
-  const size_t size = sizeof(ZCollectedHeap);
+  const zbytes alignment = to_zbytes(alignof(ZCollectedHeap));
+  const zbytes size = to_zbytes(sizeof(ZCollectedHeap));
   void* const addr = reinterpret_cast<void*>(ZUtils::alloc_aligned_unfreeable(alignment, size));
 
   // Construct ZCollectedHeap in the aligned storage

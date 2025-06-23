@@ -40,7 +40,7 @@ ZLiveMap::ZLiveMap(uint32_t object_max_count)
     _segment_shift(log2i_exact(_segment_size)),
     _seqnum(0),
     _live_objects(0),
-    _live_bytes(0),
+    _live_bytes(0_zb),
     _segment_live_bits(0),
     _segment_claim_bits(0),
     _bitmap(0) {}
@@ -70,7 +70,7 @@ void ZLiveMap::reset(ZGenerationId id) {
         // This thread claimed the initialization
 
         // Reset marking information
-        _live_bytes = 0;
+        _live_bytes = 0_zb;
         _live_objects = 0;
 
         // Clear segment claimed/live bits

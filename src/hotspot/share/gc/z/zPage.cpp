@@ -27,6 +27,8 @@
 #include "gc/z/zPage.inline.hpp"
 #include "gc/z/zPageAge.hpp"
 #include "gc/z/zRememberedSet.inline.hpp"
+#include "gc/z/zSize.inline.hpp"
+#include "gc/z/zUtils.inline.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 
@@ -45,7 +47,7 @@ ZPage::ZPage(ZPageType type, ZPageAge age, const ZVirtualMemory& vmem, ZMultiPar
   assert(!_virtual.is_null(), "Should not be null");
   assert((_type == ZPageType::small && size() == ZPageSizeSmall) ||
          (_type == ZPageType::medium && ZPageSizeMediumMin <= size() && size() <= ZPageSizeMediumMax) ||
-         (_type == ZPageType::large && is_aligned(size(), ZGranuleSize)),
+         (_type == ZPageType::large && ZBytes::is_aligned(size(), ZGranuleSize)),
          "Page type/size mismatch");
   reset(age);
 
@@ -124,7 +126,7 @@ public:
   virtual void do_object(oop obj) {
     const uintptr_t p_int = reinterpret_cast<uintptr_t>(_p);
     const uintptr_t base_int = cast_from_oop<uintptr_t>(obj);
-    const uintptr_t end_int = base_int + wordSize * obj->size();
+    const uintptr_t end_int = base_int + ZUtils::object_size(obj);
     if (p_int >= base_int && p_int < end_int) {
       _result = obj;
     }
@@ -184,7 +186,7 @@ void ZPage::print() const {
   print_on(tty);
 }
 
-void ZPage::verify_live(uint32_t live_objects, size_t live_bytes, bool in_place) const {
+void ZPage::verify_live(uint32_t live_objects, zbytes live_bytes, bool in_place) const {
   if (!in_place) {
     // In-place relocation has changed the page to allocating
     assert_zpage_mark_state();

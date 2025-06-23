@@ -63,12 +63,12 @@ private:
   ZPageAllocator* const _page_allocator;
   ZMappedCache          _cache;
   ZUncommitter          _uncommitter;
-  const size_t          _min_capacity;
-  const size_t          _max_capacity;
-  volatile size_t       _current_max_capacity;
-  volatile size_t       _capacity;
-  volatile size_t       _claimed;
-  size_t                _used;
+  const zbytes          _min_capacity;
+  const zbytes          _max_capacity;
+  volatile zbytes       _current_max_capacity;
+  volatile zbytes       _capacity;
+  volatile zbytes       _claimed;
+  zbytes                _used;
   const uint32_t        _numa_id;
 
   const ZVirtualMemoryManager& virtual_memory_manager() const;
@@ -87,13 +87,13 @@ public:
 
   uint32_t numa_id() const;
 
-  size_t available() const;
+  zbytes available() const;
 
-  size_t increase_capacity(size_t size);
-  void decrease_capacity(size_t size, bool set_max_capacity);
+  zbytes increase_capacity(zbytes size);
+  void decrease_capacity(zbytes size, bool set_max_capacity);
 
-  void increase_used(size_t size);
-  void decrease_used(size_t size);
+  void increase_used(zbytes size);
+  void decrease_used(zbytes size);
 
   void free_memory(const ZVirtualMemory& vmem);
 
@@ -105,8 +105,8 @@ public:
 
   void claim_physical(const ZVirtualMemory& vmem);
   void free_physical(const ZVirtualMemory& vmem);
-  size_t commit_physical(const ZVirtualMemory& vmem);
-  size_t uncommit_physical(const ZVirtualMemory& vmem);
+  zbytes commit_physical(const ZVirtualMemory& vmem);
+  zbytes uncommit_physical(const ZVirtualMemory& vmem);
 
   void map_virtual(const ZVirtualMemory& vmem);
   void unmap_virtual(const ZVirtualMemory& vmem);
@@ -114,14 +114,14 @@ public:
   void map_virtual_from_multi_partition(const ZVirtualMemory& vmem);
   void unmap_virtual_from_multi_partition(const ZVirtualMemory& vmem);
 
-  ZVirtualMemory claim_virtual(size_t size);
-  size_t claim_virtual(size_t size, ZArray<ZVirtualMemory>* vmems_out);
+  ZVirtualMemory claim_virtual(zbytes size);
+  zbytes claim_virtual(zbytes size, ZArray<ZVirtualMemory>* vmems_out);
   void free_virtual(const ZVirtualMemory& vmem);
 
   void free_and_claim_virtual_from_low_many(const ZVirtualMemory& vmem, ZArray<ZVirtualMemory>* vmems_out);
-  ZVirtualMemory free_and_claim_virtual_from_low_exact_or_many(size_t size, ZArray<ZVirtualMemory>* vmems_in_out);
+  ZVirtualMemory free_and_claim_virtual_from_low_exact_or_many(zbytes size, ZArray<ZVirtualMemory>* vmems_in_out);
 
-  bool prime(ZWorkers* workers, size_t size);
+  bool prime(ZWorkers* workers, zbytes size);
 
   ZVirtualMemory prepare_harvested_and_claim_virtual(ZMemoryAllocation* allocation);
 
@@ -153,13 +153,13 @@ private:
   mutable ZLock               _lock;
   ZVirtualMemoryManager       _virtual;
   ZPhysicalMemoryManager      _physical;
-  const size_t                _min_capacity;
-  const size_t                _max_capacity;
-  volatile size_t             _used;
-  volatile size_t             _used_generations[2];
+  const zbytes                _min_capacity;
+  const zbytes                _max_capacity;
+  volatile zbytes             _used;
+  volatile zbytes             _used_generations[2];
   struct {
-    size_t _used_high;
-    size_t _used_low;
+    zbytes _used_high;
+    zbytes _used_low;
   }                           _collection_stats[2];
   ZPerNUMA<ZPartition>        _partitions;
   ZList<ZPageAllocation>      _stalled;
@@ -225,10 +225,10 @@ private:
   ZPartition&       partition_from_partition_id(uint32_t partition_id);
   ZPartition&       partition_from_vmem(const ZVirtualMemory& vmem);
 
-  size_t sum_available() const;
+  zbytes sum_available() const;
 
-  void increase_used(size_t size);
-  void decrease_used(size_t size);
+  void increase_used(zbytes size);
+  void decrease_used(zbytes size);
 
   void notify_out_of_memory();
   void restart_gc() const;
@@ -237,33 +237,33 @@ private:
   ZPageAllocatorStats stats_inner(ZGeneration* generation) const;
 
 public:
-  ZPageAllocator(size_t min_capacity,
-                 size_t initial_capacity,
-                 size_t soft_max_capacity,
-                 size_t max_capacity);
+  ZPageAllocator(zbytes min_capacity,
+                 zbytes initial_capacity,
+                 zbytes soft_max_capacity,
+                 zbytes max_capacity);
 
   bool is_initialized() const;
 
-  bool prime_cache(ZWorkers* workers, size_t size);
+  bool prime_cache(ZWorkers* workers, zbytes size);
 
-  size_t min_capacity() const;
-  size_t max_capacity() const;
-  size_t soft_max_capacity() const;
-  size_t current_max_capacity() const;
-  size_t capacity() const;
-  size_t used() const;
-  size_t used_generation(ZGenerationId id) const;
-  size_t unused() const;
+  zbytes min_capacity() const;
+  zbytes max_capacity() const;
+  zbytes soft_max_capacity() const;
+  zbytes current_max_capacity() const;
+  zbytes capacity() const;
+  zbytes used() const;
+  zbytes used_generation(ZGenerationId id) const;
+  zbytes unused() const;
 
-  void increase_used_generation(ZGenerationId id, size_t size);
-  void decrease_used_generation(ZGenerationId id, size_t size);
+  void increase_used_generation(ZGenerationId id, zbytes size);
+  void decrease_used_generation(ZGenerationId id, zbytes size);
 
   void promote_used(const ZPage* from, const ZPage* to);
 
   ZPageAllocatorStats stats(ZGeneration* generation) const;
   ZPageAllocatorStats update_and_stats(ZGeneration* generation);
 
-  ZPage* alloc_page(ZPageType type, size_t size, ZAllocationFlags flags, ZPageAge age);
+  ZPage* alloc_page(ZPageType type, zbytes size, ZAllocationFlags flags, ZPageAge age);
   void safe_destroy_page(ZPage* page);
   void free_page(ZPage* page);
   void free_pages(ZGenerationId id, const ZArray<ZPage*>* pages);
@@ -289,44 +289,44 @@ public:
 
 class ZPageAllocatorStats {
 private:
-  const size_t _min_capacity;
-  const size_t _max_capacity;
-  const size_t _soft_max_capacity;
-  const size_t _capacity;
-  const size_t _used;
-  const size_t _used_high;
-  const size_t _used_low;
-  const size_t _used_generation;
-  const size_t _freed;
-  const size_t _promoted;
-  const size_t _compacted;
+  const zbytes _min_capacity;
+  const zbytes _max_capacity;
+  const zbytes _soft_max_capacity;
+  const zbytes _capacity;
+  const zbytes _used;
+  const zbytes _used_high;
+  const zbytes _used_low;
+  const zbytes _used_generation;
+  const zbytes _freed;
+  const zbytes _promoted;
+  const zbytes _compacted;
   const size_t _allocation_stalls;
 
 public:
-  ZPageAllocatorStats(size_t min_capacity,
-                      size_t max_capacity,
-                      size_t soft_max_capacity,
-                      size_t capacity,
-                      size_t used,
-                      size_t used_high,
-                      size_t used_low,
-                      size_t used_generation,
-                      size_t freed,
-                      size_t promoted,
-                      size_t compacted,
+  ZPageAllocatorStats(zbytes min_capacity,
+                      zbytes max_capacity,
+                      zbytes soft_max_capacity,
+                      zbytes capacity,
+                      zbytes used,
+                      zbytes used_high,
+                      zbytes used_low,
+                      zbytes used_generation,
+                      zbytes freed,
+                      zbytes promoted,
+                      zbytes compacted,
                       size_t allocation_stalls);
 
-  size_t min_capacity() const;
-  size_t max_capacity() const;
-  size_t soft_max_capacity() const;
-  size_t capacity() const;
-  size_t used() const;
-  size_t used_high() const;
-  size_t used_low() const;
-  size_t used_generation() const;
-  size_t freed() const;
-  size_t promoted() const;
-  size_t compacted() const;
+  zbytes min_capacity() const;
+  zbytes max_capacity() const;
+  zbytes soft_max_capacity() const;
+  zbytes capacity() const;
+  zbytes used() const;
+  zbytes used_high() const;
+  zbytes used_low() const;
+  zbytes used_generation() const;
+  zbytes freed() const;
+  zbytes promoted() const;
+  zbytes compacted() const;
   size_t allocation_stalls() const;
 };
 

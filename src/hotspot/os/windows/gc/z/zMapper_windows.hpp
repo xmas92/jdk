@@ -25,6 +25,7 @@
 #define OS_WINDOWS_GC_Z_ZMAPPER_WINDOWS_HPP
 
 #include "gc/z/zAddress.hpp"
+#include "gc/z/zSize.hpp"
 #include "memory/allStatic.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -33,29 +34,29 @@
 class ZMapper : public AllStatic {
 private:
   // Create paging file mapping
-  static HANDLE create_paging_file_mapping(size_t size);
+  static HANDLE create_paging_file_mapping(zbytes size);
 
   // Commit paging file mapping
-  static bool commit_paging_file_mapping(HANDLE file_handle, uintptr_t file_offset, size_t size);
+  static bool commit_paging_file_mapping(HANDLE file_handle, uintptr_t file_offset, zbytes size);
 
   // Map a view anywhere without a placeholder
-  static uintptr_t map_view_no_placeholder(HANDLE file_handle, uintptr_t file_offset, size_t size);
+  static uintptr_t map_view_no_placeholder(HANDLE file_handle, uintptr_t file_offset, zbytes size);
 
   // Unmap a view without preserving a placeholder
-  static void unmap_view_no_placeholder(uintptr_t addr, size_t size);
+  static void unmap_view_no_placeholder(uintptr_t addr, zbytes size);
 
   // Commit memory covering the given virtual address range
-  static uintptr_t commit(uintptr_t addr, size_t size);
+  static uintptr_t commit(uintptr_t addr, zbytes size);
 
 public:
   // Reserve memory with a placeholder
-  static zaddress_unsafe reserve(zaddress_unsafe addr, size_t size);
+  static zaddress_unsafe reserve(zaddress_unsafe addr, zbytes size);
 
   // Unreserve memory
-  static void unreserve(zaddress_unsafe addr, size_t size);
+  static void unreserve(zaddress_unsafe addr, zbytes size);
 
   // Create and commit paging file mapping
-  static HANDLE create_and_commit_paging_file_mapping(size_t size);
+  static HANDLE create_and_commit_paging_file_mapping(zbytes size);
 
   // Close paging file mapping
   static void close_paging_file_mapping(HANDLE file_handle);
@@ -64,10 +65,10 @@ public:
   static HANDLE create_shared_awe_section();
 
   // Reserve memory attached to the shared AWE section
-  static zaddress_unsafe reserve_for_shared_awe(HANDLE awe_section, zaddress_unsafe addr, size_t size);
+  static zaddress_unsafe reserve_for_shared_awe(HANDLE awe_section, zaddress_unsafe addr, zbytes size);
 
   // Unreserve memory attached to a shared AWE section
-  static void unreserve_for_shared_awe(zaddress_unsafe addr, size_t size);
+  static void unreserve_for_shared_awe(zaddress_unsafe addr, zbytes size);
 
   // Split a placeholder
   //
@@ -75,21 +76,21 @@ public:
   // split and coalesced to be the exact size of the new views.
   // [addr, addr + size) needs to be a proper sub-placeholder of an existing
   // placeholder.
-  static void split_placeholder(zaddress_unsafe addr, size_t size);
+  static void split_placeholder(zaddress_unsafe addr, zbytes size);
 
   // Coalesce a placeholder
   //
   // [addr, addr + size) is the new placeholder. A sub-placeholder needs to
   // exist within that range.
-  static void coalesce_placeholders(zaddress_unsafe addr, size_t size);
+  static void coalesce_placeholders(zaddress_unsafe addr, zbytes size);
 
   // Map a view of the file handle and replace the placeholder covering the
   // given virtual address range
-  static void map_view_replace_placeholder(HANDLE file_handle, uintptr_t file_offset, zaddress_unsafe addr, size_t size);
+  static void map_view_replace_placeholder(HANDLE file_handle, uintptr_t file_offset, zaddress_unsafe addr, zbytes size);
 
   // Unmap the view and reinstate a placeholder covering the given virtual
   // address range
-  static void unmap_view_preserve_placeholder(zaddress_unsafe addr, size_t size);
+  static void unmap_view_preserve_placeholder(zaddress_unsafe addr, zbytes size);
 };
 
 #endif // OS_WINDOWS_GC_Z_ZMAPPER_WINDOWS_HPP

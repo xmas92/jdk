@@ -142,6 +142,12 @@ void ZBarrierSet::on_slowpath_allocation_exit(JavaThread* thread, oop new_obj) {
   }
 
   if (ZRelocate::compute_to_age(age) != ZPageAge::old) {
+    // This computation may race with the tenuring threshold selection.
+    // However the selection and the GC promotion barriers are separated by
+    // a handshake, so if we read a stale tenuring threshold we are guaranteed
+    // to hit a safepoint before the GC starts performing promotion barriers.
+    // Avoiding the race mentioned below.
+    // See ZGeneration::select_relocation_set
     return;
   }
 

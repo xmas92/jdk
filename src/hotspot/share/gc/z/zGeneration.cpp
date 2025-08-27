@@ -108,6 +108,42 @@ static const ZStatSubPhase ZSubPhaseConcurrentRemapRememberedOld("Concurrent Rem
 
 static const ZStatSampler ZSamplerJavaThreads("System", "Java Threads", ZStatUnitThreads);
 
+class ZRendezvousHandshakeClosure : public HandshakeClosure {
+public:
+  ZRendezvousHandshakeClosure()
+    : HandshakeClosure("ZRendezvous") {}
+
+  void do_thread(Thread* thread) {
+    // Does nothing
+  }
+};
+
+class ZRendezvousGCThreads: public VM_Operation {
+ public:
+  VMOp_Type type() const { return VMOp_ZRendezvousGCThreads; }
+
+  virtual bool evaluate_at_safepoint() const {
+    // We only care about synchronizing the GC threads.
+    // Leave the Java threads running.
+    return false;
+  }
+
+  virtual bool skip_thread_oop_barriers() const {
+    fatal("Concurrent VMOps should not call this");
+    return true;
+  }
+
+  virtual bool is_gc_operation() const {
+    return true;
+  }
+
+  void doit() {
+    // Light weight "handshake" of the GC threads
+    SuspendibleThreadSet::synchronize();
+    SuspendibleThreadSet::desynchronize();
+  };
+};
+
 ZGenerationYoung* ZGeneration::_young;
 ZGenerationOld*   ZGeneration::_old;
 
@@ -230,6 +266,13 @@ void ZGeneration::select_relocation_set(bool promote_all) {
   if (is_young()) {
     ZGeneration::young()->select_tenuring_threshold(selector.stats(), promote_all);
   }
+
+  // Allocating slow paths makes decisions based on the tenuring threshold
+  // selected above and must not race with the promotion barriers below.
+  // Handshake all threads to roll them past any racy code.
+  // See ZBarrierSet::on_slowpath_allocation_exit
+  ZRendezvousHandshakeClosure cl;
+  Handshake::execute(&cl);
 
   // Install relocation set
   _relocation_set.install(&selector);
@@ -1283,42 +1326,6 @@ void ZGenerationOld::set_soft_reference_policy(bool clear) {
 bool ZGenerationOld::uses_clear_all_soft_reference_policy() const {
   return _reference_processor.uses_clear_all_soft_reference_policy();
 }
-
-class ZRendezvousHandshakeClosure : public HandshakeClosure {
-public:
-  ZRendezvousHandshakeClosure()
-    : HandshakeClosure("ZRendezvous") {}
-
-  void do_thread(Thread* thread) {
-    // Does nothing
-  }
-};
-
-class ZRendezvousGCThreads: public VM_Operation {
- public:
-  VMOp_Type type() const { return VMOp_ZRendezvousGCThreads; }
-
-  virtual bool evaluate_at_safepoint() const {
-    // We only care about synchronizing the GC threads.
-    // Leave the Java threads running.
-    return false;
-  }
-
-  virtual bool skip_thread_oop_barriers() const {
-    fatal("Concurrent VMOps should not call this");
-    return true;
-  }
-
-  virtual bool is_gc_operation() const {
-    return true;
-  }
-
-  void doit() {
-    // Light weight "handshake" of the GC threads
-    SuspendibleThreadSet::synchronize();
-    SuspendibleThreadSet::desynchronize();
-  };
-};
 
 
 void ZGenerationOld::process_non_strong_references() {

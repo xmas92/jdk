@@ -74,6 +74,7 @@
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/classpathStream.hpp"
 #include "utilities/defaultStream.hpp"
+#include "utilities/expected.hpp"
 #include "utilities/ostream.hpp"
 #if INCLUDE_G1GC
 #include "gc/g1/g1CollectedHeap.hpp"
@@ -2121,19 +2122,23 @@ ClassPathEntry* FileMapInfo::get_classpath_entry_for_jvmti(int i, TRAPS) {
   if (ent == nullptr) {
     const AOTClassLocation* cl = AOTClassLocationConfig::runtime()->class_location_at(i);
     const char* path = cl->path();
-    struct stat st;
-    if (os::stat(path, &st) != 0) {
+    auto ent_or_error = os::stat(path)
+      .transform_error([](auto&& /* Ignored error */) { return "error in opening JAR file"; })
+      .and_then([&](auto&& st) -> Expected<ClassPathEntry*, const char*> {
+        auto ret = ClassLoader::create_class_path_entry(THREAD, path, &st);
+        if (ret == nullptr) {
+          return Unexpected<const char*>{"error in opening JAR file"};
+        }
+        return ret;
+      });
+
+    if (!ent_or_error.has_value()) {
       char *msg = NEW_RESOURCE_ARRAY_IN_THREAD(THREAD, char, strlen(path) + 128);
-      jio_snprintf(msg, strlen(path) + 127, "error in finding JAR file %s", path);
+      jio_snprintf(msg, strlen(path) + 127, "%s %s", ent_or_error.error(), path);
       THROW_MSG_(vmSymbols::java_io_IOException(), msg, nullptr);
-    } else {
-      ent = ClassLoader::create_class_path_entry(THREAD, path, &st);
-      if (ent == nullptr) {
-        char *msg = NEW_RESOURCE_ARRAY_IN_THREAD(THREAD, char, strlen(path) + 128);
-        jio_snprintf(msg, strlen(path) + 127, "error in opening JAR file %s", path);
-        THROW_MSG_(vmSymbols::java_io_IOException(), msg, nullptr);
-      }
     }
+
+    ent = ent_or_error.value();
 
     MutexLocker mu(THREAD, CDSClassFileStream_lock);
     if (_classpath_entries_for_jvmti[i] == nullptr) {

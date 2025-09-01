@@ -1854,6 +1854,15 @@ static const char* errno_to_string (int e, bool short_text) {
 
 }
 
+#ifdef LINUX
+const char* PDOSError::description() const {
+  return errno_to_string(_errno, false);
+}
+const char* PDOSError::name() const {
+  return errno_to_string(_errno, true);
+}
+#endif
+
 const char* os::strerror(int e) {
   return errno_to_string(e, false);
 }

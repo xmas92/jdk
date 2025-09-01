@@ -29,12 +29,16 @@
 #include "runtime/osInfo.hpp"
 #include "utilities/align.hpp"
 #include "utilities/exceptions.hpp"
+#include "utilities/expected.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/ostream.hpp"
+#include <cerrno>
 #ifdef __APPLE__
 # include <mach/mach_time.h>
 #endif
+
+#include <type_traits>
 
 class frame;
 class JvmtiAgent;
@@ -165,6 +169,46 @@ public:
   ~ErrnoPreserver() { errno = _e; }
 
   int saved_errno() { return _e; }
+};
+
+// TODO Move to PD files
+#ifdef LINUX
+class PDOSError {
+private:
+  using ErrnoT = std::remove_reference_t<decltype(errno)>;
+  ErrnoT _errno;
+
+  PDOSError(ErrnoT value) : _errno(value) {}
+
+public:
+  PDOSError() = default;
+
+  const char* description() const;
+  const char* name() const;
+
+  bool is_no_such_file_or_directory() const { return _errno == ENOENT; }
+
+  static PDOSError last_error() { return {errno}; }
+};
+#endif
+
+class OSError {
+private:
+  PDOSError _error;
+
+  OSError(PDOSError&& error) : _error(error) {};
+public:
+  OSError() = default;
+
+  const char* description() const { return _error.description(); }
+  const char* name() const { return _error.name(); }
+
+  PDOSError pd_os_error() const { return _error; }
+
+  // TODO: What is the general API?
+  bool is_no_such_file_or_directory() const { return _error.is_no_such_file_or_directory(); }
+
+  static OSError last_error() { return {PDOSError::last_error()}; }
 };
 
 class os: AllStatic {
@@ -908,6 +952,7 @@ class os: AllStatic {
   static void init_system_properties_values();
 
   // IO operations, non-JVM_ version.
+  static Expected<struct stat, OSError> stat(const char* path);
   static int stat(const char* path, struct stat* sbuf);
   static bool dir_is_empty(const char* path);
 

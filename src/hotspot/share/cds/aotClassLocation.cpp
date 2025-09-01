@@ -42,6 +42,7 @@
 #include "oops/objArrayKlass.hpp"
 #include "runtime/arguments.hpp"
 #include "utilities/classpathStream.hpp"
+#include "utilities/expected.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/stringUtils.hpp"
 
@@ -230,8 +231,8 @@ AOTClassLocation* AOTClassLocation::allocate(JavaThread* current, const char* pa
   const char* recorded_path = is_jrt ? "" : path;
   path_length = strlen(recorded_path);
 
-  struct stat st;
-  if (os::stat(path, &st) == 0) {
+#if 0
+  os::stat(path).transform([&](auto&& st) {
     if ((st.st_mode & S_IFMT) == S_IFDIR) {
       type = FileType::DIR;
     } else {
@@ -241,19 +242,36 @@ AOTClassLocation* AOTClassLocation::allocate(JavaThread* current, const char* pa
       // The timestamp of $JAVA_HOME/lib/modules is not checked at runtime.
       check_time = !is_jrt;
     }
-#ifdef _WINDOWS
-  } else if (errno == ERROR_FILE_NOT_FOUND || errno == ERROR_PATH_NOT_FOUND) {
-    // On Windows, the errno could be ERROR_PATH_NOT_FOUND (3) in case the directory
-    // path doesn't exist.
-    type = FileType::NOT_EXIST;
-#endif
-  } else if (errno == ENOENT) {
-    // We allow the file to not exist, as long as it also doesn't exist during runtime.
-    type = FileType::NOT_EXIST;
+  }).or_else([&] (auto&& error) {
+    if (error.is_no_such_file_or_directory()) {
+      type = FileType::NOT_EXIST;
+    } else {
+      aot_log_error(aot)("Unable to open file %s. (%s)", path, error.description());
+      MetaspaceShared::unrecoverable_loading_error();
+    }
+  });
+#else
+  auto res = os::stat(path);
+  if (res.has_value()) {
+    auto st = res.value();
+    if ((st.st_mode & S_IFMT) == S_IFDIR) {
+      type = FileType::DIR;
+    } else {
+      timestamp = st.st_mtime;
+      filesize = st.st_size;
+
+      // The timestamp of $JAVA_HOME/lib/modules is not checked at runtime.
+      check_time = !is_jrt;
+    }
   } else {
-    aot_log_error(aot)("Unable to open file %s.", path);
-    MetaspaceShared::unrecoverable_loading_error();
+    auto error = res.error();
+    if (error.is_no_such_file_or_directory()) {
+      type = FileType::NOT_EXIST;
+    } else {
+      aot_log_error(aot)("Unable to open file %s. (%s)", path, error.description());
+      MetaspaceShared::unrecoverable_loading_error();
   }
+#endif
 
   ResourceMark rm(current);
   char* manifest = nullptr;
@@ -298,12 +316,12 @@ AOTClassLocation* AOTClassLocation::allocate(JavaThread* current, const char* pa
 char* AOTClassLocation::read_manifest(JavaThread* current, const char* path, size_t& manifest_length) {
   manifest_length = 0;
 
-  struct stat st;
-  if (os::stat(path, &st) != 0) {
+  auto stat_res = os::stat(path);
+  if (!stat_res.has_value()) {
     return nullptr;
   }
 
-  ClassPathEntry* cpe = ClassLoader::create_class_path_entry(current, path, &st);
+  ClassPathEntry* cpe = ClassLoader::create_class_path_entry(current, path, &stat_res.value());
   if (cpe == nullptr) {
     // <path> is a file, but not a JAR file
     return nullptr;
@@ -390,58 +408,62 @@ const char* AOTClassLocation::file_type_string() const {
 }
 
 bool AOTClassLocation::check(const char* runtime_path, bool has_aot_linked_classes) const {
-  struct stat st;
-  if (os::stat(runtime_path, &st) != 0) {
+  return os::stat(runtime_path).and_then([&](auto&& st) -> Expected<bool, OSError> {
+    if ((st.st_mode & S_IFMT) == S_IFDIR) {
+      if (_file_type == FileType::NOT_EXIST) {
+        aot_log_warning(aot)("'%s' must not exist", runtime_path);
+        return false;
+      }
+      if (_file_type == FileType::NORMAL) {
+        aot_log_warning(aot)("'%s' must be a file", runtime_path);
+        return false;
+      }
+      if (!os::dir_is_empty(runtime_path)) {
+        aot_log_warning(aot)("directory is not empty: '%s'", runtime_path);
+        return false;
+      }
+    } else {
+      if (_file_type == FileType::NOT_EXIST) {
+        aot_log_warning(aot)("'%s' must not exist", runtime_path);
+        if (has_aot_linked_classes) {
+          aot_log_error(aot)("CDS archive has aot-linked classes. It cannot be used because the "
+                        "file %s exists", runtime_path);
+          return false;
+        } else {
+          aot_log_warning(aot)("Archived non-system classes are disabled because the "
+                          "file %s exists", runtime_path);
+          FileMapInfo::current_info()->set_has_platform_or_app_classes(false);
+          if (DynamicArchive::is_mapped()) {
+            FileMapInfo::dynamic_info()->set_has_platform_or_app_classes(false);
+          }
+        }
+      }
+      if (_file_type == FileType::DIR) {
+        aot_log_warning(aot)("'%s' must be a directory", runtime_path);
+        return false;
+      }
+      bool size_differs = _filesize != st.st_size;
+      bool time_differs = _check_time && (_timestamp != st.st_mtime);
+      if (size_differs || time_differs) {
+        aot_log_warning(aot)("This file is not the one used while building the shared archive file: '%s'%s%s",
+                        runtime_path,
+                        time_differs ? ", timestamp has changed" : "",
+                        size_differs ? ", size has changed" : "");
+        return false;
+      }
+    }
+
+    log_info(class, path)("ok");
+    return true;
+  }).or_else([&](auto&& /* ignoring error */) -> Expected<bool, OSError> {
     if (_file_type != FileType::NOT_EXIST) {
       aot_log_warning(aot)("Required classpath entry does not exist: %s", runtime_path);
       return false;
     }
-  } else if ((st.st_mode & S_IFMT) == S_IFDIR) {
-    if (_file_type == FileType::NOT_EXIST) {
-      aot_log_warning(aot)("'%s' must not exist", runtime_path);
-      return false;
-    }
-    if (_file_type == FileType::NORMAL) {
-      aot_log_warning(aot)("'%s' must be a file", runtime_path);
-      return false;
-    }
-    if (!os::dir_is_empty(runtime_path)) {
-      aot_log_warning(aot)("directory is not empty: '%s'", runtime_path);
-      return false;
-    }
-  } else {
-    if (_file_type == FileType::NOT_EXIST) {
-      aot_log_warning(aot)("'%s' must not exist", runtime_path);
-      if (has_aot_linked_classes) {
-        aot_log_error(aot)("CDS archive has aot-linked classes. It cannot be used because the "
-                       "file %s exists", runtime_path);
-        return false;
-      } else {
-        aot_log_warning(aot)("Archived non-system classes are disabled because the "
-                         "file %s exists", runtime_path);
-        FileMapInfo::current_info()->set_has_platform_or_app_classes(false);
-        if (DynamicArchive::is_mapped()) {
-          FileMapInfo::dynamic_info()->set_has_platform_or_app_classes(false);
-        }
-      }
-    }
-    if (_file_type == FileType::DIR) {
-      aot_log_warning(aot)("'%s' must be a directory", runtime_path);
-      return false;
-    }
-    bool size_differs = _filesize != st.st_size;
-    bool time_differs = _check_time && (_timestamp != st.st_mtime);
-    if (size_differs || time_differs) {
-      aot_log_warning(aot)("This file is not the one used while building the shared archive file: '%s'%s%s",
-                       runtime_path,
-                       time_differs ? ", timestamp has changed" : "",
-                       size_differs ? ", size has changed" : "");
-      return false;
-    }
-  }
 
-  log_info(class, path)("ok");
-  return true;
+    log_info(class, path)("ok");
+    return true;
+  }).value();
 }
 
 void AOTClassLocationConfig::dumptime_init(JavaThread* current) {
@@ -813,9 +835,10 @@ bool AOTClassLocationConfig::check_classpaths(bool is_boot_classpath, bool has_a
   return true;
 }
 
-bool AOTClassLocationConfig::file_exists(const char* filename) const{
-  struct stat st;
-  return (os::stat(filename, &st) == 0 && st.st_size > 0);
+bool AOTClassLocationConfig::file_exists(const char* filename) const {
+  return os::stat(filename).transform([] (auto&& st) {
+    return st.st_size > 0;
+  })/* Ignore Error */.value_or(false);
 }
 
 bool AOTClassLocationConfig::check_paths_existence(ClassLocationStream& runtime_css) const {

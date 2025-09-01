@@ -98,6 +98,7 @@
 #include "utilities/align.hpp"
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/defaultStream.hpp"
+#include "utilities/expected.hpp"
 #include "utilities/hashTable.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/ostream.hpp"
@@ -852,12 +853,11 @@ void MetaspaceShared::preload_and_dump(TRAPS) {
       // When the new -XX:AOTMode=create flag is used, we can't return
       // to the JLI launcher, as the launcher will fail when trying to
       // run the main class, which is not what we want.
-      struct stat st;
-      if (os::stat(AOTCache, &st) != 0) {
-        tty->print_cr("AOTCache creation failed: %s", AOTCache);
-      } else {
+      os::stat(AOTCache).transform([&](auto&& st) {
         tty->print_cr("AOTCache creation is complete: %s " INT64_FORMAT " bytes", AOTCache, (int64_t)(st.st_size));
-      }
+      }).transform_error([&](auto&& /* error ignored */) {
+        tty->print_cr("AOTCache creation failed: %s", AOTCache);
+      });
       vm_direct_exit(0);
     }
   }
@@ -911,13 +911,9 @@ void MetaspaceShared::preload_classes(TRAPS) {
     ClassListParser::parse_classlist(ExtraSharedClassListFile,
                                      ClassListParser::_parse_all, CHECK);
   }
-  if (classlist_path != default_classlist) {
-    struct stat statbuf;
-    if (os::stat(default_classlist, &statbuf) == 0) {
-      // File exists, let's use it.
-      ClassListParser::parse_classlist(default_classlist,
-                                       ClassListParser::_parse_lambda_forms_invokers_only, CHECK);
-    }
+  if (classlist_path != default_classlist && os::stat(default_classlist).has_value()) {
+    ClassListParser::parse_classlist(default_classlist,
+                                     ClassListParser::_parse_lambda_forms_invokers_only, CHECK);
   }
 
   // Some classes are used at CDS runtime but are not loaded, and therefore archived, at
@@ -953,8 +949,7 @@ void MetaspaceShared::preload_and_dump_impl(StaticArchiveBuilder& builder, TRAPS
     log_info(aot)("Reading lambda form invokers from JDK default classlist ...");
     char default_classlist[JVM_MAXPATHLEN];
     get_default_classlist(default_classlist, JVM_MAXPATHLEN);
-    struct stat statbuf;
-    if (os::stat(default_classlist, &statbuf) == 0) {
+    if (os::stat(default_classlist).has_value()) {
       ClassListParser::parse_classlist(default_classlist,
                                        ClassListParser::_parse_lambda_forms_invokers_only, CHECK);
     }

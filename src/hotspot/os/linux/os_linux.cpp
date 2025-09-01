@@ -5260,10 +5260,9 @@ void os::current_stack_base_and_size(address* base, size_t* size) {
 #endif
 
 static inline struct timespec get_mtime(const char* filename) {
-  struct stat st;
-  int ret = os::stat(filename, &st);
-  assert(ret == 0, "failed to stat() file '%s': %s", filename, os::strerror(errno));
-  return st.st_mtim;
+  auto ret = os::stat(filename);
+  assert(ret.has_value(), "failed to stat() file '%s': %s", filename, ret.error().description());
+  return ret.transform([](auto& st) { return st.st_mtim; }).value_or({});
 }
 
 int os::compare_file_modified_times(const char* file1, const char* file2) {

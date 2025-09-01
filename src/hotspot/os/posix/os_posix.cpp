@@ -37,6 +37,7 @@
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/java.hpp"
 #include "runtime/orderAccess.hpp"
+#include "runtime/os.hpp"
 #include "runtime/osThread.hpp"
 #include "runtime/park.hpp"
 #include "runtime/perfMemory.hpp"
@@ -47,6 +48,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/defaultStream.hpp"
 #include "utilities/events.hpp"
+#include "utilities/expected.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
@@ -1029,6 +1031,16 @@ char* os::realpath(const char* filename, char* outbuf, size_t outbuflen) {
   return result;
 }
 
+Expected<struct stat, OSError> os::stat(const char* path) {
+  struct stat sbuf;
+
+  if (::stat(path, &sbuf) == -1) {
+    return Unexpected<OSError>{OSError::last_error()};
+  }
+
+  return sbuf;
+}
+
 int os::stat(const char *path, struct stat *sbuf) {
   return ::stat(path, sbuf);
 }
@@ -1050,23 +1062,11 @@ bool os::same_files(const char* file1, const char* file2) {
     return true;
   }
 
-  bool is_same = false;
-  struct stat st1;
-  struct stat st2;
-
-  if (os::stat(file1, &st1) < 0) {
-    return false;
-  }
-
-  if (os::stat(file2, &st2) < 0) {
-    return false;
-  }
-
-  if (st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino) {
-    // same files
-    is_same = true;
-  }
-  return is_same;
+  return os::stat(file1).and_then([&](auto&& st1) {
+    return os::stat(file2).transform([&] (auto&& st2) {
+      return st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino;
+    });
+  })/* Should propagate error */.value_or(false);
 }
 
 static char saved_jvm_path[MAXPATHLEN] = {0};

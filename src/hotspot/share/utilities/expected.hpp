@@ -141,6 +141,25 @@ public:
   // friend constexpr void swap(Unexpected& x, Unexpected& y) { x.swap(y); }
 };
 
+template <>
+class Unexpected<void> {
+  template <class T, class G>
+  friend class Expected;
+
+public:
+  constexpr Unexpected() = default;
+  constexpr Unexpected(const Unexpected&) = default;
+
+  constexpr void swap(Unexpected& other) {}
+
+  template <typename T>
+  friend constexpr bool operator==(Unexpected& x, Unexpected& y) {
+    return true;
+  }
+
+  friend constexpr void swap(Unexpected& x, Unexpected& y) {}
+};
+
 // C++17 Class template argument deduction guide
 // template <class T> Unexpected(T) -> Unexpected<T>;
 
@@ -618,6 +637,35 @@ public:
   }
 };
 
+
+// TODO: Should we have this? It is really a stand-in for visiting a normal
+//       Expected. Also if we have this, we should have Expected<T, void>.
+//       Right now we only allow Expected<void, E> -> Expected<void, void>.
+template <>
+class Expected<void, void> {
+private:
+  bool _has_value;
+
+public:
+  using value_type = void;
+  using error_type = void;
+  using unexpected_type = Unexpected<void>;
+  template <typename U>
+  using rebind = Expected<U, error_type>;
+
+  constexpr Expected() : _has_value(true) {}
+  constexpr Expected(Expected&&) = default;
+  constexpr Expected(const Expected&) = default;
+  constexpr Expected(const Unexpected<void>&) : _has_value(false) {}
+  constexpr Expected(Unexpected<void>&&) : _has_value(false) {}
+  constexpr explicit Expected(InPlaceMark) : _has_value(true) {}
+  constexpr explicit Expected(UnexpectedMark) : _has_value(false) {}
+
+  constexpr bool has_value() const { return _has_value; }
+
+  /* TODO: Maybe add extra functions here */
+};
+
 template <typename E>
 class Expected<void, E> {
 private:
@@ -858,6 +906,17 @@ private:
     return Expected<void, E>{};
   }
 
+  template <typename G, typename V, typename F, ENABLE_IF(!is_void_v<G>)>
+  constexpr Expected<void, G> transform_error_invoke_helper(F&& f, V&& v) {
+    // TODO: Maybe create constructor that invokes the function on the inside
+    return Expected<void, G>{UnexpectedMark{}, f(forward(v))};
+  }
+  template <typename G, typename V, typename F, ENABLE_IF(is_void_v<G>)>
+  constexpr Expected<void, void> transform_error_invoke_helper(F&& f, V&& v) {
+    f(forward<V>(v));
+    return Expected<void, void>{UnexpectedMark{}};
+  }
+
 public:
   template <typename F, ENABLE_IF(is_constructible_v<E, E&>)>
   constexpr auto transform(F&& f) & {
@@ -896,7 +955,7 @@ public:
   constexpr auto transform_error(F&& f) & {
     using G = std::remove_cv_t<std::result_of_t<F(E&)>>;
     if (!has_value()) {
-      return Expected<void, G>{UnexpectedMark{}, f(_error)};
+      return transform_error_invoke_helper<G>(f, _error);
     }
     return Expected<void, G>{};
   }
@@ -904,7 +963,7 @@ public:
   constexpr auto transform_error(F&& f) const& {
     using G = std::remove_cv_t<std::result_of_t<F(const E&)>>;
     if (!has_value()) {
-      return Expected<void, G>{UnexpectedMark{}, f(_error)};
+      return transform_error_invoke_helper<G>(f, _error);
     }
     return Expected<void, G>{};
   }
@@ -912,7 +971,7 @@ public:
   constexpr auto transform_error(F&& f) && {
     using G = std::remove_cv_t<std::result_of_t<F(E)>>;
     if (!has_value()) {
-      return Expected<void, G>{UnexpectedMark{}, f(move(_error))};
+      return transform_error_invoke_helper<G>(f, move(_error));
     }
     return Expected<void, G>{};
   }
@@ -920,7 +979,7 @@ public:
   constexpr auto transform_error(F&& f) const&& {
     using G = std::remove_cv_t<std::result_of_t<F(const E)>>;
     if (!has_value()) {
-      return Expected<void, G>{UnexpectedMark{}, f(move(_error))};
+      return transform_error_invoke_helper<G>(f, move(_error));
     }
     return Expected<void, G>{};
   }

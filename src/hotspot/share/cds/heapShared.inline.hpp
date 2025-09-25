@@ -56,6 +56,16 @@ inline void HeapShared::remap_loaded_metadata(oop src_obj) {
 }
 
 inline oop HeapShared::maybe_remap_referent(bool is_java_lang_ref, size_t field_offset, oop referent) {
+
+  // This looks similar to walk_one_object, but only fixes things, and blocks
+  // nothing. Is the blocking already done here? Or can we potentially archive
+  // more than we should.
+  // walk_one_object has a bunch of AOTMetaspace::unrecoverable_writing_error();
+  // Or is walk_one_object a shared path between mapping and streaming.
+  // Most things inside HeapShared has a similar problem that it is hard at a glance
+  // to know if I am looking at something shared between writers, loaders, mapping
+  // streaming or all?
+
   if (referent == nullptr) {
     return nullptr;
   }

@@ -197,6 +197,15 @@ oop AOTStreamedHeapLoader::allocate_object(oopDesc* archive_object, markWord mar
     heap_object = oopFactory::new_objArray(elem_klass, len, thread);
   }
 
+  // How does this work before we enable GC. How do we guarantee the allocations
+  // succeed. Simply "bootstrap_max_memory"? Can there not be extra fragmentation
+  // than what we have accounted for in there?
+  // Looks like the iterative loader loads a batch and then checks the limit,
+  // with some 2 * M slack. But if a batch ever turns out to be larger than
+  // 2 * M (in its total required space), we may fail.
+  // And no clue how this works with the tracing loader which seems to just allocate
+  // any object that the iterative loaders has not yet reached / claimed.
+
   heap_object->set_mark(mark);
 
   return heap_object;
@@ -315,6 +324,10 @@ void AOTStreamedHeapLoader::TracingObjectLoader::copy_object(int object_index,
 
 oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, JavaThread* thread) {
   // Allocate object
+  // I wonder if we can wrap this oopDesc* in some sort of ArchiveOop type,
+  // both to have a stronger type system. But also so we can hide these string
+  // intern details. So ArchiveOop::mark() always gives an unmarked markWord,
+  // and you can ask an ArchiveOop::interned() to know if it was interned.
   oopDesc* archive_object = archive_object_for_object_index(object_index);
   size_t size = archive_object_size(archive_object);
   markWord mark = archive_object->mark();
@@ -428,6 +441,12 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::root(int root_index, Stack<AOTHe
 int oop_handle_cmp(const void* left, const void* right) {
   oop* left_handle = *(oop**)left;
   oop* right_handle = *(oop**)right;
+  // Why cast before and use byte sizes? This means we support at most
+  // INT_MAX / sizeof(oop) max handles before potentially over/under flowing an
+  // int. And I guess these handles are allocated in chunks with no guarantee that
+  // they are close. So we may break comparison transitivity. (Which also should
+  // imply UB, or at least breaking pointer provenance is we did not cast)
+  // Maybe this should just be an if else if else with return -1, 0, 1.
   return uintptr_t(right_handle) - uintptr_t(left_handle);
 }
 
@@ -451,6 +470,7 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::copy_object(oopDesc* archive_
   HeapWord* archive_start = ((HeapWord*)archive_object) + 1;
   HeapWord* heap_start = cast_from_oop<HeapWord*>(heap_object) + 1;
 
+  // Have already commented on this separately. (Currently used both before and after enable GC).
   Copy::disjoint_words(archive_start, heap_start, payload_size);
   InflateReferenceOopClosure cl;
   heap_object->oop_iterate(&cl);

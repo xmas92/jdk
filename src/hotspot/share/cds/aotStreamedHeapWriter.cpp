@@ -66,6 +66,9 @@ size_t* AOTStreamedHeapWriter::_dfs_to_archive_object_table;
 
 static const int max_table_capacity = 0x3fffffff;
 
+// We use an initial size of 10000 oops and 100000 bytes below. Should they be
+// derived or at least named constants? Expected average obj size is 10 bytes?
+
 typedef ResizeableHashTable<address, size_t,
                             AnyObj::C_HEAP,
                             mtClassShared> FillersTable;
@@ -132,6 +135,7 @@ void AOTStreamedHeapWriter::order_source_objs(GrowableArrayCHeap<oop, mtClassSha
     _dfs_order_table->maybe_grow();
   }
 
+  // When are there two variables. We only ever modify them together to the same value.
   int dfs_order = 0;
   int max_dfs_index = 0;
 
@@ -180,6 +184,7 @@ void AOTStreamedHeapWriter::write(GrowableArrayCHeap<oop, mtClassShared>* roots,
 void AOTStreamedHeapWriter::allocate_buffer() {
   int initial_buffer_size = 100000;
   _buffer = new GrowableArrayCHeap<u1, mtClassShared>(initial_buffer_size);
+  // We should just have a ::data() accessor on growable array...
   _buffer_used = 0;
   ensure_buffer_space(1); // so that buffer_bottom() works
 }
@@ -342,6 +347,10 @@ size_t AOTStreamedHeapWriter::copy_one_source_obj_to_buffer(oop src_obj) {
   assert(is_object_aligned(byte_size), "sanity");
   memcpy(to, from, byte_size);
 
+  // Handling of these special fields is now duplicated across the two implementations
+  // is it possible to abstract this into some shared HeapShared or something.
+  // This Modules::check_archived_module_oop is done at different places in the
+  // two implementations.
   if (java_lang_Module::is_instance(src_obj)) {
     // These native pointers will be restored explicitly at run time.
     Modules::check_archived_module_oop(src_obj);

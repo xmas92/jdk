@@ -49,6 +49,7 @@ AOTThread* AOTThread::_aot_thread;
 // the Thread class has been initialized.
 void AOTThread::initialize() {
 #if INCLUDE_CDS_JAVA_HEAP
+  // What can throw an exception here ??? Or just in case?
   EXCEPTION_MARK;
 
   // Spin up a thread without thread oop, because the java.lang classes
@@ -67,11 +68,11 @@ void AOTThread::initialize() {
   _aot_thread->set_monitor_owner_id(tid);
 
   {
-    MutexLocker mu(JavaThread::current(), Threads_lock);
+    MutexLocker mu(THREAD, Threads_lock);
     Threads::add(_aot_thread);
   }
 
-  JFR_ONLY(Jfr::on_java_thread_start(JavaThread::current(), _aot_thread);)
+  JFR_ONLY(Jfr::on_java_thread_start(THREAD, _aot_thread);)
 
   os::start_thread(_aot_thread);
 #endif

@@ -43,6 +43,10 @@ GrowableArray<JvmtiRawMonitor*>* JvmtiPendingMonitors::_monitors =
 void JvmtiPendingMonitors::transition_raw_monitors() {
   JavaThread* current_java_thread = JavaThread::current();
 
+  // What are the (prior) assumptions here. And why does an extra java thread
+  // not break this? Is it because aot_thread is explicitly hidden and does
+  // not run bytecodes?
+
 #ifdef ASSERT
   for (JavaThreadIteratorWithHandle jtiwh; JavaThread *thread = jtiwh.next(); ) {
     assert(thread == current_java_thread || thread == AOTThread::aot_thread(),

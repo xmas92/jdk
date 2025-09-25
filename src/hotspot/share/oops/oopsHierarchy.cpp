@@ -33,6 +33,7 @@ CheckOopFunctionPointer check_oop_function = nullptr;
 
 void oop::register_oop() {
   assert (CheckUnhandledOops, "should only call when CheckUnhandledOops");
+  // Hmm why were we not able to do this before? What changed?
   // This gets expensive, which is why checking unhandled oops is on a switch.
   Thread* t = Thread::current_or_null();
   if (t != nullptr && t->is_Java_thread()) {

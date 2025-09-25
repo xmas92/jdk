@@ -562,6 +562,14 @@ bool AOTStreamedHeapLoader::IterativeObjectLoader::has_more() {
 void AOTStreamedHeapLoader::IterativeObjectLoader::materialize_next_batch(JavaThread* thread) {
   assert(has_more(), "only materialize if there is something to materialize");
 
+  // Is it possible to assert mutual exclusion here. Right now we have two paths
+  // which are mutually exclusive due to AOTEagerlyLoadObjects. But I would find
+  // this code easier to reason about if I knew at a glance that the whole
+  // function is mutually exclusive. As soon as I saw the wait below I had to
+  // chase the call tree all the way down to understand that the this does not
+  // happen because of AOTEagerlyLoadObjects. We have AOTHeapLoading_lock when
+  // entering this method so maybe just a RAII object with a static bool is enough.
+
   int min_batch_objects = 128;
   int from_root_index = _current_root_index;
   int max_to_root_index = _num_roots - 1;

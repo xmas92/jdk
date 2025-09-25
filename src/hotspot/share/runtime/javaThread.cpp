@@ -763,6 +763,7 @@ void JavaThread::run() {
 
 void JavaThread::thread_main_inner() {
   assert(JavaThread::current() == this, "sanity check");
+  // This breaking the invariant that JavaThread has a thread oop is a little scary.
   assert(_threadObj.peek() != nullptr || this == AOTThread::aot_thread(), "just checking");
 
   // Execute thread entry point unless this thread has a pending exception.

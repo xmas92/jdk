@@ -151,6 +151,9 @@ ClassLoaderData* ClassLoaderDataGraph::add_to_graph(Handle loader, bool has_clas
   // contains oops in _handles that must be walked.  GC doesn't walk CLD from the
   // loader oop in all collections, particularly young collections.
   // Before is_init_completed(), GC is not allowed to run.
+  // If a GC is not allowed to run what are the safepoints coming from, or is
+  // it that we enter blocked, waiting on the the AOTThread progress? Do we need
+  // to enter blocked while streaming in the archive before enabling GC.
   NoSafepointVerifier no_safepoints(is_init_completed());
 
   cld = new ClassLoaderData(loader, has_class_mirror_holder);

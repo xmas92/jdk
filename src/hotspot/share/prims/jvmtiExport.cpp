@@ -1472,6 +1472,11 @@ void JvmtiExport::post_thread_start(JavaThread *thread) {
     // The AOT thread is hidden from view but has no thread oop when it starts due
     // to bootstrapping complexity, so we check for it before checking for bound
     // virtual threads. When exiting it is filtered out due to being hidden.
+    assert(JvmtiEnv::get_phase() == JVMTI_PHASE_PRIMORDIAL, "Unexpected thread start");
+
+    // Also should this simply hook into is_hidden_from_external_view mechanism
+    // and fix threadObj loads below?
+
     return;
   }
 

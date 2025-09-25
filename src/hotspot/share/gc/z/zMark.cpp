@@ -335,6 +335,8 @@ public:
     if (cld == nullptr) {
       // During early bootstrapping, there are classes that have not been
       // assigned a CLD yet. They are visible to the streaming heap loader.
+
+      // Why? Also can we assert this property (stream loading and early bootstrap)
       return;
     }
 
@@ -346,6 +348,8 @@ public:
     if (cld == nullptr) {
       // During early bootstrapping, there are classes that have not been
       // assigned a CLD yet. They are visible to the streaming heap loader.
+
+      // Why? Also can we assert this property (stream loading and early bootstrap)
       return;
     }
 

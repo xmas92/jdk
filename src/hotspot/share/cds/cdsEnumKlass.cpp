@@ -126,8 +126,8 @@ bool CDSEnumKlass::initialize_enum_klass(InstanceKlass* k, TRAPS) {
       int root_index = info->enum_klass_static_field_root_index_at(i++);
       fieldDescriptor& fd = fs.field_descriptor();
       assert(fd.field_type() == T_OBJECT || fd.field_type() == T_ARRAY, "must be");
-      oop mirror = k->java_mirror();
-      mirror->obj_field_put(fd.offset(), HeapShared::get_root(root_index, /*clear=*/true));
+      oop root_object = HeapShared::get_root(root_index, /*clear=*/true);
+      k->java_mirror()->obj_field_put(fd.offset(), root_object);
     }
   }
   return true;

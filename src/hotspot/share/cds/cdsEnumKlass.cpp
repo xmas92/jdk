@@ -30,6 +30,7 @@
 #include "oops/fieldStreams.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
+#include "runtime/handles.inline.hpp"
 
 #if INCLUDE_CDS_JAVA_HEAP
 
@@ -120,7 +121,8 @@ bool CDSEnumKlass::initialize_enum_klass(InstanceKlass* k, TRAPS) {
     log_info(aot, heap)("Initializing Enum class: %s", k->external_name());
   }
 
-  oop mirror = k->java_mirror();
+  HandleMark hm(THREAD);
+  Handle mirror(THREAD, k->java_mirror());
   int i = 0;
   for (JavaFieldStream fs(k); !fs.done(); fs.next()) {
     if (fs.access_flags().is_static()) {

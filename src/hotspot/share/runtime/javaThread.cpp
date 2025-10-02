@@ -741,7 +741,7 @@ void JavaThread::run() {
 
   JFR_ONLY(Jfr::on_thread_start(this);)
 
-  DTRACE_THREAD_PROBE(start, this);
+  // DTRACE_THREAD_PROBE(start, this);
 
   // This operation might block. We call that after all safepoint checks for a new thread has
   // been completed.
@@ -776,7 +776,7 @@ void JavaThread::thread_main_inner() {
     this->entry_point()(this, this);
   }
 
-  DTRACE_THREAD_PROBE(stop, this);
+  // DTRACE_THREAD_PROBE(stop, this);
 
   // Cleanup is handled in post_run()
 }

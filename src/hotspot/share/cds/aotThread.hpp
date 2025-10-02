@@ -32,7 +32,7 @@
 
 class AOTThread : public JavaThread {
 private:
-  static AOTThread* _aot_thread;
+  static AOTThread* volatile _aot_thread;
   static void aot_thread_entry(JavaThread* thread, TRAPS);
   AOTThread(ThreadFunction entry_point) : JavaThread(entry_point) {};
 
@@ -44,7 +44,7 @@ public:
 
   static void materialize_thread_object();
 
-  static AOTThread* aot_thread() { return NOT_CDS(nullptr) CDS_ONLY(_aot_thread); };
+  static AOTThread* aot_thread() { return NOT_CDS(nullptr) CDS_ONLY(AtomicAccess::load(&_aot_thread)); };
 };
 
 #endif // SHARE_CDS_AOTTHREAD_HPP

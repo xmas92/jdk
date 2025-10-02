@@ -34,6 +34,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/oopsHierarchy.hpp"
 #include "oops/typeArrayOop.inline.hpp"
+#include "utilities/debug.hpp"
 
 void java_lang_String::set_coder(oop string, jbyte coder) {
   string->byte_field_put(_coder_offset, coder);
@@ -212,6 +213,7 @@ inline oop java_lang_Thread::continuation(oop java_thread) {
 }
 
 inline int64_t java_lang_Thread::thread_id(oop java_thread) {
+  guarantee(java_thread != nullptr, "Find me");
   return java_thread->long_field(_tid_offset);
 }
 

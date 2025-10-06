@@ -87,14 +87,15 @@ void AOTStreamedHeapWriter::add_source_obj(oop src_obj) {
   _source_objs->append(src_obj);
 }
 
+template <typename V>
 class FollowOopIterateClosure: public BasicOopIterateClosure {
-  Stack<oop, mtClassShared>* _dfs_stack;
+  V _visitor;
   oop _src_obj;
   bool _is_java_lang_ref;
 
 public:
-  FollowOopIterateClosure(Stack<oop, mtClassShared>* dfs_stack, oop src_obj, bool is_java_lang_ref) :
-    _dfs_stack(dfs_stack),
+  FollowOopIterateClosure(V visitor, oop src_obj, bool is_java_lang_ref) :
+    _visitor(visitor),
     _src_obj(src_obj),
     _is_java_lang_ref(is_java_lang_ref) {}
 
@@ -106,10 +107,11 @@ private:
     size_t field_offset = pointer_delta(p, _src_obj, sizeof(char));
     oop obj = HeapShared::maybe_remap_referent(_is_java_lang_ref, field_offset, HeapAccess<>::oop_load(p));
     if (obj != nullptr) {
-      _dfs_stack->push(obj);
+      _visitor(_visitor, obj);
     }
   }
 };
+template <typename V, typename... Args> FollowOopIterateClosure(V, Args...) -> FollowOopIterateClosure<V>;
 
 int AOTStreamedHeapWriter::cmp_dfs_order(oop* o1, oop* o2) {
   int* o1_dfs = _dfs_order_table->get(*o1);
@@ -118,7 +120,6 @@ int AOTStreamedHeapWriter::cmp_dfs_order(oop* o1, oop* o2) {
 }
 
 void AOTStreamedHeapWriter::order_source_objs(GrowableArrayCHeap<oop, mtClassShared>* roots) {
-  Stack<oop, mtClassShared> dfs_stack;
   _dfs_order_table = new (mtClassShared) SourceObjectToDFSOrderTable(8, max_table_capacity);
   _roots_highest_dfs = NEW_C_HEAP_ARRAY(int, (size_t)roots->length(), mtClassShared);
   _dfs_to_archive_object_table = NEW_C_HEAP_ARRAY(size_t, (size_t)_source_objs->length() + 1, mtClassShared);
@@ -139,22 +140,21 @@ void AOTStreamedHeapWriter::order_source_objs(GrowableArrayCHeap<oop, mtClassSha
       continue;
     }
 
-    dfs_stack.push(root);
-
-    while (!dfs_stack.is_empty()) {
-      oop obj = dfs_stack.pop();
+    auto visit = [&](auto&& self, oop obj) {
       assert(obj != nullptr, "null root");
       int* dfs_number = _dfs_order_table->get(cast_from_oop<void*>(obj));
       if (*dfs_number != -1) {
         // Already visited in the traversal
-        continue;
+        return;
       }
-      _dfs_order_table->put(cast_from_oop<void*>(obj), ++dfs_order);
-      _dfs_order_table->maybe_grow();
+      _dfs_order_table->put(cast_from_oop<void*>(obj), -2);
 
-      FollowOopIterateClosure cl(&dfs_stack, obj, AOTReferenceObjSupport::check_if_ref_obj(obj));
+      FollowOopIterateClosure cl(self, obj, AOTReferenceObjSupport::check_if_ref_obj(obj));
       obj->oop_iterate(&cl);
-    }
+
+      _dfs_order_table->put(cast_from_oop<void*>(obj), ++dfs_order);
+    };
+    visit(visit, root);
 
     _roots_highest_dfs[i] = dfs_order;
   }

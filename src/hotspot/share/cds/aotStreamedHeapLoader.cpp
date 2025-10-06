@@ -415,9 +415,9 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
 
   if (string_intern) {
     // Interned string. Because the objects are laid out in DFS order, the value
-    // array will always be the next object in iteration order. Finish materializing
-    // and link it to the string table.
-    int value_object_index = object_index + 1;
+    // array will always be the previous object in iteration order. Finish
+    // materializing and link it to the string table.
+    int value_object_index = object_index - 1;
     heap_object = nullptr; // Materializing the value array might invalidate this oop.
     oop value_heap_object = materialize_object(value_object_index, dfs_stack, CHECK_NULL);
 
@@ -531,8 +531,6 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::copy_object(oopDesc* archive_
 
 // The range is inclusive
 void AOTStreamedHeapLoader::IterativeObjectLoader::initialize_range(int first_object_index, int last_object_index, TRAPS) {
-  bool last_object_was_interned_string = false;
-
   for (int i = first_object_index; i <= last_object_index; ++i) {
     oopDesc* archive_object = archive_object_for_object_index(i);
     markWord mark = archive_object->mark();
@@ -542,19 +540,11 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::initialize_range(int first_ob
     copy_object(archive_object, heap_object, size);
 
     // Link interned strings if necessary
-    if (last_object_was_interned_string) {
-      int string_object_index = i - 1;
-      oop string_object = heap_object_for_object_index(string_object_index);
-
+    if (string_intern) {
       // Replace string with interned string
-      string_object = StringTable::intern(string_object, CHECK);
-      replace_heap_object_for_object_index(string_object_index, string_object);
+      heap_object = StringTable::intern(heap_object, CHECK);
+      replace_heap_object_for_object_index(i, heap_object);
 
-      last_object_was_interned_string = false;
-    } else if (string_intern) {
-      // Because the objects are laid out in DFS order, the value array will always
-      // be the next object in iteration order.
-      last_object_was_interned_string = true;
     }
   }
 }

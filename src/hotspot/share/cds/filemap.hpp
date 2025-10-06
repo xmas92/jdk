@@ -374,8 +374,8 @@ public:
                             ArchiveMappedHeapInfo* mapped_heap_info,
                             ArchiveStreamedHeapInfo* streamed_heap_info,
                             size_t &size_in_bytes);
-  size_t write_mapped_heap_region(ArchiveMappedHeapInfo* heap_info);
-  size_t write_streamed_heap_region(ArchiveStreamedHeapInfo* heap_info);
+  size_t write_mapped_heap_region(ArchiveMappedHeapInfo* heap_info) NOT_CDS_JAVA_HEAP_RETURN_(0);
+  size_t write_streamed_heap_region(ArchiveStreamedHeapInfo* heap_info) NOT_CDS_JAVA_HEAP_RETURN_(0);
   void  write_bytes(const void* buffer, size_t count);
   void  write_bytes_aligned(const void* buffer, size_t count);
   size_t  read_bytes(void* buffer, size_t count);

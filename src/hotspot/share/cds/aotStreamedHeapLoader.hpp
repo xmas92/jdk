@@ -193,6 +193,7 @@ private:
   static void log_statistics();
 
   class TracingObjectLoader {
+    static bool is_materialized(int object_index, bool wait_for_iterator);
     static oop materialize_object(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
     static oop materialize_object_inner(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
     static void copy_object(int object_index,

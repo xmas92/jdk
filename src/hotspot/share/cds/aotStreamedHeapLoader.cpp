@@ -381,10 +381,14 @@ void AOTStreamedHeapLoader::TracingObjectLoader::copy_object(int object_index,
                                                              size_t size,
                                                              Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack) {
   auto linker = [&](int p_offset, int pointee_object_index) {
-    dfs_stack.push({pointee_object_index, object_index, p_offset});
+    if (is_materialized(pointee_object_index, /*wait_for_iterator=*/false)) {
+      // Already materialized
+      return heap_object_for_object_index(pointee_object_index);
+    }
 
     // The tracing linker is a bit lazy and mutates the reference fields in its traversal.
     // Returning null means don't link now.
+    dfs_stack.push({pointee_object_index, object_index, p_offset});
     return oop(nullptr);
   };
   if (UseCompressedOops) {
@@ -433,26 +437,32 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   return heap_object;
 }
 
-oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS) {
+bool AOTStreamedHeapLoader::TracingObjectLoader::is_materialized(int object_index, bool wait_for_iterator) {
   if (object_index <= _previous_batch_last_object_index) {
-    // The transitive closure of this object has been materialized; no need to do anything
-    return heap_object_for_object_index(object_index);
+    // The transitive closure of this object has been materialized;
+    return true;
   }
 
   if (object_index <= _current_batch_last_object_index) {
+    if (!wait_for_iterator) {
+      return false;
+    }
+
     // The AOTThread is currently materializing this object and its transitive closure; only need to wait for it to complete
     _waiting_for_iterator = true;
     while (object_index > _previous_batch_last_object_index) {
-      wait_for_iterator();
+      TracingObjectLoader::wait_for_iterator();
     }
     _waiting_for_iterator = false;
-    return heap_object_for_object_index(object_index);;
+    return true;
   }
 
-  oop heap_object = heap_object_for_object_index(object_index);
-  if (heap_object != nullptr) {
-    // Already materialized by mutator
-    return heap_object;
+  return heap_object_for_object_index(object_index) != nullptr;
+}
+
+oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS) {
+  if (is_materialized(object_index, /*wait_for_iterator=*/true)) {
+    return heap_object_for_object_index(object_index);
   }
 
   return materialize_object_inner(object_index, dfs_stack, THREAD);

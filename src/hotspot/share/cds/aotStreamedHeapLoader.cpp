@@ -451,11 +451,9 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
 }
 
 oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS) {
-  oop heap_object = heap_object_for_object_index(object_index);
-
   if (object_index <= _previous_batch_last_object_index) {
     // The transitive closure of this object has been materialized; no need to do anything
-    return heap_object;
+    return heap_object_for_object_index(object_index);
   }
 
   if (object_index <= _current_batch_last_object_index) {
@@ -465,10 +463,10 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object(int object_in
       wait_for_iterator();
     }
     _waiting_for_iterator = false;
-    heap_object = heap_object_for_object_index(object_index);
-    return heap_object;
+    return heap_object_for_object_index(object_index);;
   }
 
+  oop heap_object = heap_object_for_object_index(object_index);
   if (heap_object != nullptr) {
     // Already materialized by mutator
     return heap_object;

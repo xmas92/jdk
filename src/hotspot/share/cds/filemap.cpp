@@ -1028,6 +1028,7 @@ char* FileMapInfo::write_bitmap_region(CHeapBitMap* rw_ptrmap,
   return buffer;
 }
 
+#if INCLUDE_CDS_JAVA_HEAP
 size_t FileMapInfo::write_mapped_heap_region(ArchiveMappedHeapInfo* heap_info) {
   char* buffer_start = heap_info->buffer_start();
   size_t buffer_size = heap_info->buffer_byte_size();
@@ -1043,6 +1044,7 @@ size_t FileMapInfo::write_streamed_heap_region(ArchiveStreamedHeapInfo* heap_inf
   header()->set_streamed_heap_header(heap_info->create_header());
   return buffer_size;
 }
+#endif // INCLUDE_CDS_JAVA_HEAP
 
 // Dump bytes to file -- at the current file position.
 

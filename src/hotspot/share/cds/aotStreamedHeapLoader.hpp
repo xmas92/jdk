@@ -187,7 +187,6 @@ private:
   static void switch_object_index_to_handle(int object_index);
   static oop heap_object_for_object_index(int object_index);
   static void set_heap_object_for_object_index(int object_index, oop heap_object);
-  static void replace_heap_object_for_object_index(int object_index, oop heap_object);
 
   static bool materialize_early();
   static void materialize_late();

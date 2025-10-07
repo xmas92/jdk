@@ -145,15 +145,6 @@ void AOTStreamedHeapLoader::set_heap_object_for_object_index(int object_index, o
   }
 }
 
-void AOTStreamedHeapLoader::replace_heap_object_for_object_index(int object_index, oop heap_object) {
-  if (_objects_are_handles) {
-    oop* handle = (oop*)_object_index_to_heap_object_table[object_index];
-    NativeAccess<>::oop_store(handle, heap_object);
-  } else {
-    _object_index_to_heap_object_table[object_index] = cast_from_oop<void*>(heap_object);
-  }
-}
-
 static int archive_array_length(oopDesc* archive_array) {
   return *(int*)(address(archive_array) + arrayOopDesc::length_offset_in_bytes());
 }
@@ -416,38 +407,34 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   markWord mark = archive_object->mark();
   bool string_intern = mark.is_marked();
   mark = mark.set_unmarked();
-  oop heap_object = allocate_object(archive_object, mark, size, CHECK_NULL);
-
-  // Install forwarding
-  set_heap_object_for_object_index(object_index, heap_object);
+  oop heap_object;
 
   if (string_intern) {
     // Interned string. Because the objects are laid out in DFS order, the value
     // array will always be the next object in iteration order. Finish materializing
     // and link it to the string table.
 
-    // Fill in object contents
+    // Materialize the value object.
+    int value_object_index = object_index + 1;
+    (void)materialize_object(value_object_index, dfs_stack, CHECK_NULL);
+
+    // Allocate and link the string.
+    heap_object = allocate_object(archive_object, mark, size, CHECK_NULL);
     copy_object_eager_linking(archive_object, heap_object, size);
 
-    int value_object_index = object_index + 1;
-    heap_object = nullptr; // Materializing the value array might invalidate this oop.
-    oop value_heap_object = materialize_object(value_object_index, dfs_stack, CHECK_NULL);
+    assert(java_lang_String::value(heap_object) == heap_object_for_object_index(value_object_index), "Linker should have linked this correctly");
 
-    heap_object = heap_object_for_object_index(object_index);
-    if (_allow_gc) {
-      heap_object->obj_field_put(java_lang_String::value_offset(), value_heap_object);
-    } else {
-      // Allocated objects are not properly initialized when GC isn't allowed
-      heap_object->obj_field_put_access<IS_DEST_UNINITIALIZED>(java_lang_String::value_offset(), value_heap_object);
-    }
-
-    // Replace string with interned string
+    // Replace the string with interned string
     heap_object = StringTable::intern(heap_object, CHECK_NULL);
-    replace_heap_object_for_object_index(object_index, heap_object);
   } else {
+    heap_object = allocate_object(archive_object, mark, size, CHECK_NULL);
+
     // Fill in object contents
     copy_object_lazy_linking(object_index, archive_object, heap_object, size, dfs_stack);
   }
+
+  // Install forwarding
+  set_heap_object_for_object_index(object_index, heap_object);
 
   return heap_object;
 }
@@ -557,36 +544,34 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
     materialized_words += size;
     oop heap_object = heap_object_for_object_index(i);
     if (heap_object == nullptr) {
-      // The normal case; no lazy loading have loaded the object yet
-      heap_object = allocate_object(archive_object, mark, size, CHECK_0);
-      set_heap_object_for_object_index(i, heap_object);
-
       if (string_intern) {
-        heap_object = nullptr; // Clean up unhandled oop
-
         // Eagerly materialize interned strings to ensure that objects earlier than the string
         // in a batch get linked to the intended interned string, and not a copy.
-        int string_object_index = i;
         int value_object_index = i + 1;
-        oopDesc* archive_string_object = archive_object;
-        oopDesc* archive_value_object = archive_object_for_object_index(value_object_index);
-        size_t string_size = size;
-        size_t value_size = archive_object_size(archive_value_object);
-        markWord value_mark = archive_value_object->mark();
-        oop value_heap_object = allocate_object(archive_value_object, value_mark, value_size, CHECK_0);
-        oop string_heap_object = heap_object_for_object_index(string_object_index);
 
-        // We have to associate the value object index with the value object before copying the
-        // object runs on the string object, as the linking of the string object will read it
-        set_heap_object_for_object_index(value_object_index, value_heap_object);
-        copy_object_eager_linking(archive_string_object, string_heap_object, string_size);
-        copy_object_eager_linking(archive_value_object, value_heap_object, value_size);
+        { // Materialize the value object.
+          oopDesc* archive_value_object = archive_object_for_object_index(value_object_index);
+          markWord value_mark = archive_value_object->mark();
+          size_t value_size = archive_object_size(archive_value_object);
+          oop value_heap_object = allocate_object(archive_value_object, value_mark, value_size, CHECK_0);
+          set_heap_object_for_object_index(value_object_index, value_heap_object);
+          copy_object_eager_linking(archive_value_object, value_heap_object, value_size);
+        }
 
-        string_heap_object = StringTable::intern(string_heap_object, CHECK_0);
-        value_heap_object = java_lang_String::value(string_heap_object);
-        replace_heap_object_for_object_index(string_object_index, string_heap_object);
-        replace_heap_object_for_object_index(value_object_index, value_heap_object);
+        // Allocate and link the string.
+        heap_object = allocate_object(archive_object, mark, size, CHECK_0);
+        copy_object_eager_linking(archive_object, heap_object, size);
+
+        assert(java_lang_String::value(heap_object) == heap_object_for_object_index(value_object_index), "Linker should have linked this correctly");
+
+        // Replace the string with interned string
+        heap_object = StringTable::intern(heap_object, CHECK_0);
+      } else {
+       // The normal case; no lazy loading have loaded the object yet
+        heap_object = allocate_object(archive_object, mark, size, CHECK_0);
       }
+
+      set_heap_object_for_object_index(i, heap_object);
     } else {
       // Lazy loading has already initialized the object; we must not mutate it
       lazy_object_indices.append(i);

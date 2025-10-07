@@ -172,6 +172,10 @@ oop JavaThread::threadObj() const {
   return _threadObj.resolve();
 }
 
+bool JavaThread::is_thread_obj_set() const {
+  return !_threadObj.is_empty();
+}
+
 oop JavaThread::vthread() const {
   return _vthread.resolve();
 }

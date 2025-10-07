@@ -117,7 +117,7 @@ const JfrBlobHandle& JfrThreadLocal::thread_blob() const {
 void JfrThreadLocal::initialize_main_thread(JavaThread* jt) {
   assert(jt != nullptr, "invariant");
   assert(Thread::is_starting_thread(jt), "invariant");
-  assert(jt->threadObj() == nullptr, "invariant");
+  assert(!jt->is_thread_obj_set(), "invariant");
   assert(jt->jfr_thread_local()->_jvm_thread_id == 0, "invariant");
   jt->jfr_thread_local()->_jvm_thread_id = ThreadIdentifier::initial();
 }

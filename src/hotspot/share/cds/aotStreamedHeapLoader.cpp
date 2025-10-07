@@ -188,7 +188,7 @@ oop AOTStreamedHeapLoader::allocate_object(oopDesc* archive_object, markWord mar
 
   oop heap_object;
 
- Klass* klass = archive_object->klass();
+  Klass* klass = archive_object->klass();
   if (klass->is_mirror_instance_klass()) {
     heap_object = Universe::heap()->class_allocate(klass, size, CHECK_NULL);
   } else if (klass->is_instance_klass()) {

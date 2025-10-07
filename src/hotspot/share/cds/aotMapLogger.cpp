@@ -522,7 +522,7 @@ public:
     return arrayOop(raw_oop())->length();
   }
 
-  size_t target_location() {
+  intptr_t target_location() {
     return _data._target_location;
   }
 
@@ -773,7 +773,7 @@ void AOTMapLogger::runtime_log_heap_region(FileMapInfo* mapinfo) {
 
   int heap_region_index = AOTMetaspace::hp;
   FileMapRegion* r = mapinfo->region_at(heap_region_index);
-  size_t alignment = ObjectAlignmentInBytes;
+  size_t alignment = (size_t)ObjectAlignmentInBytes;
 
   if (mapinfo->object_streaming_mode()) {
     address buffer_start = (address)r->mapped_base();

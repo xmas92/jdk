@@ -49,6 +49,7 @@
 #include "utilities/exceptions.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/stack.inline.hpp"
+#include "utilities/ticks.hpp"
 
 #include <type_traits>
 
@@ -79,11 +80,11 @@ bool AOTStreamedHeapLoader::_swapping_root_format;
 
 OopHandle AOTStreamedHeapLoader::_roots;
 
-static jlong _early_materialization_time_ns = 0;
-static jlong _late_materialization_time_ns = 0;
-static jlong _final_materialization_time_ns = 0;
-static jlong _cleanup_materialization_time_ns = 0;
-static volatile jlong _accumulated_lazy_materialization_time_ns = 0;
+static uint64_t _early_materialization_time_ns = 0;
+static uint64_t _late_materialization_time_ns = 0;
+static uint64_t _final_materialization_time_ns = 0;
+static uint64_t _cleanup_materialization_time_ns = 0;
+static volatile uint64_t _accumulated_lazy_materialization_time_ns = 0;
 
 int AOTStreamedHeapLoader::object_index_for_root_index(int root_index) {
   return _roots_archive[root_index];
@@ -680,7 +681,7 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::materialize_next_batch(TRAPS)
 }
 
 bool AOTStreamedHeapLoader::materialize_early() {
-  jlong start = os::javaTimeNanos();
+  Ticks start = Ticks::now();
   // We cannot handle any exception when materializing roots. Exits the VM.
   EXCEPTION_MARK
 
@@ -704,7 +705,7 @@ bool AOTStreamedHeapLoader::materialize_early() {
     IterativeObjectLoader::materialize_next_batch(CHECK_false);
   }
 
-  _early_materialization_time_ns = os::javaTimeNanos() - start;
+  _early_materialization_time_ns = (Ticks::now() - start).nanoseconds();
 
   bool finished_before_gc_allowed = !_allow_gc && !IterativeObjectLoader::has_more();
 
@@ -712,7 +713,7 @@ bool AOTStreamedHeapLoader::materialize_early() {
 }
 
 void AOTStreamedHeapLoader::materialize_late() {
-  jlong start = os::javaTimeNanos();
+  Ticks start = Ticks::now();
 
   // Continue materializing with GC allowed
 
@@ -723,7 +724,7 @@ void AOTStreamedHeapLoader::materialize_late() {
     IterativeObjectLoader::materialize_next_batch(CHECK);
   }
 
-  _late_materialization_time_ns = os::javaTimeNanos() - start;
+  _late_materialization_time_ns = (Ticks::now() - start).nanoseconds();
 }
 
 void AOTStreamedHeapLoader::cleanup() {
@@ -732,7 +733,7 @@ void AOTStreamedHeapLoader::cleanup() {
     AOTHeapLoading_lock->wait();
   }
 
-  jlong start = os::javaTimeNanos();
+  Ticks start = Ticks::now();
 
   // Remove OopStorage roots
   if (_objects_are_handles) {
@@ -759,7 +760,7 @@ void AOTStreamedHeapLoader::cleanup() {
   FileMapInfo::current_info()->unmap_region(AOTMetaspace::hp);
   FileMapInfo::current_info()->unmap_region(AOTMetaspace::bm);
 
-  _cleanup_materialization_time_ns = os::javaTimeNanos() - start;
+  _cleanup_materialization_time_ns = (Ticks::now() - start).nanoseconds();
 
   log_statistics();
 }
@@ -778,8 +779,8 @@ void AOTStreamedHeapLoader::log_statistics() {
   log_info(aot, heap)("bootstrapping lazy materialization time (sync): %zuus",
                       _accumulated_lazy_materialization_time_ns / 1000);
 
-  jlong sync_time = _final_materialization_time_ns + _accumulated_lazy_materialization_time_ns;
-  jlong async_time = _early_materialization_time_ns + _late_materialization_time_ns + _cleanup_materialization_time_ns;
+  uint64_t sync_time = _final_materialization_time_ns + _accumulated_lazy_materialization_time_ns;
+  uint64_t async_time = _early_materialization_time_ns + _late_materialization_time_ns + _cleanup_materialization_time_ns;
 
   if (!is_async) {
     sync_time += async_time;
@@ -886,7 +887,7 @@ void AOTStreamedHeapLoader::finish_materialize_objects() {
     return;
   }
 
-  jlong start = os::javaTimeNanos();
+  Ticks start = Ticks::now();
 
   if (CDSConfig::is_using_full_module_graph()) {
     MutexLocker ml(AOTHeapLoading_lock, Mutex::_safepoint_check_flag);
@@ -906,10 +907,10 @@ void AOTStreamedHeapLoader::finish_materialize_objects() {
     cleanup();
   }
 
-  _final_materialization_time_ns = os::javaTimeNanos() - start;
+  _final_materialization_time_ns = (Ticks::now() - start).nanoseconds();
 }
 
-void account_lazy_materialization_time_ns(jlong time, const char* description, int index) {
+void account_lazy_materialization_time_ns(uint64_t time, const char* description, int index) {
   AtomicAccess::add(&_accumulated_lazy_materialization_time_ns, time);
   log_debug(aot, heap)("Lazy materialization of %s: %d end (%ld us of %ld us)", description, index, time / 1000, _accumulated_lazy_materialization_time_ns / 1000);
 }
@@ -983,7 +984,7 @@ void AOTStreamedHeapLoader::initialize() {
 }
 
 oop AOTStreamedHeapLoader::materialize_root(int root_index) {
-  jlong start = os::javaTimeNanos();
+  Ticks start = Ticks::now();
   // We cannot handle any exception when materializing a root. Exits the VM.
   EXCEPTION_MARK
   Stack<AOTHeapTraversalEntry, mtClassShared> dfs_stack;
@@ -1004,7 +1005,9 @@ oop AOTStreamedHeapLoader::materialize_root(int root_index) {
     }
   }
 
-  account_lazy_materialization_time_ns(os::javaTimeNanos() - start, "root", root_index);
+  uint64_t duration = (Ticks::now() - start).nanoseconds();
+
+  account_lazy_materialization_time_ns(duration, "root", root_index);
 
   return result;
 }

@@ -768,15 +768,15 @@ void AOTStreamedHeapLoader::cleanup() {
 void AOTStreamedHeapLoader::log_statistics() {
   const bool is_async = CDSConfig::is_using_full_module_graph() && !AOTEagerlyLoadObjects;
   const char* const async_or_sync = is_async ? "async" : "sync";
-  log_info(aot, heap)("early object materialization time (%s): %zuus",
+  log_info(aot, heap)("early object materialization time (%s): " UINT64_FORMAT "us",
                       async_or_sync, _early_materialization_time_ns / 1000);
-  log_info(aot, heap)("late object materialization time (%s): %zuus",
+  log_info(aot, heap)("late object materialization time (%s): " UINT64_FORMAT "us",
                       async_or_sync, _late_materialization_time_ns / 1000);
-  log_info(aot, heap)("object materialization cleanup time (%s): %zuus",
+  log_info(aot, heap)("object materialization cleanup time (%s): " UINT64_FORMAT "us",
                       async_or_sync, _cleanup_materialization_time_ns / 1000);
-  log_info(aot, heap)("final object materialization time stall (sync): %zuus",
+  log_info(aot, heap)("final object materialization time stall (sync): " UINT64_FORMAT "us",
                       _final_materialization_time_ns / 1000);
-  log_info(aot, heap)("bootstrapping lazy materialization time (sync): %zuus",
+  log_info(aot, heap)("bootstrapping lazy materialization time (sync): " UINT64_FORMAT "us",
                       _accumulated_lazy_materialization_time_ns / 1000);
 
   uint64_t sync_time = _final_materialization_time_ns + _accumulated_lazy_materialization_time_ns;
@@ -793,10 +793,10 @@ void AOTStreamedHeapLoader::log_statistics() {
   log_info(aot, heap)("async materialization time: %zuus",
                       async_time / 1000);
 
-  size_t iterative_time = (size_t)(is_async ? async_time : sync_time);
-  size_t materialized_bytes = _allocated_words * HeapWordSize;
-  log_info(aot, heap)("%s materialized %zuK (%zuM/s)", async_or_sync,
-                      materialized_bytes / 1024, size_t(materialized_bytes * UCONST64(1'000'000'000) / M / iterative_time));
+  uint64_t iterative_time = (size_t)(is_async ? async_time : sync_time);
+  uint64_t materialized_bytes = _allocated_words * HeapWordSize;
+  log_info(aot, heap)("%s materialized %zuK (" UINT64_FORMAT "M/s)", async_or_sync,
+                      materialized_bytes / 1024, uint64_t(materialized_bytes * UCONST64(1'000'000'000) / M / iterative_time));
 }
 
 void AOTStreamedHeapLoader::materialize_objects() {

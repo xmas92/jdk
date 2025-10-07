@@ -375,11 +375,22 @@ void AOTStreamedHeapLoader::copy_object_impl(oopDesc* archive_object,
                                     linker);
 }
 
-void AOTStreamedHeapLoader::TracingObjectLoader::copy_object(int object_index,
-                                                             oopDesc* archive_object,
-                                                             oop heap_object,
-                                                             size_t size,
-                                                             Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack) {
+void AOTStreamedHeapLoader::copy_object_eager_linking(oopDesc* archive_object, oop heap_object, size_t size) {
+  auto linker = [&](int p_offset, int pointee_object_index) {
+    return AOTStreamedHeapLoader::heap_object_for_object_index(pointee_object_index);
+  };
+  if (UseCompressedOops) {
+    copy_object_impl<true>(archive_object, heap_object, size, linker);
+  } else {
+    copy_object_impl<false>(archive_object, heap_object, size, linker);
+  }
+}
+
+void AOTStreamedHeapLoader::TracingObjectLoader::copy_object_lazy_linking(int object_index,
+                                                                          oopDesc* archive_object,
+                                                                          oop heap_object,
+                                                                          size_t size,
+                                                                          Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack) {
   auto linker = [&](int p_offset, int pointee_object_index) {
     dfs_stack.push({pointee_object_index, object_index, p_offset});
 
@@ -406,13 +417,14 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   // Install forwarding
   set_heap_object_for_object_index(object_index, heap_object);
 
-  // Fill in object contents
-  copy_object(object_index, archive_object, heap_object, size, dfs_stack);
-
   if (string_intern) {
     // Interned string. Because the objects are laid out in DFS order, the value
     // array will always be the next object in iteration order. Finish materializing
     // and link it to the string table.
+
+    // Fill in object contents
+    copy_object_eager_linking(archive_object, heap_object, size);
+
     int value_object_index = object_index + 1;
     heap_object = nullptr; // Materializing the value array might invalidate this oop.
     oop value_heap_object = materialize_object(value_object_index, dfs_stack, CHECK_NULL);
@@ -428,6 +440,9 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
     // Replace string with interned string
     heap_object = StringTable::intern(heap_object, CHECK_NULL);
     replace_heap_object_for_object_index(object_index, heap_object);
+  } else {
+    // Fill in object contents
+    copy_object_lazy_linking(object_index, archive_object, heap_object, size, dfs_stack);
   }
 
   return heap_object;
@@ -508,17 +523,6 @@ int oop_handle_cmp(const void* left, const void* right) {
   return 0;
 }
 
-void AOTStreamedHeapLoader::IterativeObjectLoader::copy_object(oopDesc* archive_object, oop heap_object, size_t size) {
-  auto linker = [&](int p_offset, int pointee_object_index) {
-    return AOTStreamedHeapLoader::heap_object_for_object_index(pointee_object_index);
-  };
-  if (UseCompressedOops) {
-    copy_object_impl<true>(archive_object, heap_object, size, linker);
-  } else {
-    copy_object_impl<false>(archive_object, heap_object, size, linker);
-  }
-}
-
 // The range is inclusive
 void AOTStreamedHeapLoader::IterativeObjectLoader::initialize_range(int first_object_index, int last_object_index, TRAPS) {
   for (int i = first_object_index; i <= last_object_index; ++i) {
@@ -533,7 +537,7 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::initialize_range(int first_ob
     }
     size_t size = archive_object_size(archive_object);
     oop heap_object = heap_object_for_object_index(i);
-    copy_object(archive_object, heap_object, size);
+    copy_object_eager_linking(archive_object, heap_object, size);
   }
 }
 
@@ -570,11 +574,11 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
         oop value_heap_object = allocate_object(archive_value_object, value_mark, value_size, CHECK_0);
         oop string_heap_object = heap_object_for_object_index(string_object_index);
 
-        // We have to associate the value object index with the value object before copy_object
-        // runs on the string object, as the linking of the string object will read it
+        // We have to associate the value object index with the value object before copying the
+        // object runs on the string object, as the linking of the string object will read it
         set_heap_object_for_object_index(value_object_index, value_heap_object);
-        copy_object(archive_string_object, string_heap_object, string_size);
-        copy_object(archive_value_object, value_heap_object, value_size);
+        copy_object_eager_linking(archive_string_object, string_heap_object, string_size);
+        copy_object_eager_linking(archive_value_object, value_heap_object, value_size);
 
         string_heap_object = StringTable::intern(string_heap_object, CHECK_0);
         value_heap_object = java_lang_String::value(string_heap_object);

@@ -182,6 +182,8 @@ private:
                                size_t size,
                                LinkerT linker);
 
+  static void copy_object_eager_linking(oopDesc* archive_object, oop heap_object, size_t size);
+
   static void switch_object_index_to_handle(int object_index);
   static oop heap_object_for_object_index(int object_index);
   static void set_heap_object_for_object_index(int object_index, oop heap_object);
@@ -195,11 +197,11 @@ private:
   class TracingObjectLoader {
     static oop materialize_object(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
     static oop materialize_object_inner(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
-    static void copy_object(int object_index,
-                            oopDesc* archive_object,
-                            oop heap_object,
-                            size_t size,
-                            Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack);
+    static void copy_object_lazy_linking(int object_index,
+                                         oopDesc* archive_object,
+                                         oop heap_object,
+                                         size_t size,
+                                         Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack);
     static void drain_stack(Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
     static oop materialize_object_transitive(int object_index, Stack<AOTHeapTraversalEntry, mtClassShared>& dfs_stack, TRAPS);
 
@@ -210,7 +212,6 @@ private:
   };
 
   class IterativeObjectLoader {
-    static void copy_object(oopDesc* archive_object, oop heap_object, size_t size);
     static void initialize_range(int first_object_index, int last_object_index, TRAPS);
     static size_t materialize_range(int first_object_index, int last_object_index, TRAPS);
 

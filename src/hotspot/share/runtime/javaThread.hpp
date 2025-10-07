@@ -561,7 +561,6 @@ private:
   // Thread oop. threadObj() can be null for initial JavaThread
   // (or for threads attached via JNI)
   oop threadObj() const;
-  bool is_thread_obj_set() const;
   void set_threadOopHandles(oop p);
   oop vthread() const;
   void set_vthread(oop p);

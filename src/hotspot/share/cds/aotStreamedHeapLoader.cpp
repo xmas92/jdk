@@ -508,7 +508,9 @@ int oop_handle_cmp(const void* left, const void* right) {
 
 void AOTStreamedHeapLoader::IterativeObjectLoader::copy_object(oopDesc* archive_object, oop heap_object, size_t size) {
   auto linker = [&](int p_offset, int pointee_object_index) {
-    return AOTStreamedHeapLoader::heap_object_for_object_index(pointee_object_index);
+    oop obj = AOTStreamedHeapLoader::heap_object_for_object_index(pointee_object_index);
+    assert(pointee_object_index == 0 || obj != nullptr, "Iterative object loading should only encounter already allocated links");
+    return obj;
   };
   if (UseCompressedOops) {
     copy_object_impl<true>(archive_object, heap_object, size, linker);

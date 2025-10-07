@@ -29,6 +29,7 @@
 #include "cds/filemap.hpp"
 #include "cds/heapShared.inline.hpp"
 #include "classfile/classLoaderDataShared.hpp"
+#include "classfile/javaClasses.inline.hpp"
 #include "classfile/stringTable.hpp"
 #include "classfile/vmClasses.hpp"
 #include "gc/shared/collectedHeap.inline.hpp"
@@ -138,15 +139,6 @@ void AOTStreamedHeapLoader::set_heap_object_for_object_index(int object_index, o
     oop* handle = Universe::vm_global()->allocate();
     NativeAccess<>::oop_store(handle, heap_object);
     _object_index_to_heap_object_table[object_index] = (void*)handle;
-  } else {
-    _object_index_to_heap_object_table[object_index] = cast_from_oop<void*>(heap_object);
-  }
-}
-
-void AOTStreamedHeapLoader::replace_heap_object_for_object_index(int object_index, oop heap_object) {
-  if (_objects_are_handles) {
-    oop* handle = (oop*)_object_index_to_heap_object_table[object_index];
-    NativeAccess<>::oop_store(handle, heap_object);
   } else {
     _object_index_to_heap_object_table[object_index] = cast_from_oop<void*>(heap_object);
   }
@@ -405,6 +397,24 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   markWord mark = archive_object->mark();
   bool string_intern = mark.is_marked();
   mark = mark.set_unmarked();
+
+  if (string_intern) {
+    // Interned string. Because the objects are laid out in DFS order, the value
+    // array will always be the previous object in iteration order. Finish
+    // materializing and link it to the string table.
+    int value_object_index = object_index - 1;
+    (void)materialize_object(value_object_index, dfs_stack, CHECK_NULL);
+    oop heap_object = allocate_object(archive_object, mark, size, CHECK_NULL);
+    copy_object(object_index, archive_object, heap_object, size, dfs_stack);
+
+    assert(heap_object_for_object_index(value_object_index) == java_lang_String::value(heap_object), "Should be linked");
+
+    heap_object = StringTable::intern(heap_object, CHECK_NULL);
+    // Replace string with interned string
+    set_heap_object_for_object_index(object_index, heap_object);
+    return heap_object;
+  }
+
   oop heap_object = allocate_object(archive_object, mark, size, CHECK_NULL);
 
   // Install forwarding
@@ -412,27 +422,6 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
 
   // Fill in object contents
   copy_object(object_index, archive_object, heap_object, size, dfs_stack);
-
-  if (string_intern) {
-    // Interned string. Because the objects are laid out in DFS order, the value
-    // array will always be the previous object in iteration order. Finish
-    // materializing and link it to the string table.
-    int value_object_index = object_index - 1;
-    heap_object = nullptr; // Materializing the value array might invalidate this oop.
-    oop value_heap_object = materialize_object(value_object_index, dfs_stack, CHECK_NULL);
-
-    heap_object = heap_object_for_object_index(object_index);
-    if (_allow_gc) {
-      heap_object->obj_field_put(java_lang_String::value_offset(), value_heap_object);
-    } else {
-      // Allocated objects are not properly initialized when GC isn't allowed
-      heap_object->obj_field_put_access<IS_DEST_UNINITIALIZED>(java_lang_String::value_offset(), value_heap_object);
-    }
-
-    // Replace string with interned string
-    heap_object = StringTable::intern(heap_object, CHECK_NULL);
-    replace_heap_object_for_object_index(object_index, heap_object);
-  }
 
   return heap_object;
 }
@@ -535,16 +524,16 @@ void AOTStreamedHeapLoader::IterativeObjectLoader::initialize_range(int first_ob
     oopDesc* archive_object = archive_object_for_object_index(i);
     markWord mark = archive_object->mark();
     bool string_intern = mark.is_marked();
+    mark = mark.set_unmarked();
     size_t size = archive_object_size(archive_object);
-    oop heap_object = heap_object_for_object_index(i);
+    oop heap_object = !string_intern ? heap_object_for_object_index(i) : allocate_object(archive_object, mark, size, CHECK);
     copy_object(archive_object, heap_object, size);
 
     // Link interned strings if necessary
     if (string_intern) {
       // Replace string with interned string
       heap_object = StringTable::intern(heap_object, CHECK);
-      replace_heap_object_for_object_index(i, heap_object);
-
+      set_heap_object_for_object_index(i, heap_object);
     }
   }
 }
@@ -556,14 +545,20 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
 
   for (int i = first_object_index; i <= last_object_index; ++i) {
     oopDesc* archive_object = archive_object_for_object_index(i);
-    markWord mark = archive_object->mark().set_unmarked();
+    markWord mark = archive_object->mark();
+    bool string_intern = mark.is_marked();
+    mark = mark.set_unmarked();
     size_t size = archive_object_size(archive_object);
     materialized_words += size;
     oop heap_object = heap_object_for_object_index(i);
     if (heap_object == nullptr) {
-      // The normal case; no lazy loading have loaded the object yet
-      heap_object = allocate_object(archive_object, mark, size, CHECK_0);
-      set_heap_object_for_object_index(i, heap_object);
+      if (string_intern) {
+        // Do allocation while materializing. May use interned string.
+      } else {
+        // The normal case; no lazy loading have loaded the object yet
+        heap_object = allocate_object(archive_object, mark, size, CHECK_0);
+        set_heap_object_for_object_index(i, heap_object);
+      }
     } else {
       // Lazy loading has already initialized the object; we must not mutate it
       lazy_object_indices.append(i);

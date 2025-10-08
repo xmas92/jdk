@@ -1030,7 +1030,8 @@ oop AOTStreamedHeapLoader::get_root(int index) {
     result = materialize_root(index);
   }
   if (result == _roots.resolve()) {
-    // Materialized null sentinel object
+    // A self-reference to the roots array acts as a sentinel object for null,
+    // indicating that the root has been cleared.
     result = nullptr;
   }
   // Acquire the root transitive object payload
@@ -1039,7 +1040,8 @@ oop AOTStreamedHeapLoader::get_root(int index) {
 }
 
 void AOTStreamedHeapLoader::clear_root(int index) {
-  // The root acts as a sentinel object for null
+  // Self-reference to the roots array acts as a sentinel object for null,
+  // indicating that the root has been cleared.
   objArrayOop(_roots.resolve())->obj_at_put(index, _roots.resolve());
 }
 

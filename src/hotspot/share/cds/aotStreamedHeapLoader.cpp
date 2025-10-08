@@ -60,7 +60,7 @@
 FileMapRegion* AOTStreamedHeapLoader::_heap_region;
 FileMapRegion* AOTStreamedHeapLoader::_bitmap_region;
 int* AOTStreamedHeapLoader::_roots_archive;
-oop* AOTStreamedHeapLoader::_roots_heap;
+OopHandle AOTStreamedHeapLoader::_roots;
 BitMapView AOTStreamedHeapLoader::_oopmap;
 bool AOTStreamedHeapLoader::_is_loaded;
 int AOTStreamedHeapLoader::_previous_batch_last_object_index;
@@ -79,8 +79,6 @@ int* AOTStreamedHeapLoader::_root_highest_object_index_table;
 
 bool AOTStreamedHeapLoader::_waiting_for_iterator;
 bool AOTStreamedHeapLoader::_swapping_root_format;
-
-OopHandle AOTStreamedHeapLoader::_roots;
 
 static uint64_t _early_materialization_time_ns = 0;
 static uint64_t _late_materialization_time_ns = 0;
@@ -205,7 +203,7 @@ oop AOTStreamedHeapLoader::allocate_object(oopDesc* archive_object, markWord mar
 }
 
 void AOTStreamedHeapLoader::install_root(int root_index, oop heap_object) {
-  objArrayOop roots = objArrayOop((oop)NativeAccess<>::oop_load(_roots_heap));
+  objArrayOop roots = objArrayOop(_roots.resolve());
   OrderAccess::release(); // Once the store below publishes an object, it can be concurrently picked up by another thread without using the lock
   roots->obj_at_put(root_index, heap_object);
 }
@@ -958,8 +956,7 @@ void AOTStreamedHeapLoader::initialize() {
   CollectedHeap::set_filler_object_klass(vmClasses::Object_klass());
 
   objArrayOop roots = oopFactory::new_objectArray(_num_roots, CHECK);
-  _roots_heap = Universe::vm_global()->allocate();
-  NativeAccess<>::oop_store(_roots_heap, roots);
+  _roots = OopHandle(Universe::vm_global(), roots);
 
   _object_index_to_buffer_offset_table = (size_t*)(((address)_heap_region->mapped_base()) + forwarding_offset);
   // We allocate the first entry for "null"
@@ -971,7 +968,6 @@ void AOTStreamedHeapLoader::initialize() {
   address start = (address)(_bitmap_region->mapped_base()) + _heap_region->oopmap_offset();
   _oopmap = BitMapView((BitMap::bm_word_t*)start, _heap_region->oopmap_size_in_bits());
 
-  _roots = OopHandle(Universe::vm_global(), roots);
 
   if (FLAG_IS_DEFAULT(AOTEagerlyLoadObjects)) {
     // Concurrency will not help much if there are no extra cores available.

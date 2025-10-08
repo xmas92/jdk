@@ -134,7 +134,7 @@ private:
   static FileMapRegion* _bitmap_region;
   static OopStorage* _oop_storage;
   static int* _roots_archive;
-  static oop* _roots_heap;
+  static OopHandle _roots;
   static BitMapView _oopmap;
   static bool _is_loaded;
   static bool _allow_gc;
@@ -154,7 +154,6 @@ private:
   static bool _waiting_for_iterator;
   static bool _swapping_root_format;
 
-  static OopHandle _roots;
 
   template <typename LinkerT>
   class CopyConjointLinkingOopClosure;

@@ -464,6 +464,9 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object(int object_in
       wait_for_iterator();
     }
     _waiting_for_iterator = false;
+
+    // Notify the AOT thread if it is waiting for tracing to finish
+    AOTHeapLoading_lock->notify_all();
     return heap_object_for_object_index(object_index);;
   }
 

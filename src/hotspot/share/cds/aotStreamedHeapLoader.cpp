@@ -801,7 +801,7 @@ void AOTStreamedHeapLoader::log_statistics() {
 
   uint64_t iterative_time = (uint64_t)(is_async ? async_time : sync_time);
   uint64_t materialized_bytes = _allocated_words * HeapWordSize;
-  log_info(aot, heap)("%s materialized %zuK (" UINT64_FORMAT "M/s)", async_or_sync,
+  log_info(aot, heap)("%s materialized " UINT64_FORMAT "K (" UINT64_FORMAT "M/s)", async_or_sync,
                       materialized_bytes / 1024, uint64_t(materialized_bytes * UCONST64(1'000'000'000) / M / iterative_time));
 }
 
@@ -918,7 +918,7 @@ void AOTStreamedHeapLoader::finish_materialize_objects() {
 
 void account_lazy_materialization_time_ns(uint64_t time, const char* description, int index) {
   AtomicAccess::add(&_accumulated_lazy_materialization_time_ns, time);
-  log_debug(aot, heap)("Lazy materialization of %s: %d end (%ld us of %ld us)", description, index, time / 1000, _accumulated_lazy_materialization_time_ns / 1000);
+  log_debug(aot, heap)("Lazy materialization of %s: %d end (" UINT64_FORMAT " us of " UINT64_FORMAT " us)", description, index, time / 1000, _accumulated_lazy_materialization_time_ns / 1000);
 }
 
 // Initialize an empty array of AOT heap roots; materialize them lazily

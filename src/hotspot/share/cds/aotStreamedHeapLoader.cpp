@@ -610,7 +610,6 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
       if (slice_end_object_index - slice_start_object_index > 1) { // Both markers are exclusive
         initialize_range(slice_start_object_index + 1, slice_end_object_index - 1, CHECK_0);
       }
-      oop heap_object = heap_object_for_object_index(lazy_object_index);
       previous_object_index = lazy_object_index;
     }
     // Process tail range

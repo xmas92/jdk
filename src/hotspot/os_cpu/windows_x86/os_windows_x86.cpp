@@ -343,7 +343,7 @@ intptr_t* os::fetch_bcp_from_context(const void* ucVoid) {
 // os::verify_stack_alignment().
 __declspec(noinline)
 address os::current_stack_pointer() {
-  return (address)_AddressOfReturnAddress();
+  return ((address)_AddressOfReturnAddress()) + sizeof(void*);
 }
 
 bool os::win32::get_frame_at_stack_banging_point(JavaThread* thread,

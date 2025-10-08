@@ -413,8 +413,12 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   oopDesc* archive_object = archive_object_for_object_index(object_index);
   size_t size = archive_object_size(archive_object);
   markWord mark = archive_object->mark();
+
+  // The markWord is marked if the object is a String and it should be interned,
+  // make sure to unmark it before allocating memory for the object.
   bool string_intern = mark.is_marked();
   mark = mark.set_unmarked();
+
   oop heap_object;
 
   if (string_intern) {
@@ -548,8 +552,12 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
   for (int i = first_object_index; i <= last_object_index; ++i) {
     oopDesc* archive_object = archive_object_for_object_index(i);
     markWord mark = archive_object->mark();
+
+    // The markWord is marked if the object is a String and it should be interned,
+    // make sure to unmark it before allocating memory for the object.
     bool string_intern = mark.is_marked();
     mark = mark.set_unmarked();
+
     size_t size = archive_object_size(archive_object);
     materialized_words += size;
     oop heap_object = heap_object_for_object_index(i);

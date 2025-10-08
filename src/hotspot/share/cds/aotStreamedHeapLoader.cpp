@@ -85,6 +85,7 @@ static uint64_t _late_materialization_time_ns = 0;
 static uint64_t _final_materialization_time_ns = 0;
 static uint64_t _cleanup_materialization_time_ns = 0;
 static volatile uint64_t _accumulated_lazy_materialization_time_ns = 0;
+static Ticks _materialization_start_ticks;
 
 int AOTStreamedHeapLoader::object_index_for_root_index(int root_index) {
   return _roots_archive[root_index];
@@ -766,8 +767,11 @@ void AOTStreamedHeapLoader::cleanup() {
 }
 
 void AOTStreamedHeapLoader::log_statistics() {
+  uint64_t total_duration_us = (Ticks::now() - _materialization_start_ticks).microseconds();
   const bool is_async = CDSConfig::is_using_full_module_graph() && !AOTEagerlyLoadObjects;
   const char* const async_or_sync = is_async ? "async" : "sync";
+  log_info(aot, heap)("start to finish materialization time: " UINT64_FORMAT "us",
+                      total_duration_us);
   log_info(aot, heap)("early object materialization time (%s): " UINT64_FORMAT "us",
                       async_or_sync, _early_materialization_time_ns / 1000);
   log_info(aot, heap)("late object materialization time (%s): " UINT64_FORMAT "us",
@@ -918,6 +922,8 @@ void account_lazy_materialization_time_ns(uint64_t time, const char* description
 // Initialize an empty array of AOT heap roots; materialize them lazily
 void AOTStreamedHeapLoader::initialize() {
   EXCEPTION_MARK
+
+  _materialization_start_ticks = Ticks::now();
 
   FileMapInfo::current_info()->map_bitmap_region();
 

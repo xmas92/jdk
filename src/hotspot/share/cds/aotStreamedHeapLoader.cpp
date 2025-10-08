@@ -791,10 +791,10 @@ void AOTStreamedHeapLoader::log_statistics() {
     async_time = 0;
   }
 
-  log_info(aot, heap)("sync materialization time: %zuus",
+  log_info(aot, heap)("sync materialization time: " UINT64_FORMAT "us",
                       sync_time / 1000);
 
-  log_info(aot, heap)("async materialization time: %zuus",
+  log_info(aot, heap)("async materialization time: " UINT64_FORMAT "us",
                       async_time / 1000);
 
   uint64_t iterative_time = (uint64_t)(is_async ? async_time : sync_time);

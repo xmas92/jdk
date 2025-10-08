@@ -188,6 +188,8 @@ private:
   static oop heap_object_for_object_index(int object_index);
   static void set_heap_object_for_object_index(int object_index, oop heap_object);
 
+  static int archived_string_value_object_index(oopDesc* archive_object);
+
   static bool materialize_early();
   static void materialize_late();
   static void cleanup();

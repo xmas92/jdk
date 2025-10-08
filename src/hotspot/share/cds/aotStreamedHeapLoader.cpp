@@ -29,6 +29,7 @@
 #include "cds/filemap.hpp"
 #include "cds/heapShared.inline.hpp"
 #include "classfile/classLoaderDataShared.hpp"
+#include "classfile/javaClasses.inline.hpp"
 #include "classfile/stringTable.hpp"
 #include "classfile/vmClasses.hpp"
 #include "gc/shared/collectedHeap.inline.hpp"
@@ -40,6 +41,7 @@
 #include "oops/access.inline.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
+#include "runtime/globals.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/java.hpp"
@@ -143,6 +145,12 @@ void AOTStreamedHeapLoader::set_heap_object_for_object_index(int object_index, o
   } else {
     _object_index_to_heap_object_table[object_index] = cast_from_oop<void*>(heap_object);
   }
+}
+
+int AOTStreamedHeapLoader::archived_string_value_object_index(oopDesc* archive_object) {
+    assert(archive_object->klass() == vmClasses::String_klass(), "Must be an archived string");
+    address archive_string_value_addr = (address)archive_object + java_lang_String::value_offset();
+    return UseCompressedOops ? *(int*)archive_string_value_addr : (int)*(int64_t*)archive_string_value_addr;
 }
 
 static int archive_array_length(oopDesc* archive_array) {
@@ -410,12 +418,10 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   oop heap_object;
 
   if (string_intern) {
-    // Interned string. Because the objects are laid out in DFS order, the value
-    // array will always be the next object in iteration order. Finish materializing
-    // and link it to the string table.
+    // Interned string. Finish materializing and link it to the string table.
 
     // Materialize the value object.
-    int value_object_index = object_index + 1;
+    int value_object_index = archived_string_value_object_index(archive_object);
     (void)materialize_object(value_object_index, dfs_stack, CHECK_NULL);
 
     // Allocate and link the string.
@@ -547,9 +553,12 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
       if (string_intern) {
         // Eagerly materialize interned strings to ensure that objects earlier than the string
         // in a batch get linked to the intended interned string, and not a copy.
-        int value_object_index = i + 1;
+        int value_object_index = archived_string_value_object_index(archive_object);
 
-        { // Materialize the value object.
+        if (heap_object_for_object_index(value_object_index) == nullptr) {
+          // Materialize the value object.
+          assert(value_object_index > _previous_batch_last_object_index && value_object_index <= _current_batch_last_object_index,
+                 "Must be within this batch: %d < %d <= %d", _previous_batch_last_object_index, value_object_index, _current_batch_last_object_index);
           oopDesc* archive_value_object = archive_object_for_object_index(value_object_index);
           markWord value_mark = archive_value_object->mark();
           size_t value_size = archive_object_size(archive_value_object);

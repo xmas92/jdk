@@ -793,7 +793,7 @@ void AOTStreamedHeapLoader::log_statistics() {
   log_info(aot, heap)("async materialization time: %zuus",
                       async_time / 1000);
 
-  uint64_t iterative_time = (size_t)(is_async ? async_time : sync_time);
+  uint64_t iterative_time = (uint64_t)(is_async ? async_time : sync_time);
   uint64_t materialized_bytes = _allocated_words * HeapWordSize;
   log_info(aot, heap)("%s materialized %zuK (" UINT64_FORMAT "M/s)", async_or_sync,
                       materialized_bytes / 1024, uint64_t(materialized_bytes * UCONST64(1'000'000'000) / M / iterative_time));

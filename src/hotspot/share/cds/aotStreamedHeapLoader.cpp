@@ -418,10 +418,14 @@ oop AOTStreamedHeapLoader::TracingObjectLoader::materialize_object_inner(int obj
   oop heap_object;
 
   if (string_intern) {
-    // Interned string. Finish materializing and link it to the string table.
+    // Interned string. Because the objects are laid out in DFS order, the value
+    // array will always be the next object in iteration order. Finish materializing
+    // and link it to the string table.
+    int value_object_index = object_index + 1;
+    assert(value_object_index == archived_string_value_object_index(archive_object), "Next object must be the value");
+    assert(heap_object_for_object_index(value_object_index) == nullptr, "Should not be initialized");
 
     // Materialize the value object.
-    int value_object_index = archived_string_value_object_index(archive_object);
     (void)materialize_object(value_object_index, dfs_stack, CHECK_NULL);
 
     // Allocate and link the string.
@@ -553,12 +557,12 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
       if (string_intern) {
         // Eagerly materialize interned strings to ensure that objects earlier than the string
         // in a batch get linked to the intended interned string, and not a copy.
-        int value_object_index = archived_string_value_object_index(archive_object);
+        int value_object_index = i + 1;
+        assert(value_object_index == archived_string_value_object_index(archive_object), "Next object must be the value");
+        assert(heap_object_for_object_index(value_object_index) == nullptr, "Should not be initialized");
+        assert(value_object_index <= last_object_index, "Must be within this batch: %d <= %d", value_object_index, last_object_index);
 
-        if (heap_object_for_object_index(value_object_index) == nullptr) {
-          // Materialize the value object.
-          assert(value_object_index > _previous_batch_last_object_index && value_object_index <= _current_batch_last_object_index,
-                 "Must be within this batch: %d < %d <= %d", _previous_batch_last_object_index, value_object_index, _current_batch_last_object_index);
+        { // Materialize the value object.
           oopDesc* archive_value_object = archive_object_for_object_index(value_object_index);
           markWord value_mark = archive_value_object->mark();
           size_t value_size = archive_object_size(archive_value_object);
@@ -575,12 +579,16 @@ size_t AOTStreamedHeapLoader::IterativeObjectLoader::materialize_range(int first
 
         // Replace the string with interned string
         heap_object = StringTable::intern(heap_object, CHECK_0);
+        set_heap_object_for_object_index(i, heap_object);
+
+        // Skip over the object value, already materialized
+        i = value_object_index;
+        continue;
       } else {
        // The normal case; no lazy loading have loaded the object yet
         heap_object = allocate_object(archive_object, mark, size, CHECK_0);
+        set_heap_object_for_object_index(i, heap_object);
       }
-
-      set_heap_object_for_object_index(i, heap_object);
     } else {
       // Lazy loading has already initialized the object; we must not mutate it
       lazy_object_indices.append(i);

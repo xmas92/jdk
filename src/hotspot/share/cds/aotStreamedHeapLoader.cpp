@@ -911,7 +911,7 @@ void AOTStreamedHeapLoader::finish_materialize_objects() {
     }
   } else {
     assert(!AOTEagerlyLoadObjects, "sanity");
-    assert(AOTThread::aot_thread() == nullptr, "sanity");
+    assert(!AOTThread::aot_thread_initialized(), "sanity");
     assert(_current_root_index == 0, "sanity");
     // Without the full module graph we have done only lazy tracing materialization.
     // Ensure all roots are processed here by triggering root loading on every root.

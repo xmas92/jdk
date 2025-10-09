@@ -44,7 +44,8 @@ public:
 
   static void materialize_thread_object();
 
-  static AOTThread* aot_thread() { return NOT_CDS(nullptr) CDS_ONLY(_aot_thread); };
+  static bool aot_thread_initialized() { return NOT_CDS(false) CDS_ONLY(_aot_thread != nullptr); };
+  static bool is_aot_thread(JavaThread* thread) { return NOT_CDS(false) CDS_ONLY(aot_thread_initialized() && _aot_thread == thread); };
 };
 
 #endif // SHARE_CDS_AOTTHREAD_HPP

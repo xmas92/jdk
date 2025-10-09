@@ -55,6 +55,13 @@ void AOTThread::initialize() {
   // have not yet been initialized, and hence we can't allocate the Thread
   // object yet.
   _aot_thread = new AOTThread(&aot_thread_entry);
+
+  // The line below hides JVMTI events from this thread (cf. should_hide_jvmti_events())
+  // This is important because this thread runs before JVMTI monitors are set up appropriately.
+  // Therefore, callbacks would not work as intended. JVMTI has no business peeking at how we
+  // materialize primordial objects from the AOT cache.
+  _aot_thread->toggle_is_disable_suspend();
+
   JavaThread::vm_exit_on_osthread_failure(_aot_thread);
 
   // Note that the Thread class is not initialized yet at this point. We

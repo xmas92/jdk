@@ -61,6 +61,7 @@ requires.properties= \
     vm.simpleArch \
     vm.bits \
     vm.flightRecorder \
+    vm.gc.flagless \
     vm.gc.G1 \
     vm.gc.Serial \
     vm.gc.Parallel \

@@ -143,6 +143,7 @@ public class VMProps implements Callable<Map<String, String>> {
         map.put("release.implementor", this::implementor);
         map.put("jdk.containerized", this::jdkContainerized);
         map.put("vm.flagless", this::isFlagless);
+        map.put("vm.gc.flagless", this::isGCFlagless);
         map.put("jdk.foreign.linker", this::jdkForeignLinker);
         map.put("jlink.packagedModules", this::packagedModules);
         map.put("jdk.static", this::isStatic);
@@ -773,21 +774,42 @@ public class VMProps implements Callable<Map<String, String>> {
     }
 
     /**
+     * Extends the isFlagless behavior to also ignore any -XX:+Use*GC flags.
+     * {@code TEST_VM_FLAGLESS} environment variable can be used to force this
+     * method to return true or false and allow or reject any flags.
+     *
+     * @return true if there are no JVM flags except -XX:+Use*GC
+     */
+    private String isGCFlagless() {
+        var GCFlagStrings = Stream.of(GC.values())
+                                  .map(gc -> GC_PREFIX + gc.name() + GC_SUFFIX)
+                                  .toList();
+
+        var allFlags = allFlags().filter(s -> !GCFlagStrings.contains(s))
+                                 .toList();
+
+        return isFlaglessHelper(allFlags);
+    }
+
+    /**
      * Checks if we are in <i>almost</i> out-of-box configuration, i.e. the flags
      * which JVM is started with don't affect its behavior "significantly".
-     * {@code TEST_VM_FLAGLESS} enviroment variable can be used to force this
+     * {@code TEST_VM_FLAGLESS} environment variable can be used to force this
      * method to return true or false and allow or reject any flags.
      *
      * @return true if there are no JVM flags
      */
     private String isFlagless() {
-        boolean result = true;
+        return isFlaglessHelper(allFlags().toList());
+    }
+
+    private String isFlaglessHelper(List<String> allFlags) {
         String flagless = System.getenv("TEST_VM_FLAGLESS");
         if (flagless != null) {
             return "" + "true".equalsIgnoreCase(flagless);
         }
 
-        List<String> allFlags = allFlags().toList();
+        boolean result = true;
 
         // check -XX flags
         var ignoredXXFlags = Set.of(

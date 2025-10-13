@@ -89,6 +89,7 @@ requires.properties= \
     java.runtime.name \
     java.enablePreview \
     vm.flagless \
+    vm.gc.flagless \
     vm.gc.G1 \
     vm.gc.Serial \
     vm.gc.Parallel \

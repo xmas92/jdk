@@ -49,6 +49,8 @@ class ZLoadBarrierStubC2;
 class ZStoreBarrierStubC2;
 #endif // COMPILER2
 
+class ICacheInvalidationContext;
+
 const int ZBarrierRelocationFormatLoadGoodBeforeShl = 0;
 const int ZBarrierRelocationFormatLoadBadAfterTest  = 1;
 const int ZBarrierRelocationFormatMarkBadAfterTest  = 2;
@@ -187,7 +189,7 @@ public:
                             Label& slow_path,
                             Label& slow_path_continuation) const;
 
-  void patch_barrier_relocation(address addr, int format);
+  void patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic);
 
   void patch_barriers();
 

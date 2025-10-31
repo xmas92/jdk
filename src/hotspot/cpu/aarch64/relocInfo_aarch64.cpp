@@ -31,7 +31,7 @@
 #include "runtime/safepoint.hpp"
 
 
-void Relocation::pd_set_data_value(address x, bool verify_only) {
+void Relocation::pd_set_data_value(address x, bool verify_only, ICacheInvalidationContext* icic) {
   if (verify_only)
     return;
 
@@ -54,7 +54,11 @@ void Relocation::pd_set_data_value(address x, bool verify_only) {
     bytes = MacroAssembler::pd_patch_instruction_size(addr(), x);
     break;
   }
-  ICache::invalidate_range(addr(), bytes);
+  if (icic == nullptr) {
+    ICache::invalidate_range(addr(), bytes);
+  } else {
+    icic->invalidate_range(addr(), bytes);
+  }
 }
 
 address Relocation::pd_call_destination(address orig_addr) {

@@ -2021,7 +2021,8 @@ void nmethod::copy_values(GrowableArray<jobject>* array) {
   // The code and relocations have already been initialized by the
   // CodeBlob constructor, so it is valid even at this early point to
   // iterate over relocations and patch the code.
-  fix_oop_relocations(nullptr, nullptr, /*initialize_immediates=*/ true);
+  ICacheInvalidationContext icic;
+  fix_oop_relocations(nullptr, nullptr, /*initialize_immediates=*/ true, icic);
 }
 
 void nmethod::copy_values(GrowableArray<Metadata*>* array) {
@@ -2033,7 +2034,7 @@ void nmethod::copy_values(GrowableArray<Metadata*>* array) {
   }
 }
 
-void nmethod::fix_oop_relocations(address begin, address end, bool initialize_immediates) {
+void nmethod::fix_oop_relocations(address begin, address end, bool initialize_immediates, ICacheInvalidationContext& icic) {
   // re-patch all oop-bearing instructions, just in case some oops moved
   RelocIterator iter(this, begin, end);
   while (iter.next()) {
@@ -2045,12 +2046,22 @@ void nmethod::fix_oop_relocations(address begin, address end, bool initialize_im
         initialize_immediate_oop(dest, obj);
       }
       // Refresh the oop-related bits of this instruction.
-      reloc->fix_oop_relocation();
+      reloc->fix_oop_relocation(icic);
     } else if (iter.type() == relocInfo::metadata_type) {
       metadata_Relocation* reloc = iter.metadata_reloc();
       reloc->fix_metadata_relocation();
     }
   }
+}
+
+void nmethod::fix_oop_relocations(address begin, address end) {
+  ICacheInvalidationContext icic;
+  fix_oop_relocations(begin, end, false, icic);
+}
+
+void nmethod::fix_oop_relocations() {
+  ICacheInvalidationContext icic;
+  fix_oop_relocations(nullptr, nullptr, false, icic);
 }
 
 static void install_post_call_nop_displacement(nmethod* nm, address pc) {

@@ -70,12 +70,14 @@ bool ZBarrierSetNMethod::nmethod_entry_barrier(nmethod* nm) {
     return false;
   }
 
-  // Heal barriers
-  ZNMethod::nmethod_patch_barriers(nm);
+  { ICacheInvalidationContext icic;
+    // Heal barriers
+    ZNMethod::nmethod_patch_barriers(nm, icic);
 
-  // Heal oops
-  ZUncoloredRootProcessWeakOopClosure cl(ZNMethod::color(nm));
-  ZNMethod::nmethod_oops_do_inner(nm, &cl);
+    // Heal oops
+    ZUncoloredRootProcessWeakOopClosure cl(ZNMethod::color(nm));
+    ZNMethod::nmethod_oops_do_inner(nm, &cl, icic);
+  }
 
   const uintptr_t prev_color = ZNMethod::color(nm);
   const uintptr_t new_color = *ZPointerStoreGoodMaskLowOrderBitsAddr;

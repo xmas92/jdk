@@ -45,6 +45,8 @@ class MachNode;
 class Node;
 #endif // COMPILER2
 
+class ICacheInvalidationContext;
+
 // ZBarrierRelocationFormatLoadGoodBeforeTbX is used for both tbnz and tbz
 // They are patched in the same way, their immediate value has the same
 // structure
@@ -154,7 +156,7 @@ public:
 
   virtual NMethodPatchingType nmethod_patching_type() { return NMethodPatchingType::conc_instruction_and_data_patch; }
 
-  void patch_barrier_relocation(address addr, int format);
+  void patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic);
 
   void patch_barriers() {}
 

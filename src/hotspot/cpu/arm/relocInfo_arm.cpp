@@ -29,7 +29,7 @@
 #include "oops/oop.hpp"
 #include "runtime/safepoint.hpp"
 
-void Relocation::pd_set_data_value(address x, bool verify_only) {
+void Relocation::pd_set_data_value(address x, bool verify_only, ICacheInvalidationContext* icic) {
 
   NativeMovConstReg* ni = nativeMovConstReg_at(addr());
   if (verify_only) {

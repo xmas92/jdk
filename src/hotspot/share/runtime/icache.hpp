@@ -25,8 +25,10 @@
 #ifndef SHARE_RUNTIME_ICACHE_HPP
 #define SHARE_RUNTIME_ICACHE_HPP
 
+#include "memory/allocation.hpp"
 #include "memory/allStatic.hpp"
 #include "runtime/stubCodeGenerator.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 
 // Interface for updating the instruction cache.  Whenever the VM modifies
@@ -127,6 +129,36 @@ class ICacheStubGenerator : public StubCodeGenerator {
   // the StubCodeMark destructor is invoked.
 
   void generate_icache_flush(ICache::flush_icache_stub_t* flush_icache_stub);
+};
+
+class ICacheInvalidationContext : StackObj {
+public:
+  enum class Mode {
+    deferred,
+    immediate,
+  };
+
+private:
+  static constexpr Mode _mode = Mode:: AARCH64_ONLY(deferred) NOT_AARCH64(immediate);
+  address _start;
+  address _end;
+  bool _fence;
+
+  void register_range(address start, address end);
+  void invalidate();
+
+public:
+  ICacheInvalidationContext()
+    : _start(nullptr),
+      _end(nullptr),
+      _fence(false) {}
+  ~ICacheInvalidationContext() {
+    if (_mode == Mode::deferred) { invalidate(); }
+  }
+
+  void fence();
+  void invalidate_word(address addr);
+  void invalidate_range(address start, int nbytes);
 };
 
 #endif // SHARE_RUNTIME_ICACHE_HPP

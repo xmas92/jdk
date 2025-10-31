@@ -81,7 +81,8 @@ public:
       return false;
     }
     ZIsUnloadingOopClosure cl(nm);
-    ZNMethod::nmethod_oops_do_inner(nm, &cl);
+    ICacheInvalidationContext icic;
+    ZNMethod::nmethod_oops_do_inner(nm, &cl, icic);
     return cl.is_unloading();
   }
 };

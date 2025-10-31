@@ -35,7 +35,7 @@
 #include "utilities/checkedCast.hpp"
 
 
-void Relocation::pd_set_data_value(address x, bool verify_only) {
+void Relocation::pd_set_data_value(address x, bool verify_only, ICacheInvalidationContext* icic) {
 #ifdef AMD64
   typedef Assembler::WhichOperand WhichOperand;
   WhichOperand which = (WhichOperand) format(); // that is, disp32 or imm, call32, narrow oop

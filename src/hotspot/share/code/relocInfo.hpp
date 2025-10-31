@@ -38,6 +38,7 @@ class CodeBlob;
 class Metadata;
 class NativeMovConstReg;
 class nmethod;
+class ICacheInvalidationContext;
 
 // Types in this file:
 //    relocInfo
@@ -781,7 +782,7 @@ class Relocation {
   void       const_set_data_value    (address x);
   void       const_verify_data_value (address x);
   // platform-dependent utilities for decoding and patching instructions
-  void       pd_set_data_value       (address x, bool verify_only = false); // a set or mem-ref
+  void       pd_set_data_value       (address x, bool verify_only = false, ICacheInvalidationContext* icic = nullptr); // a set or mem-ref
   void       pd_verify_data_value    (address x) { pd_set_data_value(x, true); }
   address    pd_call_destination     (address orig_addr = nullptr);
   void       pd_set_call_destination (address x);
@@ -852,7 +853,7 @@ class Relocation {
   virtual address  value();
 
   // all relocations are able to reassert their values
-  virtual void set_value(address x);
+  virtual void set_value(address x, ICacheInvalidationContext* icic = nullptr);
 
   virtual void clear_inline_cache() {}
 
@@ -896,7 +897,7 @@ class DataRelocation : public Relocation {
 
   // target must be computed somehow from relocation data
   address value() override = 0;
-  void    set_value(address x) override {
+  void    set_value(address x, ICacheInvalidationContext* icic = nullptr) override {
     if (addr_in_const()) {
       const_set_data_value(x);
     } else {
@@ -951,7 +952,7 @@ class CallRelocation : public Relocation {
 
   void     fix_relocation_after_move(const CodeBuffer* src, CodeBuffer* dest) override;
   address  value() override                 { return destination();  }
-  void     set_value(address x) override    { set_destination(x); }
+  void     set_value(address x, ICacheInvalidationContext* icic = nullptr) override    { set_destination(x); }
 };
 
 class oop_Relocation : public DataRelocation {
@@ -989,7 +990,7 @@ class oop_Relocation : public DataRelocation {
   void pack_data_to(CodeSection* dest) override;
   void unpack_data() override;
 
-  void fix_oop_relocation();        // reasserts oop value
+  void fix_oop_relocation(ICacheInvalidationContext& icic);        // reasserts oop value
 
   void verify_oop_relocation();
 

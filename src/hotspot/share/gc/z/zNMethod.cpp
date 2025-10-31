@@ -201,8 +201,10 @@ void ZNMethod::register_nmethod(nmethod* nm) {
 
   log_register(nm);
 
-  // Patch nmethod barriers
-  nmethod_patch_barriers(nm);
+  { ICacheInvalidationContext icic;
+    // Patch nmethod barriers
+    nmethod_patch_barriers(nm, icic);
+  }
 
   // Register nmethod
   ZNMethodTable::register_nmethod(nm);
@@ -244,20 +246,21 @@ void ZNMethod::set_guard_value(nmethod* nm, int value) {
   bs->guard_with(nm, value);
 }
 
-void ZNMethod::nmethod_patch_barriers(nmethod* nm) {
+void ZNMethod::nmethod_patch_barriers(nmethod* nm, ICacheInvalidationContext& icic) {
   ZBarrierSetAssembler* const bs_asm = ZBarrierSet::assembler();
   ZArrayIterator<ZNMethodDataBarrier> iter(gc_data(nm)->barriers());
   for (ZNMethodDataBarrier barrier; iter.next(&barrier);) {
-    bs_asm->patch_barrier_relocation(barrier._reloc_addr, barrier._reloc_format);
+    bs_asm->patch_barrier_relocation(barrier._reloc_addr, barrier._reloc_format, icic);
   }
 }
 
 void ZNMethod::nmethod_oops_do(nmethod* nm, OopClosure* cl) {
   ZLocker<ZReentrantLock> locker(lock_for_nmethod(nm));
-  ZNMethod::nmethod_oops_do_inner(nm, cl);
+  ICacheInvalidationContext icic;
+  ZNMethod::nmethod_oops_do_inner(nm, cl, icic);
 }
 
-void ZNMethod::nmethod_oops_do_inner(nmethod* nm, OopClosure* cl) {
+void ZNMethod::nmethod_oops_do_inner(nmethod* nm, OopClosure* cl, ICacheInvalidationContext& icic) {
   // Process oops table
   {
     oop* const begin = nm->oops_begin();
@@ -283,7 +286,7 @@ void ZNMethod::nmethod_oops_do_inner(nmethod* nm, OopClosure* cl) {
 
   // Process non-immediate oops
   if (data->has_non_immediate_oops()) {
-    nm->fix_oop_relocations();
+    nm->fix_oop_relocations(icic);
   }
 }
 
@@ -366,9 +369,11 @@ public:
         const uintptr_t prev_color = ZNMethod::color(nm);
         assert(prev_color != ZPointerStoreGoodMask, "Potentially non-monotonic transition");
 
-        // Heal oops and potentially mark young objects if there is a concurrent young collection.
-        ZUncoloredRootProcessOopClosure cl(prev_color);
-        ZNMethod::nmethod_oops_do_inner(nm, &cl);
+        { ICacheInvalidationContext icic;
+          // Heal oops and potentially mark young objects if there is a concurrent young collection.
+          ZUncoloredRootProcessOopClosure cl(prev_color);
+          ZNMethod::nmethod_oops_do_inner(nm, &cl, icic);
+        }
 
         // Disarm for marking and relocation, but leave the remset bits so this isn't store good.
         // This makes sure the mutator still takes a slow path to fill in the nmethod epoch for

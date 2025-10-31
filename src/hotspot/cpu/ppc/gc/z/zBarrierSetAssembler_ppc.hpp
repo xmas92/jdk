@@ -163,7 +163,7 @@ public:
   void generate_disjoint_oop_copy(MacroAssembler* masm, bool dest_uninitialized);
   void generate_conjoint_oop_copy(MacroAssembler* masm, bool dest_uninitialized);
 
-  void patch_barrier_relocation(address addr, int format);
+  void patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic);
 
   void patch_barriers() {}
 };

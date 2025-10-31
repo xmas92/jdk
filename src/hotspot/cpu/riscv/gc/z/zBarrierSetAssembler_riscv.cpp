@@ -619,7 +619,7 @@ static uint16_t patch_barrier_relocation_value(int format) {
   }
 }
 
-void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
+void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic) {
   const uint16_t value = patch_barrier_relocation_value(format);
 
   int bytes;

@@ -131,7 +131,7 @@ public:
 
   virtual NMethodPatchingType nmethod_patching_type() { return NMethodPatchingType::conc_instruction_and_data_patch; }
 
-  void patch_barrier_relocation(address addr, int format);
+  void patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic);
 
   void patch_barriers() {}
 

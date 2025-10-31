@@ -862,7 +862,7 @@ static void change_immediate(uint32_t& instr, uint32_t imm, uint32_t start, uint
   instr |= imm << start;
 }
 
-void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
+void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic) {
   const uint16_t value = patch_barrier_relocation_value(format);
   uint32_t* const patch_addr = (uint32_t*)addr;
 
@@ -879,8 +879,8 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     ShouldNotReachHere();
   }
 
-  OrderAccess::fence();
-  ICache::invalidate_word((address)patch_addr);
+  icic.fence();
+  icic.invalidate_word((address)patch_addr);
 }
 
 #ifdef COMPILER1

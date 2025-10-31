@@ -26,7 +26,9 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/icache.hpp"
 #include "runtime/java.hpp"
+#include "runtime/orderAccess.hpp"
 #include "utilities/align.hpp"
+#include "utilities/globalDefinitions.hpp"
 
 // The flush stub function address
 AbstractICache::flush_icache_stub_t AbstractICache::_flush_icache_stub = nullptr;
@@ -124,4 +126,51 @@ void icache_init() {
 
 void icache_init2() {
   ICache::initialize(2);
+}
+
+void ICacheInvalidationContext::invalidate() {
+  if (_fence) {
+    OrderAccess::fence();
+  }
+
+  if (_start != nullptr) {
+    assert(_start < _end, "Bad range " PTR_FORMAT " < " PTR_FORMAT, p2i(_start), p2i(_end));
+    ICache::invalidate_range(_start, pointer_delta_as_int(_end, _start));
+  }
+}
+
+void ICacheInvalidationContext::register_range(address start, address end) {
+  assert(start < end, "Bad range " PTR_FORMAT " < " PTR_FORMAT, p2i(start), p2i(end));
+  if (_start == nullptr) {
+    assert(_end == nullptr, "updated together");
+    _start = start;
+    _end = end;
+  } else {
+    _start = MIN2(_start, start);
+    _end = MAX2(_end, end);
+  }
+}
+
+void ICacheInvalidationContext::fence() {
+  if (_mode == Mode::immediate) {
+    OrderAccess::fence();
+  } else {
+    _fence = true;
+  }
+}
+
+void ICacheInvalidationContext::invalidate_word(address addr) {
+  if (_mode == Mode::immediate) {
+    ICache::invalidate_word(addr);
+  } else {
+    register_range(addr, addr + 4);
+  }
+}
+
+void ICacheInvalidationContext::invalidate_range(address start, int nbytes) {
+  if (_mode == Mode::immediate) {
+    ICache::invalidate_range(start, nbytes);
+  } else {
+    register_range(start, start + nbytes);
+  }
 }

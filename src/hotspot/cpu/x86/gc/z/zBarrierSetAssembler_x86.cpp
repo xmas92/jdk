@@ -1378,7 +1378,7 @@ static uint16_t patch_barrier_relocation_value(int format) {
   }
 }
 
-void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
+void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format, ICacheInvalidationContext& icic) {
   const int offset = patch_barrier_relocation_offset(format);
   const uint16_t value = patch_barrier_relocation_value(format);
   uint8_t* const patch_addr = (uint8_t*)addr + offset;
@@ -1396,17 +1396,18 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
 }
 
 void ZBarrierSetAssembler::patch_barriers() {
+  ICacheInvalidationContext icic;
   for (int i = 0; i < _load_bad_relocations.length(); ++i) {
     address addr = _load_bad_relocations.at(i);
-    patch_barrier_relocation(addr, ZBarrierRelocationFormatLoadBadAfterTest);
+    patch_barrier_relocation(addr, ZBarrierRelocationFormatLoadBadAfterTest, icic);
   }
   for (int i = 0; i < _store_bad_relocations.length(); ++i) {
     address addr = _store_bad_relocations.at(i);
-    patch_barrier_relocation(addr, ZBarrierRelocationFormatStoreBadAfterTest);
+    patch_barrier_relocation(addr, ZBarrierRelocationFormatStoreBadAfterTest, icic);
   }
   for (int i = 0; i < _store_good_relocations.length(); ++i) {
     address addr = _store_good_relocations.at(i);
-    patch_barrier_relocation(addr, ZBarrierRelocationFormatStoreGoodAfterOr);
+    patch_barrier_relocation(addr, ZBarrierRelocationFormatStoreGoodAfterOr, icic);
   }
 }
 

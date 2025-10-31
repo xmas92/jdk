@@ -30,7 +30,7 @@
 #include "oops/oop.inline.hpp"
 #include "runtime/safepoint.hpp"
 
-void Relocation::pd_set_data_value(address x, bool verify_only) {
+void Relocation::pd_set_data_value(address x, bool verify_only, ICacheInvalidationContext* icic) {
   if (verify_only) {
     return;
   }

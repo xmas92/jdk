@@ -319,7 +319,7 @@ address Relocation::value() {
 }
 
 
-void Relocation::set_value(address x) {
+void Relocation::set_value(address x, ICacheInvalidationContext* icic) {
   ShouldNotReachHere();
 }
 
@@ -592,10 +592,10 @@ oop oop_Relocation::oop_value() {
 }
 
 
-void oop_Relocation::fix_oop_relocation() {
+void oop_Relocation::fix_oop_relocation(ICacheInvalidationContext& icic) {
   if (!oop_is_immediate()) {
     // get the oop from the pool, and re-insert it into the instruction:
-    set_value(value());
+    set_value(value(), &icic);
   }
 }
 

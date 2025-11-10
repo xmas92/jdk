@@ -111,16 +111,6 @@ static const ZStatSampler ZSamplerJavaThreads("System", "Java Threads", ZStatUni
 ZGenerationYoung* ZGeneration::_young;
 ZGenerationOld*   ZGeneration::_old;
 
-class ZRendezvousHandshakeClosure : public HandshakeClosure {
-public:
-  ZRendezvousHandshakeClosure()
-    : HandshakeClosure("ZRendezvous") {}
-
-  void do_thread(Thread* thread) {
-    // Does nothing
-  }
-};
-
 ZGeneration::ZGeneration(ZGenerationId id, ZPageTable* page_table, ZPageAllocator* page_allocator)
   : _id(id),
     _page_allocator(page_allocator),
@@ -187,8 +177,7 @@ void ZGeneration::flip_age_pages(const ZRelocationSetSelector* selector) {
   // flip promoted, will run any stores without barriers to completion before responding to the
   // handshake at the subsequent safepoint poll. This ensures that the flip promotion barriers always
   // run after compiled code missing barriers, but before relocate start.
-  ZRendezvousHandshakeClosure cl;
-  Handshake::execute(&cl);
+  Handshake::rendezvous("ZRendezvous Java Threads: Flip Promotion");
 
   _relocate.barrier_flip_promoted_pages(_relocation_set.flip_promoted_pages());
 }
@@ -1348,8 +1337,7 @@ void ZGenerationOld::process_non_strong_references() {
   // this point the mutator could see the unblocked state and pass
   // this invalid oop through the normal barrier path, which would
   // incorrectly try to mark the oop.
-  ZRendezvousHandshakeClosure cl;
-  Handshake::execute(&cl);
+  Handshake::rendezvous("ZRendezvous Java Threads: Reference Processing");
 
   // GC threads are not part of the handshake above.
   // Explicitly "handshake" them.

@@ -355,16 +355,35 @@ void HandshakeOperation::do_handshake(JavaThread* thread) {
   // It is no longer safe to refer to 'this' as the VMThread/Handshaker may have destroyed this operation
 }
 
+struct RendezvousHandshakeClosure : public HandshakeClosure {
+  RendezvousHandshakeClosure(const char* name)
+    : HandshakeClosure(name) {}
+
+  void do_thread(Thread* thread) {
+    // Does nothing
+  }
+};
+
 void Handshake::execute(HandshakeClosure* hs_cl) {
   HandshakeOperation cto(hs_cl, nullptr, Thread::current());
   VM_HandshakeAllThreads handshake(&cto);
   VMThread::execute(&handshake);
 }
 
+void Handshake::rendezvous(const char* name) {
+  RendezvousHandshakeClosure hs_cl(name);
+  execute(&hs_cl);
+}
+
 void Handshake::execute(HandshakeClosure* hs_cl, JavaThread* target) {
   // tlh == nullptr means we rely on a ThreadsListHandle somewhere
   // in the caller's context (and we sanity check for that).
   Handshake::execute(hs_cl, nullptr, target);
+}
+
+void Handshake::rendezvous(JavaThread* target, const char* name) {
+  RendezvousHandshakeClosure hs_cl(name);
+  execute(&hs_cl, target);
 }
 
 void Handshake::execute(HandshakeClosure* hs_cl, ThreadsListHandle* tlh, JavaThread* target) {
@@ -428,6 +447,11 @@ void Handshake::execute(HandshakeClosure* hs_cl, ThreadsListHandle* tlh, JavaThr
   OrderAccess::acquire();
 
   log_handshake_info(start_time_ns, op.name(), 1, emitted_handshakes_executed);
+}
+
+void Handshake::rendezvous(JavaThread* target, ThreadsListHandle* tlh, const char* name) {
+  RendezvousHandshakeClosure hs_cl(name);
+  execute(&hs_cl, tlh, target);
 }
 
 void Handshake::execute(AsyncHandshakeClosure* hs_cl, JavaThread* target) {

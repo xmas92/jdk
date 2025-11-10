@@ -58,7 +58,6 @@
   template(G1PauseRemark)                         \
   template(G1PauseCleanup)                        \
   template(G1TryInitiateConcMark)                 \
-  template(G1RendezvousGCThreads)                 \
   template(ZMarkEndOld)                           \
   template(ZMarkEndYoung)                         \
   template(ZMarkFlushOperation)                   \
@@ -66,8 +65,8 @@
   template(ZMarkStartYoungAndOld)                 \
   template(ZRelocateStartOld)                     \
   template(ZRelocateStartYoung)                   \
-  template(ZRendezvousGCThreads)                  \
   template(ZVerifyOld)                            \
+  template(SuspendibleThreadSetRendezvous)        \
   template(HandshakeAllThreads)                   \
   template(PopulateDumpSharedSpace)               \
   template(JNIFunctionTableCopier)                \

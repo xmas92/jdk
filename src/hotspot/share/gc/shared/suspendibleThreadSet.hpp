@@ -73,6 +73,9 @@ public:
 
   // Resumes all suspended threads in the set.
   static void desynchronize();
+
+  // Rendezvous with all threads in the set. Via synchronize+desynchronize call.
+  static void rendezvous(const char* name = "SuspendibleThreadSet Rendezvous");
 };
 
 class SuspendibleThreadSetJoiner : public StackObj {

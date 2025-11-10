@@ -35,6 +35,7 @@
 #include "gc/g1/g1Policy.hpp"
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/gcTraceTime.inline.hpp"
+#include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/shared/workerThread.hpp"
 #include "logging/log.hpp"
 #include "memory/allocation.inline.hpp"
@@ -234,36 +235,8 @@ bool G1ConcurrentRefineSweepState::swap_gc_threads_ct() {
   set_state_start_time();
 
   {
-    class RendezvousGCThreads: public VM_Operation {
-    public:
-      VMOp_Type type() const { return VMOp_G1RendezvousGCThreads; }
-
-      virtual bool evaluate_at_safepoint() const {
-        // We only care about synchronizing the GC threads.
-        // Leave the Java threads running.
-        return false;
-      }
-
-      virtual bool skip_thread_oop_barriers() const {
-        fatal("Concurrent VMOps should not call this");
-        return true;
-      }
-
-      void doit() {
-        // Light weight "handshake" of the GC threads for memory synchronization;
-        // both changes to the Java heap need to be synchronized as well as the
-        // previous global card table reference change, so that no GC thread
-        // accesses the wrong card table.
-        // For example in the rebuild remset process the marking threads write
-        // marks into the card table, and that card table reference must be the
-        // correct one.
-        SuspendibleThreadSet::synchronize();
-        SuspendibleThreadSet::desynchronize();
-      };
-    } op;
-
     SuspendibleThreadSetLeaver sts_leave;
-    VMThread::execute(&op);
+    SuspendibleThreadSet::rendezvous("Rendezvous GC Threads");
   }
 
   return advance_state(State::SnapshotHeap);

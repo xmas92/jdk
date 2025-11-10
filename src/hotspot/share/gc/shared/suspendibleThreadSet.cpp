@@ -26,7 +26,10 @@
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/mutexLocker.hpp"
+#include "runtime/safepoint.hpp"
 #include "runtime/semaphore.hpp"
+#include "runtime/vmOperation.hpp"
+#include "runtime/vmThread.hpp"
 
 uint          SuspendibleThreadSet::_nthreads          = 0;
 uint          SuspendibleThreadSet::_nthreads_stopped  = 0;
@@ -90,6 +93,12 @@ void SuspendibleThreadSet::yield_slow() {
 }
 
 void SuspendibleThreadSet::synchronize() {
+  precond(Thread::current()->is_VM_thread());
+  precond(!SafepointSynchronize::is_at_safepoint());
+  precond(!Thread::current()->is_suspendible_thread());
+  precond(!Thread::current()->is_indirectly_suspendible_thread());
+  precond(!Thread::current()->is_indirectly_safepoint_thread());
+
   if (ConcGCYieldTimeout > 0) {
     _suspend_all_start = os::elapsedTime();
   }
@@ -124,9 +133,49 @@ void SuspendibleThreadSet::synchronize() {
 }
 
 void SuspendibleThreadSet::desynchronize() {
+  precond(Thread::current()->is_VM_thread());
+  precond(!SafepointSynchronize::is_at_safepoint());
+  precond(!Thread::current()->is_suspendible_thread());
+  precond(!Thread::current()->is_indirectly_suspendible_thread());
+  precond(!Thread::current()->is_indirectly_safepoint_thread());
+
   MonitorLocker ml(STS_lock, Mutex::_no_safepoint_check_flag);
   assert(should_yield(), "STS not synchronizing");
   assert(is_synchronized(), "STS not synchronized");
   AtomicAccess::store(&_suspend_all, false);
   ml.notify_all();
+}
+
+void SuspendibleThreadSet::rendezvous(const char* name) {
+  struct RendezvousSTSThreads : public VM_Operation {
+    const char* _name;
+
+    RendezvousSTSThreads(const char* name)
+      : _name(name) {}
+
+    VMOp_Type type() const override { return VMOp_SuspendibleThreadSetRendezvous; }
+
+    bool evaluate_at_safepoint() const override {
+      // We only care about synchronizing the STS (GC) threads.
+      // Leave the Java threads running.
+      return false;
+    }
+
+    bool skip_thread_oop_barriers() const override {
+      fatal("Concurrent VMOps should not call this");
+      return true;
+    }
+
+    void doit() override {
+      // Lightweight "handshake" of the STS (GC) threads.
+      SuspendibleThreadSet::synchronize();
+      SuspendibleThreadSet::desynchronize();
+    };
+
+    const char* name() const override {
+      return _name;
+    }
+  } op(name);
+
+  VMThread::execute(&op);
 }

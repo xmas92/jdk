@@ -1300,32 +1300,6 @@ bool ZGenerationOld::uses_clear_all_soft_reference_policy() const {
   return _reference_processor.uses_clear_all_soft_reference_policy();
 }
 
-class ZRendezvousGCThreads: public VM_Operation {
- public:
-  VMOp_Type type() const { return VMOp_ZRendezvousGCThreads; }
-
-  virtual bool evaluate_at_safepoint() const {
-    // We only care about synchronizing the GC threads.
-    // Leave the Java threads running.
-    return false;
-  }
-
-  virtual bool skip_thread_oop_barriers() const {
-    fatal("Concurrent VMOps should not call this");
-    return true;
-  }
-
-  virtual bool is_gc_operation() const {
-    return true;
-  }
-
-  void doit() {
-    // Light weight "handshake" of the GC threads
-    SuspendibleThreadSet::synchronize();
-    SuspendibleThreadSet::desynchronize();
-  };
-};
-
 void ZGenerationOld::process_non_strong_references() {
   // Process Soft/Weak/Final/PhantomReferences
   _reference_processor.process_references();
@@ -1353,8 +1327,7 @@ void ZGenerationOld::process_non_strong_references() {
 
   // GC threads are not part of the handshake above.
   // Explicitly "handshake" them.
-  ZRendezvousGCThreads op;
-  VMThread::execute(&op);
+  SuspendibleThreadSet::rendezvous("ZRendezvous GC Threads: Reference Processing");
 
   // Unblock resurrection of weak/phantom references
   ZResurrection::unblock();

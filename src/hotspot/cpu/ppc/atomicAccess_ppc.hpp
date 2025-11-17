@@ -158,7 +158,39 @@ inline D AtomicAccess::PlatformAdd<8>::add_then_fetch(D volatile* dest, I add_va
 }
 
 template<>
-struct AtomicAccess::PlatformXchg<1> : AtomicAccess::XchgUsingCmpxchg<1> {};
+template<typename T>
+inline T AtomicAccess::PlatformXchg<1>::operator()(T volatile* dest,
+                                                   T exchange_value,
+                                                   atomic_memory_order order) const {
+  STATIC_ASSERT(1 == sizeof(T));
+  // Note that xchg doesn't necessarily do an acquire
+
+  T old_value;
+
+  pre_membar(order);
+
+  __asm__ __volatile__ (
+    /* atomic loop */
+    "1:                                                 \n"
+    "   lbarx   %[old_value], 0, %[dest]                \n"
+    "   stbcx.  %[exchange_value], 0, %[dest]           \n"
+    "   bne-    1b                                      \n"
+    /* exit */
+    "2:                                                 \n"
+    /* out */
+    : [old_value]       "=&r"   (old_value)
+    /* in */
+    : [dest]            "b"     (dest),
+      [exchange_value]  "r"     (exchange_value)
+    /* clobber */
+    : "cc",
+      "memory"
+    );
+
+  post_membar(order);
+
+  return old_value;
+}
 
 template<>
 template<typename T>

@@ -52,16 +52,13 @@ struct AtomicAccess::PlatformAdd {
   }
 };
 
-template<>
-struct AtomicAccess::PlatformXchg<1> : AtomicAccess::XchgUsingCmpxchg<1> {};
-
 template<size_t byte_size>
 template<typename T>
 inline T AtomicAccess::PlatformXchg<byte_size>::operator()(T volatile* dest,
                                                            T exchange_value,
                                                            atomic_memory_order order) const {
   STATIC_ASSERT(byte_size == sizeof(T));
-  STATIC_ASSERT(byte_size == 4 || byte_size == 8);
+  STATIC_ASSERT(byte_size == 1 || byte_size == 4 || byte_size == 8);
   if (order == memory_order_relaxed) {
     return __atomic_exchange_n(dest, exchange_value, __ATOMIC_RELAXED);
   } else {

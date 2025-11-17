@@ -62,9 +62,13 @@ inline T AtomicAccess::PlatformXchg<byte_size>::operator()(T volatile* dest,
                                                            atomic_memory_order order) const {
   STATIC_ASSERT(byte_size == sizeof(T));
   STATIC_ASSERT(byte_size == 4 || byte_size == 8);
-  T res = __atomic_exchange_n(dest, exchange_value, __ATOMIC_RELEASE);
-  FULL_MEM_BARRIER;
-  return res;
+  if (order == memory_order_relaxed) {
+    return __atomic_exchange_n(dest, exchange_value, __ATOMIC_RELAXED);
+  } else {
+    T res = __atomic_exchange_n(dest, exchange_value, __ATOMIC_RELEASE);
+    FULL_MEM_BARRIER;
+    return res;
+  }
 }
 
 template<size_t byte_size>

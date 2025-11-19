@@ -52,7 +52,6 @@ public class AllNotVMGtest {
     // with them, and should be removed once they are resolved.
     static TestFilter[] TEST_FILTERS = {
         TF("os_linux.addr_to_function_valid"),
-        TF("Semaphore.trywait", Platform.isOSX() && Platform.isX64()),
     };
 
     public static Stream<String> getFilteredTests() {

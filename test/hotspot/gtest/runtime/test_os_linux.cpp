@@ -30,6 +30,7 @@
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
 #include "utilities/decoder.hpp"
+#include "utilities/vmError.hpp"
 #include "concurrentTestRunner.inline.hpp"
 #include "testutils.hpp"
 #include "unittest.hpp"
@@ -386,6 +387,23 @@ TEST_VM(os_linux, pretouch_thp_and_use_concurrent) {
 
 // Check that method JNI_CreateJavaVM is found.
 TEST(os_linux, addr_to_function_valid) {
+  // We want to test addr_to_function_valid without initializing the VM. But
+  // os::dll_address_to_function_name will try to use a Mutex which is not
+  // initialized. As such we abuse the fact that we avoid the mutex when we are
+  // a crash report error printing, and mock that behaviour for this test.
+  struct VMErrorFirstErrorTidMocker {
+    intptr_t _old_first_error_tid;
+    VMErrorFirstErrorTidMocker()
+      : _old_first_error_tid(VMError::_first_error_tid) {
+      // Mock VMError by setting the _first_error_tid.
+      VMError::_first_error_tid = os::current_thread_id();
+    }
+    ~VMErrorFirstErrorTidMocker() {
+      // Restore the _first_error_tid.
+      VMError::_first_error_tid = _old_first_error_tid;
+    }
+  } vm_error_first_error_tid_mocker;
+
   char buf[128] = "";
   int offset = -1;
   address valid_function_pointer = (address)JNI_CreateJavaVM;

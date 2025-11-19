@@ -35,6 +35,8 @@ class frame;
 class VM_ReportJavaOutOfMemory;
 
 class VMError : public AllStatic {
+  // See gtest/test_os_linux.cpp for details.
+  friend class os_linux_addr_to_function_valid_Test;
   friend class VMStructs;
 
   static int         _id;               // Solaris/Linux signals: 0 - SIGRTMAX

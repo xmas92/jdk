@@ -466,11 +466,23 @@ struct AtomicBitopsTestSupport {
   static constexpr T _old_value =    static_cast<T>(UCONST64(0x7f5300007f530044));
   static constexpr T _change_value = static_cast<T>(UCONST64(0x3800530038005322));
 
-  AtomicBitopsTestSupport() : _test_value(0) {}
+  AtomicBitopsTestSupport() : _test_value{} {}
+
+  template <class Op>
+  T expected_value(T old_value, T change_value, Op binop) {
+    using Translate = PrimitiveConversions::Translate<T>;
+    if constexpr (Translate::value) {
+      return Translate::recover(
+          binop(Translate::decay(old_value), Translate::decay(change_value)));
+    } else {
+      return binop(old_value, change_value);
+    }
+  }
+#define BINOP_TEST(op) [](auto a, auto b) { return a op b; }
 
   void fetch_then_and() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value & _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(&));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().fetch_then_and(_change_value);
     EXPECT_EQ(_old_value, result);
@@ -479,7 +491,7 @@ struct AtomicBitopsTestSupport {
 
   void fetch_then_or() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value | _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(|));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().fetch_then_or(_change_value);
     EXPECT_EQ(_old_value, result);
@@ -488,7 +500,7 @@ struct AtomicBitopsTestSupport {
 
   void fetch_then_xor() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value ^ _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(^));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().fetch_then_xor(_change_value);
     EXPECT_EQ(_old_value, result);
@@ -497,7 +509,7 @@ struct AtomicBitopsTestSupport {
 
   void and_then_fetch() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value & _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(&));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().and_then_fetch(_change_value);
     EXPECT_EQ(expected, result);
@@ -506,7 +518,7 @@ struct AtomicBitopsTestSupport {
 
   void or_then_fetch() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value | _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(|));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().or_then_fetch(_change_value);
     EXPECT_EQ(expected, result);
@@ -515,7 +527,7 @@ struct AtomicBitopsTestSupport {
 
   void xor_then_fetch() {
     _test_value().store_relaxed(_old_value);
-    T expected = _old_value ^ _change_value;
+    T expected = expected_value(_old_value, _change_value, BINOP_TEST(^));
     EXPECT_NE(_old_value, expected);
     T result = _test_value().xor_then_fetch(_change_value);
     EXPECT_EQ(expected, result);
@@ -550,6 +562,36 @@ TEST_VM(AtomicBitopsTest, int64) {
 
 TEST_VM(AtomicBitopsTest, uint64) {
   AtomicBitopsTestSupport<uint64_t, AtomicTestType>()();
+}
+
+enum class AtomicBitopsTestSupportEnum32 : int32_t {};
+template <>
+struct AtomicImpl::PrimitiveConversionCategory<AtomicBitopsTestSupportEnum32> {
+  static constexpr PrimitiveConversionsType value =
+      AtomicImpl::PrimitiveConversionsType::ArithmeticBitOperations;
+};
+
+TEST_VM(AtomicBitopsTest, BitopsEnum32) {
+  AtomicBitopsTestSupport<AtomicBitopsTestSupportEnum32, AtomicTestType>()();
+}
+
+TEST_VM(AtomicRefBitopsTest, BitopsEnum32) {
+  AtomicBitopsTestSupport<AtomicBitopsTestSupportEnum32, AtomicRefTestType>()();
+}
+
+enum class AtomicBitopsTestSupportEnum64 : int64_t {};
+template <>
+struct AtomicImpl::PrimitiveConversionCategory<AtomicBitopsTestSupportEnum64> {
+  static constexpr PrimitiveConversionsType value =
+      AtomicImpl::PrimitiveConversionsType::ArithmeticBitOperations;
+};
+
+TEST_VM(AtomicBitopsTest, BitopsEnum64) {
+  AtomicBitopsTestSupport<AtomicBitopsTestSupportEnum64, AtomicTestType>()();
+}
+
+TEST_VM(AtomicRefBitopsTest, BitopsEnum64) {
+  AtomicBitopsTestSupport<AtomicBitopsTestSupportEnum64, AtomicRefTestType>()();
 }
 
 TEST_VM(AtomicRefBitopsTest, int32) {

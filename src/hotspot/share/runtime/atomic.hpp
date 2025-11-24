@@ -29,6 +29,7 @@
 #include "metaprogramming/dependentAlwaysFalse.hpp"
 #include "metaprogramming/primitiveConversions.hpp"
 #include "runtime/atomicAccess.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 // Atomic<T> is used to declare a variable of type T with atomic access.
@@ -157,6 +158,22 @@
 // for not providing these is similar to that for having different (often
 // longer) names for some operations than the corresponding AtomicAccess
 // functions.
+//
+// AtomicRef<T> is a wrapper type for adding the the Atomic<T> interface to an
+// externally stored T. This type provides the same interface as Atomic<T> with
+// the exception of:
+//
+// * Is copy constructible.
+//
+// * Does not provide static member functions:
+//     value_offset_in_bytes() -> int   // constexpr
+//     value_size_in_bytes() -> int     // constexpr
+//
+// * Are not default constructible, must be constructed from a reference to T
+//   * In the case of a Translated T, a reference to the Decayed type can also
+//     be used.
+//   * Translated types T are only valid if they have the same sizeof as their
+//     decayed type.
 
 // Implementation support for Atomic<T>.
 class AtomicImpl {
@@ -182,17 +199,30 @@ public:
 private:
 
   // Helper base classes, providing various parts of the APIs.
-  template<typename T> class CommonCore;
-  template<typename T> class SupportsArithmetic;
+  template<typename T> class AtomicBase;
+  template<typename T> class AtomicRefBase;
+  template<typename T> class AtomicTranslatedBase;
+  template<typename T> class AtomicRefTranslatedBase;
+  template<typename T, typename AtomicBase> class CommonCore;
+  template<typename T, typename AtomicBase> class SupportsArithmetic;
+  template<typename T, typename AtomicBase> class SupportsBitOperations;
+  template<typename T, typename AtomicBase> class CommonCoreTranslated;
 
 public:
   template<typename T, Category = category<T>()>
   class Atomic;
+
+  template<typename T, Category = category<T>()>
+  class AtomicRef;
 };
 
 // The Atomic<T> type.
 template<typename T>
 using Atomic = AtomicImpl::Atomic<T>;
+
+// The AtomicRef<T> type.
+template<typename T>
+using AtomicRef = AtomicImpl::AtomicRef<T>;
 
 template<typename T>
 constexpr auto AtomicImpl::category() -> Category {
@@ -215,57 +245,156 @@ constexpr auto AtomicImpl::category() -> Category {
   }
 }
 
-// Atomic<T> implementation classes.
+// Atomic[Ref]<T> implementation classes.
 
 template<typename T>
-class AtomicImpl::CommonCore {
+class AtomicImpl::AtomicBase {
+private:
   T volatile _value;
 
 protected:
-  explicit constexpr CommonCore(T value) : _value(value) {}
-  ~CommonCore() = default;
+  explicit constexpr AtomicBase(T value) : _value(value) {}
+  ~AtomicBase() = default;
 
   T volatile* value_ptr() { return &_value; }
   T const volatile* value_ptr() const { return &_value; }
 
-  // Support for value_offset_in_bytes.
-  template<typename Derived>
-  static constexpr int value_offset_in_bytes_impl() {
-    return offsetof(Derived, _value);
-  }
-
 public:
-  NONCOPYABLE(CommonCore);
+  NONCOPYABLE(AtomicBase);
+
+  static constexpr int value_offset_in_bytes() {
+    return offsetof(AtomicBase, _value);
+  }
 
   static constexpr int value_size_in_bytes() {
     return sizeof(_value);
   }
+};
 
-  // Common core Atomic<T> operations.
+template<typename T>
+class AtomicImpl::AtomicRefBase {
+private:
+  T volatile* _value_ptr;
+
+protected:
+  explicit AtomicRefBase(volatile T& value) : _value_ptr(&value) {}
+  ~AtomicRefBase() = default;
+  AtomicRefBase(AtomicRefBase const&) = default;
+  AtomicRefBase& operator=(AtomicRefBase const&) = default;
+
+  T volatile* value_ptr() { return _value_ptr; }
+  T const volatile* value_ptr() const { return _value_ptr; }
+};
+
+template<typename T>
+class AtomicImpl::AtomicTranslatedBase {
+protected:
+  using Translator = PrimitiveConversions::Translate<T>;
+  using Decayed = typename Translator::Decayed;
+
+  static constexpr Decayed decay(T x) { return Translator::decay(x); }
+  static T recover(Decayed x) { return Translator::recover(x); }
+
+private:
+  ::Atomic<Decayed> _value;
+
+  // The decay function and the constructors are constexpr so that a non-local
+  // atomic object constructed with constant arguments will be a constant
+  // initialization.  One might ask why it's not a problem that some
+  // specializations of these functions are not constant expressions. The
+  // answer lies in C++17 10.1.5/6, along with us having *some* constexpr
+  // translator decay functions, constexpr ctors for some translated types,
+  // and constexpr ctors for some decayed types.  Also, C++23 removes those
+  // restrictions on constexpr functions and ctors.
+
+  // Support for default construction via the default construction of _value.
+  struct UseDecayedCtor {};
+  explicit constexpr AtomicTranslatedBase(UseDecayedCtor) : _value() {}
+  using DefaultCtorSelect =
+    std::conditional_t<std::is_default_constructible_v<T>, T, UseDecayedCtor>;
+
+protected:
+  explicit constexpr AtomicTranslatedBase(T value) : _value(decay(value)) {}
+  ~AtomicTranslatedBase() = default;
+
+  // If T is default constructible, construct from a default constructed T.
+  // Otherwise, default construct the underlying Atomic<Decayed>.
+  constexpr AtomicTranslatedBase() : AtomicTranslatedBase(DefaultCtorSelect()) {}
+
+  ::Atomic<Decayed>& value() { return _value; }
+  const ::Atomic<Decayed>& value() const { return _value; }
+
+public:
+  NONCOPYABLE(AtomicTranslatedBase);
+
+  static constexpr int value_offset_in_bytes() {
+    return (offsetof(AtomicTranslatedBase, _value) +
+            ::Atomic<Decayed>::value_offset_in_bytes());
+  }
+
+  static constexpr int value_size_in_bytes() {
+    return ::Atomic<Decayed>::value_size_in_bytes();
+  }
+};
+
+template<typename T>
+class AtomicImpl::AtomicRefTranslatedBase {
+protected:
+  using Translator = PrimitiveConversions::Translate<T>;
+  using Decayed = typename Translator::Decayed;
+
+  static Decayed decay(T x) { return Translator::decay(x); }
+  static T recover(Decayed x) { return Translator::recover(x); }
+
+private:
+  AtomicRef<Decayed> _value;
+
+protected:
+  explicit AtomicRefTranslatedBase(volatile Decayed& decayed_value) : _value(decayed_value) {}
+  explicit AtomicRefTranslatedBase(volatile T& value) : AtomicRefTranslatedBase(*reinterpret_cast<volatile Decayed*>(&value)) {
+    STATIC_ASSERT(sizeof(T) == sizeof(Decayed));
+  }
+  ~AtomicRefTranslatedBase() = default;
+  AtomicRefTranslatedBase(AtomicRefTranslatedBase const&) = default;
+  AtomicRefTranslatedBase& operator=(AtomicRefTranslatedBase const&) = default;
+
+  ::AtomicRef<Decayed>& value() { return _value; }
+  const ::AtomicRef<Decayed>& value() const { return _value; }
+};
+
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::CommonCore : public AtomicBaseType {
+protected:
+  using AtomicBaseType::AtomicBaseType;
+  ~CommonCore() = default;
+
+public:
+
+  // Common core Atomic[Ref]<T> operations.
 
   T load_relaxed() const {
-    return AtomicAccess::load(value_ptr());
+    return AtomicAccess::load(this->value_ptr());
   }
 
   T load_acquire() const {
-    return AtomicAccess::load_acquire(value_ptr());
+    return AtomicAccess::load_acquire(this->value_ptr());
   }
 
   void store_relaxed(T value) {
-    AtomicAccess::store(value_ptr(), value);
+    AtomicAccess::store(this->value_ptr(), value);
   }
 
   void release_store(T value) {
-    AtomicAccess::release_store(value_ptr(), value);
+    AtomicAccess::release_store(this->value_ptr(), value);
   }
 
   void release_store_fence(T value) {
-    AtomicAccess::release_store_fence(value_ptr(), value);
+    AtomicAccess::release_store_fence(this->value_ptr(), value);
   }
 
   T compare_exchange(T compare_value, T new_value,
                      atomic_memory_order order = memory_order_conservative) {
-    return AtomicAccess::cmpxchg(value_ptr(), compare_value, new_value, order);
+    return AtomicAccess::cmpxchg(this->value_ptr(), compare_value, new_value, order);
   }
 
   bool compare_set(T compare_value, T new_value,
@@ -279,8 +408,9 @@ public:
   }
 };
 
-template<typename T>
-class AtomicImpl::SupportsArithmetic : public CommonCore<T> {
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::SupportsArithmetic : public CommonCore<T, AtomicBaseType> {
+private:
   // Guarding the AtomicAccess calls with constexpr checking of Offset produces
   // better compile-time error messages.
   template<typename Offset>
@@ -300,10 +430,13 @@ class AtomicImpl::SupportsArithmetic : public CommonCore<T> {
   }
 
 protected:
-  explicit constexpr SupportsArithmetic(T value) : CommonCore<T>(value) {}
+  using CommonCore<T, AtomicBaseType>::CommonCore;
   ~SupportsArithmetic() = default;
 
 public:
+
+  // Arithmetic Atomic[Ref]<T> operations.
+
   template<typename Offset>
   T add_then_fetch(Offset add_value,
                    atomic_memory_order order = memory_order_conservative) {
@@ -338,20 +471,15 @@ public:
   }
 };
 
-template<typename T>
-class AtomicImpl::Atomic<T, AtomicImpl::Category::Integer>
-  : public SupportsArithmetic<T>
-{
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::SupportsBitOperations : public SupportsArithmetic<T, AtomicBaseType> {
+protected:
+  using SupportsArithmetic<T, AtomicBaseType>::SupportsArithmetic;
+  ~SupportsBitOperations() = default;
+
 public:
-  explicit constexpr Atomic(T value = 0) : SupportsArithmetic<T>(value) {}
 
-  NONCOPYABLE(Atomic);
-
-  using ValueType = T;
-
-  static constexpr int value_offset_in_bytes() {
-    return CommonCore<T>::template value_offset_in_bytes_impl<Atomic>();
-  }
+  // Arithmetic Atomic[Ref]<T> operations.
 
   T fetch_then_and(T bits, atomic_memory_order order = memory_order_conservative) {
     return AtomicAccess::fetch_then_and(this->value_ptr(), bits, order);
@@ -379,122 +507,151 @@ public:
 };
 
 template<typename T>
-class AtomicImpl::Atomic<T, AtomicImpl::Category::Byte>
-  : public CommonCore<T>
-{
+class AtomicImpl::Atomic<T, AtomicImpl::Category::Integer>
+  : public SupportsBitOperations<T, AtomicImpl::AtomicBase<T>> {
 public:
-  explicit constexpr Atomic(T value = 0) : CommonCore<T>(value) {}
-
+  explicit Atomic(T value = 0) : SupportsBitOperations<T, AtomicImpl::AtomicBase<T>>(value) {}
+  ~Atomic() = default;
   NONCOPYABLE(Atomic);
 
   using ValueType = T;
+};
 
-  static constexpr int value_offset_in_bytes() {
-    return CommonCore<T>::template value_offset_in_bytes_impl<Atomic>();
-  }
+template<typename T>
+class AtomicImpl::AtomicRef<T, AtomicImpl::Category::Integer>
+  : public SupportsBitOperations<T, AtomicImpl::AtomicRefBase<T>> {
+public:
+  explicit AtomicRef(volatile T& value) : SupportsBitOperations<T, AtomicImpl::AtomicRefBase<T>>(value) {}
+  ~AtomicRef() = default;
+  AtomicRef(AtomicRef const&) = default;
+  AtomicRef& operator=(AtomicRef const&) = default;
+
+  using ValueType = T;
+};
+
+template<typename T>
+class AtomicImpl::Atomic<T, AtomicImpl::Category::Byte>
+  : public CommonCore<T, AtomicImpl::AtomicBase<T>> {
+public:
+  explicit constexpr Atomic(T value = 0) : CommonCore<T, AtomicImpl::AtomicBase<T>>(value) {}
+  ~Atomic() = default;
+  NONCOPYABLE(Atomic);
+
+  using ValueType = T;
+};
+
+template<typename T>
+class AtomicImpl::AtomicRef<T, AtomicImpl::Category::Byte>
+  : public CommonCore<T, AtomicImpl::AtomicRefBase<T>> {
+public:
+  explicit AtomicRef(volatile T& value) : CommonCore<T, AtomicImpl::AtomicRefBase<T>>(value) {}
+  ~AtomicRef() = default;
+  AtomicRef(AtomicRef const&) = default;
+  AtomicRef& operator=(AtomicRef const&) = default;
+
+  using ValueType = T;
 };
 
 template<typename T>
 class AtomicImpl::Atomic<T, AtomicImpl::Category::Pointer>
-  : public SupportsArithmetic<T>
-{
+  : public SupportsArithmetic<T, AtomicImpl::AtomicBase<T>> {
 public:
-  explicit constexpr Atomic(T value = nullptr) : SupportsArithmetic<T>(value) {}
-
+  explicit constexpr Atomic(T value = nullptr) : SupportsArithmetic<T, AtomicImpl::AtomicBase<T>>(value) {}
+  ~Atomic() = default;
   NONCOPYABLE(Atomic);
 
   using ValueType = T;
   using ElementType = std::remove_pointer_t<T>;
+};
 
-  static constexpr int value_offset_in_bytes() {
-    return CommonCore<T>::template value_offset_in_bytes_impl<Atomic>();
-  }
+template<typename T>
+class AtomicImpl::AtomicRef<T, AtomicImpl::Category::Pointer>
+  : public SupportsBitOperations<T, AtomicImpl::AtomicRefBase<T>> {
+public:
+  explicit AtomicRef(volatile T& value) : SupportsBitOperations<T, AtomicImpl::AtomicRefBase<T>>(value) {}
+  ~AtomicRef() = default;
+  AtomicRef(AtomicRef const&) = default;
+  AtomicRef& operator=(AtomicRef const&) = default;
+
+  using ValueType = T;
+  using ElementType = std::remove_pointer_t<T>;
 };
 
 // Atomic translated type
 
-template<typename T>
-class AtomicImpl::Atomic<T, AtomicImpl::Category::Translated> {
-  using Translator = PrimitiveConversions::Translate<T>;
-  using Decayed = typename Translator::Decayed;
-
-  Atomic<Decayed> _value;
-
-  // The decay function and the constructors are constexpr so that a non-local
-  // atomic object constructed with constant arguments will be a constant
-  // initialization.  One might ask why it's not a problem that some
-  // specializations of these functions are not constant expressions. The
-  // answer lies in C++17 10.1.5/6, along with us having *some* constexpr
-  // translator decay functions, constexpr ctors for some translated types,
-  // and constexpr ctors for some decayed types.  Also, C++23 removes those
-  // restrictions on constexpr functions and ctors.
-
-  static constexpr Decayed decay(T x) { return Translator::decay(x); }
-  static T recover(Decayed x) { return Translator::recover(x); }
-
-  // Support for default construction via the default construction of _value.
-  struct UseDecayedCtor {};
-  explicit constexpr Atomic(UseDecayedCtor) : _value() {}
-  using DefaultCtorSelect =
-    std::conditional_t<std::is_default_constructible_v<T>, T, UseDecayedCtor>;
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::CommonCoreTranslated : public AtomicBaseType {
+protected:
+  using AtomicBaseType::AtomicBaseType;
+  ~CommonCoreTranslated() = default;
 
 public:
-  using ValueType = T;
 
-  // If T is default constructible, construct from a default constructed T.
-  // Otherwise, default construct the underlying Atomic<Decayed>.
-  constexpr Atomic() : Atomic(DefaultCtorSelect()) {}
-
-  explicit constexpr Atomic(T value) : _value(decay(value)) {}
-
-  NONCOPYABLE(Atomic);
-
-  static constexpr int value_offset_in_bytes() {
-    return (offsetof(Atomic, _value) +
-            Atomic<Decayed>::value_offset_in_bytes());
-  }
-
-  static constexpr int value_size_in_bytes() {
-    return Atomic<Decayed>::value_size_in_bytes();
-  }
+  // Common core translated Atomic[Ref]<T> operations.
 
   T load_relaxed() const {
-    return recover(_value.load_relaxed());
+    return AtomicBaseType::recover(this->value().load_relaxed());
   }
 
   T load_acquire() const {
-    return recover(_value.load_acquire());
+    return AtomicBaseType::recover(this->value().load_acquire());
   }
 
   void store_relaxed(T value) {
-    _value.store_relaxed(decay(value));
+    this->value().store_relaxed(AtomicBaseType::decay(value));
   }
 
   void release_store(T value) {
-    _value.release_store(decay(value));
+    this->value().release_store(AtomicBaseType::decay(value));
   }
 
   void release_store_fence(T value) {
-    _value.release_store_fence(decay(value));
+    this->value().release_store_fence(AtomicBaseType::decay(value));
   }
 
   T compare_exchange(T compare_value, T new_value,
                      atomic_memory_order order = memory_order_conservative) {
-    return recover(_value.compare_exchange(decay(compare_value),
-                                           decay(new_value),
-                                           order));
+    return AtomicBaseType::recover(this->value().compare_exchange(AtomicBaseType::decay(compare_value),
+                                                                  AtomicBaseType::decay(new_value),
+                                                                  order));
   }
 
   bool compare_set(T compare_value, T new_value,
                    atomic_memory_order order = memory_order_conservative) {
-    return _value.compare_set(decay(compare_value),
-                              decay(new_value),
-                              order);
+    return this->value().compare_set(AtomicBaseType::decay(compare_value),
+                                     AtomicBaseType::decay(new_value),
+                                     order);
   }
 
   T exchange(T new_value, atomic_memory_order order = memory_order_conservative) {
-    return recover(_value.exchange(decay(new_value), order));
+    return AtomicBaseType::recover(this->value().exchange(AtomicBaseType::decay(new_value), order));
   }
+};
+
+template<typename T>
+class AtomicImpl::Atomic<T, AtomicImpl::Category::Translated>
+  : public CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>> {
+public:
+  explicit Atomic() : CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>>() {}
+  explicit Atomic(T value) : CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>>(value) {}
+  ~Atomic() = default;
+  NONCOPYABLE(Atomic);
+
+  using ValueType = T;
+};
+
+template<typename T>
+class AtomicImpl::AtomicRef<T, AtomicImpl::Category::Translated>
+  : public CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>> {
+public:
+  explicit AtomicRef(volatile typename AtomicImpl::AtomicRefTranslatedBase<T>::Decayed& decayed_value)
+    : CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>>(decayed_value) {}
+  explicit AtomicRef(volatile T& value) : CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>>(value) {}
+  ~AtomicRef() = default;
+  AtomicRef(AtomicRef const&) = default;
+  AtomicRef& operator=(AtomicRef const&) = default;
+
+  using ValueType = T;
 };
 
 #endif // SHARE_RUNTIME_ATOMIC_HPP

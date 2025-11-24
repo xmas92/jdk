@@ -178,6 +178,31 @@ class AtomicImpl {
     Translated
   };
 
+public:
+  enum class PrimitiveConversionsType {
+    None,
+    Default,
+    Arithmetic,
+    ArithmeticBitOperations
+  };
+
+  template <typename T>
+  struct PrimitiveConversionCategory;
+
+private:
+
+  // Helper base classes, providing various parts of the APIs.
+  template<typename T> class AtomicBase;
+  template<typename T> class AtomicRefBase;
+  template<typename T> class AtomicTranslatedBase;
+  template<typename T> class AtomicRefTranslatedBase;
+  template<typename T, typename AtomicBase> class CommonCore;
+  template<typename T, typename AtomicBase> class SupportsArithmetic;
+  template<typename T, typename AtomicBase> class SupportsBitOperations;
+  template<typename T, typename AtomicBase> class CommonCoreTranslated;
+  template<typename T, typename AtomicBase> class SupportsArithmeticTranslated;
+  template<typename T, typename AtomicBase> class SupportsBitOperationsTranslated;
+
 #if defined(__GNUC__) && !defined(__clang__)
   // Workaround for gcc bug. Make category() public, else we get this error
   //   error: 'static constexpr AtomicImpl::Category AtomicImpl::category()
@@ -190,17 +215,55 @@ public:
   // Selection of Atomic<T> category, based on T.
   template<typename T>
   static constexpr Category category();
-private:
 
-  // Helper base classes, providing various parts of the APIs.
-  template<typename T> class AtomicBase;
-  template<typename T> class AtomicRefBase;
-  template<typename T> class AtomicTranslatedBase;
-  template<typename T> class AtomicRefTranslatedBase;
-  template<typename T, typename AtomicBase> class CommonCore;
-  template<typename T, typename AtomicBase> class SupportsArithmetic;
-  template<typename T, typename AtomicBase> class SupportsBitOperations;
-  template<typename T, typename AtomicBase> class CommonCoreTranslated;
+  template <typename T>
+  static constexpr PrimitiveConversionsType PrimitiveConversionCategoryValue =
+      PrimitiveConversionCategory<T>::value;
+
+  template <typename T, template <typename> typename AtomicBase>
+  using PrimitiveConversionCategoryType = std::conditional_t<
+      PrimitiveConversionCategoryValue<T> == PrimitiveConversionsType::Default,
+      CommonCoreTranslated<T, AtomicBase<T>>,
+      std::conditional_t<
+          PrimitiveConversionCategoryValue<T> ==
+              PrimitiveConversionsType::Arithmetic,
+          SupportsArithmeticTranslated<T, AtomicBase<T>>,
+          std::conditional_t<
+              PrimitiveConversionCategoryValue<T> ==
+                  PrimitiveConversionsType::ArithmeticBitOperations,
+              SupportsBitOperationsTranslated<T, AtomicBase<T>>, void>>>;
+
+  template <typename T, PrimitiveConversionsType type = PrimitiveConversionCategoryValue<T>>
+  static constexpr bool check_primitive_conversion_category_type() {
+    using Translate = PrimitiveConversions::Translate<T>;
+    if constexpr (Translate::value) {
+      using Decayed = typename Translate::Decayed;
+      // Check for nested types first
+      if (category<Decayed>() == Category::Translated) {
+        // Multiple layers of translation is only valid if the next level
+        // supports the current type, and is it self supported.
+        return check_primitive_conversion_category_type<Decayed, type>() &&
+               check_primitive_conversion_category_type<Decayed>();
+      }
+
+      switch (type) {
+        case PrimitiveConversionsType::ArithmeticBitOperations:
+          // Only Integer types support
+          return category<Decayed>() == Category::Integer;
+        case PrimitiveConversionsType::Arithmetic:
+          // Only Integer and Pointer types support
+          return category<Decayed>() == Category::Integer ||
+                 category<Decayed>() == Category::Pointer;
+        case PrimitiveConversionsType::Default:
+          // Default supported by all
+          return true;
+        case PrimitiveConversionsType::None:
+          // None is never allowed
+          return false;
+       }
+    }
+    return false;
+  }
 
 public:
   template<typename T, Category = category<T>()>
@@ -208,6 +271,14 @@ public:
 
   template<typename T, Category = category<T>()>
   class AtomicRef;
+};
+
+// Default implementation of AtomicImpl::PrimitiveConversionCategory
+template <typename T> struct AtomicImpl::PrimitiveConversionCategory {
+  static constexpr PrimitiveConversionsType value =
+      PrimitiveConversions::Translate<T>::value
+          ? PrimitiveConversionsType::Default
+          : PrimitiveConversionsType::None;
 };
 
 // The Atomic<T> type.
@@ -601,12 +672,131 @@ public:
   }
 };
 
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::SupportsArithmeticTranslated : public CommonCoreTranslated<T, AtomicBaseType> {
+protected:
+  using CommonCoreTranslated<T, AtomicBaseType>::CommonCoreTranslated;
+  ~SupportsArithmeticTranslated() = default;
+
+public:
+
+  // Arithmetic translated Atomic[Ref]<T> operations.
+
+  template<typename Offset>
+  T add_then_fetch(Offset add_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().add_then_fetch(add_value, order));
+  }
+
+  T add_then_fetch(T add_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return add_then_fetch(AtomicBaseType::decay(add_value), order);
+  }
+
+  template<typename Offset>
+  T fetch_then_add(Offset add_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().fetch_then_add(add_value, order));
+  }
+
+  T fetch_then_add(T add_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return fetch_then_add(AtomicBaseType::decay(add_value), order);
+  }
+
+  template<typename Offset>
+  T sub_then_fetch(Offset sub_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().sub_then_fetch(sub_value, order));
+  }
+
+  T sub_then_fetch(T sub_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return sub_then_fetch(AtomicBaseType::decay(sub_value), order);
+  }
+
+  template<typename Offset>
+  T fetch_then_sub(Offset sub_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().fetch_then_sub(sub_value, order));
+  }
+
+  T fetch_then_sub(T sub_value,
+                   atomic_memory_order order = memory_order_conservative) {
+    return fetch_then_sub(AtomicBaseType::decay(sub_value), order);
+  }
+};
+
+template<typename T, typename AtomicBaseType>
+class AtomicImpl::SupportsBitOperationsTranslated : public SupportsArithmeticTranslated<T, AtomicBaseType> {
+protected:
+  using SupportsArithmeticTranslated<T, AtomicBaseType>::SupportsArithmeticTranslated;
+  ~SupportsBitOperationsTranslated() = default;
+
+public:
+
+  // Arithmetic translated Atomic[Ref]<T> operations.
+
+  T fetch_then_and(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().fetch_then_and(bits, order));
+  }
+
+  T fetch_then_and(T bits, atomic_memory_order order = memory_order_conservative) {
+    return fetch_then_and(AtomicBaseType::decay(bits), order);
+  }
+
+  T fetch_then_or(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().fetch_then_or(bits, order));
+  }
+
+  T fetch_then_or(T bits, atomic_memory_order order = memory_order_conservative) {
+    return fetch_then_or(AtomicBaseType::decay(bits), order);
+  }
+
+  T fetch_then_xor(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().fetch_then_xor(bits, order));
+  }
+
+  T fetch_then_xor(T bits, atomic_memory_order order = memory_order_conservative) {
+    return fetch_then_xor(AtomicBaseType::decay(bits), order);
+  }
+
+  T and_then_fetch(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().and_then_fetch(bits, order));
+  }
+
+  T and_then_fetch(T bits, atomic_memory_order order = memory_order_conservative) {
+    return and_then_fetch(AtomicBaseType::decay(bits), order);
+  }
+
+  T or_then_fetch(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().or_then_fetch(bits, order));
+  }
+
+  T or_then_fetch(T bits, atomic_memory_order order = memory_order_conservative) {
+    return or_then_fetch(AtomicBaseType::decay(bits), order);
+  }
+
+  T xor_then_fetch(typename AtomicBaseType::Decayed bits, atomic_memory_order order = memory_order_conservative) {
+    return AtomicBaseType::recover(this->value().xor_then_fetch(bits, order));
+  }
+
+  T xor_then_fetch(T bits, atomic_memory_order order = memory_order_conservative) {
+    return xor_then_fetch(AtomicBaseType::decay(bits), order);
+  }
+};
+
 template<typename T>
 class AtomicImpl::Atomic<T, AtomicImpl::Category::Translated>
-  : public CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>> {
+  : public PrimitiveConversionCategoryType<T, AtomicImpl::AtomicTranslatedBase> {
+  static_assert(AtomicImpl::check_primitive_conversion_category_type<T>(),
+                "Unsupported PrimitiveConversionCategoryType for decayed type.");
+
 public:
-  explicit Atomic() : CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>>() {}
-  explicit Atomic(T value) : CommonCoreTranslated<T, AtomicImpl::AtomicTranslatedBase<T>>(value) {}
+  explicit Atomic()
+    : PrimitiveConversionCategoryType<T, AtomicImpl::AtomicTranslatedBase>() {}
+  explicit Atomic(T value)
+    : PrimitiveConversionCategoryType<T, AtomicImpl::AtomicTranslatedBase>(value) {}
   ~Atomic() = default;
   NONCOPYABLE(Atomic);
 
@@ -615,11 +805,14 @@ public:
 
 template<typename T>
 class AtomicImpl::AtomicRef<T, AtomicImpl::Category::Translated>
-  : public CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>> {
+  : public PrimitiveConversionCategoryType<T, AtomicImpl::AtomicRefTranslatedBase> {
+  static_assert(AtomicImpl::check_primitive_conversion_category_type<T>(),
+                "Unsupported PrimitiveConversionCategoryType for decayed type.");
 public:
   explicit AtomicRef(volatile typename AtomicImpl::AtomicRefTranslatedBase<T>::Decayed& decayed_value)
-    : CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>>(decayed_value) {}
-  explicit AtomicRef(volatile T& value) : CommonCoreTranslated<T, AtomicImpl::AtomicRefTranslatedBase<T>>(value) {}
+    : PrimitiveConversionCategoryType<T, AtomicImpl::AtomicRefTranslatedBase>(decayed_value) {}
+  explicit AtomicRef(volatile T& value)
+    : PrimitiveConversionCategoryType<T, AtomicImpl::AtomicRefTranslatedBase>(value) {}
   ~AtomicRef() = default;
   AtomicRef(AtomicRef const&) = default;
   AtomicRef& operator=(AtomicRef const&) = default;

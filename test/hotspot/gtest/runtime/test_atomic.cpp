@@ -160,10 +160,10 @@ TEST_VM(AtomicRefIntegerTest, arith_uint64) {
 }
 
 template<typename T, template <typename> typename AtomicTestType>
-struct AtomicByteAndIntegerXchgTestSupport {
+struct AtomicByteAndIntegerExchangeTestSupport {
   AtomicTestType<T> _test_value;
 
-  AtomicByteAndIntegerXchgTestSupport() : _test_value{} {}
+  AtomicByteAndIntegerExchangeTestSupport() : _test_value{} {}
 
   void test() {
     T zero = 0;
@@ -175,41 +175,41 @@ struct AtomicByteAndIntegerXchgTestSupport {
   }
 };
 
-TEST_VM(AtomicIntegerTest, xchg_char) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<char, AtomicTestType>;
+TEST_VM(AtomicIntegerTest, exchange_char) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<char, AtomicTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicIntegerTest, xchg_int32) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<int32_t, AtomicTestType>;
+TEST_VM(AtomicIntegerTest, exchange_int32) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<int32_t, AtomicTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicIntegerTest, xchg_int64) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<int64_t, AtomicTestType>;
+TEST_VM(AtomicIntegerTest, exchange_int64) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<int64_t, AtomicTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicRefIntegerTest, xchg_char) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<char, AtomicRefTestType>;
+TEST_VM(AtomicRefIntegerTest, exchange_char) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<char, AtomicRefTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicRefIntegerTest, xchg_int32) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<int32_t, AtomicRefTestType>;
+TEST_VM(AtomicRefIntegerTest, exchange_int32) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<int32_t, AtomicRefTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicRefIntegerTest, xchg_int64) {
-  using Support = AtomicByteAndIntegerXchgTestSupport<int64_t, AtomicRefTestType>;
+TEST_VM(AtomicRefIntegerTest, exchange_int64) {
+  using Support = AtomicByteAndIntegerExchangeTestSupport<int64_t, AtomicRefTestType>;
   Support().test();
 }
 
 template<typename T, template <typename> typename AtomicTestType>
-struct AtomicIntegerCmpxchgTestSupport {
+struct AtomicIntegerCompareExchangeTestSupport {
   AtomicTestType<T> _test_value;
 
-  AtomicIntegerCmpxchgTestSupport() : _test_value{} {}
+  AtomicIntegerCompareExchangeTestSupport() : _test_value{} {}
 
   void test() {
     T zero = 0;
@@ -225,34 +225,34 @@ struct AtomicIntegerCmpxchgTestSupport {
   }
 };
 
-TEST_VM(AtomicIntegerTest, cmpxchg_int32) {
-  using Support = AtomicIntegerCmpxchgTestSupport<int32_t, AtomicTestType>;
+TEST_VM(AtomicIntegerTest, compare_exchange_int32) {
+  using Support = AtomicIntegerCompareExchangeTestSupport<int32_t, AtomicTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicIntegerTest, cmpxchg_int64) {
+TEST_VM(AtomicIntegerTest, compare_exchange_int64) {
   // Check if 64-bit atomics are available on the machine.
   if (!VM_Version::supports_cx8()) return;
 
-  using Support = AtomicIntegerCmpxchgTestSupport<int64_t, AtomicTestType>;
+  using Support = AtomicIntegerCompareExchangeTestSupport<int64_t, AtomicTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicRefIntegerTest, cmpxchg_int32) {
-  using Support = AtomicIntegerCmpxchgTestSupport<int32_t, AtomicRefTestType>;
+TEST_VM(AtomicRefIntegerTest, compare_exchange_int32) {
+  using Support = AtomicIntegerCompareExchangeTestSupport<int32_t, AtomicRefTestType>;
   Support().test();
 }
 
-TEST_VM(AtomicRefIntegerTest, cmpxchg_int64) {
+TEST_VM(AtomicRefIntegerTest, compare_exchange_int64) {
   // Check if 64-bit atomics are available on the machine.
   if (!VM_Version::supports_cx8()) return;
 
-  using Support = AtomicIntegerCmpxchgTestSupport<int64_t, AtomicRefTestType>;
+  using Support = AtomicIntegerCompareExchangeTestSupport<int64_t, AtomicRefTestType>;
   Support().test();
 }
 
 template <bool Ref>
-struct AtomicXchgAndCmpxchg1ByteStressSupport {
+struct AtomicExchangeAndCompareExchange1ByteStressSupport {
   static constexpr int Size = 7+32+7;
 
   struct AtomicCharArray {
@@ -275,7 +275,7 @@ struct AtomicXchgAndCmpxchg1ByteStressSupport {
   int  _base;
   std::conditional_t<Ref, AtomicRefCharArray, AtomicCharArray> _array;
 
-  AtomicXchgAndCmpxchg1ByteStressSupport() : _default_val(0x7a), _base(7) {}
+  AtomicExchangeAndCompareExchange1ByteStressSupport() : _default_val(0x7a), _base(7) {}
 
   void validate(char val, char val2, int index) {
     for (int i = 0; i < 7; i++) {
@@ -336,23 +336,23 @@ struct AtomicXchgAndCmpxchg1ByteStressSupport {
   }
 };
 
-TEST_VM(AtomicByteTest, stress_xchg) {
-  AtomicXchgAndCmpxchg1ByteStressSupport<false /* Ref */> support;
+TEST_VM(AtomicByteTest, stress_Exchange) {
+  AtomicExchangeAndCompareExchange1ByteStressSupport<false /* Ref */> support;
   support.test_exchange();
 }
 
-TEST_VM(AtomicByteTest, stress_cmpxchg) {
-  AtomicXchgAndCmpxchg1ByteStressSupport<false /* Ref */> support;
+TEST_VM(AtomicByteTest, stress_CompareExchange) {
+  AtomicExchangeAndCompareExchange1ByteStressSupport<false /* Ref */> support;
   support.test_compare_exchange();
 }
 
-TEST_VM(AtomicRefByteTest, stress_xchg) {
-  AtomicXchgAndCmpxchg1ByteStressSupport<true /* Ref */> support;
+TEST_VM(AtomicRefByteTest, stress_Exchange) {
+  AtomicExchangeAndCompareExchange1ByteStressSupport<true /* Ref */> support;
   support.test_exchange();
 }
 
-TEST_VM(AtomicRefByteTest, stress_cmpxchg) {
-  AtomicXchgAndCmpxchg1ByteStressSupport<true /* Ref */> support;
+TEST_VM(AtomicRefByteTest, stress_CompareExchange) {
+  AtomicExchangeAndCompareExchange1ByteStressSupport<true /* Ref */> support;
   support.test_compare_exchange();
 }
 
@@ -368,7 +368,7 @@ struct AtomicTestSupport {
     EXPECT_EQ(value, _test_value().load_relaxed());
   }
 
-  void test_cmpxchg(T value1, T value2) {
+  void test_compare_exchange(T value1, T value2) {
     EXPECT_NE(value1, _test_value().load_relaxed());
     _test_value().store_relaxed(value1);
     EXPECT_EQ(value1, _test_value().compare_exchange(value2, value2));
@@ -377,7 +377,7 @@ struct AtomicTestSupport {
     EXPECT_EQ(value2, _test_value().load_relaxed());
   }
 
-  void test_xchg(T value1, T value2) {
+  void test_exchange(T value1, T value2) {
     EXPECT_NE(value1, _test_value().load_relaxed());
     _test_value().store_relaxed(value1);
     EXPECT_EQ(value1, _test_value().exchange(value2));
@@ -387,8 +387,8 @@ struct AtomicTestSupport {
   template <T B, T C>
   static void test() {
     AtomicTestSupport().test_store_load(B);
-    AtomicTestSupport().test_cmpxchg(B, C);
-    AtomicTestSupport().test_xchg(B, C);
+    AtomicTestSupport().test_compare_exchange(B, C);
+    AtomicTestSupport().test_exchange(B, C);
   }
 };
 

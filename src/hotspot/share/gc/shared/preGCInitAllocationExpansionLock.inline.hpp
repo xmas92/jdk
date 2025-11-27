@@ -27,44 +27,39 @@
 
 #include "gc/shared/preGCInitAllocationExpansionLock.hpp"
 #include "runtime/init.hpp"
-#include "utilities/debug.hpp"
 
 inline PreGCInitAllocationExpansionLock::AllocationLocker::AllocationLocker()
-    DEBUG_ONLY( : _locked(false)) {
+  : _locked(false) {
   if (is_init_completed()) {
     return;
   }
-  DEBUG_ONLY(_locked = true;)
 
   PreGCInitAllocationExpansionLock::lock_for_allocation();
+  _locked = true;
 }
 
 inline PreGCInitAllocationExpansionLock::AllocationLocker::~AllocationLocker() {
-  if (is_init_completed()) {
-    precond(!_locked);
+  if (!_locked) {
     return;
   }
-  precond(_locked);
 
   PreGCInitAllocationExpansionLock::unlock_for_allocation();
 }
 
 inline PreGCInitAllocationExpansionLock::ExpansionLocker::ExpansionLocker()
-    DEBUG_ONLY( : _locked(false)) {
+  : _locked(false) {
   if (is_init_completed()) {
     return;
   }
-  DEBUG_ONLY(_locked = true;)
 
   PreGCInitAllocationExpansionLock::lock_for_expansion();
+  _locked = true;
 }
 
 inline PreGCInitAllocationExpansionLock::ExpansionLocker::~ExpansionLocker() {
-  if (is_init_completed()) {
-    precond(!_locked);
+  if (!_locked) {
     return;
   }
-  precond(_locked);
 
   PreGCInitAllocationExpansionLock::unlock_for_expansion();
 }

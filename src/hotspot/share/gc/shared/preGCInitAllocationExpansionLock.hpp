@@ -35,7 +35,7 @@ class PreGCInitAllocationExpansionLock : AllStatic {
 public:
   // Locker for reader side of RWLock
   class AllocationLocker : StackObj {
-    DEBUG_ONLY(bool _locked;)
+    bool _locked;
 
   public:
     AllocationLocker();
@@ -44,7 +44,7 @@ public:
 
   // Locker for writer side of RWLock
   class ExpansionLocker : StackObj {
-    DEBUG_ONLY(bool _locked;)
+    bool _locked;
 
   public:
     ExpansionLocker();

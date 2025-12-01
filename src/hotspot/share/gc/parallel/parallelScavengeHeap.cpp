@@ -39,7 +39,6 @@
 #include "gc/shared/gcWhen.hpp"
 #include "gc/shared/genArguments.hpp"
 #include "gc/shared/locationPrinter.inline.hpp"
-#include "gc/shared/preGCInitAllocationExpansionLock.inline.hpp"
 #include "gc/shared/scavengableNMethods.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "logging/log.hpp"
@@ -310,7 +309,7 @@ HeapWord* ParallelScavengeHeap::mem_allocate_work(size_t size, bool is_tlab) {
   for (uint loop_count = 0; /* empty */; ++loop_count) {
     HeapWord* result;
     {
-      PreGCInitAllocationExpansionLock::AllocationLocker locker;
+      ConditionalMutexLocker locker(Heap_lock, !is_init_completed());
       result = mem_allocate_cas_noexpand(size, is_tlab);
       if (result != nullptr) {
         return result;
@@ -321,7 +320,6 @@ HeapWord* ParallelScavengeHeap::mem_allocate_work(size_t size, bool is_tlab) {
     // allocation-failures result in one GC.
     uint gc_count;
     {
-      PreGCInitAllocationExpansionLock::ExpansionLocker locker;
       MutexLocker ml(Heap_lock);
 
       // Re-try after acquiring the lock, because a GC might have occurred

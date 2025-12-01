@@ -51,7 +51,6 @@ Mutex*   JvmtiThreadState_lock        = nullptr;
 Monitor* EscapeBarrier_lock           = nullptr;
 Monitor* JvmtiVTMSTransition_lock     = nullptr;
 Mutex*   JvmtiVThreadSuspend_lock     = nullptr;
-Monitor* PreGCInitAllocationExpansion_lock = nullptr;
 Monitor* Heap_lock                    = nullptr;
 #if INCLUDE_PARALLELGC
 Mutex*   PSOldGenExpand_lock      = nullptr;
@@ -335,8 +334,7 @@ void mutex_init() {
   MUTEX_DEFL(Module_lock                    , PaddedMutex  , AdapterHandlerLibrary_lock);
   MUTEX_DEFL(AOTHeapLoading_lock            , PaddedMonitor, Module_lock);
   MUTEX_DEFL(JNICritical_lock               , PaddedMonitor, AOTHeapLoading_lock); // used for JNI critical regions
-  MUTEX_DEFL(PreGCInitAllocationExpansion_lock , PaddedMonitor, JNICritical_lock);
-  MUTEX_DEFL(Heap_lock                      , PaddedMonitor, PreGCInitAllocationExpansion_lock);
+  MUTEX_DEFL(Heap_lock                      , PaddedMonitor, JNICritical_lock);
 
   MUTEX_DEFL(PerfDataMemAlloc_lock          , PaddedMutex  , Heap_lock);
   MUTEX_DEFL(PerfDataManager_lock           , PaddedMutex  , Heap_lock);

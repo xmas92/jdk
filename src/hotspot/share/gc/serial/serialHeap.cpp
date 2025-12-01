@@ -54,7 +54,6 @@
 #include "gc/shared/oopStorage.inline.hpp"
 #include "gc/shared/oopStorageParState.inline.hpp"
 #include "gc/shared/oopStorageSet.inline.hpp"
-#include "gc/shared/preGCInitAllocationExpansionLock.inline.hpp"
 #include "gc/shared/scavengableNMethods.hpp"
 #include "gc/shared/space.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
@@ -306,7 +305,7 @@ HeapWord* SerialHeap::mem_allocate_work(size_t size, bool is_tlab) {
 
   for (uint try_count = 1; /* break */; try_count++) {
     {
-      PreGCInitAllocationExpansionLock::AllocationLocker locker;
+      ConditionalMutexLocker locker(Heap_lock, !is_init_completed());
       result = mem_allocate_cas_noexpand(size, is_tlab);
       if (result != nullptr) {
         break;
@@ -314,7 +313,6 @@ HeapWord* SerialHeap::mem_allocate_work(size_t size, bool is_tlab) {
     }
     uint gc_count_before;  // Read inside the Heap_lock locked region.
     {
-      PreGCInitAllocationExpansionLock::ExpansionLocker locker;
       MutexLocker ml(Heap_lock);
 
       // Re-try after acquiring the lock, because a GC might have occurred

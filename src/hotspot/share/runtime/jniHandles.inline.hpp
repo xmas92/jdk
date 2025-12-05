@@ -70,7 +70,7 @@ inline oop* JNIHandles::weak_global_ptr(jweak handle) {
 template <DecoratorSet decorators, bool external_guard>
 inline oop JNIHandles::resolve_impl(jobject handle) {
   assert(handle != nullptr, "precondition");
-  assert(!current_thread_in_native(), "must not be in native");
+  assert(!current_thread_in_native() || current_thread_in_critical(), "must not be in native");
   oop result;
   if (is_weak_global_tagged(handle)) {       // Unlikely
     result = NativeAccess<ON_PHANTOM_OOP_REF|decorators>::oop_load(weak_global_ptr(handle));

@@ -2831,81 +2831,120 @@ JNI_ENTRY(void, jni_GetStringUTFRegion(JNIEnv *env, jstring string, jsize start,
   }
 JNI_END
 
-JNI_ENTRY(void*, jni_GetPrimitiveArrayCritical(JNIEnv *env, jarray array, jboolean *isCopy))
+JNI_LEAF(void*, jni_GetPrimitiveArrayCritical(JNIEnv *env, jarray array, jboolean *isCopy))
  HOTSPOT_JNI_GETPRIMITIVEARRAYCRITICAL_ENTRY(env, array, (uintptr_t *) isCopy);
-  Handle a(thread, JNIHandles::resolve_non_null(array));
-  assert(a->is_typeArray(), "just checking");
+  void* ret = nullptr;
 
-  // Pin object
-  Universe::heap()->pin_object(thread, a());
+  auto get_array = [&]() {
+    assert(JNIHandles::resolve_non_null(array)->is_typeArray(), "just checking");
 
-  BasicType type = TypeArrayKlass::cast(a->klass())->element_type();
-  void* ret = arrayOop(a())->base(type);
-  if (isCopy != nullptr) {
-    *isCopy = JNI_FALSE;
+    // Pin object
+    Universe::heap()->pin_object(thread, JNIHandles::resolve_non_null(array));
+
+    typeArrayOop a = typeArrayOop(JNIHandles::resolve_non_null(array));
+    BasicType type = TypeArrayKlass::cast(a->klass())->element_type();
+    ret = a->base(type);
+
+    if (isCopy != nullptr) {
+      *isCopy = JNI_FALSE;
+    }
+  };
+
+  if (!thread->in_critical()) {
+    {
+      ThreadInVMfromNative tiv(thread);
+      get_array();
+    }
+  } else {
+    get_array();
   }
  HOTSPOT_JNI_GETPRIMITIVEARRAYCRITICAL_RETURN(ret);
   return ret;
 JNI_END
 
 
-JNI_ENTRY(void, jni_ReleasePrimitiveArrayCritical(JNIEnv *env, jarray array, void *carray, jint mode))
-  HOTSPOT_JNI_RELEASEPRIMITIVEARRAYCRITICAL_ENTRY(env, array, carray, mode);
-  // Unpin object
-  Universe::heap()->unpin_object(thread, JNIHandles::resolve_non_null(array));
-HOTSPOT_JNI_RELEASEPRIMITIVEARRAYCRITICAL_RETURN();
+JNI_LEAF(void, jni_ReleasePrimitiveArrayCritical(JNIEnv *env, jarray array, void *carray, jint mode))
+ HOTSPOT_JNI_RELEASEPRIMITIVEARRAYCRITICAL_ENTRY(env, array, carray, mode);
+  auto release_array = [&]() {
+    // Unpin object
+    Universe::heap()->unpin_object(thread, JNIHandles::resolve_non_null(array));
+  };
+
+  if (!thread->in_critical()) {
+    ThreadInVMfromNative tiv(thread);
+    release_array();
+  } else {
+    release_array();
+  }
+ HOTSPOT_JNI_RELEASEPRIMITIVEARRAYCRITICAL_RETURN();
 JNI_END
 
 
-JNI_ENTRY(const jchar*, jni_GetStringCritical(JNIEnv *env, jstring string, jboolean *isCopy))
-  HOTSPOT_JNI_GETSTRINGCRITICAL_ENTRY(env, string, (uintptr_t *) isCopy);
-  oop s = JNIHandles::resolve_non_null(string);
-  jchar* ret;
-  if (!java_lang_String::is_latin1(s)) {
-    typeArrayHandle s_value(thread, java_lang_String::value(s));
+JNI_LEAF(const jchar*, jni_GetStringCritical(JNIEnv *env, jstring string, jboolean *isCopy))
+ HOTSPOT_JNI_GETSTRINGCRITICAL_ENTRY(env, string, (uintptr_t *) isCopy);
+  jchar* ret = nullptr;
+  auto get_array = [&]() {
+    oop s = JNIHandles::resolve_non_null(string);
+    if (!java_lang_String::is_latin1(s)) {
+      // Pin value array
+      Universe::heap()->pin_object(thread, java_lang_String::value(s));
 
-    // Pin value array
-    Universe::heap()->pin_object(thread, s_value());
-
-    ret = (jchar*) s_value->base(T_CHAR);
-    if (isCopy != nullptr) *isCopy = JNI_FALSE;
-  } else {
-    // Inflate latin1 encoded string to UTF16
-    typeArrayOop s_value = java_lang_String::value(s);
-    int s_len = java_lang_String::length(s, s_value);
-    ret = NEW_C_HEAP_ARRAY_RETURN_NULL(jchar, s_len + 1, mtInternal);  // add one for zero termination
-    /* JNI Specification states return null on OOM */
-    if (ret != nullptr) {
-      for (int i = 0; i < s_len; i++) {
-        ret[i] = ((jchar) s_value->byte_at(i)) & 0xff;
+      typeArrayOop s_value = java_lang_String::value(JNIHandles::resolve_non_null(string));
+      ret = (jchar*) s_value->base(T_CHAR);
+      if (isCopy != nullptr) *isCopy = JNI_FALSE;
+    } else {
+      // Inflate latin1 encoded string to UTF16
+      typeArrayOop s_value = java_lang_String::value(s);
+      int s_len = java_lang_String::length(s, s_value);
+      ret = NEW_C_HEAP_ARRAY_RETURN_NULL(jchar, s_len + 1, mtInternal);  // add one for zero termination
+      /* JNI Specification states return null on OOM */
+      if (ret != nullptr) {
+        for (int i = 0; i < s_len; i++) {
+          ret[i] = ((jchar) s_value->byte_at(i)) & 0xff;
+        }
+        ret[s_len] = 0;
       }
-      ret[s_len] = 0;
+      if (isCopy != nullptr) *isCopy = JNI_TRUE;
     }
-    if (isCopy != nullptr) *isCopy = JNI_TRUE;
+  };
+
+  if (!thread->in_critical()) {
+    ThreadInVMfromNative tiv(thread);
+    get_array();
+  } else {
+    get_array();
   }
  HOTSPOT_JNI_GETSTRINGCRITICAL_RETURN((uint16_t *) ret);
   return ret;
 JNI_END
 
 
-JNI_ENTRY(void, jni_ReleaseStringCritical(JNIEnv *env, jstring str, const jchar *chars))
-  HOTSPOT_JNI_RELEASESTRINGCRITICAL_ENTRY(env, str, (uint16_t *) chars);
-  oop s = JNIHandles::resolve_non_null(str);
-  bool is_latin1 = java_lang_String::is_latin1(s);
+JNI_LEAF(void, jni_ReleaseStringCritical(JNIEnv *env, jstring str, const jchar *chars))
+ HOTSPOT_JNI_RELEASESTRINGCRITICAL_ENTRY(env, str, (uint16_t *) chars);
+  auto release_array = [&]() {
+    bool is_latin1 = java_lang_String::is_latin1(JNIHandles::resolve_non_null(str));
 
-  if (is_latin1) {
-    // For latin1 string, free jchar array allocated by earlier call to GetStringCritical.
-    // This assumes that ReleaseStringCritical bookends GetStringCritical.
-    FREE_C_HEAP_ARRAY(jchar, chars);
+    if (is_latin1) {
+      // For latin1 string, free jchar array allocated by earlier call to GetStringCritical.
+      // This assumes that ReleaseStringCritical bookends GetStringCritical.
+      FREE_C_HEAP_ARRAY(jchar, chars);
+    } else {
+      // StringDedup can have replaced the value array, so don't fetch the array from 's'.
+      // Instead, we calculate the address based on the jchar array exposed with GetStringCritical.
+      oop value = cast_to_oop((address)chars - arrayOopDesc::base_offset_in_bytes(T_CHAR));
+
+      // Unpin value array
+      Universe::heap()->unpin_object(thread, value);
+    }
+  };
+
+  if (!thread->in_critical()) {
+    ThreadInVMfromNative tiv(thread);
+    release_array();
   } else {
-    // StringDedup can have replaced the value array, so don't fetch the array from 's'.
-    // Instead, we calculate the address based on the jchar array exposed with GetStringCritical.
-    oop value = cast_to_oop((address)chars - arrayOopDesc::base_offset_in_bytes(T_CHAR));
-
-    // Unpin value array
-    Universe::heap()->unpin_object(thread, value);
+    release_array();
   }
-HOTSPOT_JNI_RELEASESTRINGCRITICAL_RETURN();
+ HOTSPOT_JNI_RELEASESTRINGCRITICAL_RETURN();
 JNI_END
 
 

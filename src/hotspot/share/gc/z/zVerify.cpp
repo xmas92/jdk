@@ -93,7 +93,8 @@ void z_verify_safepoints_are_blocked() {
 
   } else if (current->is_Java_thread()) {
     JavaThreadState state = JavaThread::cast(current)->thread_state();
-    assert(state == _thread_in_Java || state == _thread_in_vm || state == _thread_new,
+    assert(state == _thread_in_Java || state == _thread_in_vm || state == _thread_new ||
+           (state == _thread_in_native && JavaThread::cast(current)->in_critical()),
         "Safepoints are not blocked by current thread from state: %d", state);
 
   } else if (current->is_JfrSampler_thread()) {

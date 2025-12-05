@@ -60,6 +60,7 @@ class JNIHandles : AllStatic {
   // This method is not inlined in order to avoid circular includes between
   // this header file and thread.hpp.
   static bool current_thread_in_native();
+  static bool current_thread_in_critical();
 
  public:
   // Low tag bits in jobject used to distinguish its type. Checking

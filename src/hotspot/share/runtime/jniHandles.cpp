@@ -282,6 +282,13 @@ bool JNIHandles::current_thread_in_native() {
           JavaThread::cast(thread)->thread_state() == _thread_in_native);
 }
 
+// This method is implemented here to avoid circular includes between
+// jniHandles.hpp and thread.hpp.
+bool JNIHandles::current_thread_in_critical() {
+  Thread* thread = Thread::current();
+  return thread->is_Java_thread() && JavaThread::cast(thread)->in_critical();
+}
+
 int JNIHandleBlock::_blocks_allocated = 0;
 
 static inline bool is_tagged_free_list(uintptr_t value) {

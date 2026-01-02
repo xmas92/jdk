@@ -27,6 +27,7 @@
 
 #include "runtime/handles.hpp"
 
+#include "memory/resourceArea.inline.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
 #include "runtime/javaThread.hpp"
@@ -52,15 +53,32 @@ inline void Handle::replace(oop obj) {
 }
 
 // Inline constructors for Specific Handles for different oop types
-#define DEF_HANDLE_CONSTR(type, is_a)                   \
-inline type##Handle::type##Handle (Thread* thread, type##Oop obj) : Handle(thread, (oop)obj) { \
-  assert(is_null() || ((oop)obj)->is_a(), "illegal type");                \
-}
+#define DEF_HANDLE_CONSTR_IMP(Type, HandleType, OopType, BaseType, BaseOop,    \
+                              TypeCheckFn)                                     \
+  inline HandleType::HandleType(Thread* thread, OopType obj)                   \
+      : BaseType(thread, (BaseOop)obj) {                                       \
+    if (!is_null() && !((oop)obj)->TypeCheckFn()) {                            \
+      ResourceMark rm;                                                         \
+      fatal("must be type: " #Type " (%s)", ((oop)obj)->print_string());       \
+    }                                                                          \
+  }
 
-DEF_HANDLE_CONSTR(instance , is_instance_noinline )
-DEF_HANDLE_CONSTR(array    , is_array_noinline    )
-DEF_HANDLE_CONSTR(objArray , is_objArray_noinline )
-DEF_HANDLE_CONSTR(typeArray, is_typeArray_noinline)
+#define DEF_HANDLE_CONSTR_BASE(type, base)                                     \
+  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, base##Handle,           \
+                        base##Oop, is_##type##_noinline)
+#define DEF_HANDLE_CONSTR(type)                                                \
+  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, Handle, oop,            \
+                        is_##type##_noinline)
+
+DEF_HANDLE_CONSTR(instance)
+DEF_HANDLE_CONSTR_BASE(stackChunk, instance)
+DEF_HANDLE_CONSTR(array)
+DEF_HANDLE_CONSTR_BASE(objArray, array)
+DEF_HANDLE_CONSTR_BASE(typeArray, array)
+
+#undef DEF_HANDLE_CONSTR
+#undef DEF_HANDLE_CONSTR_BASE
+#undef DEF_HANDLE_CONSTR_IMP
 
 // Constructor for metadata handles
 #define DEF_METADATA_HANDLE_FN(name, type) \
@@ -75,6 +93,8 @@ inline name##Handle::name##Handle(Thread* thread, type* obj) : _value(obj), _thr
 
 DEF_METADATA_HANDLE_FN(method, Method)
 DEF_METADATA_HANDLE_FN(constantPool, ConstantPool)
+
+#undef DEF_METADATA_HANDLE_FN
 
 inline void HandleMark::push() {
   // This is intentionally a NOP. pop_and_restore will reset

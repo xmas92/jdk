@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,6 +32,7 @@
 #include "gc/z/zVirtualMemory.hpp"
 #include "memory/allocation.hpp"
 #include "oops/oopsHierarchy.hpp"
+#include "runtime/atomic.hpp"
 
 class ZGeneration;
 class ZMultiPartitionTracker;
@@ -44,15 +45,15 @@ private:
   const ZPageType               _type;
   ZGenerationId                 _generation_id;
   ZPageAge                      _age;
-  uint32_t                      _seqnum;
-  uint32_t                      _seqnum_other;
+  Atomic<uint32_t>              _seqnum;
+  Atomic<uint32_t>              _seqnum_other;
   const uint32_t                _single_partition_id;
   const ZVirtualMemory          _virtual;
-  volatile zoffset_end          _top;
+  Atomic<zoffset_end>           _top;
   ZLiveMap                      _livemap;
   ZRememberedSet                _remembered_set;
   ZMultiPartitionTracker* const _multi_partition_tracker;
-  volatile bool                 _relocate_promoted;
+  Atomic<bool>                  _relocate_promoted;
 
   const char* type_to_string() const;
 

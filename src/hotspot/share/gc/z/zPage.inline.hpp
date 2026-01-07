@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -33,7 +33,6 @@
 #include "gc/z/zRememberedSet.inline.hpp"
 #include "gc/z/zVirtualMemory.inline.hpp"
 #include "logging/logStream.hpp"
-#include "runtime/atomicAccess.hpp"
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
@@ -141,7 +140,7 @@ inline size_t ZPage::size() const {
 }
 
 inline zoffset_end ZPage::top() const {
-  return _top;
+  return _top.load_relaxed();
 }
 
 inline size_t ZPage::remaining() const {
@@ -174,15 +173,15 @@ inline ZPageAge ZPage::age() const {
 }
 
 inline uint32_t ZPage::seqnum() const {
-  return _seqnum;
+  return _seqnum.load_relaxed();
 }
 
 inline bool ZPage::is_allocating() const {
-  return _seqnum == generation()->seqnum();
+  return seqnum() == generation()->seqnum();
 }
 
 inline bool ZPage::is_relocatable() const {
-  return _seqnum < generation()->seqnum();
+  return seqnum() < generation()->seqnum();
 }
 
 inline bool ZPage::is_in(zoffset offset) const {
@@ -443,7 +442,7 @@ inline zaddress ZPage::alloc_object(size_t size) {
     return zaddress::null;
   }
 
-  _top = new_top;
+  _top.store_relaxed(new_top);
 
   return ZOffset::address(to_zoffset(addr));
 }
@@ -467,7 +466,7 @@ inline zaddress ZPage::alloc_object_atomic(size_t size) {
       return zaddress::null;
     }
 
-    const zoffset_end prev_top = AtomicAccess::cmpxchg(&_top, addr, new_top);
+    const zoffset_end prev_top = _top.compare_exchange(addr, new_top);
     if (prev_top == addr) {
       // Success
       return ZOffset::address(to_zoffset(addr));
@@ -491,7 +490,7 @@ inline bool ZPage::undo_alloc_object(zaddress addr, size_t size) {
     return false;
   }
 
-  _top = new_top;
+  _top.store_relaxed(new_top);
 
   // Success
   return true;
@@ -511,7 +510,7 @@ inline bool ZPage::undo_alloc_object_atomic(zaddress addr, size_t size) {
       return false;
     }
 
-    const zoffset_end prev_top = AtomicAccess::cmpxchg(&_top, old_top, new_top);
+    const zoffset_end prev_top = _top.compare_exchange(old_top, new_top);
     if (prev_top == old_top) {
       // Success
       return true;

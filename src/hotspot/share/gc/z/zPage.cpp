@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -66,17 +66,17 @@ ZPage* ZPage::clone_for_promotion() const {
   // Only copy type and memory layouts, and also update _top. Let the rest be
   // lazily reconstructed when needed.
   ZPage* const page = new ZPage(_type, ZPageAge::old, _virtual, _multi_partition_tracker, _single_partition_id);
-  page->_top = _top;
+  page->_top.store_relaxed(_top.load_relaxed());
 
   return page;
 }
 
 bool ZPage::allows_raw_null() const {
-  return is_young() && !AtomicAccess::load(&_relocate_promoted);
+  return is_young() && !_relocate_promoted.load_relaxed();
 }
 
 void ZPage::set_is_relocate_promoted() {
-  AtomicAccess::store(&_relocate_promoted, true);
+  _relocate_promoted.store_relaxed(true);
 }
 
 ZGeneration* ZPage::generation() {
@@ -88,8 +88,8 @@ const ZGeneration* ZPage::generation() const {
 }
 
 void ZPage::reset_seqnum() {
-  AtomicAccess::store(&_seqnum, generation()->seqnum());
-  AtomicAccess::store(&_seqnum_other, ZGeneration::generation(_generation_id == ZGenerationId::young ? ZGenerationId::old : ZGenerationId::young)->seqnum());
+  _seqnum.store_relaxed(generation()->seqnum());
+  _seqnum_other.store_relaxed(ZGeneration::generation(_generation_id == ZGenerationId::young ? ZGenerationId::old : ZGenerationId::young)->seqnum());
 }
 
 void ZPage::remset_alloc() {
@@ -117,7 +117,7 @@ void ZPage::reset_livemap() {
 }
 
 void ZPage::reset_top_for_allocation() {
-  _top = to_zoffset_end(start());
+  _top.store_relaxed(to_zoffset_end(start()));
 }
 
 class ZFindBaseOopClosure : public ObjectClosure {

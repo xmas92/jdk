@@ -815,7 +815,7 @@ void AOTMappedHeapWriter::relocate_embedded_oops(GrowableArrayCHeap<oop, mtClass
   for (size_t seg_idx = 0; seg_idx < _heap_root_segments.count(); seg_idx++) {
     size_t seg_offset = _heap_root_segments.segment_offset(seg_idx);
 
-    objArrayOop requested_obj = (objArrayOop)requested_obj_from_buffer_offset(seg_offset);
+    oop requested_obj = requested_obj_from_buffer_offset(seg_offset);
     update_header_for_requested_obj(requested_obj, nullptr, Universe::objectArrayKlass());
     address buffered_obj = offset_to_buffered_address<address>(seg_offset);
     int length = _heap_root_segments.size_in_elems(seg_idx);

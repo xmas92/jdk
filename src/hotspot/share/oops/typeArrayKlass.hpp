@@ -121,7 +121,7 @@ class TypeArrayKlass : public ArrayKlass {
  public:
   // Printing
   void oop_print_on(oop obj, outputStream* st) override;
-  void oop_print_elements_on(typeArrayOop ta, outputStream* st);
+  void oop_print_elements_on(typeArrayOopDesc* ta, outputStream* st);
   void print_on(outputStream* st) const override;
   void print_value_on(outputStream* st) const override;
 

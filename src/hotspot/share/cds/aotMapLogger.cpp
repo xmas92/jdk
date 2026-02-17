@@ -556,7 +556,7 @@ public:
   // Return an "oop" pointer so we can use APIs that accept regular oops. This
   // must be used with care, as only a limited number of APIs can work with oops that
   // live outside of the range of the heap.
-  oop raw_oop() { return _data._raw_oop; }
+  oopDesc* raw_oop() { return _data._raw_oop; }
 
   FakeOop() : _data() {}
   FakeOop(OopDataIterator* iter, OopData data) : _iter(iter), _data(data) {}
@@ -595,7 +595,7 @@ public:
 
   int array_length() {
     precond(is_array());
-    return arrayOop(raw_oop())->length();
+    return ((arrayOopDesc*)raw_oop())->length();
   }
 
   intptr_t target_location() {
@@ -651,8 +651,8 @@ public:
 }; // AOTMapLogger::FakeMirror
 
 class AOTMapLogger::FakeObjArray : public AOTMapLogger::FakeOop {
-  objArrayOop raw_objArrayOop() {
-    return (objArrayOop)raw_oop();
+  objArrayOopDesc* raw_objArrayOop() {
+    return (objArrayOopDesc*)raw_oop();
   }
 
 public:
@@ -687,8 +687,8 @@ public:
 }; // AOTMapLogger::FakeString
 
 class AOTMapLogger::FakeTypeArray : public AOTMapLogger::FakeOop {
-  typeArrayOop raw_typeArrayOop() {
-    return (typeArrayOop)raw_oop();
+  typeArrayOopDesc* raw_typeArrayOop() {
+    return (typeArrayOopDesc*)raw_oop();
   }
 
 public:

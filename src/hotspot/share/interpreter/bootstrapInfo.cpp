@@ -270,14 +270,15 @@ void BootstrapInfo::print_msg_on(outputStream* st, const char* msg) {
   // the use_BSCI setting.
   if (_arg_values.not_null()) {
     // Find the static arguments within the first element of _arg_values.
-    objArrayOop static_args = (objArrayOop)_arg_values();
+    oop static_args = _arg_values();
     if (!static_args->is_array()) {
       assert(_argc == 1, "Invalid BSM _arg_values for non-array");
       st->print("  resolved arg[0]: "); static_args->print_on(st);
     } else if (static_args->is_objArray()) {
+      objArrayOop tmp_array = (objArrayOop) static_args;
       int lines = 0;
       for (int i = 0; i < _argc; i++) {
-        oop x = static_args->obj_at(i);
+        oop x = tmp_array->obj_at(i);
         if (x != nullptr) {
           if (++lines > 6) {
             st->print_cr("  resolved arg[%d]: ...", i);

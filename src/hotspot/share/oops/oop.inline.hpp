@@ -214,7 +214,7 @@ size_t oopDesc::size_given_klass(Klass* klass)  {
       // length of the array, shift (multiply) it appropriately,
       // up to wordSize, add the header, and align to object size.
       size_t size_in_bytes;
-      size_t array_length = (size_t) ((arrayOop)this)->length();
+      size_t array_length = (size_t) ((arrayOopDesc*)this)->length();
       size_in_bytes = array_length << Klass::layout_helper_log2_element_size(lh);
       size_in_bytes += Klass::layout_helper_header_size(lh);
 

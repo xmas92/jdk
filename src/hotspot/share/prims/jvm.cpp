@@ -296,8 +296,8 @@ JVM_ENTRY(void, JVM_ArrayCopy(JNIEnv *env, jclass ignored, jobject src, jint src
   if (src == nullptr || dst == nullptr) {
     THROW(vmSymbols::java_lang_NullPointerException());
   }
-  arrayOop s = arrayOop(JNIHandles::resolve_non_null(src));
-  arrayOop d = arrayOop(JNIHandles::resolve_non_null(dst));
+  oop s = JNIHandles::resolve_non_null(src);
+  oop d = JNIHandles::resolve_non_null(dst);
   assert(oopDesc::is_oop(s), "JVM_ArrayCopy: src not an oop");
   assert(oopDesc::is_oop(d), "JVM_ArrayCopy: dst not an oop");
   // Do copy

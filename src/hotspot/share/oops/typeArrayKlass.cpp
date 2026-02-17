@@ -105,8 +105,8 @@ oop TypeArrayKlass::multi_allocate(int rank, jint* last_size, TRAPS) {
 }
 
 
-void TypeArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos, int length, TRAPS) {
-  assert(s->is_typeArray(), "must be type array");
+void TypeArrayKlass::copy_array(oop s, int src_pos, oop d, int dst_pos, int length, TRAPS) {
+  typeArrayOop src = (typeArrayOop)s;
 
   // Check destination type.
   if (!d->is_typeArray()) {
@@ -114,18 +114,20 @@ void TypeArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos
     stringStream ss;
     if (d->is_objArray()) {
       ss.print("arraycopy: type mismatch: can not copy %s[] into object array[]",
-               type2name_tab[ArrayKlass::cast(s->klass())->element_type()]);
+               type2name_tab[ArrayKlass::cast(src->klass())->element_type()]);
     } else {
       ss.print("arraycopy: destination type %s is not an array", d->klass()->external_name());
     }
     THROW_MSG(vmSymbols::java_lang_ArrayStoreException(), ss.as_string());
   }
-  if (element_type() != TypeArrayKlass::cast(d->klass())->element_type()) {
+  typeArrayOop dst = (typeArrayOop)d;
+
+  if (element_type() != TypeArrayKlass::cast(dst->klass())->element_type()) {
     ResourceMark rm(THREAD);
     stringStream ss;
     ss.print("arraycopy: type mismatch: can not copy %s[] into %s[]",
-             type2name_tab[ArrayKlass::cast(s->klass())->element_type()],
-             type2name_tab[ArrayKlass::cast(d->klass())->element_type()]);
+             type2name_tab[ArrayKlass::cast(src->klass())->element_type()],
+             type2name_tab[ArrayKlass::cast(dst->klass())->element_type()]);
     THROW_MSG(vmSymbols::java_lang_ArrayStoreException(), ss.as_string());
   }
 
@@ -136,29 +138,29 @@ void TypeArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos
     stringStream ss;
     if (src_pos < 0) {
       ss.print("arraycopy: source index %d out of bounds for %s[%d]",
-               src_pos, type2name_tab[ArrayKlass::cast(s->klass())->element_type()], s->length());
+               src_pos, type2name_tab[ArrayKlass::cast(src->klass())->element_type()], src->length());
     } else if (dst_pos < 0) {
       ss.print("arraycopy: destination index %d out of bounds for %s[%d]",
-               dst_pos, type2name_tab[ArrayKlass::cast(d->klass())->element_type()], d->length());
+               dst_pos, type2name_tab[ArrayKlass::cast(dst->klass())->element_type()], dst->length());
     } else {
       ss.print("arraycopy: length %d is negative", length);
     }
     THROW_MSG(vmSymbols::java_lang_ArrayIndexOutOfBoundsException(), ss.as_string());
   }
   // Check if the ranges are valid
-  if ((((unsigned int) length + (unsigned int) src_pos) > (unsigned int) s->length()) ||
-      (((unsigned int) length + (unsigned int) dst_pos) > (unsigned int) d->length())) {
+  if ((((unsigned int) length + (unsigned int) src_pos) > (unsigned int) src->length()) ||
+      (((unsigned int) length + (unsigned int) dst_pos) > (unsigned int) dst->length())) {
     // Pass specific exception reason.
     ResourceMark rm(THREAD);
     stringStream ss;
-    if (((unsigned int) length + (unsigned int) src_pos) > (unsigned int) s->length()) {
+    if (((unsigned int) length + (unsigned int) src_pos) > (unsigned int) src->length()) {
       ss.print("arraycopy: last source index %u out of bounds for %s[%d]",
                (unsigned int) length + (unsigned int) src_pos,
-               type2name_tab[ArrayKlass::cast(s->klass())->element_type()], s->length());
+               type2name_tab[ArrayKlass::cast(src->klass())->element_type()], src->length());
     } else {
       ss.print("arraycopy: last destination index %u out of bounds for %s[%d]",
                (unsigned int) length + (unsigned int) dst_pos,
-               type2name_tab[ArrayKlass::cast(d->klass())->element_type()], d->length());
+               type2name_tab[ArrayKlass::cast(dst->klass())->element_type()], dst->length());
     }
     THROW_MSG(vmSymbols::java_lang_ArrayIndexOutOfBoundsException(), ss.as_string());
   }
@@ -170,7 +172,7 @@ void TypeArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos
   int l2es = log2_element_size();
   size_t src_offset = arrayOopDesc::base_offset_in_bytes(element_type()) + ((size_t)src_pos << l2es);
   size_t dst_offset = arrayOopDesc::base_offset_in_bytes(element_type()) + ((size_t)dst_pos << l2es);
-  ArrayAccess<ARRAYCOPY_ATOMIC>::arraycopy<void>(s, src_offset, d, dst_offset, (size_t)length << l2es);
+  ArrayAccess<ARRAYCOPY_ATOMIC>::arraycopy<void>(src, src_offset, dst, dst_offset, (size_t)length << l2es);
 }
 
 size_t TypeArrayKlass::oop_size(oop obj) const {

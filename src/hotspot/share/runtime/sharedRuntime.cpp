@@ -1903,9 +1903,7 @@ JRT_ENTRY(void, SharedRuntime::slow_arraycopy_C(oopDesc* src,  jint src_pos,
   // The copy_array mechanism is awkward and could be removed, but
   // the compilers don't call this function except as a last resort,
   // so it probably doesn't matter.
-  src->klass()->copy_array((arrayOopDesc*)src, src_pos,
-                                        (arrayOopDesc*)dest, dest_pos,
-                                        length, current);
+  src->klass()->copy_array(src, src_pos, dest, dest_pos, length, current);
 }
 JRT_END
 

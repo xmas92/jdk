@@ -242,9 +242,9 @@ void ObjArrayKlass::do_copy(arrayOop s, size_t src_offset,
   }
 }
 
-void ObjArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d,
+void ObjArrayKlass::copy_array(oop s, int src_pos, oop d,
                                int dst_pos, int length, TRAPS) {
-  assert(s->is_objArray(), "must be obj array");
+  objArrayOop src = (objArrayOop)s;
 
   if (!d->is_objArray()) {
     ResourceMark rm(THREAD);
@@ -257,6 +257,7 @@ void ObjArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d,
     }
     THROW_MSG(vmSymbols::java_lang_ArrayStoreException(), ss.as_string());
   }
+  objArrayOop dst = (objArrayOop)d;
 
   // Check is all offsets and lengths are non negative
   if (src_pos < 0 || dst_pos < 0 || length < 0) {
@@ -265,27 +266,27 @@ void ObjArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d,
     stringStream ss;
     if (src_pos < 0) {
       ss.print("arraycopy: source index %d out of bounds for object array[%d]",
-               src_pos, s->length());
+               src_pos, src->length());
     } else if (dst_pos < 0) {
       ss.print("arraycopy: destination index %d out of bounds for object array[%d]",
-               dst_pos, d->length());
+               dst_pos, dst->length());
     } else {
       ss.print("arraycopy: length %d is negative", length);
     }
     THROW_MSG(vmSymbols::java_lang_ArrayIndexOutOfBoundsException(), ss.as_string());
   }
   // Check if the ranges are valid
-  if ((((unsigned int) length + (unsigned int) src_pos) > (unsigned int) s->length()) ||
-      (((unsigned int) length + (unsigned int) dst_pos) > (unsigned int) d->length())) {
+  if ((((unsigned int) length + (unsigned int) src_pos) > (unsigned int) src->length()) ||
+      (((unsigned int) length + (unsigned int) dst_pos) > (unsigned int) dst->length())) {
     // Pass specific exception reason.
     ResourceMark rm(THREAD);
     stringStream ss;
-    if (((unsigned int) length + (unsigned int) src_pos) > (unsigned int) s->length()) {
+    if (((unsigned int) length + (unsigned int) src_pos) > (unsigned int) src->length()) {
       ss.print("arraycopy: last source index %u out of bounds for object array[%d]",
-               (unsigned int) length + (unsigned int) src_pos, s->length());
+               (unsigned int) length + (unsigned int) src_pos, src->length());
     } else {
       ss.print("arraycopy: last destination index %u out of bounds for object array[%d]",
-               (unsigned int) length + (unsigned int) dst_pos, d->length());
+               (unsigned int) length + (unsigned int) dst_pos, dst->length());
     }
     THROW_MSG(vmSymbols::java_lang_ArrayIndexOutOfBoundsException(), ss.as_string());
   }
@@ -300,19 +301,19 @@ void ObjArrayKlass::copy_array(arrayOop s, int src_pos, arrayOop d,
   if (UseCompressedOops) {
     size_t src_offset = (size_t) objArrayOopDesc::obj_at_offset<narrowOop>(src_pos);
     size_t dst_offset = (size_t) objArrayOopDesc::obj_at_offset<narrowOop>(dst_pos);
-    assert(arrayOopDesc::obj_offset_to_raw<narrowOop>(s, src_offset, nullptr) ==
-           objArrayOop(s)->obj_at_addr<narrowOop>(src_pos), "sanity");
-    assert(arrayOopDesc::obj_offset_to_raw<narrowOop>(d, dst_offset, nullptr) ==
-           objArrayOop(d)->obj_at_addr<narrowOop>(dst_pos), "sanity");
-    do_copy(s, src_offset, d, dst_offset, length, CHECK);
+    assert(arrayOopDesc::obj_offset_to_raw<narrowOop>(src, src_offset, nullptr) ==
+           src->obj_at_addr<narrowOop>(src_pos), "sanity");
+    assert(arrayOopDesc::obj_offset_to_raw<narrowOop>(dst, dst_offset, nullptr) ==
+           dst->obj_at_addr<narrowOop>(dst_pos), "sanity");
+    do_copy(src, src_offset, dst, dst_offset, length, CHECK);
   } else {
     size_t src_offset = (size_t) objArrayOopDesc::obj_at_offset<oop>(src_pos);
     size_t dst_offset = (size_t) objArrayOopDesc::obj_at_offset<oop>(dst_pos);
-    assert(arrayOopDesc::obj_offset_to_raw<oop>(s, src_offset, nullptr) ==
-           objArrayOop(s)->obj_at_addr<oop>(src_pos), "sanity");
-    assert(arrayOopDesc::obj_offset_to_raw<oop>(d, dst_offset, nullptr) ==
-           objArrayOop(d)->obj_at_addr<oop>(dst_pos), "sanity");
-    do_copy(s, src_offset, d, dst_offset, length, CHECK);
+    assert(arrayOopDesc::obj_offset_to_raw<oop>(src, src_offset, nullptr) ==
+           src->obj_at_addr<oop>(src_pos), "sanity");
+    assert(arrayOopDesc::obj_offset_to_raw<oop>(dst, dst_offset, nullptr) ==
+           dst->obj_at_addr<oop>(dst_pos), "sanity");
+    do_copy(src, src_offset, dst, dst_offset, length, CHECK);
   }
 }
 

@@ -76,7 +76,7 @@ class TypeArrayKlass : public ArrayKlass {
   oop protection_domain() const override { return nullptr; }
 
   // Copying
-  void  copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos, int length, TRAPS) override;
+  void  copy_array(oop s, int src_pos, oop d, int dst_pos, int length, TRAPS) override;
 
   // Oop iterators. Since there are no oops in TypeArrayKlasses,
   // these functions only return the size of the object.

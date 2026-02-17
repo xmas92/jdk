@@ -232,7 +232,7 @@ void Klass::check_valid_for_instantiation(bool throwError, TRAPS) {
 }
 
 
-void Klass::copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos, int length, TRAPS) {
+void Klass::copy_array(oop s, int src_pos, oop d, int dst_pos, int length, TRAPS) {
   ResourceMark rm(THREAD);
   assert(s != nullptr, "Throw NPE!");
   THROW_MSG(vmSymbols::java_lang_ArrayStoreException(),

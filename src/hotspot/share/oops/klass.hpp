@@ -573,7 +573,7 @@ public:
   virtual void check_valid_for_instantiation(bool throwError, TRAPS);
 
   // array copying
-  virtual void  copy_array(arrayOop s, int src_pos, arrayOop d, int dst_pos, int length, TRAPS);
+  virtual void copy_array(oop s, int src_pos, oop d, int dst_pos, int length, TRAPS);
 
   // tells if the class should be initialized
   virtual bool should_be_initialized() const    { return false; }

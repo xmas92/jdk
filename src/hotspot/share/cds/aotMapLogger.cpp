@@ -41,9 +41,11 @@
 #include "oops/methodCounters.hpp"
 #include "oops/methodData.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/oopsHierarchy.hpp"
 #include "oops/trainingData.hpp"
 #include "runtime/fieldDescriptor.inline.hpp"
 #include "runtime/globals_extension.hpp"
+#include "runtime/thread.hpp"
 #include "utilities/growableArray.hpp"
 
 bool AOTMapLogger::_is_logging_at_bootstrap;
@@ -556,7 +558,7 @@ public:
   // Return an "oop" pointer so we can use APIs that accept regular oops. This
   // must be used with care, as only a limited number of APIs can work with oops that
   // live outside of the range of the heap.
-  oopDesc* raw_oop() { return _data._raw_oop; }
+  oop raw_oop() { return _data._raw_oop; }
 
   FakeOop() : _data() {}
   FakeOop(OopDataIterator* iter, OopData data) : _iter(iter), _data(data) {}
@@ -595,7 +597,7 @@ public:
 
   int array_length() {
     precond(is_array());
-    return ((arrayOopDesc*)raw_oop())->length();
+    return cast_from_oop<arrayOopDesc*>(raw_oop())->length();
   }
 
   intptr_t target_location() {
@@ -652,7 +654,7 @@ public:
 
 class AOTMapLogger::FakeObjArray : public AOTMapLogger::FakeOop {
   objArrayOopDesc* raw_objArrayOop() {
-    return (objArrayOopDesc*)raw_oop();
+    return cast_from_oop<objArrayOopDesc*>(raw_oop());
   }
 
 public:
@@ -688,13 +690,14 @@ public:
 
 class AOTMapLogger::FakeTypeArray : public AOTMapLogger::FakeOop {
   typeArrayOopDesc* raw_typeArrayOop() {
-    return (typeArrayOopDesc*)raw_oop();
+    return cast_from_oop<typeArrayOopDesc*>(raw_oop());
   }
 
 public:
   FakeTypeArray(OopDataIterator* iter, OopData data) : FakeOop(iter, data) {}
 
   void print_elements_on(outputStream* st) {
+    DisableOopCastChecks docc;
     TypeArrayKlass::cast(real_klass())->oop_print_elements_on(raw_typeArrayOop(), st);
   }
 

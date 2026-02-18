@@ -629,6 +629,21 @@ protected:
     return cur != nullptr && cur->in_asgct();
   }
 
+#ifdef CHECK_UNHANDLED_OOPS
+
+ private:
+  bool _disabled_oop_cast_checks = false;
+
+ public:
+  bool disabled_oop_cast_checks() const { return _disabled_oop_cast_checks; }
+  void set_disabled_oop_cast_checks(bool value) { _disabled_oop_cast_checks = value; }
+  static bool current_disabled_oop_cast_checks() {
+    Thread* cur = Thread::current_or_null_safe();
+    return cur == nullptr || cur->disabled_oop_cast_checks();
+  }
+
+#endif // CHECK_UNHANDLED_OOPS
+
  private:
   VMErrorCallback* _vm_error_callbacks;
 };
@@ -648,6 +663,32 @@ class ThreadInAsgct {
     assert(_thread->in_asgct(), "invariant");
     _thread->set_in_asgct(_saved_in_asgct);
   }
+};
+
+class DisableOopCastChecks {
+private:
+  Thread* _thread;
+  bool _old_value;
+
+public:
+#ifdef CHECK_UNHANDLED_OOPS
+  DisableOopCastChecks(Thread* thread = Thread::current_or_null())
+      : _thread(thread), _old_value(false) {
+    if (_thread != nullptr) {
+      _old_value = thread->disabled_oop_cast_checks();
+      thread->set_disabled_oop_cast_checks(true);
+    }
+  }
+
+  ~DisableOopCastChecks() {
+    if (_thread != nullptr) {
+      assert(_thread->disabled_oop_cast_checks(), "invariant");
+      _thread->set_disabled_oop_cast_checks(_old_value);
+    }
+  }
+#else // CHECK_UNHANDLED_OOPS
+  DisableOopCastChecks(Thread* thread = nullptr) {}
+#endif // CHECK_UNHANDLED_OOPS
 };
 
 // Inline implementation of Thread::current()

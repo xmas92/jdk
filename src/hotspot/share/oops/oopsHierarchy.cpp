@@ -61,7 +61,8 @@ void oop::unregister_oop() {
 #define DEF_OOP_CHECK_TYPE_FN_IMPL(Type, OopType, TypeCheckFn)                 \
   void OopType::check_type() const {                                           \
     DescType* const o = *this;                                                 \
-    if (o != nullptr && !o->TypeCheckFn()) {                                   \
+    if (o != nullptr && !Thread::current_disabled_oop_cast_checks() &&         \
+        !o->TypeCheckFn()) {                                                   \
       ResourceMark rm;                                                         \
       fatal("must be type: " #Type " (%s)", o->print_string());                \
     }                                                                          \

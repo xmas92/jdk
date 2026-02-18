@@ -27,10 +27,10 @@
 
 #include "runtime/handles.hpp"
 
-#include "memory/resourceArea.inline.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
 #include "runtime/javaThread.hpp"
+#include "utilities/macros.hpp"
 
 // these inline functions are in a separate file to break an include cycle
 // between Thread and Handle
@@ -53,22 +53,19 @@ inline void Handle::replace(oop obj) {
 }
 
 // Inline constructors for Specific Handles for different oop types
-#define DEF_HANDLE_CONSTR_IMP(Type, HandleType, OopType, BaseType, BaseOop,    \
-                              TypeCheckFn)                                     \
-  inline HandleType::HandleType(Thread* thread, OopType obj)                   \
-      : BaseType(thread, (BaseOop)obj) {                                       \
-    if (!is_null() && !((oop)obj)->TypeCheckFn()) {                            \
-      ResourceMark rm;                                                         \
-      fatal("must be type: " #Type " (%s)", ((oop)obj)->print_string());       \
-    }                                                                          \
+#define DEF_HANDLE_CONSTR_IMP(Type, HandleType, OopType, BaseHandleType, BaseOopType)  \
+  inline HandleType::HandleType(Thread* thread, OopType obj)                           \
+      : BaseHandleType(thread, (BaseOopType)obj) {                                     \
+    if (obj != nullptr) {                                                              \
+      CHECK_UNHANDLED_OOPS_ONLY(obj.check_type();)                                     \
+    }                                                                                  \
   }
 
-#define DEF_HANDLE_CONSTR_BASE(type, base)                                     \
-  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, base##Handle,           \
-                        base##Oop, is_##type##_noinline)
-#define DEF_HANDLE_CONSTR(type)                                                \
-  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, Handle, oop,            \
-                        is_##type##_noinline)
+#define DEF_HANDLE_CONSTR_BASE(type, base)                                             \
+  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, base##Handle, base##Oop)
+
+#define DEF_HANDLE_CONSTR(type)                                                        \
+  DEF_HANDLE_CONSTR_IMP(type, type##Handle, type##Oop, Handle, oop)
 
 DEF_HANDLE_CONSTR(instance)
 DEF_HANDLE_CONSTR_BASE(stackChunk, instance)

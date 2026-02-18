@@ -60,15 +60,15 @@ void oop::unregister_oop() {
 
 #define DEF_OOP_CHECK_TYPE_FN_IMPL(Type, OopType, TypeCheckFn)                 \
   void OopType::check_type() const {                                           \
-    const OopType& oop = *this;                                                \
-    if (oop != nullptr && !oop->TypeCheckFn()) {                               \
+    DescType* const o = *this;                                                 \
+    if (o != nullptr && !o->TypeCheckFn()) {                                   \
       ResourceMark rm;                                                         \
-      fatal("must be type: " #Type " (%s)", oop->print_string());              \
+      fatal("must be type: " #Type " (%s)", o->print_string());                \
     }                                                                          \
   }
 
 #define DEF_OOP_CHECK_TYPE_FN(type)                                            \
-  DEF_OOP_CHECK_TYPE_FN_IMPL(type, type##Oop, is_##type##_noinline)
+  DEF_OOP_CHECK_TYPE_FN_IMPL(type, type##Oop, is_##type)
 
 DEF_OOP_CHECK_TYPE_FN(instance);
 DEF_OOP_CHECK_TYPE_FN(stackChunk);

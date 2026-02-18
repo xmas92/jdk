@@ -129,9 +129,6 @@ struct PrimitiveConversions::Translate<oop> : public std::true_type {
 #define DEF_OOP_IMPL(OopType, OopDescType, BaseOopType)                        \
   class OopDescType;                                                           \
   class OopType : public BaseOopType {                                         \
-  private:                                                                     \
-    void check_type() const NOT_DEBUG_RETURN;                                  \
-                                                                               \
   public:                                                                      \
     using DescType = OopDescType;                                              \
     OopType() : BaseOopType() {}                                               \
@@ -153,6 +150,8 @@ struct PrimitiveConversions::Translate<oop> : public std::true_type {
       return *this;                                                            \
     }                                                                          \
     OopType& operator=(const oop& o) = delete;                                 \
+                                                                               \
+    void check_type() const NOT_DEBUG_RETURN;                                  \
   };                                                                           \
                                                                                \
   template <>                                                                  \

@@ -919,7 +919,14 @@ void os::javaTimeNanos_info(jvmtiTimerInfo *info_ptr) {
 }
 
 bool os::Machine::elapsed_system_cpu_time(os::SystemCpuTime& value) {
-  Unimplemented();
+  perfstat_cpu_total_t cpu_stats;
+  if (libperfstat::perfstat_cpu_total(nullptr, &cpu_stats, sizeof(cpu_stats), 1) < 1) {
+    return false;
+  }
+
+  value._elapsed_time = double(cpu_stats.user + cpu_stats.sys) / os::Posix::clock_tics_per_second();
+  value._processor_count = double(cpu_stats.ncpus);
+  return value._processor_count > 0.0;
 }
 
 intx os::current_thread_id() {

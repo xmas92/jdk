@@ -86,6 +86,7 @@ class os::Linux {
     uint64_t total;
     uint64_t steal;
     bool     has_steal_ticks;
+    int      processors;
   };
 
   static int active_processor_count();

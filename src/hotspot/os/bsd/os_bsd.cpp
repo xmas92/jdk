@@ -99,6 +99,10 @@
 # include <time.h>
 # include <unistd.h>
 
+#if defined(__NetBSD__) || defined(__OpenBSD__)
+  #include <sys/sched.h>
+#endif
+
 #if defined(__FreeBSD__) || defined(__NetBSD__)
   #include <elf.h>
 #endif
@@ -833,6 +837,77 @@ bool os::Machine::elapsed_system_cpu_time(os::SystemCpuTime& value) {
                     load_data.cpu_ticks[CPU_STATE_SYSTEM];
 
   value._elapsed_time = double(ticks) / CLK_TCK;
+  value._processor_count = double(os::processor_count());
+  return value._processor_count > 0.0;
+}
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+static bool bsd_cpu_ticks_per_second(double& result) {
+#ifdef KERN_CLOCKRATE
+  struct clockinfo clock_info;
+  size_t clock_info_size = sizeof(clock_info);
+  int mib[] = { CTL_KERN, KERN_CLOCKRATE };
+  if (sysctl(mib, 2, &clock_info, &clock_info_size, nullptr, 0) == 0) {
+    int ticks_per_second = clock_info.stathz > 0 ? clock_info.stathz : clock_info.hz;
+    if (ticks_per_second > 0) {
+      result = double(ticks_per_second);
+      return true;
+    }
+  }
+#endif
+
+  result = double(os::Posix::clock_tics_per_second());
+  return result > 0.0;
+}
+
+static bool bsd_used_cpu_ticks(uint64_t& result) {
+#if defined(__NetBSD__)
+  using cpu_tick_t = uint64_t;
+#else
+  using cpu_tick_t = long;
+#endif
+  cpu_tick_t cpu_time[CPUSTATES];
+  size_t cpu_time_size = sizeof(cpu_time);
+
+  auto read_sysctl_cpu_time = [&]() {
+#if defined(__FreeBSD__)
+    return sysctlbyname("kern.cp_time", cpu_time, &cpu_time_size, nullptr, 0) == 0;
+#elif defined(__NetBSD__)
+    int mib[] = { CTL_KERN, KERN_CP_TIME };
+    return sysctl(mib, ARRAY_SIZE(mib), cpu_time, &cpu_time_size, nullptr, 0) == 0;
+#elif defined(__OpenBSD__)
+    int mib[] = { CTL_KERN, KERN_CPTIME };
+    return sysctl(mib, ARRAY_SIZE(mib), cpu_time, &cpu_time_size, nullptr, 0) == 0;
+#else
+    return false;
+#endif
+  };
+
+  // Read sysctl for cpu_time
+  if (!read_sysctl_cpu_time() || cpu_time_size < sizeof(cpu_time)) {
+    return false;
+  }
+
+  // Sum the non-idle ticks
+  result = uint64_t(cpu_time[CP_USER]) + uint64_t(cpu_time[CP_NICE]) + uint64_t(cpu_time[CP_SYS]);
+#ifdef CP_INTR
+  result += uint64_t(cpu_time[CP_INTR]);
+#endif
+#ifdef CP_SPIN
+  result += uint64_t(cpu_time[CP_SPIN]);
+#endif
+
+  return true;
+}
+
+bool os::Machine::elapsed_system_cpu_time(os::SystemCpuTime& value) {
+  uint64_t ticks;
+  double ticks_per_second;
+  if (!bsd_used_cpu_ticks(ticks) ||
+      !bsd_cpu_ticks_per_second(ticks_per_second)) {
+    return false;
+  }
+
+  value._elapsed_time = double(ticks) / ticks_per_second;
   value._processor_count = double(os::processor_count());
   return value._processor_count > 0.0;
 }

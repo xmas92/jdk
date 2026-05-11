@@ -2201,12 +2201,24 @@ bool os::Machine::used_memory(physical_memory_size_type& value) {
   return true;
 }
 
+bool os::elapsed_system_cpu_time(os::SystemCpuTime& value) {
+  if (is_containerized() && Container::elapsed_system_cpu_time(value)) {
+    return true;
+  }
+
+  return Machine::elapsed_system_cpu_time(value);
+}
+
 #ifndef LINUX
 bool os::is_containerized() {
   return false;
 }
 
 bool os::Container::processor_count(double& value) {
+  return false;
+}
+
+bool os::Container::elapsed_system_cpu_time(os::SystemCpuTime& value) {
   return false;
 }
 

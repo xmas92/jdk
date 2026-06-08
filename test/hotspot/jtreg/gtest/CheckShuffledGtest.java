@@ -79,8 +79,8 @@ public class CheckShuffledGtest {
         var filter = getFilteredTests().collect(filterCollector);
 
         // Generate a random gtest seed
-        var gtestSeedLimit = 100_000;
-        var seed = RANDOM.nextInt(gtestSeedLimit);
+        var gtestSeedLimit = 99_999;
+        var seed = RANDOM.nextInt(gtestSeedLimit) + 1;
 
         // Delegate running the gtest to the GTestWrapper using this filter
         // and a random seed with gtest shuffling.

@@ -35,8 +35,6 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import jdk.test.lib.Platform;
-
 public class AllNotVMGtest {
     static record TestFilter(String name, boolean enabled) {}
 

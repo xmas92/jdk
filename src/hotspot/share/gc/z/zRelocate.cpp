@@ -474,6 +474,24 @@ public:
     return page;
   }
 
+  ZPage* alloc_and_set_target_page(ZForwarding* forwarding, ZRelocationTargets* targets) {
+    const ZPageAge to_age = forwarding->to_age();
+    const uint32_t partition_id = forwarding->partition_id();
+    ZPage* const target = targets->get(partition_id, to_age);
+
+    // Allocate the new target
+    ZPage* const page = alloc_and_retire_target_page(forwarding, target);
+
+    // Set the new target page
+    targets->set(partition_id, to_age, page);
+
+    return page;
+  }
+
+  void set_target(ZRelocationTargets* targets, uint32_t partition_id, ZPageAge age, ZPage* page) {
+    targets->set(partition_id, age, page);
+  }
+
   void share_target_page(ZPage* page, uint32_t partition_id) {
     // Does nothing
   }
@@ -514,14 +532,43 @@ public:
       _in_place_count(0) {}
 
   ~ZRelocateMediumAllocator() {
+    ZLocker<ZConditionLock> locker(&_lock);
+
+    // Clear and release all shared targets
     _shared_targets->apply_and_clear_targets([&](ZPage* page) {
-      if (page != nullptr) {
-        retire_target_page(_generation, page);
-      }
+      release_target_page(page);
     });
   }
 
-  ZPage* alloc_and_retire_target_page(ZForwarding* forwarding, ZPage* target) {
+private:
+  // Target references are owned by target slots, not by transient local
+  // variables. These helpers must be called with _lock held.
+  void retain_target_page(ZPage* page) const {
+    if (page != nullptr) {
+      page->inc_relocation_target_ref_count();
+    }
+  }
+
+  void release_target_page(ZPage* page) const {
+    if (page != nullptr && page->dec_relocation_target_ref_count()) {
+      retire_target_page(_generation, page);
+    }
+  }
+
+  void set_target_locked(ZRelocationTargets* targets, uint32_t partition_id, ZPageAge age, ZPage* page) const {
+    ZPage* const old_page = targets->get(partition_id, age);
+    if (old_page == page) {
+      assert(page == nullptr, "Only null target updates should be redundant");
+      return;
+    }
+
+    retain_target_page(page);
+    targets->set(partition_id, age, page);
+    release_target_page(old_page);
+  }
+
+public:
+  ZPage* alloc_and_set_target_page(ZForwarding* forwarding, ZRelocationTargets* targets) {
     ZLocker<ZConditionLock> locker(&_lock);
 
     // Wait for any ongoing in-place relocation to complete
@@ -535,21 +582,24 @@ public:
     // a new page.
     const ZPageAge to_age = forwarding->to_age();
     const uint32_t partition_id = forwarding->partition_id();
+    ZPage* const target = targets->get(partition_id, to_age);
     if (_shared_targets->get(partition_id, to_age) == target) {
       ZPage* const to_page = alloc_page(forwarding);
-      _shared_targets->set(partition_id, to_age, to_page);
+      set_target_locked(_shared_targets, partition_id, to_age, to_page);
       if (to_page == nullptr) {
         _in_place_count.add_then_fetch(1u);
         _in_place = true;
       }
-
-      // This thread is responsible for retiring the shared target page
-      if (target != nullptr) {
-        retire_target_page(_generation, target);
-      }
     }
 
-    return _shared_targets->get(partition_id, to_age);
+    ZPage* const new_target = _shared_targets->get(partition_id, to_age);
+    set_target_locked(targets, partition_id, to_age, new_target);
+    return new_target;
+  }
+
+  void set_target(ZRelocationTargets* targets, uint32_t partition_id, ZPageAge age, ZPage* page) {
+    ZLocker<ZConditionLock> locker(&_lock);
+    set_target_locked(targets, partition_id, age, page);
   }
 
   void share_target_page(ZPage* page, uint32_t partition_id) {
@@ -560,14 +610,17 @@ public:
     assert(_shared_targets->get(partition_id, age) == nullptr, "Invalid state");
     assert(page != nullptr, "Invalid page");
 
-    _shared_targets->set(partition_id, age, page);
+    set_target_locked(_shared_targets, partition_id, age, page);
     _in_place = false;
 
     _lock.notify_all();
   }
 
   void free_target_page(ZPage* page) {
-    // Does nothing
+    if (page != nullptr) {
+      ZLocker<ZConditionLock> locker(&_lock);
+      release_target_page(page);
+    }
   }
 
   zaddress alloc_object(ZPage* page, size_t size) const {
@@ -910,9 +963,7 @@ private:
       // Failed to relocate object, try to allocate a new target page,
       // or if that fails, use the page being relocated as the new target,
       // which will cause it to be relocated in-place.
-      ZPage* const target_page = _targets->get(partition_id, to_age);
-      ZPage* to_page = _allocator->alloc_and_retire_target_page(_forwarding, target_page);
-      _targets->set(partition_id, to_age, to_page);
+      ZPage* to_page = _allocator->alloc_and_set_target_page(_forwarding, _targets);
 
       // We got a new page, retry relocation
       if (to_page != nullptr) {
@@ -923,7 +974,7 @@ private:
       // the page, or its forwarding table, until it has been released
       // (relocation completed).
       to_page = start_in_place_relocation(ZAddress::offset(addr));
-      _targets->set(partition_id, to_age, to_page);
+      _allocator->set_target(_targets, partition_id, to_age, to_page);
     }
   }
 

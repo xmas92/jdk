@@ -26,6 +26,7 @@
 
 #include "gc/z/zPage.hpp"
 
+#include "cppstdlib/limits.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zGlobals.hpp"
@@ -171,6 +172,21 @@ inline ZMultiPartitionTracker* ZPage::multi_partition_tracker() const {
 
 inline ZPageAge ZPage::age() const {
   return _age;
+}
+
+inline void ZPage::inc_relocation_target_ref_count() {
+  assert(_relocation_target_ref_count < std::numeric_limits<uint32_t>::max(), "Relocation target ref count overflow");
+
+  _relocation_target_ref_count++;
+}
+
+inline bool ZPage::dec_relocation_target_ref_count() {
+  assert(_relocation_target_ref_count > 0, "Invalid ref count");
+
+  _relocation_target_ref_count--;
+  const bool is_last = _relocation_target_ref_count == 0;
+
+  return is_last;
 }
 
 inline uint32_t ZPage::seqnum() const {

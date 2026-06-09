@@ -562,8 +562,13 @@ private:
       return;
     }
 
+    // Retain the new page
     retain_target_page(page);
+
+    // Replace the old page with the new page in the target
     targets->set(partition_id, age, page);
+
+    // Release the old page
     release_target_page(old_page);
   }
 
@@ -586,7 +591,9 @@ public:
     if (_shared_targets->get(partition_id, to_age) == target) {
       ZPage* const to_page = alloc_page(forwarding);
       set_target_locked(_shared_targets, partition_id, to_age, to_page);
+
       if (to_page == nullptr) {
+        // No memory available, fallback to in-place relocation
         _in_place_count.add_then_fetch(1u);
         _in_place = true;
       }

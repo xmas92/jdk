@@ -53,6 +53,7 @@ private:
   ZRememberedSet                _remembered_set;
   ZMultiPartitionTracker* const _multi_partition_tracker;
   volatile bool                 _relocate_promoted;
+  uint32_t                      _relocation_target_ref_count;
 
   const char* type_to_string() const;
 
@@ -106,6 +107,11 @@ public:
 
   bool allows_raw_null() const;
   void set_is_relocate_promoted();
+
+  // References owned by relocation target slots. These are used to keep medium
+  // relocation target pages alive while shared and worker-local slots overlap.
+  void inc_relocation_target_ref_count();
+  bool dec_relocation_target_ref_count();
 
   uint32_t seqnum() const;
   bool is_allocating() const;

@@ -23,6 +23,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include "gc/z/zBarrier.inline.hpp"
+#include "gc/z/zBarrierSet.hpp"
 #include "gc/z/zGeneration.inline.hpp"
 #include "gc/z/zStackWatermark.hpp"
 #include "gc/z/zStoreBarrierBuffer.hpp"
@@ -189,7 +190,9 @@ void ZStackWatermark::start_processing_impl(void* context) {
   ZThreadLocalData::set_mark_bad_mask(_jt, ZPointerMarkBadMask);
   ZThreadLocalData::set_store_bad_mask(_jt, ZPointerStoreBadMask);
   ZThreadLocalData::set_store_good_mask(_jt, ZPointerStoreGoodMask);
-  _jt->set_nmethod_disarmed_guard_value(*ZPointerStoreGoodMaskLowOrderBitsAddr);
+
+  // Update thread-local nmethod disarmed guard value
+  BarrierSet::barrier_set()->barrier_set_nmethod()->set_thread_disarmed_guard_value(_jt);
 
   // Retire TLAB
   if (ZGeneration::young()->is_phase_mark() || ZGeneration::old()->is_phase_mark()) {

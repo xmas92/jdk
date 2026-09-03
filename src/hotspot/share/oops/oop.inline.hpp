@@ -229,6 +229,10 @@ bool oopDesc::is_array_with_oops() const {
   return is_refArray() || FlatArrayKlass::cast(klass())->contains_oops();
 }
 
+bool oopDesc::has_identity() const {
+  return !is_inline_type();
+}
+
 bool oopDesc::is_inline_type() const { return mark().is_inline_type(); }
 
 template<typename T>

@@ -128,6 +128,7 @@ class oopDesc {
   inline bool is_refined_objArray() const;
   inline bool is_array_with_oops()  const;
 
+  inline bool has_identity()        const;
   inline bool is_inline_type()      const;
 
   // type test operations that don't require inclusion of oop.inline.hpp.

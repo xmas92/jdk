@@ -66,12 +66,15 @@
 #include "oops/compressedOops.hpp"
 #include "oops/compressedOops.inline.hpp"
 #include "oops/constantPool.inline.hpp"
+#include "oops/flatArrayKlass.inline.hpp"
+#include "oops/flatArrayOop.inline.hpp"
 #include "oops/klass.inline.hpp"
 #include "oops/method.inline.hpp"
 #include "oops/methodData.inline.hpp"
 #include "oops/objArrayKlass.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/oopUtility.inline.hpp"
 #include "oops/typeArrayOop.inline.hpp"
 #include "prims/jvmtiEnvBase.hpp"
 #include "prims/resolvedMethodTable.hpp"
@@ -163,6 +166,47 @@ class VM_WhiteBoxOperation : public VM_Operation {
 
 WB_ENTRY(jlong, WB_GetObjectAddress(JNIEnv* env, jobject o, jobject obj))
   return (jlong)(void*)JNIHandles::resolve(obj);
+WB_END
+
+WB_ENTRY(jboolean, WB_JavaEqualsOperator(JNIEnv* env, jobject wb, jobject a, jobject b))
+  return OopUtility::java_equals_operator(JNIHandles::resolve(a), JNIHandles::resolve(b));
+WB_END
+
+WB_ENTRY(jboolean, WB_AreFlatFieldsSubstitutable(JNIEnv* env, jobject wb,
+                                                 jobject a, jobject b, jobject reflected_field))
+  oop a_obj = JNIHandles::resolve_non_null(a);
+  oop b_obj = JNIHandles::resolve_non_null(b);
+  oop field = JNIHandles::resolve_non_null(reflected_field);
+
+  InstanceKlass* holder = java_lang_Class::as_InstanceKlass(java_lang_reflect_Field::clazz(field));
+  fieldDescriptor fd(holder, java_lang_reflect_Field::slot(field));
+  if (!fd.is_flat() || !a_obj->klass()->is_subclass_of(holder) || !b_obj->klass()->is_subclass_of(holder)) {
+    THROW_MSG_0(vmSymbols::java_lang_IllegalArgumentException(), "field must be flat and belong to both objects");
+  }
+
+  const FlatFieldPayload a_payload(instanceOop(a_obj), &fd);
+  const FlatFieldPayload b_payload(instanceOop(b_obj), &fd);
+  return OopUtility::is_substitutable(a_payload, b_payload);
+WB_END
+
+WB_ENTRY(jboolean, WB_AreFlatArrayElementsSubstitutable(JNIEnv* env, jobject wb,
+                                                        jobject a, jint a_index,
+                                                        jobject b, jint b_index))
+  oop a_obj = JNIHandles::resolve_non_null(a);
+  oop b_obj = JNIHandles::resolve_non_null(b);
+  if (!a_obj->is_flatArray() || !b_obj->is_flatArray()) {
+    THROW_MSG_0(vmSymbols::java_lang_IllegalArgumentException(), "arrays must be flat");
+  }
+
+  flatArrayOop a_array = flatArrayOop(a_obj);
+  flatArrayOop b_array = flatArrayOop(b_obj);
+  if (a_index < 0 || a_index >= a_array->length() || b_index < 0 || b_index >= b_array->length()) {
+    THROW_MSG_0(vmSymbols::java_lang_IllegalArgumentException(), "array index out of bounds");
+  }
+
+  const FlatArrayPayload a_payload(a_array, a_index);
+  const FlatArrayPayload b_payload(b_array, b_index);
+  return OopUtility::is_substitutable(a_payload, b_payload);
 WB_END
 
 WB_ENTRY(jint, WB_GetHeapOopSize(JNIEnv* env, jobject o))
@@ -2915,6 +2959,12 @@ WB_END
 
 static JNINativeMethod methods[] = {
   {CC"getObjectAddress0",                CC"(Ljava/lang/Object;)J", (void*)&WB_GetObjectAddress  },
+  {CC"javaEqualsOperator",               CC"(Ljava/lang/Object;Ljava/lang/Object;)Z",
+                                                    (void*)&WB_JavaEqualsOperator},
+  {CC"areFlatFieldsSubstitutable",        CC"(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/reflect/Field;)Z",
+                                                    (void*)&WB_AreFlatFieldsSubstitutable},
+  {CC"areFlatArrayElementsSubstitutable", CC"(Ljava/lang/Object;ILjava/lang/Object;I)Z",
+                                                    (void*)&WB_AreFlatArrayElementsSubstitutable},
   {CC"getObjectSize0",                   CC"(Ljava/lang/Object;)J", (void*)&WB_GetObjectSize     },
   {CC"isObjectInOldGen0",                CC"(Ljava/lang/Object;)Z", (void*)&WB_isObjectInOldGen  },
   {CC"getHeapOopSize",                   CC"()I",                   (void*)&WB_GetHeapOopSize    },

@@ -26,6 +26,7 @@ package jdk.test.whitebox;
 import java.lang.management.MemoryUsage;
 import java.lang.ref.Reference;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -99,6 +100,10 @@ public class WhiteBox {
   }
 
   // Runtime
+
+  public native boolean javaEqualsOperator(Object a, Object b);
+  public native boolean areFlatFieldsSubstitutable(Object a, Object b, Field field);
+  public native boolean areFlatArrayElementsSubstitutable(Object a, int aIndex, Object b, int bIndex);
 
   // Returns the potentially abridged form of `str` as it would be
   // printed by the VM.

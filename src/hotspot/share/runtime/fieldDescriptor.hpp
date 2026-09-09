@@ -29,6 +29,7 @@
 #include "oops/fieldInfo.hpp"
 #include "oops/instanceKlass.hpp"
 #include "oops/symbol.hpp"
+#include "oops/valuePayload.hpp"
 #include "utilities/accessFlags.hpp"
 #include "utilities/constantTag.hpp"
 
@@ -95,6 +96,9 @@ class fieldDescriptor {
   inline bool is_flat()           const;
   inline bool is_null_free_value_type() const;
   inline bool has_null_marker()   const;
+
+  inline FlatFieldPayload payload(instanceOop container) const;
+  inline ValuePayload payload(const ValuePayload& container) const;
 
   bool is_synthetic()             const    { return access_flags().is_synthetic(); }
 

@@ -28,6 +28,7 @@
 #include "runtime/fieldDescriptor.hpp"
 
 #include "oops/fieldInfo.inline.hpp"
+#include "oops/valuePayload.inline.hpp"
 #include "runtime/handles.inline.hpp"
 #include "runtime/signature.hpp"
 
@@ -74,5 +75,22 @@ inline BasicType fieldDescriptor::field_type() const {
 inline bool fieldDescriptor::is_flat()  const  { return field().field_flags().is_flat(); }
 inline bool fieldDescriptor::is_null_free_value_type() const { return field().field_flags().is_null_free_value_type(); }
 inline bool fieldDescriptor::has_null_marker() const { return field().field_flags().has_null_marker(); }
+
+inline FlatFieldPayload fieldDescriptor::payload(instanceOop container) const {
+  precond(is_flat());
+  precond(container->klass()->is_subclass_of(field_holder()));
+
+  return FlatFieldPayload(container, this);
+}
+
+inline ValuePayload fieldDescriptor::payload(const ValuePayload& container) const {
+  precond(is_flat());
+  precond(container.klass()->is_subclass_of(field_holder()));
+
+  const ValueFieldLayoutInfo layout_info = field_holder()->value_field_layout_info(index());
+  const ptrdiff_t field_offset = offset() - container.klass()->payload_offset();
+
+  return ValuePayload::construct_from_parts(container.addr() + field_offset, layout_info.klass(), layout_info.kind());
+}
 
 #endif // SHARE_RUNTIME_FIELDDESCRIPTOR_INLINE_HPP

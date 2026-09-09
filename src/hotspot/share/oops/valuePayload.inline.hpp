@@ -612,7 +612,7 @@ inline void FlatFieldPayload::assert_post_construction_invariants(instanceOop co
 }
 
 inline void FlatFieldPayload::assert_post_construction_invariants(instanceOop container,
-                                                                  fieldDescriptor* field_descriptor) const {
+                                                                  const fieldDescriptor* field_descriptor) const {
   OnVMError on_assertion_failure([&](outputStream* st) {
     st->print_cr("=== assert_post_construction_invariants failure ===");
     StreamIndentor si(st);
@@ -627,7 +627,7 @@ inline void FlatFieldPayload::assert_post_construction_invariants(instanceOop co
 #endif // ASSERT
 
 inline FlatFieldPayload::FlatFieldPayload(instanceOop container,
-                                          fieldDescriptor* field_descriptor)
+                                          const fieldDescriptor* field_descriptor)
     : FlatFieldPayload(container,
                        field_descriptor->offset(),
                        field_descriptor->field_holder()->value_field_layout_info_adr(field_descriptor->index())) {

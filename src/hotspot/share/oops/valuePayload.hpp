@@ -226,13 +226,13 @@ private:
   inline void assert_post_construction_invariants(instanceOop container,
                                                   ResolvedFieldEntry* resolved_field_entry) const NOT_DEBUG_RETURN;
   inline void assert_post_construction_invariants(instanceOop container,
-                                                  fieldDescriptor* field_descriptor) const NOT_DEBUG_RETURN;
+                                                  const fieldDescriptor* field_descriptor) const NOT_DEBUG_RETURN;
 
 public:
   FlatFieldPayload() = default;
 
   inline FlatFieldPayload(instanceOop container,
-                          fieldDescriptor* field_descriptor);
+                          const fieldDescriptor* field_descriptor);
 
   inline FlatFieldPayload(instanceOop container,
                           ResolvedFieldEntry* resolved_field_entry);

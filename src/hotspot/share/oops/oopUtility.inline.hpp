@@ -58,21 +58,14 @@ inline bool OopUtility::field_equals_operator(const fieldDescriptor& field,
                                               const ValuePayload& b) {
   precond(a.klass() == b.klass());
 
+  if (field.is_flat()) {
+    // Recursively check flattened field
+    return is_substitutable_internal(field.payload(a), field.payload(b));
+  }
+
   const int field_offset_in_payload = field.offset() - a.klass()->payload_offset();
   const address a_field_addr = a.addr() + field_offset_in_payload;
   const address b_field_addr = b.addr() + field_offset_in_payload;
-
-  if (field.is_flat()) {
-    const InlineLayoutInfo layout_info = field.field_holder()->inline_layout_info(field.index());
-    InlineKlass* const field_klass = layout_info.klass();
-    const LayoutKind layout_kind = layout_info.kind();
-
-    const ValuePayload a_field_payload = ValuePayload::construct_from_parts(a_field_addr, field_klass, layout_kind);
-    const ValuePayload b_field_payload = ValuePayload::construct_from_parts(b_field_addr, field_klass, layout_kind);
-
-    // Recursively check flattened field
-    return is_substitutable_internal(a_field_payload, b_field_payload);
-  }
 
   // Switch on the field signatures first character
   switch (field.signature()->char_at(0)) {

@@ -79,7 +79,7 @@ static bool is_null_flat_field(oop obj, int offset, ValueKlass* klass) {
 // For flattened objects offset is the offset in the holder object, 'klass' is value object class.
 // The object must be prechecked for non-null values.
 static bool equal_value_objects(oop obj1, int offset1, oop obj2, int offset2, ValueKlass* klass) {
-  for (JavaFieldStream fld(klass); !fld.done(); fld.next()) {
+  for (HierarchicalFieldStream<JavaFieldStream> fld(klass); !fld.done(); fld.next()) {
     // ignore static fields
     if (fld.access_flags().is_static()) {
       continue;
@@ -87,7 +87,7 @@ static bool equal_value_objects(oop obj1, int offset1, oop obj2, int offset2, Va
     int field_offset1 = offset1 + fld.offset() - (offset1 > 0 ? klass->payload_offset() : 0);
     int field_offset2 = offset2 + fld.offset() - (offset2 > 0 ? klass->payload_offset() : 0);
     if (fld.is_flat()) { // flat value field
-      InstanceKlass* holder_klass = fld.field_holder();
+      InstanceKlass* holder_klass = fld.field_descriptor().field_holder();
       ValueKlass* field_klass = holder_klass->get_value_type_field_klass(fld.index());
       if (!fld.is_null_free_value_type()) {
         bool field1_is_null = is_null_flat_field(obj1, field_offset1, field_klass);

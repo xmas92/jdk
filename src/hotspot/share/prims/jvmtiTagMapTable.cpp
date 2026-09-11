@@ -53,7 +53,7 @@ static bool equal_fields(char type, oop obj1, int offset1, oop obj2, int offset2
   case JVM_SIGNATURE_CHAR:
     return obj1->char_field(offset1) == obj2->char_field(offset2);
   case JVM_SIGNATURE_FLOAT:
-    return obj1->float_field(offset1) == obj2->float_field(offset2);
+    return *obj1->field_addr<juint>(offset1) == *obj2->field_addr<juint>(offset2);
   case JVM_SIGNATURE_DOUBLE:
     return obj1->double_field(offset1) == obj2->double_field(offset2);
   case JVM_SIGNATURE_BYTE:

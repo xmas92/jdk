@@ -921,7 +921,7 @@ oop InstanceKlass::init_lock() const {
 // threads to get this lock will see a null lock and will not lock.
 // That's okay because they all check for initialized state after getting
 // the lock and return. For preempted vthreads we keep the oop protected
-// in the ObjectMonitor (see ObjectMonitor::set_object_strong()).
+// in their ObjectWaiters (see ObjectWaiter::protect_object_for_preemption).
 void InstanceKlass::fence_and_clear_init_lock() {
   // make sure previous stores are all done, notably the init_state.
   OrderAccess::storestore();

@@ -304,26 +304,11 @@ ObjectMonitor::ObjectMonitor(oop object) :
 
 ObjectMonitor::~ObjectMonitor() {
   _object.release(_oop_storage);
-  _object_strong.release(JavaThread::thread_oop_storage());
 }
 
 oop ObjectMonitor::object() const {
   check_object_context();
   return _object.resolve();
-}
-
-// Keep object protected during ObjectLocker preemption.
-void ObjectMonitor::set_object_strong() {
-  check_object_context();
-  if (_object_strong.is_empty()) {
-    if (AtomicAccess::cmpxchg(&_object_strong_lock, 0, 1) == 0) {
-      if (_object_strong.is_empty()) {
-        assert(_object.resolve() != nullptr, "");
-        _object_strong = OopHandle(JavaThread::thread_oop_storage(), _object.resolve());
-      }
-      AtomicAccess::release_store(&_object_strong_lock, 0);
-    }
-  }
 }
 
 void ObjectMonitor::ExitOnSuspend::operator()(JavaThread* current) {
@@ -2475,6 +2460,7 @@ ObjectWaiter::~ObjectWaiter() {
   if (is_vthread()) {
     assert(vthread() != nullptr, "");
     _vthread.release(JavaThread::thread_oop_storage());
+    _preemption_root.release(JavaThread::thread_oop_storage());
   }
 }
 

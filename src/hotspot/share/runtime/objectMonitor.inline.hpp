@@ -40,6 +40,25 @@
 #include "utilities/debug.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+inline void ObjectWaiter::protect_object_for_preemption(oop object) {
+  precond(is_vthread());
+  precond(_preemption_root.is_empty());
+  precond(object != nullptr);
+  _preemption_root = OopHandle(JavaThread::thread_oop_storage(), object);
+}
+
+inline void ObjectWaiter::take_preemption_root(OopHandle& root) {
+  precond(root.is_empty());
+  precond(!_preemption_root.is_empty());
+  _preemption_root.swap(root);
+}
+
+inline void ObjectWaiter::restore_preemption_root(OopHandle& root) {
+  precond(!root.is_empty());
+  precond(_preemption_root.is_empty());
+  _preemption_root.swap(root);
+}
+
 inline int64_t ObjectMonitor::owner_id_from(JavaThread* thread) {
   return thread->monitor_owner_id();
 }

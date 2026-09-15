@@ -46,6 +46,7 @@ class ObjectWaiter : public CHeapObj<mtThread> {
   ObjectWaiter* volatile _prev;
   JavaThread*     _thread;
   OopHandle      _vthread;
+  OopHandle      _preemption_root;
   ObjectMonitor* _monitor;
   uint64_t  _notifier_tid;
   int         _recursions;
@@ -68,6 +69,9 @@ class ObjectWaiter : public CHeapObj<mtThread> {
   bool at_reenter()         const { return _at_reenter; }
   bool at_monitorenter()    const { return !_is_wait || TState != TS_WAIT; }
   oop vthread() const;
+  void protect_object_for_preemption(oop object);
+  void take_preemption_root(OopHandle& root);
+  void restore_preemption_root(OopHandle& root);
   void wait_reenter_begin(ObjectMonitor *mon);
   void wait_reenter_end(ObjectMonitor *mon);
   const char* getTStateName(TStates state);
@@ -175,12 +179,10 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
                                     // ObjectMonitor::deflate_monitor().
   int64_t _unmounted_vthreads;      // Number of nodes in the _entry_list associated with unmounted vthreads.
                                     // It might be temporarily more than the actual number but never less.
-  OopHandle _object_strong;         // Used to protect object during preemption on class initialization
 
   ObjectWaiter* volatile _wait_set; // LL of threads waiting on the monitor - wait()
   volatile int  _waiters;           // number of waiting threads
   volatile int _wait_set_lock;      // protects wait set queue - simple spinlock
-  volatile int _object_strong_lock; // protects setting of _object_strong
 
  public:
 
@@ -296,7 +298,6 @@ class ObjectMonitor : public CHeapObj<mtObjectMonitor> {
   oop       object_peek() const;
   bool      object_is_dead() const;
   bool      object_refers_to(oop obj) const;
-  void      set_object_strong();
 
   // Returns true if the specified thread owns the ObjectMonitor. Otherwise
   // returns false and throws IllegalMonitorStateException (IMSE).

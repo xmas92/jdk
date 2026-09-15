@@ -2072,7 +2072,8 @@ protected:
   DEBUG_ONLY(address _caller_raw_pc;)
 
   // Only used for preemption on ObjectLocker
-  ObjectMonitor* _init_lock;
+  ObjectMonitor* _init_monitor;
+  OopHandle _init_lock_root;
 
   StackChunkFrameStream<ChunkFrames::Mixed> _stream;
 
@@ -2448,9 +2449,19 @@ NOINLINE intptr_t* Thaw<ConfigT>::thaw_slow(stackChunkOop chunk, Continuation::t
       mon = waiter->monitor();
       preempt_kind = waiter->is_wait() ? Continuation::object_wait : Continuation::monitorenter;
 
+      if (chunk->at_klass_init()) {
+        // Successful resumption deletes the waiter. Take its root now and
+        // keep the lock object alive until we exit the monitor.
+        waiter->take_preemption_root(_init_lock_root);
+      }
+
       bool mon_acquired = mon->resume_operation(_thread, waiter, _cont);
       assert(!mon_acquired || mon->has_owner(_thread), "invariant");
       if (!mon_acquired) {
+        if (!_init_lock_root.is_empty()) {
+          assert(chunk->at_klass_init(), "Only klass init protects the object");
+          waiter->restore_preemption_root(_init_lock_root);
+        }
         // Failed to acquire monitor. Return to enterSpecial to unmount again.
         log_develop_trace(continuations, preempt)("Failed to acquire monitor, unmounting again");
         return push_cleanup_continuation();
@@ -2461,7 +2472,7 @@ NOINLINE intptr_t* Thaw<ConfigT>::thaw_slow(stackChunkOop chunk, Continuation::t
       // Preemption cancelled on moniterenter or ObjectLocker case. We
       // actually acquired the monitor after freezing all frames so no
       // need to call resume_operation. If this is the ObjectLocker case
-      // we released the monitor already at ~ObjectLocker, so _init_lock
+      // we released the monitor already at ~ObjectLocker, so _init_monitor
       // will be set to nullptr below since there is no monitor to release.
       preempt_kind = Continuation::monitorenter;
     }
@@ -2478,7 +2489,7 @@ NOINLINE intptr_t* Thaw<ConfigT>::thaw_slow(stackChunkOop chunk, Continuation::t
         chunk->set_has_args_at_top(false);
       }
       assert(waiter == nullptr || mon != nullptr, "should have a monitor");
-      _init_lock = mon;  // remember monitor since we will need it on handle_preempted_continuation()
+      _init_monitor = mon;  // remember monitor since we will need it on handle_preempted_continuation()
     }
     chunk->set_preempted(false);
     retry_fast_path = true;
@@ -2749,7 +2760,11 @@ intptr_t* ThawBase::handle_preempted_continuation(intptr_t* sp, Continuation::pr
     // to exit the monitor we just acquired (except on preemption cancelled
     // case where it was already released).
     assert(preempt_kind == Continuation::object_locker, "");
-    if (_init_lock != nullptr) _init_lock->exit(_thread);
+    if (_init_monitor != nullptr) {
+      _init_monitor->exit(_thread);
+      _init_lock_root.release(JavaThread::thread_oop_storage());
+    }
+    assert(_init_lock_root.is_empty(), "Must have been released or restored");
     sp = redo_vmcall(_thread, top);
   }
   return sp;

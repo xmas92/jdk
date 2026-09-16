@@ -24,7 +24,6 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/shared/suspendibleThreadSet.hpp"
 #include "gc/z/zAbort.inline.hpp"
-#include "gc/z/zAddress.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBarrier.inline.hpp"
 #include "gc/z/zCollectedHeap.hpp"
@@ -571,13 +570,14 @@ public:
   }
 
   void set_target_for_in_place_relocation(ZForwarding* forwarding, ZPage* page) {
+    precond(target(forwarding) == nullptr);
+
     set_target(forwarding, page);
   }
 
   void reuse_in_place_target_page(ZForwarding* forwarding) {
     // The page is already installed in the target.
-    const ZPage* page = target(forwarding);
-    assert(page != nullptr, "Invalid state");
+    precond(target(forwarding) != nullptr);
 
     // Small pages are not shared.
   }
@@ -682,16 +682,8 @@ public:
     return new_target;
   }
 
-  void set_target_for_in_place_relocation(ZPage* new_target, ZPage* previous_target) {
+  void retain_in_place_target_page(ZPage* new_target) {
     ZLocker<ZConditionLock> locker(&_lock);
-
-    // Do not register the new page with the shared targets, it will be shared later.
-    //
-    // TODO: I'm not sure this delay is necessary given that all page allocations will
-    // be blocked on the in-place relocation
-
-    // Release the previous page for local usage
-    release_target_page(previous_target);
 
     // Retain the new page for local usage
     retain_target_page(new_target);
@@ -756,9 +748,9 @@ public:
   }
 
   void set_target_for_in_place_relocation(ZForwarding* forwarding, ZPage* new_target) {
-    ZPage* const previous_target = target(forwarding);
+    precond(target(forwarding) == nullptr);
 
-    _shared_allocator->set_target_for_in_place_relocation(new_target, previous_target);
+    _shared_allocator->retain_in_place_target_page(new_target);
 
     set_target(forwarding, new_target);
   }
@@ -830,6 +822,7 @@ private:
     // Allocate object
     const zaddress allocated_addr = _allocator->alloc_object(_forwarding, size);
     if (is_null(allocated_addr)) {
+      assert(!_forwarding->in_place_relocation(), "In-place object allocations should never fail");
       // Allocation failed
       return zaddress::null;
     }

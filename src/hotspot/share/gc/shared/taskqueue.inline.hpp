@@ -48,7 +48,7 @@ inline GenericTaskQueueSet<T, MT>::GenericTaskQueueSet(uint n) : _n(n) {
 
 template <class T, MemTag MT>
 inline GenericTaskQueueSet<T, MT>::~GenericTaskQueueSet() {
-  FREE_C_HEAP_ARRAY(T*, _queues);
+  FREE_C_HEAP_ARRAY(_queues);
 }
 
 #if TASKQUEUE_STATS
@@ -292,7 +292,7 @@ inline int randomParkAndMiller(int *seed0) {
   const int m = 2147483647;
   const int q =     127773;  /* m div a */
   const int r =       2836;  /* m mod a */
-  STATIC_ASSERT(sizeof(int) == 4);
+  static_assert(sizeof(int) == 4);
   int seed = *seed0;
   int hi   = seed / q;
   int lo   = seed % q;

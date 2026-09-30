@@ -89,7 +89,7 @@ void G1Arguments::initialize_verification_types() {
   if (strlen(VerifyGCType) > 0) {
     const char delimiter[] = " ,\n";
     size_t length = strlen(VerifyGCType);
-    char* type_list = NEW_C_HEAP_ARRAY(char, length + 1, mtInternal);
+    char* type_list = NEW_C_HEAP_ARRAY(char, length + 1, mtGC);
     strncpy(type_list, VerifyGCType, length + 1);
     char* save_ptr;
 
@@ -98,7 +98,7 @@ void G1Arguments::initialize_verification_types() {
       parse_verification_type(token);
       token = strtok_r(nullptr, delimiter, &save_ptr);
     }
-    FREE_C_HEAP_ARRAY(char, type_list);
+    FREE_C_HEAP_ARRAY(type_list);
   }
 }
 

@@ -100,7 +100,7 @@ void PartialArrayStateAllocator::release(PartialArrayState* state) {
   } else {
     OrderAccess::acquire();
     // Don't need to call destructor; can't if not destructible.
-    static_assert(!std::is_destructible<PartialArrayState>::value, "expected");
+    static_assert(!std::is_destructible<PartialArrayState>::value);
     _free_list = ::new (state) FreeListEntry(_free_list);
   }
 }
@@ -114,7 +114,7 @@ PartialArrayStateManager::PartialArrayStateManager(uint max_allocators)
 
 PartialArrayStateManager::~PartialArrayStateManager() {
   reset();
-  FREE_C_HEAP_ARRAY(Arena, _arenas);
+  FREE_C_HEAP_ARRAY(_arenas);
 }
 
 Arena* PartialArrayStateManager::register_allocator() {

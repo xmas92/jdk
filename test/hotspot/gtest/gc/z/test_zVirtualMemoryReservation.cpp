@@ -32,30 +32,7 @@
 #include "runtime/os.hpp"
 #include "zunittest.hpp"
 
-using namespace testing;
-
-#define ASSERT_REMOVAL_OK(range, sz) ASSERT_FALSE(range.is_null()); ASSERT_EQ(range.size(), (sz))
-
-class ZCallbacksResetter {
-private:
-  ZVirtualMemoryRegistry::Callbacks* _callbacks;
-  ZVirtualMemoryRegistry::Callbacks  _saved;
-
-public:
-  ZCallbacksResetter(ZVirtualMemoryRegistry::Callbacks* callbacks)
-    : _callbacks(callbacks),
-      _saved(*callbacks) {
-    *_callbacks = {};
-  }
-  ~ZCallbacksResetter() {
-    *_callbacks = _saved;
-  }
-};
-
 class ZVirtualMemoryReservationTest : public ZTest {
-private:
-  static constexpr size_t ReservationSize = 32 * M;
-
 public:
   virtual void SetUp() {
     // Only run test on supported Windows versions
@@ -137,14 +114,9 @@ public:
     // 4MB that is already covered by its own placeholder. You can't place
     // a placeholder over an already existing placeholder.
 
-    // To reproduce this, the test needed to mimic the initializing memory
-    // reservation code which had the placeholders turned off. This was done
-    // with this helper:
-    //
-    // ZCallbacksResetter resetter(&_va->_callbacks);
-    //
-    // After the fix, we always have the callbacks turned on, so we don't
-    // need this to mimic the initializing memory reservation.
+    // To reproduce the original bug, the test disabled callbacks during
+    // reservation. The callbacks are now installed before reserved ranges
+    // enter the registry.
 
     ZVirtualMemoryWithHeapBaseReserver reserver2(reserver.heap_base());
 

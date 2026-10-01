@@ -39,7 +39,7 @@ extern size_t    ZAddressHeapBaseShift;
 // The recommended initial min shift is the largest shift which
 // allows the smallest ZMarkPartialArrayMinSize.
 const size_t     ZAddressHeapBaseMaxShift = 47; // 128TB
-const size_t     ZAddressHeapBaseRecommendInitalMinShift = 44; // 16TB
+const size_t     ZAddressHeapBaseRecommendInitialMinShift = 44; // 16TB
 const size_t     ZAddressHeapBaseMinShift = 34; // 16GB
 
 // Max size limits for MaxHeapSize and the platforms available address space.

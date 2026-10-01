@@ -405,7 +405,7 @@ size_t ZVirtualMemoryAdaptiveReserver::unreserve_after(size_t keep_size) {
     index++;
   }
 
-  // Unreserve the reset of the vmems
+  // Unreserve the rest of the vmems
   for (int i = index; i < _reserved_ranges.length(); i++) {
     const ZVirtualMemoryUntyped& vmem = _reserved_ranges.at(i);
 

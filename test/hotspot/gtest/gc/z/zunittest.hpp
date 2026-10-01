@@ -121,7 +121,7 @@ public:
 
 private:
   ZAddressOffsetLimitsSetter _zaddress_offset_max_setter;
-  unsigned int _rand_seed;
+  unsigned int               _rand_seed;
 
   void skip_all_tests() {
     // Skipping from the constructor currently works, but according to the
@@ -187,8 +187,8 @@ public:
 };
 
 class ZTestAddressReserver {
-  ZVirtualMemoryReservation*      _reservation;
-  bool                            _active;
+  ZVirtualMemoryReservation* _reservation;
+  bool                       _active;
 
 public:
   ZTestAddressReserver()

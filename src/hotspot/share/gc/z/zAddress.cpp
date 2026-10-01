@@ -163,13 +163,13 @@ void ZGlobalsPointers::initialize() {
                 max_supported_heap / G));
   }
 
-  // Set inital heap base
+  // Set initial heap base
   ZAddressMaxHeapRequiredHeapBaseShift = (size_t)log2i_ceil(MaxHeapSize);
   const size_t desired_heap_base_shift = ZAddressMaxHeapRequiredHeapBaseShift + (size_t)log2i_exact(ZVirtualToPhysicalRatio);
   ZAddressMaxHeapRecommendedHeapBaseShift = MIN2(desired_heap_base_shift, ZAddressPlatformHeapBaseMaxShift);
   ZAddressInitialHeapBaseShift = ZForceHighestHeapBase
       ? ZAddressPlatformHeapBaseMaxShift
-      : MAX2(MIN2(ZAddressHeapBaseRecommendInitalMinShift, ZAddressPlatformHeapBaseMaxShift), ZAddressMaxHeapRecommendedHeapBaseShift);
+      : MAX2(MIN2(ZAddressHeapBaseRecommendInitialMinShift, ZAddressPlatformHeapBaseMaxShift), ZAddressMaxHeapRecommendedHeapBaseShift);
 
   ZPointerRemappedYoungMask = ZPointerRemapped10 | ZPointerRemapped00;
   ZPointerRemappedOldMask = ZPointerRemapped01 | ZPointerRemapped00;
@@ -184,10 +184,10 @@ void ZGlobalsPointers::initialize() {
 }
 
 void ZGlobalsPointers::validate_heap_base_shift(size_t heap_base_shift) {
-  assert(heap_base_shift <= ZAddressHeapBaseMaxShift, "Heap base shift to large");
-  assert(heap_base_shift <= ZAddressPlatformHeapBaseMaxShift, "Heap base shift to large");
-  assert(heap_base_shift >= ZAddressHeapBaseMinShift, "Heap base shift to small");
-  assert(heap_base_shift >= ZAddressMaxHeapRequiredHeapBaseShift, "Heap base shift to small");
+  assert(heap_base_shift <= ZAddressHeapBaseMaxShift, "Heap base shift too large");
+  assert(heap_base_shift <= ZAddressPlatformHeapBaseMaxShift, "Heap base shift too large");
+  assert(heap_base_shift >= ZAddressHeapBaseMinShift, "Heap base shift too small");
+  assert(heap_base_shift >= ZAddressMaxHeapRequiredHeapBaseShift, "Heap base shift too small");
 }
 
 size_t ZGlobalsPointers::initial_heap_base_shift() {

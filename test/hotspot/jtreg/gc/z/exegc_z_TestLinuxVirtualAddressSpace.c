@@ -109,8 +109,6 @@ JNIEnv* create_vm(JavaVM **jvm, const char* xmx) {
 void run_jvm(const char* xmx) {
   // Create the vm
   JavaVM* jvm;
-  jclass T_class;
-  jmethodID test_method;
   JNIEnv* env = create_vm(&jvm, xmx);
   ASSERT_NOT_NULL(env);
 

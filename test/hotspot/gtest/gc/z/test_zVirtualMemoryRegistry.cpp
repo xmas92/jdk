@@ -32,25 +32,7 @@
 #include "runtime/os.hpp"
 #include "zunittest.hpp"
 
-using namespace testing;
-
 #define ASSERT_REMOVAL_OK(range, sz) ASSERT_FALSE(range.is_null()); ASSERT_EQ(range.size(), (sz))
-
-class ZCallbacksResetter {
-private:
-  ZVirtualMemoryRegistry::Callbacks* _callbacks;
-  ZVirtualMemoryRegistry::Callbacks  _saved;
-
-public:
-  ZCallbacksResetter(ZVirtualMemoryRegistry::Callbacks* callbacks)
-    : _callbacks(callbacks),
-      _saved(*callbacks) {
-    *_callbacks = {};
-  }
-  ~ZCallbacksResetter() {
-    *_callbacks = _saved;
-  }
-};
 
 class ZVirtualMemoryRegistryTest : public ZTest {
 private:

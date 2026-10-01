@@ -1358,14 +1358,14 @@ void ZBarrierSetAssembler::check_oop(MacroAssembler* masm, Register obj, Registe
   Label done;
   Label check_oop;
   Label check_zaddress;
-  int color_bits = ZPointerRemappedShift + ZPointerRemappedBits;
+  size_t color_bits = ZPointerRemappedShift + ZPointerRemappedBits;
 
-  uintptr_t shifted_base_start_mask = (UCONST64(1) << (ZAddressHeapBaseShift + color_bits + 1)) - 1;
-  uintptr_t shifted_base_end_mask = (UCONST64(1) << (ZAddressHeapBaseShift + 1)) - 1;
-  uintptr_t shifted_base_mask = shifted_base_start_mask ^ shifted_base_end_mask;
+  intptr_t shifted_base_start_mask = right_n_bits(integer_cast<int>(ZAddressHeapBaseShift + color_bits + 1));
+  intptr_t shifted_base_end_mask = right_n_bits(integer_cast<int>(ZAddressHeapBaseShift + 1));
+  intptr_t shifted_base_mask = shifted_base_start_mask ^ shifted_base_end_mask;
 
-  uintptr_t shifted_address_end_mask = (UCONST64(1) << (color_bits + 1)) - 1;
-  uintptr_t shifted_address_mask = shifted_address_end_mask ^ (uintptr_t)CONST64(-1);
+  intptr_t shifted_address_end_mask = right_n_bits(integer_cast<int>(color_bits + 1));
+  intptr_t shifted_address_mask = shifted_address_end_mask ^ CONST64(-1);
 
   __ get_nzcv(tmp2);
 

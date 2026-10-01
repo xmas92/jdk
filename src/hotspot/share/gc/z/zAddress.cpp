@@ -201,12 +201,31 @@ bool ZGlobalsPointers::try_advance_heap_base_shift(size_t* in_out_heap_base_shif
 
   const size_t min_heap_base_shift = MAX2(ZAddressMaxHeapRequiredHeapBaseShift, ZAddressHeapBaseMinShift);
 
-  if (heap_base_shift == min_heap_base_shift) {
-    // heap_base_shift is already the smallest allowed heap base shift.
-    return false;
+  if (ZAddressPlatformHeapBaseMaxShift == initial_heap_base_shift()) {
+    if (heap_base_shift == min_heap_base_shift) {
+      // Reach the min shift, and max was the initial, stop the search
+      return false;
+    }
+  } else {
+    if (heap_base_shift == ZAddressPlatformHeapBaseMaxShift) {
+      // Reach the max shift, stop the search
+      return false;
+    }
   }
 
-  const size_t next_heap_base_shift = heap_base_shift - 1;
+  const size_t next_heap_base_shift = [&]() {
+    if (heap_base_shift == min_heap_base_shift) {
+      // Reached the min shift, search upwards from initial
+      return initial_heap_base_shift() + 1;
+    } else if (heap_base_shift <= initial_heap_base_shift()) {
+      // Searching down, [initial -> min]
+      return heap_base_shift - 1;
+    } else {
+      // Searching up, ]initial -> max]
+      return heap_base_shift + 1;
+    }
+  }();
+
 
   validate_heap_base_shift(next_heap_base_shift);
 

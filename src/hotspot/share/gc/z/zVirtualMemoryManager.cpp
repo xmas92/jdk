@@ -244,30 +244,30 @@ bool ZVirtualMemoryWithHeapBaseReserver::reserve_contiguous(size_t size) {
 
 class ZHeapBaseIterator {
 private:
+  const size_t _min_size;
   size_t       _current;
   bool         _completed;
 
 public:
-  ZHeapBaseIterator(size_t initial_heap_base_shift = ZGlobalsPointers::initial_heap_base_shift())
-    : _current(initial_heap_base_shift),
+  explicit ZHeapBaseIterator(size_t min_size)
+    : _min_size(min_size),
+      _current(ZGlobalsPointers::initial_heap_base_shift()),
       _completed(false) {}
 
   bool next(uintptr_t* out_heap_base) {
-    if (_completed) {
-      // Iterator has completed
-      return false;
+    while (!_completed) {
+      const uintptr_t heap_base = uintptr_t(1) << _current;
+
+      // Try to advance the heap base shift
+      _completed = !ZGlobalsPointers::try_advance_heap_base_shift(&_current);
+
+      if (heap_base >= _min_size) {
+        *out_heap_base = heap_base;
+        return true;
+      }
     }
 
-    const uintptr_t heap_base = uintptr_t(1) << _current;
-
-    log_trace(gc, init)("Attempting Heap Base: " PTR_FORMAT, heap_base);
-
-    *out_heap_base = heap_base;
-
-    // Try to advance the heap base shift
-    _completed = !ZGlobalsPointers::try_advance_heap_base_shift(&_current);
-
-    return true;
+    return false;
   }
 };
 
@@ -297,8 +297,10 @@ size_t ZVirtualMemoryAdaptiveReserver::reserve(size_t required_size, size_t desi
   size_t heap_base;
 
   // First attempt to get the desired size
-  for (ZHeapBaseIterator iter{}; iter.next(&heap_base);) {
+  for (ZHeapBaseIterator iter{desired_size}; iter.next(&heap_base);) {
     ZVirtualMemoryWithHeapBaseReserver reserver(heap_base);
+
+    log_trace(gc, init)("Attempting Heap Base (Desired Size): " PTR_FORMAT, heap_base);
 
     const size_t reserved = reserver.reserve(desired_size);
 
@@ -310,7 +312,7 @@ size_t ZVirtualMemoryAdaptiveReserver::reserve(size_t required_size, size_t desi
   }
 
   // Second attempt to get at least the required size
-  for (ZHeapBaseIterator iter{}; iter.next(&heap_base);) {
+  for (ZHeapBaseIterator iter{required_size}; iter.next(&heap_base);) {
     ZVirtualMemoryWithHeapBaseReserver reserver(heap_base);
 
     const size_t max_reserve_size = reserver.offset_max();
@@ -319,6 +321,8 @@ size_t ZVirtualMemoryAdaptiveReserver::reserve(size_t required_size, size_t desi
 
     // Still attempt to get up to desired_size
     const size_t to_reserve = MIN2<size_t>(max_reserve_size, desired_size);
+
+    log_trace(gc, init)("Attempting Heap Base (Required Size): " PTR_FORMAT, heap_base);
 
     const size_t reserved = reserver.reserve(to_reserve);
 

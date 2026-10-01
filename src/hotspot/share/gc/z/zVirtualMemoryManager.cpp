@@ -680,11 +680,10 @@ bool ZVirtualMemoryManager::is_initialized() const {
 
 bool ZVirtualMemoryManager::is_contiguous() const {
   zoffset_end last_end = zoffset_end::invalid;
-  ZPerNUMAConstIterator<ZVirtualMemoryRegistry> iter(&_partition_registries);
-  for (const ZVirtualMemoryRegistry* registry; iter.next(&registry);) {
+  const auto check_registry = [&](const ZVirtualMemoryRegistry* registry) {
     if (registry->is_empty()) {
-      // Empty registry advance to next
-      continue;
+      // Empty registry does not affect contiguous checks
+      return true;
     }
 
     if (!registry->is_contiguous()) {
@@ -700,9 +699,19 @@ bool ZVirtualMemoryManager::is_contiguous() const {
     last_end = registry->peak_high_address_end();
 
     postcond(last_end != zoffset_end::invalid);
+    return true;
+  };
+
+  ZPerNUMAConstIterator<ZVirtualMemoryRegistry> iter(&_partition_registries);
+  for (const ZVirtualMemoryRegistry* registry; iter.next(&registry);) {
+    if (!check_registry(registry)) {
+      // Found a discontinuity
+      return false;
+    }
   }
 
-  return true;
+  // Finally check multi partition registry
+  return check_registry(&_multi_partition_registry);
 }
 
 ZVirtualMemoryRegistry& ZVirtualMemoryManager::registry(uint32_t partition_id) {

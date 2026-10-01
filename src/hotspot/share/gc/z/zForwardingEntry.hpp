@@ -41,7 +41,7 @@
 //  |                    |                                                  |
 //  |                    |                      0-0 Populated Flag (1-bits) *
 //  |                    |
-//  |                    * 45-1 To Object Offset (45-bits)
+//  |                    * 45-1 To Object Offset (45-bits, 3-bit alignment shifted)
 //  |
 //  * 63-46 From Object Index (18-bits)
 //

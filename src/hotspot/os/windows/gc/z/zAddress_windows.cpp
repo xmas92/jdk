@@ -30,4 +30,3 @@ size_t ZPlatformHeapBaseMaxShift() {
   // can occupy the 47th bit, resulting in a shift of 46.
   return clamp(size_t(46), ZAddressHeapBaseMinShift, ZAddressHeapBaseMaxShift);
 }
-

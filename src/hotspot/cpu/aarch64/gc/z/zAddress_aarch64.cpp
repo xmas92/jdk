@@ -21,8 +21,8 @@
  * questions.
  */
 
- #include "gc/z/zAddress.hpp"
- #include "gc/z/zBarrierSetAssembler.hpp"
+#include "gc/z/zAddress.hpp"
+#include "gc/z/zBarrierSetAssembler.hpp"
 
 void ZGlobalsPointers::pd_set_good_masks() {
   BarrierSetAssembler::clear_patching_epoch();

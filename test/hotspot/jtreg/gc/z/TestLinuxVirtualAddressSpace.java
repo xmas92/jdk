@@ -159,7 +159,7 @@ public class TestLinuxVirtualAddressSpace {
 
         void analyze(OutputAnalyzer oa) {
             var range = parseReservedSpaceSpan(oa);
-            if (range.end >= bottom) {
+            if (range.end > bottom) {
                 error("Reserved Space Span above reserved range.");
             }
         }
@@ -205,4 +205,3 @@ public class TestLinuxVirtualAddressSpace {
         scenario.run();
     }
 }
-

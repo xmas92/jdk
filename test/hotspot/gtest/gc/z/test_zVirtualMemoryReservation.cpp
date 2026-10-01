@@ -74,10 +74,12 @@ public:
     reserver.reserve(4 * ZGranuleSize, 4 * ZGranuleSize);
 
     if (reserver.reserved() != 4 * ZGranuleSize) {
+      reserver.unreserve_all();
       GTEST_SKIP() << "Failed to reserve requested memory";
     }
 
     if (reserver._reserved_ranges.length() != 1) {
+      reserver.unreserve_all();
       GTEST_SKIP() << "Failed to reserve single reserved area";
     }
 

@@ -416,7 +416,7 @@ inline size_t byte_size_in_exact_unit(size_t s) {
 
 // Printing a range (with exact size format), with start and end given
 #define RANGE2EXACTFMT             "[" PTR_FORMAT " - " PTR_FORMAT "), (" EXACTFMT ")"
-#define RANGE2EXACTFMTARGS(p1, p2) p2i(p1), p2i(p2), EXACTFMTARGS(p2u(p2) - p2u(p2))
+#define RANGE2EXACTFMTARGS(p1, p2) p2i(p1), p2i(p2), EXACTFMTARGS(p2u(p2) - p2u(p1))
 
 // Memory size transition formatting.
 

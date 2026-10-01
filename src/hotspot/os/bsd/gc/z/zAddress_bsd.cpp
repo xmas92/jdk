@@ -37,5 +37,5 @@
 #endif
 
 size_t ZPlatformHeapBaseMaxShift() {
-  return clamp((size_t)log2i(Z_PLATFORM_MAX_HEAP_ADDRESS), ZAddressHeapBaseMinShift,ZAddressHeapBaseMaxShift);
+  return clamp((size_t)log2i(Z_PLATFORM_MAX_HEAP_ADDRESS), ZAddressHeapBaseMinShift, ZAddressHeapBaseMaxShift);
 }

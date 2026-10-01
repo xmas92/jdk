@@ -57,7 +57,7 @@ public:
     ZAddressOffsetMax = zaddress_offset_max;
     ZAddressOffsetMask = ZAddressOffsetMax - 1;
 
-    ZAddressOffsetUpperLimit = zaddress_offset_max;
+    ZAddressOffsetUpperLimit = zaddress_offset_limit;
   }
   ZAddressOffsetLimitsSetter(size_t zaddress_offset_max)
     : ZAddressOffsetLimitsSetter(zaddress_offset_max, zaddress_offset_max) {}

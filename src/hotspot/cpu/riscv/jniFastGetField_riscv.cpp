@@ -36,7 +36,7 @@
 
 #define __ masm->
 
-#define BUFFER_SIZE 30*wordSize
+#define BUFFER_SIZE 40*wordSize
 
 // Instead of issuing a LoadLoad barrier we create an address
 // dependency between loads; this might be more efficient.
@@ -99,7 +99,7 @@ address JNI_FastGetField::generate_fast_get_int_field0(BasicType type) {
                                                  // robj is address dependent on rcounter.
   }
 
-  // Both robj and t0 are clobbered by try_resolve_jobject_in_native.
+  // robj, t0 and t1 are clobbered by try_resolve_jobject_in_native.
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
   assert_cond(bs != nullptr);
   bs->try_resolve_jobject_in_native(masm, c_rarg0, robj, t0, slow);

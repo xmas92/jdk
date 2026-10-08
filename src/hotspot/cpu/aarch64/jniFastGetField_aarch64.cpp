@@ -149,7 +149,7 @@ address JNI_FastGetField::generate_fast_get_int_field0(BasicType type) {
                                           // robj is address dependent on rcounter.
   }
 
-  // Both robj and rscratch1 are clobbered by try_resolve_jobject_in_native.
+  // robj, rscratch1 and rscratch2 are clobbered by try_resolve_jobject_in_native.
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
   bs->try_resolve_jobject_in_native(masm, c_rarg0, robj, rscratch1, slow);
 

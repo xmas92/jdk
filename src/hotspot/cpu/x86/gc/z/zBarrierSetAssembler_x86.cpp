@@ -973,6 +973,11 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
 
   Label done, tagged, weak_tagged, uncolor;
 
+  // Check for stack processing
+  __ movl(tmp, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ cmp32(tmp, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr), rscratch1);
+  __ jcc(Assembler::notEqual, slowpath);
+
   // Test for tag
   __ testptr(obj, JNIHandles::tag_mask);
   __ jcc(Assembler::notZero, tagged);

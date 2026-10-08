@@ -560,7 +560,23 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
                                                          Label& slowpath) {
   BLOCK_COMMENT("ZBarrierSetAssembler::try_resolve_jobject_in_native {");
 
+  assert_different_registers(jni_env, robj, tmp, t1);
+
   Label done, tagged, weak_tagged, uncolor;
+
+  // Check for stack processing
+
+  // Order global epoch w.r.t. safepoint counter
+  __ membar(MacroAssembler::LoadLoad);
+  // Read thread local epoch
+  __ la(tmp, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ lwu(tmp, Address(tmp));
+  // Compare with global epoch
+  __ la(t1, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr));
+  __ lwu(t1, Address(t1));
+  __ bne(tmp, t1, slowpath);
+  // Order handles w.r.t. thread local epoch
+  __ membar(MacroAssembler::LoadLoad);
 
   // Test for tag
   __ andi(tmp, robj, JNIHandles::tag_mask);

@@ -28,6 +28,7 @@
 #include "gc/z/zGenerationId.hpp"
 #include "gc/z/zMarkStack.hpp"
 #include "gc/z/zStoreBarrierBuffer.hpp"
+#include "runtime/atomic.hpp"
 #include "runtime/javaThread.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/sizes.hpp"
@@ -42,6 +43,8 @@ private:
   ZStoreBarrierBuffer*   _store_barrier_buffer;
   ZMarkThreadLocalStacks _mark_stacks[2];
   zaddress_unsafe*       _invisible_root;
+  // A copy of the GC watermark epoch for fast JNI field getters.
+  Atomic<uint32_t>       _jni_fast_get_watermark_epoch;
 
   ZThreadLocalData()
     : _load_good_mask(0),
@@ -51,7 +54,8 @@ private:
       _store_bad_mask(0),
       _store_barrier_buffer(new ZStoreBarrierBuffer()),
       _mark_stacks(),
-      _invisible_root(nullptr) {}
+      _invisible_root(nullptr),
+      _jni_fast_get_watermark_epoch(0) {}
 
   ~ZThreadLocalData() {
     delete _store_barrier_buffer;
@@ -88,6 +92,10 @@ public:
 
   static void set_store_good_mask(Thread* thread, uintptr_t mask) {
     data(thread)->_store_good_mask = mask;
+  }
+
+  static void set_jni_fast_get_field_watermark_epoch(Thread* thread, uint32_t epoch) {
+    data(thread)->_jni_fast_get_watermark_epoch.release_store(epoch);
   }
 
   static ZMarkThreadLocalStacks* mark_stacks(Thread* thread, ZGenerationId id) {
@@ -130,6 +138,14 @@ public:
 
   static ByteSize store_barrier_buffer_offset() {
     return Thread::gc_data_offset() + byte_offset_of(ZThreadLocalData, _store_barrier_buffer);
+  }
+
+  static ByteSize jni_fast_get_watermark_epoch_offset() {
+    using WatermarkEpochType = decltype(ZThreadLocalData::_jni_fast_get_watermark_epoch);
+
+    return Thread::gc_data_offset() +
+           byte_offset_of(ZThreadLocalData, _jni_fast_get_watermark_epoch) +
+           in_ByteSize(WatermarkEpochType::value_offset_in_bytes());
   }
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -34,6 +34,7 @@ public:
 
   static Address load_bad_mask_from_jni_env(Register env);
   static Address mark_bad_mask_from_jni_env(Register env);
+  static Address jni_fast_get_watermark_epoch_from_jni_env(Register env);
 
   virtual void register_reloc_addresses(GrowableArray<address> &entries, int begin, int count) { }
   virtual void retrieve_reloc_addresses(address start, address end, GrowableArray<address> &entries) { }

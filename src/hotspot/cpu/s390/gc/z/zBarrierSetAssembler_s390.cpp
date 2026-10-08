@@ -580,9 +580,24 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
                                                          Label& slowpath) {
   BLOCK_COMMENT("ZBarrierSetAssembler::try_resolve_jobject_in_native {");
 
+  assert_different_registers(jni_env, robj, temp);
+
   NearLabel done, tagged, weak_tagged, uncolor;
   Address load_bad_mask = load_bad_mask_from_jni_env(jni_env),
           mark_bad_mask = mark_bad_mask_from_jni_env(jni_env);
+
+  // Save handle in temp, we use robj as a temporary register in address caluclations
+  assert(temp == Z_R0, "Cannot use R0 as Address base, if temp changes optmize this");
+  __ z_lgr(temp, robj);
+
+  // Check for stack processing
+  __ load_const_optimized(robj, (address)ZPointerStoreGoodMaskLowOrderBitsAddr);
+  __ z_llgf(robj, Address(robj));
+  __ z_cly(robj, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ branch_optimized(Assembler::bcondNotEqual, slowpath);
+
+  // Restore handle
+  __ z_lgr(robj, temp);
 
   // Test for Tag
   __ z_tmll(robj, JNIHandles::tag_mask);

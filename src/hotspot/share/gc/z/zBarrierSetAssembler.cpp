@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -39,4 +39,9 @@ Address ZBarrierSetAssemblerBase::load_bad_mask_from_jni_env(Register env) {
 
 Address ZBarrierSetAssemblerBase::mark_bad_mask_from_jni_env(Register env) {
   return Address(env, ZThreadLocalData::mark_bad_mask_offset() - JavaThread::jni_environment_offset());
+}
+
+Address ZBarrierSetAssemblerBase::jni_fast_get_watermark_epoch_from_jni_env(Register env) {
+  return Address(env, ZThreadLocalData::jni_fast_get_watermark_epoch_offset() -
+                      JavaThread::jni_environment_offset());
 }

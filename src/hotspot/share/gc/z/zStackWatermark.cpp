@@ -59,7 +59,10 @@ ZStackWatermark::ZStackWatermark(JavaThread* jt)
     // First watermark is fake and setup to be replaced at next phase shift
     _old_watermarks{{ZPointerStoreBadMask, 1}, {}, {}},
     _old_watermarks_newest(0),
-    _stats() {}
+    _stats() {
+  // Register the initial epoch in the JavaThread
+  ZThreadLocalData::set_jni_fast_get_field_watermark_epoch(_jt, epoch_id());
+}
 
 bool ZColorWatermark::covers(const ZColorWatermark& other) const {
   if (_watermark == 0) {
@@ -204,6 +207,9 @@ void ZStackWatermark::start_processing_impl(void* context) {
 
   // Publishes the processing start to concurrent threads
   StackWatermark::start_processing_impl(context);
+
+  // Publish the processing via the epoch for jni fast get field
+  ZThreadLocalData::set_jni_fast_get_field_watermark_epoch(_jt, epoch_id());
 }
 
 void ZStackWatermark::process(const frame& fr, RegisterMap& register_map, void* context) {

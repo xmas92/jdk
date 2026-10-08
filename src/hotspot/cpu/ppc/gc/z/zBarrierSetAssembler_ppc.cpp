@@ -587,7 +587,22 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, R
 
   Label done, tagged, weak_tagged, check_color;
   Address load_bad_mask = load_bad_mask_from_jni_env(jni_env),
-          mark_bad_mask = mark_bad_mask_from_jni_env(jni_env);
+          mark_bad_mask = mark_bad_mask_from_jni_env(jni_env),
+          watermark_epoch = jni_fast_get_watermark_epoch_from_jni_env(jni_env);
+
+  // Check for stack processing
+
+  // generate_fast_get_int_field0 already orders global epoch w.r.t. safepoint counter
+
+  // Read thread local epoch
+  __ lwz(tmp, watermark_epoch);
+  // Compare with global epoch
+  const int offset = __ load_const_optimized(dst, (address)ZPointerStoreGoodMaskLowOrderBitsAddr, R0, true /* return_simm16_rest */);
+  __ lwz(dst, offset, dst);
+  __ cmpw(CR0, tmp, dst);
+  __ bne(CR0, slowpath);
+  // Order handles w.r.t. thread local epoch
+  __ isync();
 
   // Test for tag
   __ andi_(tmp, obj, JNIHandles::tag_mask);

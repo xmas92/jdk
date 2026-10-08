@@ -35,7 +35,7 @@
 
 #define __ masm->
 
-#define BUFFER_SIZE 48*BytesPerInstWord
+#define BUFFER_SIZE 64*BytesPerInstWord
 
 
 // Common register usage:

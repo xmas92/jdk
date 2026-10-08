@@ -80,13 +80,13 @@ address JNI_FastGetField::generate_fast_get_int_field0(BasicType type) {
     __ jcc(Assembler::notZero, slow);
   }
 
-  __ mov   (roffset, c_rarg2);
-  __ shrptr(roffset, jfieldIDWorkaround::offset_shift);                         // offset
-
-  // Both robj and rtmp are clobbered by try_resolve_jobject_in_native.
+  // robj, rtmp and rscratch1/roffset are clobbered by try_resolve_jobject_in_native.
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
   bs->try_resolve_jobject_in_native(masm, /* jni_env */ c_rarg0, robj, rtmp, slow);
   DEBUG_ONLY(__ movl(rtmp, 0xDEADC0DE);)
+
+  __ mov   (roffset, c_rarg2);
+  __ shrptr(roffset, jfieldIDWorkaround::offset_shift);                         // offset
 
   assert(count < LIST_CAPACITY, "LIST_CAPACITY too small");
   speculative_load_pclist[count] = __ pc();
@@ -177,7 +177,7 @@ address JNI_FastGetField::generate_fast_get_float_field0(BasicType type) {
     __ jcc(Assembler::notZero, slow);
   }
 
-  // Both robj and rtmp are clobbered by try_resolve_jobject_in_native.
+  // robj, rtmp and rscratch1 are clobbered by try_resolve_jobject_in_native.
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
   bs->try_resolve_jobject_in_native(masm, /* jni_env */ c_rarg0, robj, rtmp, slow);
   DEBUG_ONLY(__ movl(rtmp, 0xDEADC0DE);)

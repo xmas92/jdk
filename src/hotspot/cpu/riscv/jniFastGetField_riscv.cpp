@@ -102,7 +102,7 @@ address JNI_FastGetField::generate_fast_get_int_field0(BasicType type) {
   // robj, t0 and t1 are clobbered by try_resolve_jobject_in_native.
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
   assert_cond(bs != nullptr);
-  bs->try_resolve_jobject_in_native(masm, c_rarg0, robj, t0, slow);
+  bs->try_resolve_jobject_in_native(masm, c_rarg0, robj, t0, t1, slow);
 
   __ srli(roffset, c_rarg2, jfieldIDWorkaround::offset_shift); // offset
   __ add(roffset, robj, roffset);

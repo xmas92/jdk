@@ -149,7 +149,8 @@ public:
   virtual void try_resolve_jobject_in_native(MacroAssembler* masm,
                                              Register jni_env,
                                              Register robj,
-                                             Register tmp,
+                                             Register tmp1,
+                                             Register tmp2,
                                              Label& slowpath);
 
   virtual NMethodPatchingType nmethod_patching_type() { return NMethodPatchingType::conc_instruction_and_data_patch; }

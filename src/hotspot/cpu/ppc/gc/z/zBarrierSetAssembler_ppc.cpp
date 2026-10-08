@@ -582,8 +582,11 @@ void ZBarrierSetAssembler::check_oop(MacroAssembler *masm, Register obj, const c
 }
 
 void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register dst, Register jni_env,
-                                                         Register obj, Register tmp, Label& slowpath) {
+                                                         Register obj, Register tmp1, Register tmp2, Label& slowpath) {
   __ block_comment("try_resolve_jobject_in_native (zgc) {");
+
+  assert_different_registers(jni_env, obj, tmp1, tmp2);
+  assert_different_registers(jni_env, dst, tmp1, tmp2);
 
   Label done, tagged, weak_tagged, check_color;
   Address load_bad_mask = load_bad_mask_from_jni_env(jni_env),
@@ -595,17 +598,17 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, R
   // generate_fast_get_int_field0 already orders global epoch w.r.t. safepoint counter
 
   // Read thread local epoch
-  __ lwz(tmp, watermark_epoch);
+  __ lwz(tmp1, watermark_epoch);
   // Compare with global epoch
-  const int offset = __ load_const_optimized(dst, (address)ZPointerStoreGoodMaskLowOrderBitsAddr, R0, true /* return_simm16_rest */);
+  const int offset = __ load_const_optimized(dst, (address)ZPointerStoreGoodMaskLowOrderBitsAddr, tmp2, true /* return_simm16_rest */);
   __ lwz(dst, offset, dst);
-  __ cmpw(CR0, tmp, dst);
+  __ cmpw(CR0, tmp1, dst);
   __ bne(CR0, slowpath);
   // Order handles w.r.t. thread local epoch
   __ isync();
 
   // Test for tag
-  __ andi_(tmp, obj, JNIHandles::tag_mask);
+  __ andi_(tmp1, obj, JNIHandles::tag_mask);
   __ bne(CR0, tagged);
 
   // Resolve local handle
@@ -615,23 +618,23 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, R
   __ bind(tagged);
 
   // Test for weak tag
-  __ andi_(tmp, obj, JNIHandles::TypeTag::weak_global);
+  __ andi_(tmp1, obj, JNIHandles::TypeTag::weak_global);
   __ clrrdi(dst, obj, JNIHandles::tag_size); // Untag.
   __ bne(CR0, weak_tagged);
 
   // Resolve global handle
   __ ld(dst, 0, dst);
-  __ ld(tmp, load_bad_mask);
+  __ ld(tmp1, load_bad_mask);
   __ b(check_color);
 
   __ bind(weak_tagged);
 
   // Resolve weak handle
   __ ld(dst, 0, dst);
-  __ ld(tmp, mark_bad_mask);
+  __ ld(tmp1, mark_bad_mask);
 
   __ bind(check_color);
-  __ and_(tmp, tmp, dst);
+  __ and_(tmp1, tmp1, dst);
   __ bne(CR0, slowpath);
 
   // Uncolor

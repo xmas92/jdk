@@ -259,7 +259,7 @@ void BarrierSetAssembler::copy_store_at(MacroAssembler* masm,
 }
 
 void BarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register jni_env,
-                                                        Register obj, Register tmp, Label& slowpath) {
+                                                        Register obj, Register tmp1, Register tmp2, Label& slowpath) {
   __ clear_jobject_tag(obj);
   __ movptr(obj, Address(obj, 0));
 }

@@ -76,7 +76,7 @@ public:
                         Address dst, Register val, Register tmp1, Register tmp2, Register tmp3);
 
   virtual void try_resolve_jobject_in_native(MacroAssembler* masm, Register jni_env,
-                                             Register obj, Register tmp, Label& slowpath);
+                                             Register obj, Register tmp1, Register tmp2, Label& slowpath);
   virtual void try_peek_weak_handle_in_nmethod(MacroAssembler* masm, Register weak_handle, Register obj,
                                                Register tmp, Label& slow_path);
   virtual void check_oop(MacroAssembler* masm, Register obj, Register tmp1, Register tmp2, Label& L_error);

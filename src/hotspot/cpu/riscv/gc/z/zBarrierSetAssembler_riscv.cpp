@@ -556,11 +556,12 @@ bool ZBarrierSetAssembler::supports_rvv_arraycopy() {
 void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
                                                          Register jni_env,
                                                          Register robj,
-                                                         Register tmp,
+                                                         Register tmp1,
+                                                         Register tmp2,
                                                          Label& slowpath) {
   BLOCK_COMMENT("ZBarrierSetAssembler::try_resolve_jobject_in_native {");
 
-  assert_different_registers(jni_env, robj, tmp, t1);
+  assert_different_registers(jni_env, robj, tmp1, tmp2);
 
   Label done, tagged, weak_tagged, uncolor;
 
@@ -569,18 +570,18 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
   // Order global epoch w.r.t. safepoint counter
   __ membar(MacroAssembler::LoadLoad);
   // Read thread local epoch
-  __ la(tmp, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
-  __ lwu(tmp, Address(tmp));
+  __ la(tmp1, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ lwu(tmp1, Address(tmp1));
   // Compare with global epoch
-  __ la(t1, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr));
-  __ lwu(t1, Address(t1));
-  __ bne(tmp, t1, slowpath);
+  __ la(tmp2, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr));
+  __ lwu(tmp2, Address(tmp2));
+  __ bne(tmp1, tmp2, slowpath);
   // Order handles w.r.t. thread local epoch
   __ membar(MacroAssembler::LoadLoad);
 
   // Test for tag
-  __ andi(tmp, robj, JNIHandles::tag_mask);
-  __ bnez(tmp, tagged);
+  __ andi(tmp1, robj, JNIHandles::tag_mask);
+  __ bnez(tmp1, tagged);
 
   // Resolve local handle
   __ ld(robj, robj);
@@ -589,25 +590,25 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
   __ bind(tagged);
 
   // Test for weak tag
-  __ andi(tmp, robj, JNIHandles::TypeTag::weak_global);
-  __ bnez(tmp, weak_tagged);
+  __ andi(tmp1, robj, JNIHandles::TypeTag::weak_global);
+  __ bnez(tmp1, weak_tagged);
 
   // Resolve global handle
   __ ld(robj, Address(robj, -JNIHandles::TypeTag::global));
-  __ la(tmp, load_bad_mask_from_jni_env(jni_env));
-  __ ld(tmp, tmp);
-  __ andr(tmp, robj, tmp);
-  __ bnez(tmp, slowpath);
+  __ la(tmp1, load_bad_mask_from_jni_env(jni_env));
+  __ ld(tmp1, tmp1);
+  __ andr(tmp1, robj, tmp1);
+  __ bnez(tmp1, slowpath);
   __ j(uncolor);
 
   __ bind(weak_tagged);
 
   // Resolve weak handle
   __ ld(robj, Address(robj, -JNIHandles::TypeTag::weak_global));
-  __ la(tmp, mark_bad_mask_from_jni_env(jni_env));
-  __ ld(tmp, tmp);
-  __ andr(tmp, robj, tmp);
-  __ bnez(tmp, slowpath);
+  __ la(tmp1, mark_bad_mask_from_jni_env(jni_env));
+  __ ld(tmp1, tmp1);
+  __ andr(tmp1, robj, tmp1);
+  __ bnez(tmp1, slowpath);
 
   __ bind(uncolor);
 

@@ -476,10 +476,11 @@ void ShenandoahBarrierSetAssembler::store_at(MacroAssembler* masm, DecoratorSet 
 }
 
 void ShenandoahBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register jni_env,
-                                                                  Register obj, Register tmp, Label& slowpath) {
+                                                                  Register obj, Register tmp1, Register tmp2,
+                                                                  Label& slowpath) {
   Label done;
   // Resolve jobject
-  BarrierSetAssembler::try_resolve_jobject_in_native(masm, jni_env, obj, tmp, slowpath);
+  BarrierSetAssembler::try_resolve_jobject_in_native(masm, jni_env, obj, tmp1, tmp2, slowpath);
 
   // Check for null.
   __ testptr(obj, obj);

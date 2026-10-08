@@ -610,10 +610,10 @@ void ShenandoahBarrierSetAssembler::store_at(MacroAssembler *masm, DecoratorSet 
 
 void ShenandoahBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler *masm,
                                                                   Register dst, Register jni_env, Register obj,
-                                                                  Register tmp, Label &slowpath) {
+                                                                  Register tmp1, Register tmp2, Label &slowpath) {
   __ block_comment("try_resolve_jobject_in_native (shenandoahgc) {");
 
-  assert_different_registers(jni_env, obj, tmp);
+  assert_different_registers(jni_env, obj, tmp1, tmp2);
 
   Label done;
 
@@ -622,14 +622,14 @@ void ShenandoahBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler
   __ beq(CR0, done);
 
   // Resolve jobject using standard implementation.
-  BarrierSetAssembler::try_resolve_jobject_in_native(masm, dst, jni_env, obj, tmp, slowpath);
+  BarrierSetAssembler::try_resolve_jobject_in_native(masm, dst, jni_env, obj, tmp1, tmp2, slowpath);
 
   // Check whether heap is stable.
-  __ lbz(tmp,
+  __ lbz(tmp1,
          in_bytes(ShenandoahThreadLocalData::gc_state_offset() - JavaThread::jni_environment_offset()),
          jni_env);
 
-  __ andi_(tmp, tmp, ShenandoahHeap::EVACUATION | ShenandoahHeap::HAS_FORWARDED);
+  __ andi_(tmp1, tmp1, ShenandoahHeap::EVACUATION | ShenandoahHeap::HAS_FORWARDED);
   __ bne(CR0, slowpath);
 
   __ bind(done);

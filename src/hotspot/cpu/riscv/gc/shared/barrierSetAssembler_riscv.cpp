@@ -187,7 +187,7 @@ void BarrierSetAssembler::copy_store_at(MacroAssembler* masm,
 }
 
 void BarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register jni_env,
-                                                        Register obj, Register tmp, Label& slowpath) {
+                                                        Register obj, Register tmp1, Register tmp2, Label& slowpath) {
   // If mask changes we need to ensure that the inverse is still encodable as an immediate
   static_assert(JNIHandles::tag_mask == 3);
   __ andi(obj, obj, ~JNIHandles::tag_mask);

@@ -131,7 +131,8 @@ public:
   virtual void try_resolve_jobject_in_native(MacroAssembler* masm,
                                              Register jni_env,
                                              Register obj,
-                                             Register tmp,
+                                             Register tmp1,
+                                             Register tmp2,
                                              Label& slowpath);
 
 #ifdef COMPILER1

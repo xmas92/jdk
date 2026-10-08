@@ -97,7 +97,7 @@ address JNI_FastGetField::generate_fast_get_int_field0(BasicType type) {
   }
 
   BarrierSetAssembler* bs = BarrierSet::barrier_set()->barrier_set_assembler();
-  bs->try_resolve_jobject_in_native(masm, Robj, R3_ARG1, R4_ARG2, Rtmp, slow);
+  bs->try_resolve_jobject_in_native(masm, Robj, R3_ARG1, R4_ARG2, Rtmp, R0, slow);
 
   __ srdi(Rtmp, R5_ARG3, jfieldIDWorkaround::offset_shift); // offset
 

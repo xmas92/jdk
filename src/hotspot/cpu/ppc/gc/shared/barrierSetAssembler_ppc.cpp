@@ -176,7 +176,7 @@ void BarrierSetAssembler::resolve_global_jobject(MacroAssembler* masm, Register 
 }
 
 void BarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register dst, Register jni_env,
-                                                        Register obj, Register tmp, Label& slowpath) {
+                                                        Register obj, Register tmp1, Register tmp2, Label& slowpath) {
   __ clrrdi(dst, obj, JNIHandles::tag_size);
   __ ld(dst, 0, dst);         // Resolve (untagged) jobject.
 }

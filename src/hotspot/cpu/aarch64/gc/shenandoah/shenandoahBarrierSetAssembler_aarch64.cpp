@@ -385,21 +385,23 @@ void ShenandoahBarrierSetAssembler::store_at(MacroAssembler* masm, DecoratorSet 
 }
 
 void ShenandoahBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm, Register jni_env,
-                                                                  Register obj, Register tmp, Label& slowpath) {
+                                                                  Register obj, Register tmp1, Register tmp2,
+                                                                  Label& slowpath) {
+  assert_different_registers(jni_env, obj, tmp1, tmp2);
+
   Label done;
   // Resolve jobject
-  BarrierSetAssembler::try_resolve_jobject_in_native(masm, jni_env, obj, tmp, slowpath);
+  BarrierSetAssembler::try_resolve_jobject_in_native(masm, jni_env, obj, tmp1, tmp2, slowpath);
 
   // Check for null.
   __ cbz(obj, done);
 
-  assert(obj != rscratch2, "need rscratch2");
   Address gc_state(jni_env, ShenandoahThreadLocalData::gc_state_offset() - JavaThread::jni_environment_offset());
-  __ lea(rscratch2, gc_state);
-  __ ldrb(rscratch2, Address(rscratch2));
+  __ lea(tmp2, gc_state);
+  __ ldrb(tmp2, Address(tmp2));
 
   // Check for heap in evacuation phase
-  __ tbnz(rscratch2, ShenandoahHeap::EVACUATION_BITPOS, slowpath);
+  __ tbnz(tmp2, ShenandoahHeap::EVACUATION_BITPOS, slowpath);
 
   __ bind(done);
 }

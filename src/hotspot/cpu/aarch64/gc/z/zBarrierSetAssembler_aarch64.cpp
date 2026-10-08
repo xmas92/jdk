@@ -787,11 +787,12 @@ void ZBarrierSetAssembler::copy_store_at(MacroAssembler* masm,
 void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
                                                          Register jni_env,
                                                          Register robj,
-                                                         Register tmp,
+                                                         Register tmp1,
+                                                         Register tmp2,
                                                          Label& slowpath) {
   BLOCK_COMMENT("ZBarrierSetAssembler::try_resolve_jobject_in_native {");
 
-  assert_different_registers(jni_env, robj, tmp, rscratch2);
+  assert_different_registers(jni_env, robj, tmp1, tmp2);
 
   Label done, tagged, weak_tagged, uncolor;
 
@@ -800,12 +801,12 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
   // Order global epoch w.r.t. safepoint counter
   __ membar(Assembler::LoadLoad);
   // Read thread local epoch
-  __ lea(tmp, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
-  __ ldrw(tmp, tmp);
+  __ lea(tmp1, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ ldrw(tmp1, tmp1);
   // Compare with global epoch
-  __ lea(rscratch2, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr));
-  __ ldrw(rscratch2, rscratch2);
-  __ cmpw(tmp, rscratch2);
+  __ lea(tmp2, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr));
+  __ ldrw(tmp2, tmp2);
+  __ cmpw(tmp1, tmp2);
   __ br(Assembler::NE, slowpath);
   // Order handles w.r.t. thread local epoch
   __ membar(Assembler::LoadLoad);
@@ -826,9 +827,9 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
 
   // Resolve global handle
   __ ldr(robj, Address(robj, -JNIHandles::TypeTag::global));
-  __ lea(tmp, load_bad_mask_from_jni_env(jni_env));
-  __ ldr(tmp, tmp);
-  __ tst(robj, tmp);
+  __ lea(tmp1, load_bad_mask_from_jni_env(jni_env));
+  __ ldr(tmp1, tmp1);
+  __ tst(robj, tmp1);
   __ br(Assembler::NE, slowpath);
   __ b(uncolor);
 
@@ -836,9 +837,9 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
 
   // Resolve weak handle
   __ ldr(robj, Address(robj, -JNIHandles::TypeTag::weak_global));
-  __ lea(tmp, mark_bad_mask_from_jni_env(jni_env));
-  __ ldr(tmp, tmp);
-  __ tst(robj, tmp);
+  __ lea(tmp1, mark_bad_mask_from_jni_env(jni_env));
+  __ ldr(tmp1, tmp1);
+  __ tst(robj, tmp1);
   __ br(Assembler::NE, slowpath);
 
   __ bind(uncolor);

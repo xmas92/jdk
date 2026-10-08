@@ -967,15 +967,18 @@ void ZBarrierSetAssembler::arraycopy_prologue(MacroAssembler* masm,
 void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
                                                          Register jni_env,
                                                          Register obj,
-                                                         Register tmp,
+                                                         Register tmp1,
+                                                         Register tmp2,
                                                          Label& slowpath) {
   BLOCK_COMMENT("ZBarrierSetAssembler::try_resolve_jobject_in_native {");
+
+  assert_different_registers(jni_env, obj, tmp1, tmp2);
 
   Label done, tagged, weak_tagged, uncolor;
 
   // Check for stack processing
-  __ movl(tmp, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
-  __ cmp32(tmp, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr), rscratch1);
+  __ movl(tmp1, jni_fast_get_watermark_epoch_from_jni_env(jni_env));
+  __ cmp32(tmp1, ExternalAddress((address)ZPointerStoreGoodMaskLowOrderBitsAddr), tmp2);
   __ jcc(Assembler::notEqual, slowpath);
 
   // Test for tag
@@ -1009,10 +1012,10 @@ void ZBarrierSetAssembler::try_resolve_jobject_in_native(MacroAssembler* masm,
 
   // Uncolor
   if (obj == rcx) {
-    __ movptr(tmp, obj);
+    __ movptr(tmp1, obj);
     __ movptr(rcx, ExternalAddress((address)&ZPointerLoadShift));
-    __ shrq(tmp);
-    __ movptr(obj, tmp);
+    __ shrq(tmp1);
+    __ movptr(obj, tmp1);
   } else {
     __ push_ppx(rcx);
     __ movptr(rcx, ExternalAddress((address)&ZPointerLoadShift));

@@ -68,7 +68,7 @@ public:
                                       MacroAssembler::PreservationLevel preservation_level);
 
   virtual void try_resolve_jobject_in_native(MacroAssembler* masm, Register dst, Register jni_env,
-                                             Register obj, Register tmp, Label& slowpath);
+                                             Register obj, Register tmp1, Register tmp2, Label& slowpath);
 
   // See AS_NO_KEEPALIVE for peek semantics
   // weak_handle and obj may alias

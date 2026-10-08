@@ -120,7 +120,7 @@ public:
                        MacroAssembler::PreservationLevel preservation_level, Label* L_handle_null = nullptr);
 
   virtual void try_resolve_jobject_in_native(MacroAssembler* masm, Register dst, Register jni_env,
-                                             Register obj, Register tmp, Label& slowpath);
+                                             Register obj, Register tmp1, Register tmp2, Label& slowpath);
 
   virtual void try_peek_weak_handle_in_nmethod(MacroAssembler* masm, Register weak_handle, Register obj,
                                                Register tmp, Label& slow_path);
